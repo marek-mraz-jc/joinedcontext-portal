@@ -213,6 +213,56 @@ fn refused_call(id: Value, why: &str) -> Value {
     tool_problem(id, 403, "forbidden", "Forbidden", why)
 }
 
+/// The tools one project of the connector's scope offers its caller: the registry's listing
+/// filtered by the connector's segments and the ceiling, the resource kinds narrowed to those
+/// the caller reads there.
+fn listed(
+    state: &AppState,
+    connector: &connectors::Connector,
+    caller: &crate::ops::Caller,
+    project: &str,
+    within_ceiling: impl Fn(&crate::ops::Operation) -> bool,
+) -> Vec<Value> {
+    let tools: Vec<Value> = crate::ops::listing(caller, state, project)
+        .iter()
+        .filter(|summary| {
+            crate::ops::find(&summary.name)
+                .is_some_and(|op| connector.lists(op, project) && within_ceiling(op))
+        })
+        .map(|summary| {
+            // Answered inline at this door, never as a task (T-6028).
+            let mut tool = tool_definition(summary);
+            tool["execution"]["taskSupport"] = json!("forbidden");
+            tool
+        })
+        .collect();
+    let (_, kinds) = connector.reach();
+    crate::ops::resources::with_readable_kinds(tools, caller, state, project, Some(&kinds))
+}
+
+/// One list of tools from several projects' lists: each tool once, a resource tool's kinds
+/// the union of what each project lets the caller read.
+fn merged(lists: impl Iterator<Item = Vec<Value>>) -> Vec<Value> {
+    let mut out: Vec<Value> = Vec::new();
+    for tool in lists.flatten() {
+        let Some(seen) = out.iter_mut().find(|t| t["name"] == tool["name"]) else {
+            out.push(tool);
+            continue;
+        };
+        if let (Some(have), Some(more)) = (
+            seen["inputSchema"]["properties"]["kind"]["enum"].as_array_mut(),
+            tool["inputSchema"]["properties"]["kind"]["enum"].as_array(),
+        ) {
+            for kind in more {
+                if !have.contains(kind) {
+                    have.push(kind.clone());
+                }
+            }
+        }
+    }
+    out
+}
+
 /// A tool error the model reads and can act on, its problem in `structuredContent`.
 fn tool_problem(id: Value, status: u16, slug: &str, title: &str, why: &str) -> Value {
     result(
@@ -389,36 +439,21 @@ async fn judge(
     let caller = caller(connector, identity, token);
     match method {
         "tools/list" => {
-            let project = project.unwrap_or_else(|| {
-                connector
+            // Without a project, every project of the connector's scope offers its tools, not
+            // only the first (JC1-22).
+            let projects: Vec<String> = match project {
+                Some(project) => vec![project],
+                None => connector
                     .projects()
-                    .first()
+                    .iter()
                     .map(|p| (*p).to_owned())
-                    .unwrap_or_default()
-            });
-            let tools: Vec<Value> = crate::ops::listing(&caller, state, &project)
-                .iter()
-                .filter(|summary| {
-                    crate::ops::find(&summary.name).is_some_and(|op| {
-                        connector.lists(op, &project)
-                            && (honoured || ceiling.lists(connector, op, &project))
-                    })
+                    .collect(),
+            };
+            let mut tools = merged(projects.iter().map(|project| {
+                listed(state, connector, &caller, project, |op| {
+                    honoured || ceiling.lists(connector, op, project)
                 })
-                .map(|summary| {
-                    // Answered inline at this door, never as a task (T-6028).
-                    let mut tool = tool_definition(summary);
-                    tool["execution"]["taskSupport"] = json!("forbidden");
-                    tool
-                })
-                .collect();
-            let (_, kinds) = connector.reach();
-            let mut tools = crate::ops::resources::with_readable_kinds(
-                tools,
-                &caller,
-                state,
-                &project,
-                Some(&kinds),
-            );
+            }));
             // The UI tools reach the person's paired tab only, so they are offered only while
             // one is paired (T-5967).
             let now = crate::auth::session::now_unix();
@@ -717,6 +752,26 @@ async fn verdict_of(response: Response, id: Value, result_bytes: usize) -> (Resp
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// JC1-22: a tool only the second project of a connector offers is still listed, and a
+    /// resource tool reads the kinds of both projects.
+    #[test]
+    fn tools_of_every_project_are_listed_once() {
+        let first = vec![
+            json!({ "name": "jc_resource_list", "inputSchema": { "properties": { "kind": { "enum": ["Endpoint"] } } } }),
+        ];
+        let second = vec![
+            json!({ "name": "jc_resource_list", "inputSchema": { "properties": { "kind": { "enum": ["Endpoint", "Pipeline"] } } } }),
+            json!({ "name": "jc_pipeline_logs" }),
+        ];
+        let tools = merged([first, second].into_iter());
+        let names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
+        assert_eq!(names, ["jc_resource_list", "jc_pipeline_logs"]);
+        assert_eq!(
+            tools[0]["inputSchema"]["properties"]["kind"]["enum"],
+            json!(["Endpoint", "Pipeline"])
+        );
+    }
 
     /// JC2-41: a refused call names the same problem type base as every Portal error.
     #[test]
