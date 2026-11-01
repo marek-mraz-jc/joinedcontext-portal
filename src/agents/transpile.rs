@@ -43,6 +43,7 @@ pub const INTERFACE: &[&str] = &[
     "@deck.gl/aggregation-layers",
     "@deck.gl/mapbox",
     "@joinedcontext/sdk",
+    "@joinedcontext/sdk/grid",
 ];
 /// What a function may import besides the files under `functions/`.
 pub const FUNCTION: &[&str] = &["@joinedcontext/sdk/server"];
@@ -432,9 +433,9 @@ mod tests {
             (
                 "src/App.tsx",
                 "import { useState } from \"react\";\nimport type { Row } from \"@joinedcontext/sdk\";\n\
-                 import { Card } from \"./pages/Card\";\nimport tokens from \"./design-tokens.json\";\n\
+                 import { Card } from \"./pages/Card\";\nimport { EntityGrid } from \"@joinedcontext/sdk/grid\";\nimport tokens from \"./design-tokens.json\";\n\
                  import \"./app.css\";\nimport \"@joinedcontext/sdk/style.css\";\n\
-                 export default function App({ rows }: { rows: Row[] }) {\n  const [n] = useState<number>(tokens.n);\n  return <Card n={n} rows={rows} />;\n}\n",
+                 export default function App({ rows }: { rows: Row[] }) {\n  const [n] = useState<number>(tokens.n);\n  return <><Card n={n} rows={rows} /><EntityGrid source={null as never} /></>;\n}\n",
             ),
             (
                 "src/pages/Card.tsx",
@@ -452,6 +453,10 @@ mod tests {
             "{app}"
         );
         assert!(app.contains("from \"react/jsx-runtime\""), "{app}");
+        assert!(
+            app.contains("from \"@joinedcontext/sdk/grid\""),
+            "the grid entry is an allowed interface import: {app}"
+        );
         assert!(!app.contains("Row"), "the type import is gone: {app}");
         assert!(
             !app.contains(".css"),

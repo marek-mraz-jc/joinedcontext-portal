@@ -12,8 +12,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
-import { EntityGrid, DEFAULT_LABELS, originTransport, SourceError, sourceFor } from "@joinedcontext/sdk";
-import type { ColumnLayout, EntityGridProps, GeoLabels, GridLabels, GridMapLabels, GridSource, GridState, ResolvedGridConfig } from "@joinedcontext/sdk";
+import { EntityGrid, DEFAULT_LABELS, originTransport, SourceError, sourceFor } from "@joinedcontext/sdk/grid";
+import type { ColumnLayout, EntityGridProps, GeoLabels, GridLabels, GridMapLabels, GridSource, GridState, ResolvedGridConfig } from "@joinedcontext/sdk/grid";
 
 /** Where the layout a person set is kept, per project and per type. */
 function layoutKey(project: string, type: string): string {
