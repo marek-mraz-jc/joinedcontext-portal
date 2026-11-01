@@ -580,6 +580,24 @@
       call: jc_change_apply
       args: { planId: '{planId}' }
       contains: ['changeRequests']
+    # An Endpoint and the Pipeline writing into it plan together and open one change (T-6282).
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Pipeline, name: counters-bundled, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Pipeline, metadata: { name: counters-bundled, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', source: { dataSourceRef: { kind: DataSource, name: counters-csv } }, targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-bundled', output: { type: BikeCounter, mode: upsert }, quotas: { maxMemoryMb: 128, cpuMillicores: 100 } } } }, { op: create, kind: Endpoint, name: '{project}-bundled', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-bundled', namespace: '{project}' }, spec: { contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld] } } }] }
+      refused: true
+      contains: ['/changes/0/manifest', 'jc_pipeline_test']
+    - proves: expect
+      runner_tested: counters-bundled
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Pipeline, name: counters-bundled, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Pipeline, metadata: { name: counters-bundled, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', source: { dataSourceRef: { kind: DataSource, name: counters-csv } }, targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-bundled', output: { type: BikeCounter, mode: upsert }, quotas: { maxMemoryMb: 128, cpuMillicores: 100 } } } }, { op: create, kind: Endpoint, name: '{project}-bundled', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-bundled', namespace: '{project}' }, spec: { contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld] } } }] }
+      keep: planId
+      contains: ['"planId"', '"ok":true']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['"changeRequests":[{', 'pulls/77']
+      absent: ['},{"url"']
     # The read Endpoint names its own Policy, so it binds no write of the Pipeline (PL-111).
     - proves: deny
       call: jc_change_plan
