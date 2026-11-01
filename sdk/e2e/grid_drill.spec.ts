@@ -88,7 +88,9 @@ for (const width of [1440, 400]) {
     await expect(page.getByRole("link", { name: "In service" }).first()).toHaveAttribute("href", "https://vocab.example/station#working");
     await expect(page.getByText("zzz (not in the list)")).toBeVisible();
     await expect(page.getByText("+2")).toBeVisible();
-    await expect(page.getByTitle("The model expects: Number")).toHaveText(/n\/a/);
+    const wrong = page.locator(".jc-cell--invalid", { hasText: "n/a" });
+    await expect(wrong).toHaveText("n/a (The model expects: Number)");
+    await expect(wrong).toBeVisible();
     await page.screenshot({ path: `${SHOTS}/drill-rows-${width}.png`, fullPage: true });
     if (width === 400) {
       // The cells right of the frozen id, as a person scrolls the table to them.

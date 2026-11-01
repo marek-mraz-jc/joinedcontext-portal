@@ -804,10 +804,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
       if (expected && one?.kind === "property" && kindOfCell(one) !== expected) {
         const reason = labels.wrongKind.replace("{kind}", labels[KIND_LABEL[expected]] as string);
         return (
-          <span className="jc-cell jc-cell--invalid" title={reason}>
-            {cellText(one)}
-            <span className="jc-grid-sr-only">{` (${reason})`}</span>
-          </span>
+          <span className="jc-cell jc-cell--invalid" title={reason}>{`${cellText(one)} (${reason})`}</span>
         );
       }
       // The value by what it holds: a number with its unit, a local date, a point, a chip (T-4827).

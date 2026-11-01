@@ -213,7 +213,9 @@ describe("missing and partial data (G-R2GRID2-020)", () => {
     const { container } = render(<EntityGrid config={gridOf("Road", columns)} source={fixtureSource([row])} rules={{ speed: { kind: "number" } }} />);
     const reason = DEFAULT_LABELS.wrongKind.replace("{kind}", DEFAULT_LABELS.kindNumber);
     const cell = await screen.findByTitle(reason);
-    expect(cell).toHaveTextContent("n/a");
+    // Seen, not only heard or hovered: the reason is the cell's own text, as "(not in the list)" is.
+    expect(cell).toHaveTextContent(`n/a (${reason})`);
+    expect(cell).toHaveClass("jc-cell--invalid");
     expect(container.querySelector(".jc-cell--number")).toBeNull();
   });
 
