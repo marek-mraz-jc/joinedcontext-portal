@@ -6,6 +6,11 @@
 //! The old list then leaves the preferences document; an old connector that did not move stays
 //! in it under `connectorsNotMoved` with the reason, and a list this Portal cannot read stays where
 //! it was, so a one-way move loses nothing a person made. No reader serves either key.
+//!
+//! The move runs for the signed-in person only (their preferences read or save, T-6362): what an
+//! old selector took is cut to the Endpoints, spaces and projects that person reads today and
+//! their DelegationPolicy ceiling admits, so a moved connector never names what its owner cannot
+//! see. Neither the start-up nor the gateway's listener knows a person's groups, so neither moves.
 
 use chrono::{Duration, Utc};
 use jc_core::kinds::Audience;
@@ -14,8 +19,10 @@ use jc_core::reach::EndpointFacts;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 
+use crate::auth::session::Identity;
 use crate::connectors::{Ceiling, ItemAccess, NewConnector, ScopeItem};
 use crate::error::ApiError;
+use crate::resource::ResourceEnvelope;
 use crate::state::AppState;
 use crate::store::Mirror;
 
@@ -60,7 +67,8 @@ pub struct Moved {
     /// Old connectors refused as a conflict: their name is live already (a second Portal moved
     /// them first), or the person holds the most live connectors.
     pub present: usize,
-    /// Old connectors whose selector takes no Endpoint today: nothing to reach.
+    /// Old connectors whose selector takes no Endpoint the person reads today, or whose scope
+    /// their ceiling refuses: nothing to reach.
     pub empty: usize,
     /// Old lists this Portal cannot read (an entry without a name, a string for a list): left in
     /// place, nothing of them moved.
@@ -141,13 +149,19 @@ fn item(project: &str) -> ScopeItem {
     }
 }
 
-/// Every Endpoint of the mirror as the facts a selector reads.
-fn facts(mirror: &Mirror) -> Vec<EndpointFacts> {
+/// Every Endpoint of the mirror `keep` passes, as the facts a selector reads.
+fn facts(
+    mirror: &Mirror,
+    mut keep: impl FnMut(&str, &ResourceEnvelope) -> bool,
+) -> Vec<EndpointFacts> {
     let mut facts: Vec<EndpointFacts> = mirror
         .matching(|env| env.kind == "Endpoint")
         .into_iter()
         .filter_map(|env| {
-            let project = env.metadata.namespace?;
+            let project = env.metadata.namespace.clone()?;
+            if !keep(&project, &env) {
+                return None;
+            }
             let spec: EndpointSpec = serde_json::from_value(env.spec).ok()?;
             let types = crate::api::assistant_context::model_classes(
                 mirror,
@@ -208,18 +222,65 @@ pub fn scope_of(select: &OldSelect, endpoints: &[EndpointFacts]) -> Vec<ScopeIte
     scope
 }
 
-/// The new connector an old one becomes, `None` when its selector takes nothing today.
-pub fn adopted(old: &Old, endpoints: &[EndpointFacts]) -> Option<NewConnector> {
-    let scope = scope_of(&old.select, endpoints);
+/// The new connector an old one becomes, its scope cut to what `ceiling` admits and its life to
+/// the ceiling's days; `None` when nothing is left.
+pub fn adopted(old: &Old, endpoints: &[EndpointFacts], ceiling: &Ceiling) -> Option<NewConnector> {
+    let scope: Vec<ScopeItem> = scope_of(&old.select, endpoints)
+        .into_iter()
+        .filter(|i| {
+            ceiling.allows_project_name(&i.project)
+                && ceiling.allows_endpoint(&i.project, i.endpoint.as_deref())
+        })
+        .collect();
     (!scope.is_empty()).then(|| NewConnector {
         name: old.name.clone(),
         segments: vec!["data-read".to_owned()],
         scope,
         kinds: None,
         writes: false,
-        expires_at: Utc::now() + Duration::days(Ceiling::of_policies(Vec::new()).max_days()),
+        expires_at: Utc::now() + Duration::days(ceiling.max_days()),
         allowed_clients: Vec::new(),
     })
+}
+
+/// The Endpoints `identity` reads today, as the facts a selector reads: an old selector named no
+/// right, so only these may become a connector's scope (T-6362).
+fn readable_endpoints(state: &AppState, identity: &Identity) -> Vec<EndpointFacts> {
+    let mut rights = std::collections::BTreeMap::new();
+    facts(&state.mirror, |project, env| {
+        rights
+            .entry(project.to_owned())
+            .or_insert_with(|| crate::permissions::for_request(state, identity, project))
+            .may_read_envelope("Endpoint", env)
+    })
+}
+
+/// `new` without the scope items its owner holds no read in (a project or space an old selector
+/// named), `None` when nothing is left.
+fn readable(
+    state: &AppState,
+    identity: &Identity,
+    new: Option<NewConnector>,
+) -> Option<NewConnector> {
+    let mut new = new?;
+    new.scope = std::mem::take(&mut new.scope)
+        .into_iter()
+        .enumerate()
+        .filter(|(i, item)| {
+            crate::api::connectors::reachable_item(state, identity, *i, item).is_ok()
+        })
+        .map(|(_, item)| item)
+        .collect();
+    (!new.scope.is_empty()).then_some(new)
+}
+
+/// Why `ceiling` would not let `new` go live at once, `None` when it does.
+fn refused(new: &NewConnector, ceiling: &Ceiling) -> Option<String> {
+    match crate::connectors::validate(new, ceiling, Utc::now()) {
+        Ok(above) if above.is_empty() => None,
+        Ok(above) => Some(above.join("; ")),
+        Err(refusal) => Some(refusal.to_string()),
+    }
 }
 
 fn db_error(err: sqlx::Error) -> ApiError {
@@ -227,13 +288,18 @@ fn db_error(err: sqlx::Error) -> ApiError {
     ApiError::Internal("the preferences database did not answer".into())
 }
 
-/// Moves `subject`'s old connectors into the store and drops them from their preferences. Answers
-/// 503 while the mirror holds no Endpoints yet (a selector would resolve to nothing); does nothing
-/// without a database or old connectors.
-pub async fn move_one(state: &AppState, subject: &str) -> Result<Moved, ApiError> {
+/// Moves the signed-in person's old connectors into the store and drops them from their
+/// preferences, each cut to what `identity` reads today and its ceiling admits. Answers 503 while
+/// the mirror holds no Endpoints yet (a selector would resolve to nothing); does nothing without a
+/// database or old connectors, or for a client's token (AG-151: a client manages no connector).
+pub async fn move_one(state: &AppState, identity: &Identity) -> Result<Moved, ApiError> {
     let Some(pool) = state.db.as_ref() else {
         return Ok(Moved::default());
     };
+    if identity.client.is_some() {
+        return Ok(Moved::default());
+    }
+    let subject = identity.subject.as_str();
     let Some(mut doc) = crate::db::load_preferences(pool, subject)
         .await
         .map_err(db_error)?
@@ -257,17 +323,26 @@ pub async fn move_one(state: &AppState, subject: &str) -> Result<Moved, ApiError
             ..Moved::default()
         });
     };
-    let endpoints = facts(&state.mirror);
+    let endpoints = readable_endpoints(state, identity);
+    let ceiling = Ceiling::of(&state.mirror, identity);
     let base = crate::api::connectors::base(state);
     let mut moved = Moved::default();
     let mut kept = Vec::new();
     for one in &old {
-        let Some(new) = adopted(one, &endpoints) else {
-            tracing::info!(connector = %one.name, "an old personal connector takes no Endpoint today; kept aside, not moved");
+        let Some(new) = readable(state, identity, adopted(one, &endpoints, &ceiling)) else {
+            tracing::info!(connector = %one.name, "an old personal connector takes no Endpoint its owner may read today; kept aside, not moved");
             moved.empty += 1;
-            kept.push(aside(one, "takes no Endpoint today"));
+            kept.push(aside(one, "takes no Endpoint you may read today"));
             continue;
         };
+        // What the ceiling would queue or refuse (a client list it demands) stays aside: a move
+        // asks no approval on the person's behalf.
+        if let Some(why) = refused(&new, &ceiling) {
+            tracing::info!(connector = %one.name, %why, "an old personal connector is above its owner's ceiling; kept aside");
+            moved.empty += 1;
+            kept.push(aside(one, &why));
+            continue;
+        }
         match state
             .connectors
             .create(subject, new, Vec::new(), &base)
@@ -301,54 +376,6 @@ pub async fn move_one(state: &AppState, subject: &str) -> Result<Moved, ApiError
         .await
         .map_err(db_error)?;
     Ok(moved)
-}
-
-/// Moves every person's old connectors, once the mirror holds the Endpoints; logs the counts the
-/// deployer compares with the count before (T-5970).
-pub async fn move_all(state: &AppState) -> Result<Moved, ApiError> {
-    let Some(pool) = state.db.as_ref() else {
-        return Ok(Moved::default());
-    };
-    let (old,): (i64,) = sqlx::query_as(
-        "SELECT coalesce(sum(jsonb_array_length(preferences -> 'connectors')), 0)::bigint \
-         FROM user_preferences WHERE jsonb_typeof(preferences -> 'connectors') = 'array'",
-    )
-    .fetch_one(pool)
-    .await
-    .map_err(db_error)?;
-    let subjects: Vec<String> =
-        sqlx::query_scalar("SELECT subject FROM user_preferences WHERE preferences ? 'connectors'")
-            .fetch_all(pool)
-            .await
-            .map_err(db_error)?;
-    let mut total = Moved::default();
-    for subject in &subjects {
-        let one = move_one(state, subject).await?;
-        total.moved += one.moved;
-        total.present += one.present;
-        total.empty += one.empty;
-        total.unreadable += one.unreadable;
-    }
-    tracing::info!(
-        old,
-        people = subjects.len(),
-        moved = total.moved,
-        present = total.present,
-        empty = total.empty,
-        unreadable = total.unreadable,
-        "old personal connectors moved into the connector store"
-    );
-    Ok(total)
-}
-
-/// Waits for the first mirror, then runs [`move_all`] once.
-pub async fn move_when_ready(state: AppState) {
-    while state.mirror.is_empty() {
-        tokio::time::sleep(std::time::Duration::from_secs(10)).await;
-    }
-    if let Err(error) = move_all(&state).await {
-        tracing::warn!(%error, "old personal connectors were not moved; the next start tries again");
-    }
 }
 
 #[cfg(test)]
@@ -502,7 +529,8 @@ mod tests {
             serde_json::json!({"name": "my-air", "select": {"themes": ["ENVI"]}}),
         )
         .expect("an old connector");
-        let new = adopted(&old, &catalogue()).expect("it takes one Endpoint");
+        let new = adopted(&old, &catalogue(), &Ceiling::of_policies(Vec::new()))
+            .expect("it takes one Endpoint");
         assert_eq!(new.name, "my-air");
         assert_eq!(new.segments, ["data-read"]);
         assert!(!new.writes);
@@ -515,7 +543,7 @@ mod tests {
             serde_json::json!({"name": "x", "select": {"themes": ["AGRI"]}}),
         )
         .expect("an old connector");
-        assert!(adopted(&none, &catalogue()).is_none());
+        assert!(adopted(&none, &catalogue(), &Ceiling::of_policies(Vec::new())).is_none());
     }
 
     #[test]
@@ -529,5 +557,96 @@ mod tests {
         );
         assert_eq!(scope.len(), MAX_SCOPE);
         assert!(scope.iter().all(|i| i.endpoint.is_some()));
+    }
+
+    /// A reader of project `helsinki` alone; `espoo` holds a private Endpoint beside it.
+    fn reader_world() -> (AppState, Identity) {
+        use crate::config::Config;
+        use crate::permissions::ORG_NAMESPACE;
+        use crate::resource::ObjectMeta;
+        let state = AppState::new(Config::for_tests(), None);
+        let put = |kind: &str, name: &str, namespace: &str, spec: Value| {
+            state.mirror.upsert(ResourceEnvelope {
+                api_version: crate::resource::API_VERSION.to_owned(),
+                kind: kind.to_owned(),
+                metadata: ObjectMeta::new(name, namespace),
+                spec,
+                status: None,
+            })
+        };
+        put(
+            "Role",
+            "reader",
+            ORG_NAMESPACE,
+            json!({ "rules": [{ "kinds": ["Endpoint", "ContextSpace"], "verbs": ["read"] }] }),
+        );
+        put(
+            "RoleBinding",
+            "reader",
+            ORG_NAMESPACE,
+            json!({ "subjects": [{ "user": "reader@hel.fi" }], "role": "reader", "scope": { "project": "helsinki" } }),
+        );
+        for (project, audience) in [("helsinki", "organization"), ("espoo", "organization")] {
+            put("ContextSpace", "air", project, json!({}));
+            put(
+                "Endpoint",
+                &format!("{project}-air"),
+                project,
+                json!({ "contextSpaceRef": "air", "slug": format!("{project}airaaaaaaaaaaaaaaaaaaaaaa"), "audience": audience }),
+            );
+        }
+        let reader = Identity {
+            client: None,
+            subject: "sub-reader".into(),
+            username: "reader@hel.fi".into(),
+            email: Some("reader@hel.fi".into()),
+            name: None,
+            roles: vec![],
+            groups: vec![],
+            second_factor: false,
+        };
+        (state, reader)
+    }
+
+    #[test]
+    fn a_moved_connector_never_names_an_endpoint_or_project_its_owner_cannot_read() {
+        let (state, reader) = reader_world();
+        let endpoints = readable_endpoints(&state, &reader);
+        assert_eq!(
+            endpoints
+                .iter()
+                .map(|e| e.name.as_str())
+                .collect::<Vec<_>>(),
+            ["helsinki-air"],
+            "the other project's private Endpoint is not a candidate"
+        );
+        let ceiling = Ceiling::of(&state.mirror, &reader);
+        let move_of = |select: Value| {
+            let old = Old {
+                name: "fav".into(),
+                select: serde_json::from_value(select).expect("an old selector"),
+            };
+            readable(&state, &reader, adopted(&old, &endpoints, &ceiling)).map(|n| named(&n.scope))
+        };
+        assert_eq!(
+            move_of(json!({})),
+            Some(vec!["helsinki all".to_owned()]),
+            "an empty selector reaches the readable project alone"
+        );
+        assert_eq!(
+            move_of(json!({ "endpoints": ["espooairaaaaaaaaaaaaaaaaaaaaaa"] })),
+            None,
+            "a favourite of a private Endpoint moves nowhere"
+        );
+        assert_eq!(
+            move_of(json!({ "projects": ["espoo", "helsinki"] })),
+            Some(vec!["helsinki all".to_owned()]),
+            "a project the owner holds no right in leaves the scope"
+        );
+        assert_eq!(
+            move_of(json!({ "spaces": ["espoo/air"] })),
+            None,
+            "a space of such a project too"
+        );
     }
 }
