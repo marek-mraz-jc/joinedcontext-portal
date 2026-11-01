@@ -493,7 +493,8 @@ async fn only_a_proposal_carries_a_verdict_refusal_and_it_is_the_routes_own() {
 
     for op in ops::registry() {
         let input = json!({ "draft": { "kind": "ContextSpace", "name": "ovzdusie-main" } });
-        let carried = ops::verdict_refusal(&state, op, PROJECT, &input).await;
+        let carried =
+            ops::verdict_refusal(&state, &identity("stefan", &["devs"]), op, PROJECT, &input).await;
         if op.verb != Some(jc_core::kinds::Verb::Propose) {
             assert!(
                 carried.is_none(),
@@ -527,9 +528,15 @@ async fn only_a_proposal_carries_a_verdict_refusal_and_it_is_the_routes_own() {
         .expect("the draft is written");
     let propose = ops::find("jc_resource_propose").expect("a registered proposal");
     let input = json!({ "draft": { "kind": "ContextSpace", "name": "ovzdusie-unchecked" } });
-    let carried = ops::verdict_refusal(&state, propose, PROJECT, &input)
-        .await
-        .expect("the refusal the route would answer");
+    let carried = ops::verdict_refusal(
+        &state,
+        &identity("stefan", &["devs"]),
+        propose,
+        PROJECT,
+        &input,
+    )
+    .await
+    .expect("the refusal the route would answer");
     assert_eq!(carried["error"], json!("verdict_required"));
     assert_eq!(carried["check"], json!("jc_manifest_dry_run"));
     assert_eq!(carried["reason"], json!("verdict_absent"));
@@ -551,16 +558,28 @@ async fn only_a_proposal_carries_a_verdict_refusal_and_it_is_the_routes_own() {
         json!({ "draft": "ovzdusie-unchecked" }),
     ] {
         assert!(
-            ops::verdict_refusal(&state, propose, PROJECT, &input)
-                .await
-                .is_none(),
+            ops::verdict_refusal(
+                &state,
+                &identity("stefan", &["devs"]),
+                propose,
+                PROJECT,
+                &input
+            )
+            .await
+            .is_none(),
             "{input} produced a refusal about a draft it did not name",
         );
     }
     assert!(
-        ops::verdict_refusal(&state, propose, "doprava", &input)
-            .await
-            .is_none(),
+        ops::verdict_refusal(
+            &state,
+            &identity("stefan", &["devs"]),
+            propose,
+            "doprava",
+            &input
+        )
+        .await
+        .is_none(),
         "a draft of another project answered this project's door",
     );
 }
