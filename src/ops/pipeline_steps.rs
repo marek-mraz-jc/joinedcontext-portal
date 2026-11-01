@@ -144,7 +144,8 @@ fn sample_source_output_schema() -> Value {
             "fields": { "type": "array", "items": { "type": "string" }, "description": "Every field of those records, once each, in name order" },
             "count": { "type": "integer" },
             "truncated": { "type": "boolean", "description": "Whether the source answered more than the records shown" },
-            "errors": { "type": "array", "description": "What the fetch or the parse said, when it failed" }
+            "errors": { "type": "array", "description": "What the fetch or the parse said, when it failed" },
+            "withheld": withheld_schema()
         }
     })
 }
@@ -179,9 +180,59 @@ fn try_mapping_output_schema() -> Value {
         "properties": {
             "input": { "type": "object", "description": "What the runner read: events, bytes and the first record" },
             "records": { "type": "array", "description": "Each record as the pipeline would write it" },
-            "errors": { "type": "array", "description": "Each failure with its stage, the step and the line of the mapping" }
+            "errors": { "type": "array", "description": "Each failure with its stage, the step and the line of the mapping" },
+            "withheld": withheld_schema()
         }
     })
+}
+
+/// The `withheld` member of a sample answer (AG-158).
+fn withheld_schema() -> Value {
+    json!({
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Each personal field of the source left out, as DataSource/{name}.{field}"
+    })
+}
+
+/// Whether the caller's answers go to a model outside the Portal: an MCP client or an agent
+/// run, which do not see the fields a DataSource lists personal (AG-158).
+fn hides_source_fields(caller: &super::Caller) -> bool {
+    matches!(caller.via, super::Via::Mcp | super::Via::Agent)
+}
+
+/// `answer` without the personal fields of each DataSource in `sources`, for a caller that
+/// does not see them.
+fn without_source_fields<'a>(
+    caller: &super::Caller,
+    state: &AppState,
+    project: &str,
+    sources: impl IntoIterator<Item = &'a str>,
+    mut answer: Value,
+) -> Value {
+    if hides_source_fields(caller) {
+        for source in sources {
+            let fields = crate::personal_data::source_fields(state, project, source);
+            crate::personal_data::withhold_source(&mut answer, source, &fields);
+        }
+    }
+    answer
+}
+
+/// The DataSources a Pipeline manifest reads: `spec.source.dataSourceRef` and each
+/// `spec.sources[].dataSourceRef`, by name or as a reference.
+fn data_sources_of(pipeline: &Value) -> Vec<String> {
+    let spec = &pipeline["spec"];
+    std::iter::once(&spec["source"])
+        .chain(spec["sources"].as_array().into_iter().flatten())
+        .filter_map(|source| {
+            let reference = &source["dataSourceRef"];
+            reference
+                .as_str()
+                .or_else(|| reference["name"].as_str())
+                .map(str::to_owned)
+        })
+        .collect()
 }
 
 fn validate_input_schema() -> Value {
@@ -539,7 +590,14 @@ async fn try_mapping(
     if input.steps {
         answer["steps"] = json!(step_trace(&pipeline, &trace));
     }
-    Ok(answer)
+    let sources = data_sources_of(&pipeline);
+    Ok(without_source_fields(
+        caller,
+        state,
+        project,
+        sources.iter().map(String::as_str),
+        answer,
+    ))
 }
 
 /// What each step of `pipeline` made of the sample (T-6082): its name, up to [`STAGE_RECORDS`]
@@ -636,11 +694,20 @@ pub fn operations() -> Vec<Operation> {
             run: |caller, state, project, val| {
                 Box::pin(async move {
                     let input: SampleSourceInput = parse_input(val)?;
+                    let named = input.data_source.clone();
                     let (sample, plan) = match (input.data_source, input.sample) {
                         (Some(name), None) => {
                             if let Some(source) = streamed_source(caller, state, project, &name)? {
-                                return streamed_sample(caller, state, project, &name, &source)
-                                    .await;
+                                let answer =
+                                    streamed_sample(caller, state, project, &name, &source)
+                                        .await?;
+                                return Ok(without_source_fields(
+                                    caller,
+                                    state,
+                                    project,
+                                    [name.as_str()],
+                                    answer,
+                                ));
                             }
                             sample_of_data_source(caller, state, project, &name)?
                         }
@@ -655,13 +722,20 @@ pub fn operations() -> Vec<Operation> {
                     let trace =
                         pipeline_test::run_harness(state, project, &plan, &sample).await?;
                     let fields = fields_of(&trace.mapping);
-                    Ok(json!({
+                    let answer = json!({
                         "count": trace.mapping.len(),
                         "truncated": trace.mapping.len() >= MAX_MESSAGES,
                         "fields": fields,
                         "records": trace.mapping,
                         "errors": trace.errors,
-                    }))
+                    });
+                    Ok(without_source_fields(
+                        caller,
+                        state,
+                        project,
+                        named.as_deref(),
+                        answer,
+                    ))
                 })
             },
         },
@@ -826,6 +900,70 @@ pub(super) async fn candidate(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// AG-158 (T-6265): an MCP client and an agent run get a sample without the fields the
+    /// DataSource lists personal, named; a signed-in session keeps them.
+    #[test]
+    fn a_sample_leaves_the_listed_source_fields_only_for_a_model_outside_the_portal() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        state.mirror.upsert(crate::resource::ResourceEnvelope {
+            api_version: crate::resource::API_VERSION.to_owned(),
+            kind: "DataSource".to_owned(),
+            metadata: crate::resource::ObjectMeta::new("trips", "helsinki"),
+            spec: json!({ "type": "http", "http": { "url": "https://data.example.fi/trips.csv" }, "personalFields": ["rider"] }),
+            status: None,
+        });
+        let sample = json!({ "records": [{ "rider": "Jana", "station": "SNP" }] });
+        let caller = |via| super::super::Caller {
+            identity: crate::auth::session::Identity {
+                client: None,
+                subject: "sub-jana".into(),
+                username: "jana".into(),
+                email: None,
+                name: None,
+                roles: vec![],
+                groups: vec![],
+                second_factor: false,
+            },
+            via,
+            access: None,
+            bearer: None,
+        };
+        use super::super::Via;
+        for via in [Via::Mcp, Via::Agent] {
+            let answer =
+                without_source_fields(&caller(via), &state, "helsinki", ["trips"], sample.clone());
+            assert_eq!(answer["records"], json!([{ "station": "SNP" }]), "{via:?}");
+            assert_eq!(answer["withheld"], json!(["DataSource/trips.rider"]));
+        }
+        for via in [Via::Session, Via::Bearer] {
+            let answer =
+                without_source_fields(&caller(via), &state, "helsinki", ["trips"], sample.clone());
+            assert_eq!(answer, sample, "{via:?}");
+        }
+        // Another project's source of the same name lists nothing here.
+        let answer = without_source_fields(
+            &caller(Via::Mcp),
+            &state,
+            "other",
+            ["trips"],
+            sample.clone(),
+        );
+        assert_eq!(answer, sample);
+    }
+
+    #[test]
+    fn a_pipeline_reads_the_data_sources_its_one_and_many_sources_name() {
+        let one = json!({ "spec": { "source": { "dataSourceRef": "gbfs" } } });
+        let many = json!({ "spec": { "sources": [
+            { "dataSourceRef": { "kind": "DataSource", "name": "a" } },
+            { "endpointRef": "e" },
+            { "dataSourceRef": "b" }
+        ] } });
+        assert_eq!(data_sources_of(&one), ["gbfs"]);
+        assert_eq!(data_sources_of(&many), ["a", "b"]);
+        assert!(data_sources_of(&json!({ "spec": {} })).is_empty());
+    }
 
     /// T-6082: each step names itself and shows its records masked as a run's log is, its
     /// counts and errors; a step past the byte budget keeps its field names and says so.
