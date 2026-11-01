@@ -73,6 +73,7 @@ for (const lang of ["en", "sk"] as const) {
       const field = page.locator("fieldset", { has: table }).last();
       const box = await field.boundingBox();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+      await page.mouse.move(0, 0);
       // A viewport shot with the matrix's legend just below the sticky app header.
       await field.evaluate((el) => {
         el.scrollIntoView({ block: "start" });

@@ -269,7 +269,7 @@ export function ListCell({ attribute, column, row, every, limits, frozen, onChan
         return (
           <Checkbox
             key={item}
-            label={<span className={column === "metadata" ? "font-mono text-caption" : "text-caption"}>{word(item)}</span>}
+            label={<span className={column === "metadata" ? "font-mono text-caption" : undefined}>{word(item)}</span>}
             aria-label={`${name} ${item}`}
             checked={ticked}
             disabled={frozen || (reason !== undefined && !ticked)}
