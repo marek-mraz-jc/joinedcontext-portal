@@ -1015,6 +1015,89 @@
 
 button.jc-cell-chip {
   cursor: pointer;
+  min-height: 24px;
+  color: var(--jc-color-accent, #0066cc);
+}
+
+/* A target that was deleted or is not readable: its id, plainly, with no way in (EP-59). */
+.jc-cell-chip--plain {
+  border-style: dashed;
+  color: var(--jc-color-muted, #57606a);
+}
+
+/* "+2": the other instances of an attribute (datasetId), listed in the row's detail. */
+.jc-cell-more,
+.jc-cell-lang {
+  margin-left: 4px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--jc-color-card, #f5f5f5);
+  color: var(--jc-color-muted, #57606a);
+  font-size: var(--jc-font-size-sm, 12px);
+}
+
+/* A value the model does not allow there: as stored, marked. A border inside its own box, since the
+   cell's line clamp (overflow: hidden) cut an underline drawn below the line (T-6304 review). */
+.jc-cell--invalid {
+  display: inline-block;
+  white-space: nowrap;
+  border-bottom: 2px dotted var(--jc-color-warning, #9a6700);
+}
+
+.jc-grid-instances {
+  margin: 0;
+  padding-left: 1rem;
+}
+
+.jc-grid-instance-id {
+  color: var(--jc-color-muted, #57606a);
+}
+
+/* The way back from an opened relationship target (G-R2GRID2-017). */
+.jc-grid-trail {
+  font-family: var(--jc-font-body, "Inter", system-ui, sans-serif);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: var(--jc-space-2, 8px) 0;
+}
+
+.jc-grid-trail ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.jc-grid-trail li + li::before {
+  content: "/";
+  margin-right: 4px;
+  color: var(--jc-color-muted, #57606a);
+}
+
+.jc-grid-trail button {
+  border: 0;
+  background: none;
+  padding: 0;
+  font: inherit;
+  color: var(--jc-color-accent, #0066cc);
+  text-decoration: underline;
+  cursor: pointer;
+  min-height: 24px;
+}
+
+.jc-grid-trail .jc-grid-trail-back {
+  border: 1px solid var(--jc-color-line, #e0e0e0);
+  border-radius: 4px;
+  padding: 2px 8px;
+  text-decoration: none;
+}
+
+.jc-grid-trail [aria-current] {
+  font-weight: 600;
 }
 
 button.jc-cell-chip:hover {

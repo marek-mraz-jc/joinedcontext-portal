@@ -214,6 +214,16 @@ export interface GridLabels {
   points: string;
   /** Before a relationship chip's target: "Open: Organization · unit-12". */
   openTarget: string;
+  /** The hover of "+N" on an attribute with several instances (datasetId). */
+  moreInstances: string;
+  /** Beside a value whose kind is not the model's: "The model expects: Number". */
+  wrongKind: string;
+  /** The name of the breadcrumb of opened relationship targets, for a screen reader. */
+  drillTrail: string;
+  /** The breadcrumb's step back to the rows a target was opened from. */
+  drillBack: string;
+  /** The row detail's name for the instance without a datasetId. */
+  defaultInstance: string;
 }
 
 /**
@@ -368,6 +378,11 @@ export const DEFAULT_LABELS: GridLabels = {
   kindList: "List",
   points: "points",
   openTarget: "Open",
+  moreInstances: "{count} more instances",
+  wrongKind: "The model expects: {kind}",
+  drillTrail: "Opened links",
+  drillBack: "Back",
+  defaultInstance: "default",
 };
 
 export interface VisibleColumn {
@@ -894,6 +909,8 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     attrs: queryPartial?.attrs ?? config.filters.preset?.attrs,
     idPattern: askedQuery.idPattern ?? queryPartial?.idPattern ?? config.filters.preset?.idPattern,
     scopeQ: queryPartial?.scopeQ ?? config.filters.preset?.scopeQ,
+    // Exactly these entities: an opened relationship target (G-R2GRID2-017).
+    ids: queryPartial?.ids,
     // `areaQuery` refuses a shape that is not an area, so a half-drawn one asks for nothing
     // rather than for everything.
     area: areaQuery(area) ?? undefined,
@@ -902,7 +919,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
 
   const narrowed = useMemo(() => {
     const asked = JSON.parse(gridQueryKey) as GridQuery;
-    return Boolean(asked.q || asked.idPattern || asked.scopeQ || asked.area);
+    return Boolean(asked.q || asked.idPattern || asked.scopeQ || asked.area || asked.ids);
   }, [gridQueryKey]);
 
   const fetchData = useCallback(() => {
