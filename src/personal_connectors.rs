@@ -215,6 +215,7 @@ pub fn adopted(old: &Old, endpoints: &[EndpointFacts]) -> Option<NewConnector> {
         name: old.name.clone(),
         segments: vec!["data-read".to_owned()],
         scope,
+        kinds: None,
         writes: false,
         expires_at: Utc::now() + Duration::days(Ceiling::of_policies(Vec::new()).max_days()),
         allowed_clients: Vec::new(),
