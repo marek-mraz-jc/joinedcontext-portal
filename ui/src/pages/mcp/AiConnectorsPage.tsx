@@ -1,3 +1,4 @@
+import { clsx } from "clsx";
 import { useState, useSyncExternalStore } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -356,7 +357,9 @@ export function ScopeTree({
             {groups.map(([kind, names]) =>
               names.length > 0 ? (
                 <fieldset key={kind} className="ml-6 mt-2">
-                  <legend className="text-caption font-semibold">{t(`aiConnectors.kinds.${kind}`)}</legend>
+                  <legend className={clsx("text-caption font-semibold", !project.allowed && "text-fg-muted")}>
+                    {t(`aiConnectors.kinds.${kind}`)}
+                  </legend>
                   <ul className="flex flex-col gap-1">{names.map((name) => row(project.project, kind, name, name, reason(kind, name)))}</ul>
                 </fieldset>
               ) : null,

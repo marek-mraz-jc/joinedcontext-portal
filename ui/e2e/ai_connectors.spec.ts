@@ -118,7 +118,7 @@ for (const width of [1440, 400]) {
       await expect(outside).toHaveAttribute("aria-disabled", "true");
       await expect(dialog.getByRole("checkbox", { name: /bike-share/ })).toHaveAttribute("aria-disabled", "true");
       await expect(dialog.locator("p", { hasText: /Your organization does not let a connector reach this project yet/ })).toBeVisible();
-      await outside.scrollIntoViewIfNeeded();
+      await dialog.getByRole("checkbox", { name: /bike-share/ }).scrollIntoViewIfNeeded();
       await shot(page, `ai-connectors-greyed-${width}`);
       await dialog.getByRole("button", { name: "Create" }).click();
 
