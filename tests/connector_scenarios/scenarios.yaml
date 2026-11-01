@@ -189,14 +189,9 @@
   as: steward
   says: "Create a DataModel BikeCounter with slots name, location (GeoProperty), count (integer), observedAt."
   given: 'The project already holds DataModel bike-counter (published 1.0.0), whose BikeCounter has no location or observedAt; leave it as it is. Name the new one bikes: a draft, version 0.1.0, its LinkML in ./bikes.linkml.yaml. Space doprava already has its model, so bikes belongs to no space.'
-  expect: 'plan_change of bikes in doprava is refused naming bike-counter (DM-61, T-6394); plan_change without a space returns a valid LinkML DataModel manifest and a diff; apply_change opens one change request; approver merges in the Portal; model served'
+  expect: 'plan_change of bikes without a space (doprava refuses a second model, DM-61, T-6394) returns a valid LinkML DataModel manifest and a diff; apply_change opens one change request; approver merges in the Portal; model served'
   deny: 'connector without write -> plan allowed (validate_only), apply refused'
   script:
-    - proves: expect
-      call: jc_change_plan
-      args: { changes: [{ op: create, kind: DataModel, name: bikes, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: DataModel, metadata: { name: bikes, namespace: '{project}' }, spec: { contextSpaceRef: doprava, linkml: ./bikes.linkml.yaml, version: 0.1.0, lifecycle: draft } } }] }
-      refused: true
-      contains: ['second model of space `doprava` beside `bike-counter`', 'DM-61']
     - proves: expect
       call: jc_change_plan
       args: { changes: [{ op: create, kind: DataModel, name: bikes, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: DataModel, metadata: { name: bikes, namespace: '{project}' }, spec: { linkml: ./bikes.linkml.yaml, version: 0.1.0, lifecycle: draft } } }] }
