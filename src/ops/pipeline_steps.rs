@@ -51,6 +51,9 @@ const STREAM_WINDOW: pipeline_test::Window = pipeline_test::Window {
 struct SampleSourceInput {
     #[serde(default)]
     data_source: Option<String>,
+    /// With `dataSource`: the open plan (jc_change_plan) that holds it, sampled before approval.
+    #[serde(default)]
+    plan_id: Option<String>,
     #[serde(default)]
     sample: Option<Sample>,
 }
@@ -128,6 +131,7 @@ fn sample_source_input_schema() -> Value {
         "type": "object",
         "properties": {
             "dataSource": text("The DataSource to read; or sample", NAME),
+            "planId": text("The jc_change_plan planId adding dataSource, sampled before approval", TERM),
             "sample": sample_schema()
         },
         "additionalProperties": false
@@ -215,6 +219,25 @@ fn without_source_fields<'a>(
             let fields = crate::personal_data::source_fields(state, project, source);
             crate::personal_data::withhold_source(&mut answer, source, &fields);
         }
+    }
+    answer
+}
+
+/// `answer` without the personal fields the planned DataSource `name` of `spec` lists, for a
+/// caller that does not see them: the mirror does not hold it before its approval (T-6269).
+fn without_planned_fields(
+    caller: &super::Caller,
+    name: &str,
+    spec: &Value,
+    mut answer: Value,
+) -> Value {
+    if hides_source_fields(caller) {
+        let fields: std::collections::BTreeSet<String> = spec
+            .get("personalFields")
+            .cloned()
+            .and_then(|fields| serde_json::from_value(fields).ok())
+            .unwrap_or_default();
+        crate::personal_data::withhold_source(&mut answer, name, &fields);
     }
     answer
 }
@@ -348,9 +371,14 @@ fn sample_of_data_source(
     name: &str,
 ) -> Result<(Sample, PipelineSpec), OpError> {
     let source = readable_source(caller, state, project, name)?;
+    sample_of_spec(name, &source.spec)
+}
+
+/// How a fetched DataSource of `spec` is sampled, or why it is not.
+fn sample_of_spec(name: &str, spec: &Value) -> Result<(Sample, PipelineSpec), OpError> {
     let instead = "give the sample as text (a file of the feed) or as a URL instead";
-    match pipeline_test::probe_plan(&source.spec) {
-        Some(Ok(url)) => pipeline_test::sampling(&source.spec, url)
+    match pipeline_test::probe_plan(spec) {
+        Some(Ok(url)) => pipeline_test::sampling(spec, url)
             .map_err(|e| OpError::Api(ApiError::Internal(format!("the sampling spec: {e}")))),
         Some(Err(skipped)) => Err(OpError::Api(ApiError::BadRequest(format!(
             "DataSource '{name}' cannot be sampled: {}; {instead}",
@@ -358,8 +386,93 @@ fn sample_of_data_source(
         )))),
         None => Err(OpError::Api(ApiError::BadRequest(format!(
             "DataSource '{name}' is of type {}, which streams rather than answers a request; {instead}",
-            source.spec["type"].as_str().unwrap_or("unknown")
+            spec["type"].as_str().unwrap_or("unknown")
         )))),
+    }
+}
+
+/// The sample of DataSource `name` as the caller's open plan `id` adds it (T-6269): sampled before
+/// an approver merges it, so a mapping is built on its records. Nobody approved its address yet,
+/// so it is held to the public internet before the runner fetches it inside the cluster (T-6028);
+/// a streaming source is listened to only once approved.
+async fn sample_of_planned(
+    caller: &super::Caller,
+    state: &AppState,
+    project: &str,
+    id: &str,
+    name: &str,
+) -> Result<(Value, (Sample, PipelineSpec)), OpError> {
+    let items = state
+        .plans
+        .peek(id, &caller.identity.subject, project, chrono::Utc::now())
+        .ok_or_else(|| {
+            OpError::from(ApiError::NotFound(format!(
+                "no open plan {id} of yours in project '{project}'; plan the DataSource with jc_change_plan first"
+            )))
+        })?;
+    let spec = items
+        .iter()
+        .find(|item| item.kind == "DataSource" && item.name == name)
+        .and_then(|item| item.manifest.as_ref())
+        .map(|manifest| manifest["spec"].clone())
+        .ok_or_else(|| {
+            OpError::from(ApiError::NotFound(format!(
+                "plan {id} adds or changes no DataSource '{name}'"
+            )))
+        })?;
+    if spec["type"] != "http" {
+        return Err(ApiError::BadRequest(format!(
+            "DataSource '{name}' of the plan is of type {}: a planned source is sampled only over http; give the sample as text, or sample it once approved",
+            spec["type"].as_str().unwrap_or("unknown")
+        ))
+        .into());
+    }
+    if let Some(url) = spec.pointer("/http/url").and_then(Value::as_str) {
+        public_address(url).await?;
+    }
+    let sampled = sample_of_spec(name, &spec)?;
+    Ok((spec, sampled))
+}
+
+/// Refuses an address that is not on the public internet: written into the URL, or what its name
+/// resolves to now (AG-65). The runner resolves it again; its egress policy stays the last guard.
+async fn public_address(url: &str) -> Result<(), OpError> {
+    let refused = |message: String| OpError::InvalidInput {
+        path: "/dataSource".into(),
+        message,
+    };
+    let parsed = url::Url::parse(url).map_err(|e| {
+        refused(format!(
+            "the planned DataSource's address does not parse: {e}"
+        ))
+    })?;
+    jc_core::outbound::check(&parsed).map_err(|r| refused(r.to_string()))?;
+    let Some(url::Host::Domain(host)) = parsed.host() else {
+        return Ok(());
+    };
+    let port = parsed.port_or_known_default().unwrap_or(443);
+    let resolved = tokio::time::timeout(
+        std::time::Duration::from_secs(5),
+        tokio::net::lookup_host((host, port)),
+    )
+    .await;
+    let addresses: Vec<std::net::IpAddr> = match resolved {
+        Ok(Ok(found)) => found.map(|a| a.ip()).collect(),
+        _ => Vec::new(),
+    };
+    resolved_public(host, &addresses).map_err(refused)
+}
+
+/// Why a host that resolved to `addresses` is not called: none at all, or one that is not public.
+fn resolved_public(host: &str, addresses: &[std::net::IpAddr]) -> Result<(), String> {
+    match addresses.iter().find(|ip| !jc_core::outbound::is_public(**ip)) {
+        Some(private) => Err(format!(
+            "'{host}' resolves to {private}, a private, loopback or link-local address; outbound calls reach public hosts only (AG-65)"
+        )),
+        None if addresses.is_empty() => Err(format!(
+            "the planned DataSource's host '{host}' does not resolve"
+        )),
+        None => Ok(()),
     }
 }
 
@@ -683,6 +796,12 @@ pub fn operations() -> Vec<Operation> {
             lane: Lane::Green,
             validate: |val| {
                 let input: SampleSourceInput = parse_input(val.clone())?;
+                if input.plan_id.is_some() && input.data_source.is_none() {
+                    return Err(OpError::InvalidInput {
+                        path: "/planId".into(),
+                        message: "planId goes with dataSource, the name of the DataSource the plan adds".into(),
+                    });
+                }
                 match (&input.data_source, &input.sample) {
                     (Some(_), None) | (None, Some(_)) => Ok(()),
                     _ => Err(OpError::InvalidInput {
@@ -695,7 +814,17 @@ pub fn operations() -> Vec<Operation> {
                 Box::pin(async move {
                     let input: SampleSourceInput = parse_input(val)?;
                     let named = input.data_source.clone();
+                    // A planned source is not in the mirror yet: its own manifest lists its
+                    // personal fields (AG-158).
+                    let mut planned = Value::Null;
                     let (sample, plan) = match (input.data_source, input.sample) {
+                        (Some(name), None) if input.plan_id.is_some() => {
+                            let id = input.plan_id.unwrap_or_default();
+                            let (spec, sampled) =
+                                sample_of_planned(caller, state, project, &id, &name).await?;
+                            planned = spec;
+                            sampled
+                        }
                         (Some(name), None) => {
                             if let Some(source) = streamed_source(caller, state, project, &name)? {
                                 let answer =
@@ -729,13 +858,12 @@ pub fn operations() -> Vec<Operation> {
                         "records": trace.mapping,
                         "errors": trace.errors,
                     });
-                    Ok(without_source_fields(
-                        caller,
-                        state,
-                        project,
-                        named.as_deref(),
-                        answer,
-                    ))
+                    let answer =
+                        without_source_fields(caller, state, project, named.as_deref(), answer);
+                    Ok(match named.as_deref() {
+                        Some(name) => without_planned_fields(caller, name, &planned, answer),
+                        None => answer,
+                    })
                 })
             },
         },
@@ -901,6 +1029,28 @@ pub(super) async fn candidate(
 mod tests {
     use super::*;
 
+    /// T-6269: a planned source's name is judged by what it resolves to: a public name pointing at
+    /// loopback, or a cluster Service name, is refused before the runner fetches it.
+    #[test]
+    fn a_planned_source_name_resolving_to_a_private_address_is_refused() {
+        let ip = |text: &str| text.parse::<std::net::IpAddr>().expect("an address");
+        assert_eq!(
+            resolved_public("feeds.example", &[ip("93.184.215.14")]),
+            Ok(())
+        );
+        for (host, addresses) in [
+            ("127.0.0.1.nip.io", vec![ip("127.0.0.1")]),
+            ("portal.portal.svc.cluster.local", vec![ip("10.43.0.12")]),
+            ("dual.example", vec![ip("93.184.215.14"), ip("::1")]),
+        ] {
+            let refusal = resolved_public(host, &addresses).expect_err(host);
+            assert!(refusal.contains("public hosts only"), "{refusal}");
+        }
+        assert!(resolved_public("nowhere.invalid", &[])
+            .expect_err("no address")
+            .contains("does not resolve"));
+    }
+
     /// AG-158 (T-6265): an MCP client and an agent run get a sample without the fields the
     /// DataSource lists personal, named; a signed-in session keeps them.
     #[test]
@@ -941,6 +1091,13 @@ mod tests {
                 without_source_fields(&caller(via), &state, "helsinki", ["trips"], sample.clone());
             assert_eq!(answer, sample, "{via:?}");
         }
+        // A planned source, not in the mirror yet, is held to its own manifest's list (T-6269).
+        let spec = json!({ "personalFields": ["rider"] });
+        let answer = without_planned_fields(&caller(Via::Mcp), "planned", &spec, sample.clone());
+        assert_eq!(answer["records"], json!([{ "station": "SNP" }]));
+        assert_eq!(answer["withheld"], json!(["DataSource/planned.rider"]));
+        let kept = without_planned_fields(&caller(Via::Session), "planned", &spec, sample.clone());
+        assert_eq!(kept, sample);
         // Another project's source of the same name lists nothing here.
         let answer = without_source_fields(
             &caller(Via::Mcp),

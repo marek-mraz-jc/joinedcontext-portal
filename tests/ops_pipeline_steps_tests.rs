@@ -794,3 +794,135 @@ async fn streamed_messages_are_tried_one_each_and_bounded() {
         );
     }
 }
+
+/// `dev`'s plan adding DataSource `name` at `url`: its answer.
+async fn plan(state: &AppState, project: &str, name: &str, url: &str) -> common::Answer {
+    send(
+        state,
+        person("dev"),
+        "POST",
+        &op(project, "jc_change_plan"),
+        Some(
+            json!({ "changes": [{ "op": "create", "kind": "DataSource", "name": name,
+            "manifest": { "apiVersion": "joinedcontext.com/v1alpha1", "kind": "DataSource",
+                "metadata": { "name": name, "namespace": project },
+                "spec": { "type": "http", "http": { "url": url, "format": "csv" } } } }] }),
+        ),
+    )
+    .await
+}
+
+/// The planId of `dev`'s plan adding DataSource `name` at `url`.
+async fn planned(state: &AppState, project: &str, name: &str, url: &str) -> String {
+    let answer = plan(state, project, name, url).await;
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
+    json_of(&answer.text)["planId"]
+        .as_str()
+        .expect("a planId")
+        .to_owned()
+}
+/// T-6269: an open-data import samples the DataSource it plans before an approver merges it.
+#[tokio::test]
+async fn a_planned_data_source_is_sampled_before_its_approval() {
+    let runner = runner().await;
+    let state = state("planned", Some(&runner));
+    let url = "https://93.184.215.14/parkoviska.csv";
+    let rows =
+        [json!({ "input": "page", "output": { "lot": "P1", "spaces": "40" }, "error": null })];
+    let (id, _) = tokio::join!(
+        planned(&state, "planned", "parkoviska", url),
+        play_runner(&runner, &state, 0, &rows),
+    );
+    let uri = op("planned", "jc_pipeline_sample_source");
+    let (answer, harness) = tokio::join!(
+        send(
+            &state,
+            person("dev"),
+            "POST",
+            &uri,
+            Some(json!({ "dataSource": "parkoviska", "planId": id })),
+        ),
+        play_runner(&runner, &state, 1, &rows),
+    );
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
+    let body = json_of(&answer.text);
+    assert_eq!(body["fields"], json!(["lot", "spaces"]));
+    assert!(harness.to_string().contains(url), "{harness}");
+}
+
+/// T-6269: a planned source nobody approved is held to public addresses, to its own plan and to
+/// the caller who planned it.
+#[tokio::test]
+async fn a_planned_data_source_on_a_private_or_unknown_host_or_of_another_plan_is_refused() {
+    let state = state("guarded", None);
+    // A plan never holds a loopback, link-local or private address: the runner is never asked.
+    for url in [
+        "http://127.0.0.1:9000/x.csv",
+        "http://169.254.169.254/latest/meta-data",
+        "http://localhost:8080/x.csv",
+    ] {
+        let answer = plan(&state, "guarded", "inside", url).await;
+        assert_eq!(
+            answer.status,
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "{url}: {}",
+            answer.text
+        );
+        assert!(
+            answer.text.contains("private address"),
+            "{url}: {}",
+            answer.text
+        );
+    }
+    // A name the plan admits is judged by what it resolves to when sampled.
+    let id = planned(&state, "guarded", "unknown", "https://feed.invalid/x.csv").await;
+    let answer = send(
+        &state,
+        person("dev"),
+        "POST",
+        &op("guarded", "jc_pipeline_sample_source"),
+        Some(json!({ "dataSource": "unknown", "planId": id })),
+    )
+    .await;
+    assert_eq!(
+        answer.status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{}",
+        answer.text
+    );
+    assert!(answer.text.contains("does not resolve"), "{}", answer.text);
+    let id = planned(&state, "guarded", "fine", "https://93.184.215.14/x.csv").await;
+    for (who, source, plan, status) in [
+        ("dev", "other", id.as_str(), StatusCode::NOT_FOUND),
+        ("dev", "fine", "nope", StatusCode::NOT_FOUND),
+        ("jana", "fine", id.as_str(), StatusCode::FORBIDDEN),
+    ] {
+        let answer = send(
+            &state,
+            person(who),
+            "POST",
+            &op("guarded", "jc_pipeline_sample_source"),
+            Some(json!({ "dataSource": source, "planId": plan })),
+        )
+        .await;
+        assert_eq!(
+            answer.status, status,
+            "{who} {source} {plan}: {}",
+            answer.text
+        );
+    }
+    let alone = send(
+        &state,
+        person("dev"),
+        "POST",
+        &op("guarded", "jc_pipeline_sample_source"),
+        Some(json!({ "planId": id, "sample": { "text": "a\n1\n", "format": "csv" } })),
+    )
+    .await;
+    assert_eq!(
+        alone.status,
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "{}",
+        alone.text
+    );
+}

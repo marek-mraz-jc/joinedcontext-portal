@@ -15795,7 +15795,7 @@
                 "schema": {
                   "properties": {
                     "datasets": {
-                      "description": "Open datasets: title, url, publisher, formats, endpoint slug",
+                      "description": "Open datasets: title, url, publisher, formats, resources (format, url), endpoint slug",
                       "items": {
                         "type": "object"
                       },
@@ -22052,6 +22052,11 @@
                   "dataSource": {
                     "description": "The DataSource to read; or sample",
                     "maxLength": 253,
+                    "type": "string"
+                  },
+                  "planId": {
+                    "description": "The jc_change_plan planId adding dataSource, sampled before approval",
+                    "maxLength": 128,
                     "type": "string"
                   },
                   "sample": {
