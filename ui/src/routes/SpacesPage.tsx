@@ -29,7 +29,6 @@ import {
   Button,
   EmptyState,
   Icon,
-  MayNotCreate,
   PageHeader,
 } from "../components/ui";
 
@@ -359,7 +358,6 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
               compact
               title={t("spaces.title")}
               description={t("spaces.lead")}
-              note={<MayNotCreate project={project} kinds={["ContextSpace"]} />}
               aside={toolbar}
               actions={addButton}
             />
@@ -437,17 +435,20 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
             align: "right",
             text: (space) => String(usageOf(space.metadata.name)?.data?.entities ?? ""),
             cell: (space) => (
-              <span className="inline-flex flex-col items-start tabular-nums sm:items-end">
-                <span className="inline-flex items-center gap-0.5">
+              // Count and size end on one edge; the info button stands after the count (owner 2026-11-01).
+              <span className="inline-grid grid-cols-[auto_auto] items-center gap-x-0.5 tabular-nums">
+                <span className="justify-self-end">
                   <EntityCount usage={usageOf(space.metadata.name)} numbers={numbers} />
-                  <UsageInfo project={project} space={space.metadata.name} usage={usageOf(space.metadata.name)?.data} locale={locale} />
                 </span>
+                <UsageInfo project={project} space={space.metadata.name} usage={usageOf(space.metadata.name)?.data} locale={locale} />
+                <span className="col-start-1 justify-self-end">
                 <SizeLine
                   bytes={usageOf(space.metadata.name)?.data?.bytes?.entities ?? (usageOf(space.metadata.name)?.data?.entities === 0 ? 0 : undefined)}
                   known={usageOf(space.metadata.name)?.data !== undefined}
                   locale={locale}
                   label={t("spaces.field.size")}
                 />
+                </span>
               </span>
             ),
           },

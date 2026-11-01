@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { UploadCsv } from "../src/pages/spaces/UploadCsv";
 import { expectNoRawKeys } from "./checks";
-import { zip } from "./zip_fixture";
+import { xlsxFile } from "./xlsxFixture";
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
@@ -118,33 +118,49 @@ describe("Upload CSV", () => {
     expectNoRawKeys(container);
   });
 
-  it("reads an Excel workbook, infers from its sheet as CSV and writes its rows (JC1-07)", async () => {
-    const cell = (ref: string, text: string) => `<c r="${ref}" t="inlineStr"><is><t>${text}</t></is></c>`;
-    const sheet =
-      "<worksheet><sheetData>" +
-      `<row r="1">${["name", "totalSpotNumber", "availableSpotNumber", "lat", "lon"].map((h, i) => cell(`${"ABCDE"[i]}1`, h)).join("")}</row>` +
-      `<row r="2">${["Kamppi", "500", "120", "60.17", "24.93"].map((v, i) => cell(`${"ABCDE"[i]}2`, v)).join("")}</row>` +
-      "</sheetData></worksheet>";
+  it("reads an Excel workbook, offers every sheet and proposes the chosen one as its CSV (JC1-07)", async () => {
     const calls = server();
     const user = userEvent.setup();
-    page("parking");
-    const workbook = zip({ "xl/worksheets/sheet1.xml": sheet });
-    await user.upload(
-      screen.getByLabelText("Choose a CSV file or an Excel workbook (.xlsx)"),
-      new File([new Uint8Array(workbook)], "garages.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
-    );
-    await screen.findByText("garages.xlsx: 1 row, 5 columns.");
-    await screen.findByRole("radio", { name: /OffStreetParking/ });
+    const { container } = page("parking");
+    const file = xlsxFile("city.xlsx", {
+      Notes: [["author", "remark"], ["Aino", "draft"]],
+      Garages: [
+        ["name", "totalSpotNumber", "availableSpotNumber", "lat", "lon"],
+        ["Kamppi", 500, 120, 60.17, 24.93],
+        ["", 10, 2, 60.1, 24.9],
+      ],
+    });
+    await user.upload(screen.getByLabelText("Choose a CSV file or an Excel workbook (.xlsx)"), file);
+
+    const sheet = await screen.findByRole("combobox", { name: "Sheet" });
+    expect(screen.getByText(/One sheet is read at a time/)).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Notes (1 row, 2 columns)" })).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /OffStreetParking/ })).toBeNull();
+    await user.selectOptions(sheet, "Garages");
+    expect(await screen.findByRole("radio", { name: /OffStreetParking/ })).toBeChecked();
+
     await user.click(screen.getByRole("button", { name: "Propose the change" }));
-    await user.click(await screen.findByRole("button", { name: "Write 1 row" }));
-    await screen.findByText("1 row written, none refused.");
+    await screen.findByText(/write the rows into parking as OffStreetParking/);
     const op = calls.find((c) => c.url.pathname.endsWith("/ops/jc_space_complete"))?.body as { files: { name: string; content: string }[] };
     expect(op.files[0]).toEqual({
-      name: "garages.csv",
-      content: "name,totalSpotNumber,availableSpotNumber,lat,lon\nKamppi,500,120,60.17,24.93\n",
+      name: "Garages.csv",
+      content: "name,totalSpotNumber,availableSpotNumber,lat,lon\r\nKamppi,500,120,60.17,24.93\r\n,10,2,60.1,24.9\r\n",
     });
-    const write = calls.find((c) => c.url.pathname.includes("/entityOperations/"));
-    expect((write?.body as Record<string, unknown>[])[0]).toMatchObject({ type: "OffStreetParking" });
+    await user.click(screen.getByRole("button", { name: "Write 1 row" }));
+    await screen.findByText("1 row written, 1 refused.");
+    expectNoRawKeys(container);
+  });
+
+  it("says on screen what keeps Propose out of reach, names the columns read and hints the space", async () => {
+    server();
+    const user = userEvent.setup();
+    page("");
+    await user.upload(screen.getByLabelText("Choose a CSV file or an Excel workbook (.xlsx)"), new File([CSV], "garages.csv", { type: "text/csv" }));
+    expect(await screen.findByText("Columns: name, totalSpotNumber, availableSpotNumber, lat, lon")).toBeInTheDocument();
+    expect(screen.getAllByText("Choose a Context Space to propose.").find((line) => line.tagName === "P")).toBeVisible();
+    expect(screen.getByText(/An existing space, or a new name in lower case/)).toBeInTheDocument();
+    await user.click(screen.getByRole("radio", { name: "My own model" }));
+    expect(screen.getAllByText("Choose a type, or write your own type name.").find((line) => line.tagName === "P")).toBeVisible();
   });
 
   it("says who can change it when the space refuses the write (JC1-41)", async () => {

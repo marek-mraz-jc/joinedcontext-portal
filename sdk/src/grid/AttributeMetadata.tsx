@@ -147,11 +147,17 @@ export function AttributeMetadata(props: AttributeMetadataProps): React.JSX.Elem
   const rows: [string, React.ReactNode][] = [
     [labels.created, time(cell?.createdAt)],
     [labels.modified, time(cell?.modifiedAt)],
+  ];
+  // One refusal covers who, where from, through what and why: said once, not four times.
+  if (read.state === "hidden") rows.push([labels.changedBy, hidden(read.why)]);
+  // Nothing recorded is said once too (UI judge, T-6344).
+  else if (read.state === "done" && !read.provenance) rows.push([labels.changedBy, labels.notRecorded]);
+  else rows.push(
     [labels.changedBy, written((p) => (p.actor && kindOf(p) ? `${p.actor} (${kindOf(p)})` : p.actor ?? kindOf(p)))],
     [labels.organization, written((p) => p.organization)],
     [labels.channel, written((p) => (p.channel ? labels.channels[p.channel] ?? p.channel : undefined))],
     [labels.reason, written((p) => p.reason ?? (Object.keys(p).length > 0 ? labels.noReason : undefined))],
-  ];
+  );
   return (
     <dl className="jc-grid-detail-list jc-grid-meta">
       {rows.map(([term, value]) => (

@@ -242,6 +242,8 @@ function entitiesQuery(q: GridQuery, offset: number, limit: number, count = true
 
 /** The most versions one changes read asks for per attribute (EP-07, as history's MAX_POINTS). */
 const MAX_VERSIONS = 1000;
+/** NGSI-LD `limit` caps at 1000 on Antares (and most brokers). */
+const BROKER_PAGE = 1000;
 
 function historyQuery(attr: string, window: HistoryWindow): string {
   const { from, to, lastN, versions } = window;
@@ -252,6 +254,9 @@ function historyQuery(attr: string, window: HistoryWindow): string {
     timeAt: from ?? to,
     endTimeAt: from && to ? to : undefined,
     lastN: lastN !== undefined ? String(lastN) : undefined,
+    // Plain [value, time] pairs: 1.3-2.4 s against 4.8-10.8 s for a week of normalized instances on
+    // dev (owner 2026-11-01, T-6346). Versions keep the full form, which carries the provenance.
+    format: versions ? undefined : "temporalValues",
   });
 }
 
@@ -300,10 +305,22 @@ function ngsiSource(base: string, transport: Transport, language: string, hidden
   const ok = (status: number) => status >= 200 && status < 300;
   const entity = (id: string) => `${base}/entities/${encodeURIComponent(id)}`;
 
-  return {
+  const src: EntitySource = {
     orders: true,
     tilesAt,
     async query(q, page) {
+      // A broker answers at most BROKER_PAGE entities a request: a bigger page is read in turns.
+      if (page.limit > BROKER_PAGE) {
+        const first = await src.query(q, { ...page, limit: BROKER_PAGE });
+        const rows = [...first.rows];
+        let last = first.rows.length;
+        while (rows.length < page.limit && last === BROKER_PAGE) {
+          const next = await src.query(q, { offset: page.offset + rows.length, limit: Math.min(BROKER_PAGE, page.limit - rows.length), count: false });
+          rows.push(...next.rows);
+          last = next.rows.length;
+        }
+        return { rows, total: first.total };
+      }
       const { status, body, headers } = await transport({
         method: "GET",
         path: `${base}/entities?${entitiesQuery(q, page.offset, page.limit, page.count ?? true)}`,
@@ -359,6 +376,7 @@ function ngsiSource(base: string, transport: Transport, language: string, hidden
       if (!ok(status)) refuse(status, body, "the removal was refused");
     },
   };
+  return src;
 }
 
 /** What one Endpoint answers, by its slug (EP-55). */

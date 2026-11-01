@@ -669,7 +669,8 @@
       "proposeAll": "Navrhnout vše",
       "open": "Otevřít",
       "noDrafts": "Zatím nejsou doplněny žádné návrhy.",
-      "needInput": "Zadejte URL endpointu nebo přidejte soubor."
+      "needInput": "Zadejte URL endpointu nebo přidejte soubor.",
+      "filesHint": "Ukázka dat jako CSV, Excel (.xlsx), JSON nebo GeoJSON, s manifesty, README nebo .env, které popisují zdroj; dohromady do 10 MB. Příklad: stanice.xlsx."
     },
     "segment": "v identifikátorech entit: {segment}",
     "quality": {
@@ -1120,11 +1121,17 @@
         }
       }
     },
+    "sheet": {
+      "label": "List",
+      "hint": "Čte se vždy jeden list: vyberte ten s vašimi řádky, například {example}.",
+      "option": "{name} ({rows, plural, one {# řádek} few {# řádky} other {# řádků}}, {columns, plural, one {# sloupec} few {# sloupce} other {# sloupců}})"
+    },
     "upload": {
       "open": "Nahrát CSV",
       "title": "Nahrát CSV",
-      "lead": "Vyberte CSV nebo sešit Excel (.xlsx) do 50 MB; ze sešitu se čte první list. Porovná se s typy Smart Data Models; model, prostor, jeho Endpoint a vaše právo zapisovat řádky se navrhnou jako jedna změna a když je změna nasazená, řádky se zapíší přes bránu pod vaším jménem.",
+      "lead": "Vyberte CSV nebo Excel. Portál navrhne standardní typ pro jeho sloupce a navrhne prostor s vaším právem zapisovat; po schválení zapíšete řádky.",
       "choose": "Vybrat soubor CSV nebo sešit Excel (.xlsx)",
+      "chooseHint": "CSV, TSV nebo Excel (.xlsx) do 50 MB, první řádek jsou názvy sloupců. Příklad: garaze.xlsx se sloupci name, lat, lon.",
       "reading": "Čtu {name} a porovnávám jeho sloupce s typy Smart Data Models…",
       "type": "Co řádky jsou",
       "noMatch": "Žádný typ Smart Data Models nepojmenovává dost těchto sloupců: soubor dostane vlastní model.",
@@ -1134,6 +1141,10 @@
       "ownTypeHint": "Jedno slovo s velkým počátečním písmenem, například Garage.",
       "space": "Název prostoru",
       "notReady": "Nejprve vyberte soubor, typ a prostor.",
+      "spaceHint": "Existující prostor nebo nový název malými písmeny, třeba parkovaci-domy.",
+      "missingSpace": "Vyberte kontextový prostor, který se má navrhnout.",
+      "missingType": "Vyberte typ nebo napište název vlastního typu.",
+      "columns": "Sloupce: {names}",
       "notLive": "Řádky zapíšete, až bude změna schválená a nasazená.",
       "propose": "Navrhnout změnu",
       "proposing": "Navrhuje se…",
@@ -2749,7 +2760,12 @@
       "outcome": "Výsledek",
       "message": "Zpráva",
       "noId": "(bez id)",
-      "states": {"clean": "Bez chyb", "rejected": "Odmítnuté řádky", "failing": "Selhané řádky", "silent": "Nezapsal nic"},
+      "states": {
+        "clean": "Bez chyb",
+        "rejected": "Odmítnuté řádky",
+        "failing": "Selhané řádky",
+        "silent": "Nezapsal nic"
+      },
       "outcomes": {
         "sent": "Zapsán",
         "rejected": "Odmítnut",
@@ -4094,6 +4110,36 @@
     "download": "Stáhnout"
   },
   "models": {
+    "newDialog": {
+      "title": "Nový datový model",
+      "description": "Pojmenujte model. Editor se otevře prázdný; typy do něj přidáte ručně, ze Smart Data Models nebo z tabulky.",
+      "create": "Vytvořit model"
+    },
+    "structures": "Struktury hodnot ({count})",
+    "structuresHint": "Tvar hodnoty strukturovaného pole, třeba jeho části L1, L2, L3; nejsou to typy entit.",
+    "inlinePart": "Část strukturované hodnoty, převzatá ze Smart Data Model.",
+    "addFrom": {
+      "sdm": "Importovat ze Smart Data Models",
+      "sdmHint": "Zkopíruje zveřejněný typ s jeho poli.",
+      "file": "Z tabulky",
+      "fileHint": "Excel, CSV nebo JSON: ze sloupců se stanou pole.",
+      "fileTitle": "Typy z tabulky"
+    },
+    "addClassNameHint": "Nebo začněte prázdný typ: název z písmen a číslic bez mezer, třeba Station.",
+    "nameFirst": "Nejprve zadejte název.",
+    "addWhat": "Co pole obsahuje?",
+    "addKind": {
+      "Property": "Hodnotu",
+      "Relationship": "Odkaz na jiný typ",
+      "GeoProperty": "Místo",
+      "LanguageProperty": "Text ve více jazycích"
+    },
+    "addKindHint": {
+      "Property": "Číslo, text, datum, ano/ne nebo hodnotu ze seznamu, jako teplotu.",
+      "Relationship": "Ukazuje na entitu jiného typu, jako stanici, ke které měření patří.",
+      "GeoProperty": "Bod, čáru nebo plochu na mapě, jako polohu.",
+      "LanguageProperty": "Jeden text pro každý jazyk, jako název finsky a anglicky."
+    },
     "share": {
       "action": "Sdílet s organizací",
       "title": "Sdílet {name} s organizací?",
@@ -4199,10 +4245,10 @@
       "unavailable": "Katalog je nedostupný; import podle identifikátoru funguje dál.",
       "stale": "Uložený index z {at}; poslední obnovení se ke katalogu nedostalo.",
       "noMatches": "Hledání neodpovídá žádný model.",
-      "noMatchesHint": "Vymažte hledání nebo vyberte jiné téma; model, který katalog nemá, nahrajte souborem výše.",
+      "noMatchesHint": "Vymažte hledání nebo vyberte jiné téma; typ, který katalog nemá, přidáte přes Přidat typ, Z tabulky.",
       "clearSearch": "Vymazat hledání",
       "emptyCatalogue": "Katalog zatím neobsahuje žádný model.",
-      "emptyCatalogueHint": "Stiskněte Obnovit nyní a načtěte ho znovu, nebo nahrajte soubor s daty níže.",
+      "emptyCatalogueHint": "Stiskněte Obnovit nyní a načtěte ho znovu, nebo zavřete toto okno a použijte Přidat typ, Z tabulky.",
       "preview": "Převzatý model",
       "pick": "Vyberte model a uvidíte, co se naimportuje.",
       "importRefused": "Schéma {name} z katalogu nelze převést na model. Model Tools níže uvádí, co je špatně. Vyberte jiný model nebo začněte prázdným modelem a pole doplňte ručně.",
@@ -4456,10 +4502,7 @@
       "modelLead": "Co tento model popisuje a co na něm staví.",
       "listCaption": "Datové modely projektu",
       "new": {
-        "menu": "Nový datový model",
-        "blank": "Prázdný model",
-        "file": "Ze souboru s daty (CSV, Excel, JSON, PDF)",
-        "sdm": "Ze Smart Data Models"
+        "menu": "Nový datový model"
       },
       "emptyTitle": "Zatím žádný datový model",
       "emptyLead": "Vytvořte ho pro prostor: začněte prázdný, odvoďte ho ze souboru nebo importujte Smart Data Model.",
@@ -4537,15 +4580,6 @@
       "classesMore": "+{count} dalších",
       "classCount": "Počet typů"
     },
-    "hints": {
-      "title": "Tento model zatím nemá třídu. Tři kroky na začátek:",
-      "sdm": "Nebo importujte Smart Data Model: jeho třídy, pole a enumy přijdou už napsané.",
-      "sdmAction": "Importovat Smart Data Model",
-      "klass": "Přidejte třídu: pojmenujte ji v poli pod Třídami, například School.",
-      "klassAction": "Pojmenovat první třídu",
-      "relation": "Přidejte vztah: pod Vztahy vyberte cílovou třídu a kardinalitu, například jedna School má mnoho entit User.",
-      "field": "Přidejte pole: s otevřenou třídou ho pojmenujte pod Atributy, například name."
-    },
     "rangeBasic": "Hodnoty",
     "rangeEnums": "Enumy",
     "rangeClasses": "Odkazy (otevře Přidat vztah)",
@@ -4596,12 +4630,14 @@
         "target": "Cílová třída",
         "targetHint": "Třída tohoto modelu; inverzní konec se zapíše na ni.",
         "targetNone": "Vyberte třídu",
+        "targetPending": "vybrané třídě",
         "name": "Název na {owner}",
         "nameHint": "Pole na {owner}, které odkazuje na cíl, navržené podle cíle.",
         "inverse": "Inverzní na {target}",
         "inverseHint": "Pole na cíli, které odkazuje zpět. Každý vztah ho má.",
         "requiredOn": "Povinný na {owner}",
         "requiredStored": "Každá entita {owner} musí jednu uvést.",
+        "requiredStoredPending": "Každá entita vybrané třídy ho musí uvádět.",
         "requiredComputed": "Počítá se při čtení z druhého konce, proto nemůže být povinný.",
         "onDeleteHint": "Co se stane s entitami, které odkazují na smazanou.",
         "submit": "Přidat vztah",
@@ -4696,7 +4732,14 @@
       "newHint": "Hodnota, kterou entity ukládají, po přidání pevná, například active.",
       "unused": "Tento číselník zatím nepoužívá žádné pole: vyberte ho jako typ hodnoty pole.",
       "usedBy": "Používá {fields}"
-    }
+    },
+    "rules": "Pravidla",
+    "optional": "nepovinné",
+    "deprecatedBadge": "Zastaralé",
+    "slotName": "Název",
+    "slotNameHint": "Jako temperature nebo openingHours: písmena a číslice, bez mezer.",
+    "slotNameFirst": "Pojmenujte pole a přidejte ho; typ, druh, jednotka a pravidla následují v tomto formuláři.",
+    "slotNameFixed": "Pole si ponechá svůj název: používá ho každá uložená hodnota i data partnerů."
   },
   "apps": {
     "title": "Aplikace",
@@ -5495,6 +5538,9 @@
     "matching": "Odpovídá: {n}",
     "noTotal": "endpoint u této odpovědi neuvádí celkový počet",
     "history": "Historie",
+    "areaPick": "Vybrat oblast na mapě",
+    "rowsPerPage": "Řádků na stránku",
+    "areaClear": "Zrušit oblast",
     "historyWindow": {
       "hour": "Poslední hodinu",
       "day": "Poslední den",
@@ -6157,7 +6203,8 @@
         "wrongType": "Tato otázka přijímá soubory {formats}.",
         "tooLarge": "Soubor je větší než {kilobytes} KB. Předejte jeho vzorek.",
         "empty": "Soubor je prázdný.",
-        "notJson": "Soubor není platný JSON."
+        "notJson": "Soubor není platný JSON.",
+        "sendSheet": "Předat list {name}"
       },
       "url": {
         "label": "Nebo adresa zdroje dat",
@@ -10925,7 +10972,14 @@
     "readComes": "Čtení přináší předvolba.",
     "verbsNone": "Zaškrtněte předvolbu, která navrhuje změny, např. Kontext nebo Pipelines, a vyberte, co může měnit.",
     "verbsGreyed": "Šedá slovesa musí nejprve schválit vaše organizace; požádejte správce, aby je povolil.",
-    "verb": {"read": "číst", "create": "vytvořit", "edit": "upravit", "delete": "smazat", "run": "spustit", "propose": "vytvořit, upravit, smazat"},
+    "verb": {
+      "read": "číst",
+      "create": "vytvořit",
+      "edit": "upravit",
+      "delete": "smazat",
+      "run": "spustit",
+      "propose": "vytvořit, upravit, smazat"
+    },
     "binds": "použít ho může jen tento klient",
     "clientRefused": "politika vaší organizace ho nedovoluje",
     "intendedFor": "říká, pro koho je; uvést ho mohou i jiné lokální programy",
@@ -11145,6 +11199,27 @@
       "action": "Zobrazit YAML",
       "title": "{name} jako YAML",
       "lead": "Manifest tak, jak ho drží repozitář projektu, jen pro čtení. Tajemství jsou jen odkazem (secretRef); hodnota pod klíčem, který vypadá jako tajemství, je skrytá."
+    }
+  },
+  "settingsPage": {
+    "title": "Nastavení",
+    "description": "Vaše vlastní nastavení, nastavení projektu a pro administrátora i nastavení platformy.",
+    "descriptionMember": "Vaše vlastní nastavení a nastavení projektu.",
+    "projectSettings": "Nastavení projektu {project}",
+    "scope": {
+      "personal": "Osobní",
+      "project": "Projekt",
+      "platform": "Platforma"
+    },
+    "scopeHint": {
+      "personal": "Vidíte a používáte je jen vy.",
+      "project": "Společné pro všechny v projektu; změny jdou přes schválení.",
+      "platform": "Celá platforma: projekty, lidé a přihlášení."
+    },
+    "hint": {
+      "aiConnectors": "Claude a další asistenti, kteří čtou data vaším jménem",
+      "project": "prostory, členové, tajemství",
+      "administration": "pro administrátory platformy"
     }
   }
 }

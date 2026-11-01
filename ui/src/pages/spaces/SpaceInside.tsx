@@ -502,6 +502,8 @@ function SpaceData({
   const { t, i18n } = useTranslation();
   // The type is in the address like the view, so back, reload and a sent link open it (T-4825).
   const [type, setType] = useUrlParam<string>("type", types[0] ?? "", types);
+  // Rows per page (owner 2026-11-01): 100 by default, 5000 at most, read 1000 at a time.
+  const [pageRows, setPageRows] = useUrlParam<string>("rows", "100", PAGE_SIZES.map(String));
   // The open row is in the address too, so a link opens it in its dialog (T-4828), with its tab and
   // History attribute (T-5602); the dialog reads a tab or attribute it does not know as its default.
   const [openRow, setOpenRow] = useUrlUrn("row", ["tab", "attr"]);
@@ -564,7 +566,7 @@ function SpaceData({
   const [urlSearch, setUrlSearch] = useUrlText("q");
   const [searchText, setSearchText] = useState(urlSearch ?? "");
   const [search, setSearch] = useState(urlSearch ?? "");
-  const [rowSize, setRowSize] = useState<RowSize>("small");
+  const [rowSize, setRowSize] = useState<RowSize>("medium");
   const [aggregations, setAggregations] = useState<Record<string, Aggregation>>({});
   // The Sort and Group panels (T-5188): the keys after the header's own sort, and the fields the
   // rows are grouped by. `steered` hands the order to this page once the panel set it.
@@ -586,7 +588,7 @@ function SpaceData({
     const settings = (next?.kind === "grid" ? next.config.settings : undefined) as Record<string, unknown> | undefined;
     const tree = readGroup(settings?.filters);
     setFilters(tree ?? EMPTY_GROUP);
-    setRowSize((ROW_SIZES as readonly unknown[]).includes(settings?.rowSize) ? (settings?.rowSize as RowSize) : "small");
+    setRowSize((ROW_SIZES as readonly unknown[]).includes(settings?.rowSize) ? (settings?.rowSize as RowSize) : "medium");
     setAggregations(readAggregations(settings?.aggregations));
     setGroupBy(readGroupBy(settings?.groupBy) ?? (next?.config.group ? [next.config.group] : []));
     setThenBy((next?.config.sort ?? []).slice(1, MAX_SORT_KEYS).map((key) => ({ attr: key.attr, dir: key.desc ? "desc" : "asc" })));
@@ -616,6 +618,14 @@ function SpaceData({
       sort: first ? { attr: first.attr, dir: first.desc ? "desc" : "asc" } : next ? null : rememberedSort(project, forType),
     });
   }, [setView, project, space, type]);
+  const pickType = (next: string) => {
+    if (next === type) return;
+    setType(next);
+    applyView(null, next);
+    setSeen([]);
+  };
+  const savedViews = useQuery({ queryKey: dataViewsKey(project, space), retry: false, queryFn: () => listViews(project, space) });
+  const hasSavedViews = (savedViews.data ?? []).some((each) => each.type === type);
   // The Sort panel's keys: the header's sort first, the rest this page's own.
   const sortKeys = useMemo(
     () => (gridView.sort ? [gridView.sort, ...thenBy.filter((key) => key.attr !== gridView.sort?.attr)] : thenBy),
@@ -782,6 +792,7 @@ function SpaceData({
   // The views are drawn while the probe is under way (T-5598): waiting for it put one more round
   // trip before the grid's own read, 0.6 s on a phone's network. A refusal still replaces them.
   const readable = type !== "" && !probe.isError;
+  const typeInGrid = view === "grid" && readable && !hasSavedViews;
 
   // The type and its attributes as the model titles them, the key where it gives no title; an
   // entity is led by its name, its URN the open button's tooltip (T-4264, T-4160 #6).
@@ -834,13 +845,13 @@ function SpaceData({
         source: { kind: "space", space },
         type,
         ...(columns ? { columns } : {}),
-        pageSize: 100,
+        pageSize: Number(pageRows),
         // A selection asks for the writer too (the bulk bar's fields), but only Edit turns the cells into editors.
         ...(editing && writer ? { mode: "edit" as const, editableAttrs: writer.attrs } : { mode: "view" as const }),
         history: { enabled: true },
       }).config ?? null
     );
-  }, [space, type, columns, editing, writer]);
+  }, [space, type, columns, editing, writer, pageRows]);
 
   // The toolbar's actions, in its row for the other views and under "More" for the grid (T-4883).
   const addField =
@@ -910,22 +921,20 @@ function SpaceData({
   }
   return (
     // Baserow's shape (T-4825): the types and their saved views on the left, the rows beside them.
-    <div className="grid gap-4 lg:grid-cols-[14rem_minmax(0,1fr)]">
-      <TypeList
+    // The type is picked in the grid's Type column (owner 2026-11-01); the list stays for the
+    // other views, for saved views, which the grid has no place for, and while no grid is drawn (a
+    // type whose read failed would otherwise leave no way to another type).
+    <div className={typeInGrid ? "grid gap-4" : "grid gap-4 lg:grid-cols-[14rem_minmax(0,1fr)]"}>
+      {typeInGrid ? null : <TypeList
         project={project}
         space={space}
         types={types}
         type={type}
         titleOf={titleOf}
         selected={saved}
-        onType={(next) => {
-          if (next === type) return;
-          setType(next);
-          applyView(null, next);
-          setSeen([]);
-        }}
+        onType={pickType}
         onView={applyView}
-      />
+      />}
       <div className="flex min-w-0 flex-col gap-3">
       {copy ? (
         <Alert tone="info" role="status" title={t("spaces.inside.copyLive")}>
@@ -1199,8 +1208,11 @@ function SpaceData({
           project={project}
           config={config}
           source={gridSource}
-          // The whole type by scrolling, a window drawn at a time (T-3097).
+          // A page at a time, drawn a window at a time (T-3097); the pager picks the page's size.
           virtual
+          paged
+          pageSizes={PAGE_SIZES}
+          onPageSize={(size) => setPageRows(String(size))}
           enums={enums}
           relations={relations}
           rules={rules}
@@ -1223,6 +1235,12 @@ function SpaceData({
           queryBox={showQuery}
           onFilterColumns={onFilterColumns}
           rowNumbers={rowNumberLabels}
+          typeChoice={{
+            value: type,
+            label: t("spaces.inside.type"),
+            options: types.map((each) => ({ value: each, label: titleOf(each) })),
+            onChange: pickType,
+          }}
           selected={selectedRows}
           onSelectedChange={setSelectedRows}
           rowSize={rowSize}
@@ -1570,6 +1588,8 @@ export function BulkSetDialog({
  * (API/01 §30): the left list of the data workspace (T-4825). The views come from the same query
  * the view bar reads, so a view saved there appears here at once.
  */
+const PAGE_SIZES = [100, 500, 1000, 5000] as const;
+
 function TypeList({
   project,
   space,

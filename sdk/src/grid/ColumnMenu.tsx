@@ -50,7 +50,9 @@ export function usePlaceAtCell(): React.MutableRefObject<HTMLDivElement | null> 
       const room = up ? at.top : below;
       menu.style.maxHeight = `${room}px`;
       menu.style.top = `${up ? at.top - Math.min(menu.scrollHeight, room) : at.bottom}px`;
-      menu.style.left = `${Math.max(0, Math.min(at.right - width, window.innerWidth - width))}px`;
+      // An 8 px gutter from both screen edges, as the page keeps (UI judge, T-6344).
+      const gutter = 8;
+      menu.style.left = `${Math.max(gutter, Math.min(at.right - width, window.innerWidth - width - gutter))}px`;
     };
     place();
     window.addEventListener("scroll", place, true);

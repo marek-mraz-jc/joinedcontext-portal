@@ -321,7 +321,7 @@ describe("the shell against the UI contract", () => {
     branding = { ...BRANDING, contactEmail: "javascript:alert(1)" };
     await shell();
 
-    const link = within(document.querySelector("footer") as HTMLElement).getByRole("link");
+    const link = within(document.querySelector("footer") as HTMLElement).getByRole("link", { name: /javascript/ });
     expect(link.getAttribute("href")).toBe("mailto:javascript:alert(1)");
     expect(link.getAttribute("href")).not.toMatch(/^javascript:/);
   });
@@ -337,11 +337,13 @@ describe("the shell against the UI contract", () => {
     expect(footer.parentElement?.contains(document.getElementById("portal-sidebar"))).toBe(false);
   });
 
-  it("says nothing in the footer when the installation configured nothing", async () => {
+  it("says only the accessibility statement and the glossary in the footer when the installation configured nothing (T-6344)", async () => {
     branding = { instanceName: "joinedcontext", shortName: "joinedcontext" };
     await shell();
 
-    expect(document.querySelector("footer")).toBeNull();
+    const footer = document.querySelector("footer") as HTMLElement;
+    expect(within(footer).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/accessibility", "/glossary"]);
+    expect(footer.querySelector("span")).toBeNull();
   });
 
   it("shows the installation's own name and keeps a long project name in its own width", async () => {

@@ -24,11 +24,6 @@ import { usePermissions } from "../../api/permissions";
 import {
   EmptyState,
   Button,
-  Icon,
-  Menu,
-  MenuContent,
-  MenuItem,
-  MenuTrigger,
   PageHeader,
   buttonClass,
 } from "../../components/ui";
@@ -120,34 +115,14 @@ export function ProposeLink({
   );
 }
 
-/** One New button; its menu holds every way to a model (owner 2026-10-31: one button, the ways as options). */
+/** One New button straight to the new model's window; the catalogue, a file and a blank model are its choices
+    there (owner 2026-11-01: "just directly new model and from blank model", no menu first). */
 function NewModelMenu({ project }: { project: string }): JSX.Element {
   const { t } = useTranslation();
-  const { can } = usePermissions(project);
-  if (!can("DataModel", "propose")) {
-    return (
-      <Button size="sm" variant="primary" disabled disabledReason={t("permissions.denied", { verb: "propose", kind: "DataModel" })}>
-        {t("models.page.new.menu")}
-      </Button>
-    );
-  }
   return (
-    <Menu>
-      <MenuTrigger asChild>
-        <Button size="sm" variant="primary" icon={<Icon name="plus" className="size-4" />}>
-          {t("models.page.new.menu")}
-        </Button>
-      </MenuTrigger>
-      <MenuContent align="end">
-        {(["blank", "file", "sdm"] as const).map((way) => (
-          <MenuItem key={way} asChild>
-            <Link to="/projects/$project/models" params={{ project }} search={{ new: way }}>
-              {t(`models.page.new.${way}`)}
-            </Link>
-          </MenuItem>
-        ))}
-      </MenuContent>
-    </Menu>
+    <ProposeLink project={project} search={{ new: "file" }} variant="primary">
+      {t("models.page.new.menu")}
+    </ProposeLink>
   );
 }
 

@@ -15,7 +15,7 @@ import type { ColumnFilter, FilterColumn, FilterGroup, FilterKind, GridColumn, G
 import { fetchJson, publishedTypes } from "../../pages/endpoints/SchemaProjectionPanel";
 import { classSlots, parseModel } from "../../pages/models/linkml";
 import type { ClassView, LinkmlModel, LinkmlSlot } from "../../pages/models/linkml";
-import { Button, Field, PageFailed, Select, safeHref } from "../ui";
+import { Button, PageFailed, safeHref } from "../ui";
 import { DataToolbar, sortKeysOf, useDataToolbarState } from "./DataToolbar";
 import { conditionCount, EMPTY_GROUP, FilterChips } from "./FilterPanel";
 import { GroupCount } from "./GridToolbar";
@@ -813,28 +813,6 @@ export function EndpointDataView({
 
   return (
     <div {...windowProps(full, t("endpoints.data.title"))}>
-      {/* The type picker lists every type the endpoint serves; the tools beside it are the space's own (T-6303). */}
-      <div className="max-w-md">
-        <Field id={`endpoint-data-type-${slug}`} label={t("endpoints.data.type")} description={t("endpoints.data.typeHelp")}>
-          <Select
-            id={`endpoint-data-type-${slug}`}
-            value={type.name}
-            onChange={(event) => {
-              setChosen(event.target.value);
-              // Another type has other columns: its query, order and tools start empty.
-              setView({ filterText: null, sort: null });
-              tools.reset();
-              setAsked(undefined);
-            }}
-          >
-            {types.map((each) => (
-              <option key={each.name} value={each.name}>
-                {classLabel(model.data, each.name, i18n.language)}
-              </option>
-            ))}
-          </Select>
-        </Field>
-      </div>
       <div className="flex flex-wrap items-center gap-1 border-b border-border pb-2" data-testid="grid-toolbar">
         <DataToolbar
           {...tools.props}
@@ -902,6 +880,19 @@ export function EndpointDataView({
           key={`${slug}-${type.name}`}
           project={project}
           config={config}
+          // The type is picked in the grid's Type column, like on a space (owner 2026-11-01).
+          typeChoice={{
+            value: type.name,
+            label: t("endpoints.data.type"),
+            options: types.map((each) => ({ value: each.name, label: classLabel(model.data, each.name, i18n.language) })),
+            onChange: (next) => {
+              setChosen(next);
+              // Another type has other columns: its query, order and tools start empty.
+              setView({ filterText: null, sort: null });
+              tools.reset();
+              setAsked(undefined);
+            },
+          }}
           source={source}
           enums={enums}
           relations={relations}

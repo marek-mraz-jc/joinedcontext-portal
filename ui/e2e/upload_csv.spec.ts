@@ -7,7 +7,7 @@
  */
 import { expect, test } from "@playwright/test";
 import { axeViolations } from "./axe";
-import { zip } from "../tests/zip_fixture";
+import { zip } from "../tests/xlsxFixture";
 
 const API = "joinedcontext.com/v1alpha1";
 const PROJECT = "banskabystrica";

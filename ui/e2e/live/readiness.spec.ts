@@ -253,8 +253,8 @@ test("1. the themed sign-in leads to the Portal with the Organization link and t
     await goSignedIn(page, STEWARD, `/projects/${PROJECT}/spaces?lang=en`);
 
     const nav = portalReady(page);
-    await expect(nav.getByRole("region", { name: "Your account" })).toBeVisible();
-    await expect(nav.getByRole("region", { name: "Your account" }).getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
+    // Sign-out sits in the header's account menu only since owner 2026-11-01.
+    await expect(nav.getByRole("region", { name: "Your account" })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Organization", exact: true }).first()).toBeVisible();
   } finally {
     await context.close();

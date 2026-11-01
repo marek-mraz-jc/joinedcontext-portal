@@ -1,11 +1,14 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Alert,
+  Badge,
   Button,
   Checkbox,
+  Dialog,
   Field,
+  Icon,
   Input,
   Select,
   Table,
@@ -15,10 +18,11 @@ import {
   TableHeaderCell,
   TableRow,
   Term,
+  RadioGroup,
+  fieldIds,
 } from "../../components/ui";
 import {
   DEFAULT_KIND,
-  EMPTY_MODEL,
   NGSI_LD_KINDS,
   RANGES,
   newTypeParent,
@@ -28,6 +32,7 @@ import {
   unitCode,
   UPSTREAM_ANNOTATION,
   slotOrigins,
+  valueClasses,
 } from "./linkml";
 import type { Diagnostic, LinkmlSlot, NgsiLdKind } from "./linkml";
 import { applyOperations } from "./operations";
@@ -37,7 +42,7 @@ import { dropsUnit, rangeForUnit, unitNotice } from "./unitRule";
 import type { UnitNotice } from "./unitRule";
 import type { Operation, SlotField } from "./operations";
 import { EnumValues } from "./EnumValues";
-import { RelationshipEditor } from "./RelationshipEditor";
+import { AddRelationshipForm, RelationshipEditor } from "./RelationshipEditor";
 import { fieldWord, FIELD_RANGE, useFieldWords } from "../../components/entities/fieldTypes";
 
 /** A basic range as the Add field dialog names it, or the range itself where it has no word. */
@@ -65,8 +70,12 @@ export interface LinkmlVisualEditorProps {
   /** The class to open first, when the diagram named one. */
   initialClass?: string;
   /** Where "Import a Smart Data Model" goes, when the page around the editor offers the import. */
-  onImport?: () => void;
+  /** Opens the Portal's import of types from a Smart Data Model or a spreadsheet. */
+  onImport?: (from: "sdm" | "file") => void;
 }
+
+/** The kinds a new field starts as, in the order a person reads them. */
+const ADD_KINDS = ["Property", "Relationship", "GeoProperty", "LanguageProperty"] as const;
 
 export function LinkmlVisualEditor({
   source,
@@ -79,7 +88,6 @@ export function LinkmlVisualEditor({
   const { t } = useTranslation();
   const word = useFieldWords();
   const model = useMemo(() => parseModel(source), [source]);
-  const newClassInput = useRef<HTMLInputElement>(null);
 
   const [selectedClass, setSelectedClass] = useState<string | null>(initialClass ?? null);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
@@ -87,7 +95,10 @@ export function LinkmlVisualEditor({
   const [selectedEnum, setSelectedEnum] = useState<string | null>(null);
   const [typeSearch, setTypeSearch] = useState("");
   const [newClass, setNewClass] = useState("");
+  const [addingClass, setAddingClass] = useState(false);
   const [newSlot, setNewSlot] = useState("");
+  const [addingSlot, setAddingSlot] = useState(false);
+  const [addKind, setAddKind] = useState<(typeof ADD_KINDS)[number]>("Property");
   const [newEnum, setNewEnum] = useState("");
   // One box per enum: a shared one filled every enum's box with what was typed in one (T-2706).
   const [iriError, setIriError] = useState<string | null>(null);
@@ -103,6 +114,11 @@ export function LinkmlVisualEditor({
   const activeSlot = model.slots.find((slot) => slot.name === selectedSlot);
   const enumOpen = model.enums.find((entry) => entry.name === selectedEnum);
   const origins = activeClass ? slotOrigins(model, activeClass) : new Map<string, string>();
+  // A value structure's parts are inline `attributes` (Smart Data Models): listed, read-only.
+  const inlineParts = new Map((activeClass?.attributes ?? []).filter((one) => !origins.has(one.name)).map((one) => [one.name, one]));
+  for (const name of inlineParts.keys()) origins.set(name, activeClass?.name ?? "");
+  // Entity types in the rail; the shapes of structured values (a JsonProperty's range) apart, under them.
+  const structures = valueClasses(model);
   // A field inherited from a parent is shared by every type below it: it opens read-only here.
   const activeSlotOwner = activeSlot ? origins.get(activeSlot.name) : undefined;
   const activeSlotInheritedFrom =
@@ -169,10 +185,6 @@ export function LinkmlVisualEditor({
     setSelectedSlot(name);
     setIriDraft(null);
     setIriError(null);
-    // The panel opens under the table, a screen away on a phone: bring it into view.
-    requestAnimationFrame(() =>
-      document.getElementById("models-slot-detail")?.scrollIntoView?.({ block: "nearest", behavior: "smooth" }),
-    );
   };
 
   const addClass = () => {
@@ -183,17 +195,6 @@ export function LinkmlVisualEditor({
     if (run({ op: "addClass", name, ...newTypeParent(model) })) {
       setSelectedClass(name);
       setNewClass("");
-    }
-  };
-
-  const addSlot = () => {
-    const name = newSlot.trim();
-    if (!name || !activeClass) {
-      return;
-    }
-    if (run({ op: "addSlot", name, class: activeClass.name })) {
-      openSlot(name);
-      setNewSlot("");
     }
   };
 
@@ -239,33 +240,6 @@ export function LinkmlVisualEditor({
     // `minmax(0, 1fr)`, not `auto`: an auto column grew to the attribute table's width and the
     // page scrolled sideways at 375 px; the table scrolls in its own frame (T-4165, audit T-4159).
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-[16rem_minmax(0,1fr)]">
-      {/* A model with no class yet, and one that parses (a broken one says why elsewhere): the
-          three ways to start, so an empty page is not the first thing a steward meets (T-2720). */}
-      {model !== EMPTY_MODEL && model.classes.length === 0 ? (
-        <section aria-labelledby="models-hints" className="rounded border border-border p-3 lg:col-span-2">
-          <h2 id="models-hints" className="text-sm font-semibold">
-            {t("models.hints.title")}
-          </h2>
-          <ol className="mt-2 flex list-decimal flex-col gap-2 pl-5 text-body">
-            <li>
-              {t("models.hints.klass")}
-              <Button size="sm" variant="secondary" className="ml-2" onClick={() => newClassInput.current?.focus()}>
-                {t("models.hints.klassAction")}
-              </Button>
-            </li>
-            <li>{t("models.hints.field")}</li>
-            <li>{t("models.hints.relation")}</li>
-          </ol>
-          <p className="mt-2 text-body">
-            {t("models.hints.sdm")}
-            {onImport ? (
-              <Button size="sm" variant="secondary" className="ml-2" onClick={onImport}>
-                {t("models.hints.sdmAction")}
-              </Button>
-            ) : null}
-          </p>
-        </section>
-      ) : null}
       {refusal ? (
         <Alert tone="danger" role="alert" className="lg:col-span-2">
           {t("models.refused", { reason: refusal })}
@@ -290,6 +264,7 @@ export function LinkmlVisualEditor({
           ) : null}
           <ul className="flex flex-col gap-1">
             {model.classes
+              .filter((klass) => !structures.has(klass.name))
               .filter((klass) => klass.name.toLowerCase().includes(typeSearch.trim().toLowerCase()))
               .map((klass) => (
               <li key={klass.name}>
@@ -312,28 +287,78 @@ export function LinkmlVisualEditor({
               </li>
             ))}
           </ul>
-          {/* Smart Data Models first (T-4829): an official type arrives with its fields written. */}
-          {onImport ? (
-            <Button size="sm" variant="secondary" className="mt-2 w-full" onClick={onImport}>
-              {t("models.hints.sdmAction")}
-            </Button>
+          {structures.size > 0 ? (
+            <details className="mt-2 text-body">
+              <summary className="cursor-pointer text-caption text-fg-muted">
+                {t("models.structures", { count: structures.size })}
+              </summary>
+              <p className="mt-1 text-caption text-fg-muted">{t("models.structuresHint")}</p>
+              <ul className="mt-1 flex flex-col gap-1">
+                {[...structures].map((name) => (
+                  <li key={name}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={name === activeClass?.name ? "w-full justify-start bg-primary-soft font-semibold" : "w-full justify-start"}
+                      aria-current={!enumOpen && name === activeClass?.name ? "true" : undefined}
+                      onClick={() => {
+                        setSelectedClass(name);
+                        setSelectedEnum(null);
+                      }}
+                    >
+                      {name}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </details>
           ) : null}
-          <div className="mt-2 flex gap-1">
-            <Input
-              ref={newClassInput}
-              aria-label={t("models.newClass")}
-              placeholder={t("models.newClass")}
-              value={newClass}
-              onChange={(event) => setNewClass(event.target.value)}
-            />
-            <Button
-              size="sm"
-              aria-label={t("models.addClass")}
-              onClick={addClass}
-            >
-              {t("models.add")}
-            </Button>
-          </div>
+          {/* One "Add type" (owner 2026-11-01): its dialog offers a Smart Data Model or a name, no import
+              button beside the list. */}
+          <Button size="sm" className="mt-2 w-full" icon={<Icon name="plus" className="size-4" />} onClick={() => setAddingClass(true)}>
+            {t("models.addClass")}
+          </Button>
+          <Dialog open={addingClass} onOpenChange={setAddingClass} title={t("models.addClass")} closeLabel={t("app.close")} size="md">
+            <div className="flex flex-col gap-4">
+              {onImport ? (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {(["sdm", "file"] as const).map((from) => (
+                    <Button
+                      key={from}
+                      variant="secondary"
+                      className="!h-auto flex-col !items-start gap-1 py-3 text-left whitespace-normal"
+                      onClick={() => {
+                        setAddingClass(false);
+                        onImport(from);
+                      }}
+                    >
+                      <span className="font-semibold">{t(`models.addFrom.${from}`)}</span>
+                      <span className="text-caption text-fg-muted">{t(`models.addFrom.${from}Hint`)}</span>
+                    </Button>
+                  ))}
+                </div>
+              ) : null}
+              <form
+                className="flex flex-col gap-2 border-t border-border pt-4"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (newClass.trim()) {
+                    addClass();
+                    setAddingClass(false);
+                  }
+                }}
+              >
+                <Field id="new-class-name" label={t("models.newClass")} help={t("models.addClassNameHint")}>
+                  <div className="flex gap-2">
+                    <Input id="new-class-name" aria-describedby={fieldIds("new-class-name").help} value={newClass} onChange={(event) => setNewClass(event.target.value)} />
+                    <Button type="submit" variant="primary" disabled={!newClass.trim()} disabledReason={t("models.nameFirst")}>
+                      {t("models.add")}
+                    </Button>
+                  </div>
+                </Field>
+              </form>
+            </div>
+          </Dialog>
         </section>
 
         <section aria-labelledby="models-enums">
@@ -521,15 +546,15 @@ export function LinkmlVisualEditor({
                   <Term name="ngsiLd">{t("models.kind")}</Term>
                 </TableHeaderCell>
                 <TableHeaderCell secondary>{t("models.unit")}</TableHeaderCell>
+                <TableHeaderCell>{t("models.rules")}</TableHeaderCell>
                 <TableHeaderCell secondary>{t("models.affordanceLabel")}</TableHeaderCell>
                 <TableHeaderCell secondary>{t("models.from")}</TableHeaderCell>
               </TableHead>
               <TableBody>
                 {/* Inherited fields too, greyed, with the type they come from (T-6106). */}
                 {[...origins].map(([name, from]) => {
-                  const slot: LinkmlSlot | undefined = model.slots.find(
-                    (candidate) => candidate.name === name,
-                  );
+                  const slot: LinkmlSlot | undefined =
+                    model.slots.find((candidate) => candidate.name === name) ?? inlineParts.get(name);
                   const inherited = from !== activeClass?.name;
                   return (
                     <TableRow key={name} className={
@@ -555,9 +580,10 @@ export function LinkmlVisualEditor({
                           size="sm"
                           className="-mx-2.5 -my-1 h-auto! py-1 text-body! underline-offset-2 hover:underline"
                           onClick={() => openSlot(name)}
+                          disabled={inlineParts.has(name)}
+                          disabledReason={inlineParts.has(name) ? t("models.inlinePart") : undefined}
                         >
                           {name}
-                          {slot?.deprecated ? ` (${t("models.deprecated")})` : ""}
                         </Button>
                         {/* A phone hides the From column, so the origin rides under the name. */}
                         {inherited ? (
@@ -569,6 +595,15 @@ export function LinkmlVisualEditor({
                       <TableCell>{slot ? word(fieldWord(slot, model)) : "—"}</TableCell>
                       <TableCell>{slot?.kind ?? DEFAULT_KIND}</TableCell>
                       <TableCell secondary>{unitSymbol(unitCode(slot?.unit)) || slot?.unit?.ucum_code || "—"}</TableCell>
+                      {/* Required, multivalued and deprecated at a glance (owner 2026-11-01), words not colour alone. */}
+                      <TableCell>
+                        <span className="flex flex-wrap gap-1">
+                          {slot?.required ? <Badge tone="info">{t("models.required")}</Badge> : null}
+                          {slot?.multivalued ? <Badge>{t("models.multivalued")}</Badge> : null}
+                          {slot?.deprecated ? <Badge tone="warning">{t("models.deprecatedBadge")}</Badge> : null}
+                          {!slot?.required && !slot?.multivalued && !slot?.deprecated ? <span className="text-fg-muted">{t("models.optional")}</span> : null}
+                        </span>
+                      </TableCell>
                       <TableCell secondary>{slot ? t(`models.affordance.${slotAffordance(slot, model.enums.map((one) => one.name))}`) : "—"}</TableCell>
                       <TableCell secondary>
                         {inherited ? (
@@ -589,20 +624,17 @@ export function LinkmlVisualEditor({
                 })}
               </TableBody>
             </Table>
-            {/* Input is w-full, so the row's width caps it: across the page its Add sat under the chat button. */}
-            <div className="mt-2 flex max-w-md gap-1">
-              <Input
-                aria-label={t("models.newSlot")}
-                placeholder={t("models.newSlot")}
-                value={newSlot}
-                onChange={(event) => setNewSlot(event.target.value)}
-              />
-              <Button
-                size="sm"
-                aria-label={t("models.addSlot")}
-                onClick={addSlot}
-              >
-                {t("models.add")}
+            {/* One "Add field" button; the name is asked in a dialog, then the field's whole form opens
+                (owner 2026-11-01: "when I want to add new, there should be add, and it should display
+                everything in the form"). */}
+            <div className="mt-2">
+              <Button size="sm" icon={<Icon name="plus" className="size-4" />} onClick={() => {
+                setSelectedSlot(null);
+                setNewSlot("");
+                setAddKind("Property");
+                setAddingSlot(true);
+              }}>
+                {t("models.addSlot")}
               </Button>
             </div>
           </section>
@@ -611,178 +643,244 @@ export function LinkmlVisualEditor({
           <p className="text-body text-fg-muted">{t("models.fieldsNeedType")}</p>
         )}
 
-        {activeSlot && activeSlotInheritedFrom ? (
-          <section aria-labelledby="models-slot-detail" className="flex flex-col gap-2">
-            <h2 id="models-slot-detail" className="text-base font-semibold">
-              {activeSlot.name}
-            </h2>
-            <p className="text-fg-muted">
-              {t("models.inheritedDefinedOn", { type: activeSlotInheritedFrom })}
-            </p>
-            <div>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => setSelectedClass(activeSlotInheritedFrom)}
-              >
-                {t("models.inheritedOpen", { type: activeSlotInheritedFrom })}
-              </Button>
-            </div>
-          </section>
-        ) : activeSlot ? (
-          <section aria-labelledby="models-slot-detail" className="flex flex-col gap-3">
-            <h2 id="models-slot-detail" className="text-base font-semibold">
-              {activeSlot.name}
-            </h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field id="slot-range" label={t("models.range")}>
-                <Select
-                  id="slot-range"
-                  value={activeSlot.range ?? ""}
-                  onChange={(event) => {
-                    const range = event.target.value;
-                    // A class is the other end of a relationship: never a one-sided slot (DM-64).
-                    if (model.classes.some((klass) => klass.name === range)) {
-                      setPrefill((last) => ({ target: range, key: (last?.key ?? 0) + 1 }));
-                      return;
+        {/* A field opens as its form in a dialog over the table, not a panel under it (owner 2026-11-01). */}
+        <Dialog
+          open={Boolean(activeSlot) || addingSlot}
+          onOpenChange={(open) => {
+            if (!open) {
+              setSelectedSlot(null);
+              setAddingSlot(false);
+            }
+          }}
+          title={activeSlot?.name ?? t("models.addSlot")}
+          closeLabel={t("app.close")}
+          size="lg"
+        >
+          {/* One form (owner 2026-11-01): the name first, then everything else. The name is the field's
+              key in every stored entity and payload, so it is set once and never changed here. */}
+          {addingSlot && !activeSlot ? (
+            <div className="mb-3 flex flex-col gap-3">
+              {/* What the field holds first (owner 2026-11-01): a value, a link to another type, a place or a
+                  text per language; a link takes the relationship form, every other kind the name. */}
+              <RadioGroup
+                name="add-kind"
+                legend={t("models.addWhat")}
+                value={addKind}
+                options={ADD_KINDS.map((kind) => ({ value: kind, label: t(`models.addKind.${kind}`), description: t(`models.addKindHint.${kind}`) }))}
+                onChange={setAddKind}
+              />
+              {addKind === "Relationship" && activeClass ? (
+                <AddRelationshipForm
+                  bare
+                  source={source}
+                  model={model}
+                  klass={activeClass.name}
+                  run={(operation) => {
+                    const refused = runQuietly(operation);
+                    if (refused === null) setAddingSlot(false);
+                    return refused;
+                  }}
+                />
+              ) : (
+                <form
+                  className="flex flex-col gap-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const name = newSlot.trim();
+                    if (name && activeClass && run({ op: "addSlot", name, class: activeClass.name })) {
+                      if (addKind !== DEFAULT_KIND) setSlotField(name, "kind", addKind);
+                      setAddingSlot(false);
+                      setNewSlot("");
+                      openSlot(name);
                     }
-                    pickRange(activeSlot, range);
                   }}
                 >
-                  <option value="">—</option>
-                  <optgroup label={t("models.rangeBasic")}>
-                    {RANGES.map((range) => {
-                      const type = RANGE_TYPE.get(range);
-                      return (
-                        <option key={range} value={range}>
-                          {type ? `${t(`spaces.fields.types.${type}`)} (${range})` : range}
-                        </option>
-                      );
-                    })}
-                  </optgroup>
-                  {model.enums.length > 0 ? (
-                    <optgroup label={t("models.rangeEnums")}>
-                      {model.enums.map((entry) => (
-                        <option key={entry.name} value={entry.name}>
-                          {entry.name}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : null}
-                  {model.classes.length > 0 ? (
-                    <optgroup label={t("models.rangeClasses")}>
-                      {model.classes.map((klass) => (
-                        <option key={klass.name} value={klass.name}>
-                          {t("models.word.linkTo", { target: klass.name })}
-                        </option>
-                      ))}
-                    </optgroup>
-                  ) : null}
-                </Select>
-              </Field>
-              <Field id="slot-kind" label={t("models.kind")} help={t("models.kindHint")}>
-                <Select
-                  id="slot-kind"
-                  value={activeSlot.kind}
-                  onChange={(event) =>
-                    setSlotField(activeSlot.name, "kind", event.target.value as NgsiLdKind)
-                  }
-                >
-                  {NGSI_LD_KINDS.map((kind) => (
-                    <option key={kind} value={kind}>
-                      {kind}
-                    </option>
-                  ))}
-                </Select>
-              </Field>
-              <Field id="slot-unit" label={t("models.unit")} help={t("models.unitHint")}>
-                <UnitPicker
-                  id="slot-unit"
-                  label={t("models.unit")}
-                  labelled
-                  clearable
-                  value={unitCode(activeSlot.unit) ?? ""}
-                  onChange={(code) => pickUnit(activeSlot, code)}
-                />
-              </Field>
+                  <Field id="new-slot-name" label={t("models.slotName")} help={t("models.slotNameHint")}>
+                    <div className="flex gap-2">
+                      <Input id="new-slot-name" aria-describedby={fieldIds("new-slot-name").help} value={newSlot} onChange={(event) => setNewSlot(event.target.value)} />
+                      <Button type="submit" variant="primary" disabled={!newSlot.trim()} disabledReason={t("models.nameFirst")}>
+                        {t("models.add")}
+                      </Button>
+                    </div>
+                  </Field>
+                  <p className="text-caption text-fg-muted">{t("models.slotNameFirst")}</p>
+                </form>
+              )}
             </div>
-            {unitUndo && unitUndo.slot === activeSlot.name && unitUndo.after === source ? (
-              <Alert tone="info" role="status">
-                <span className="flex flex-wrap items-center justify-between gap-2">
-                  <span>{t(`models.unitRule.${unitUndo.notice}`)}</span>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => {
-                      onChange(unitUndo.before);
-                      setUnitUndo(null);
+          ) : activeSlot ? (
+            <Field id="slot-name" label={t("models.slotName")} help={t("models.slotNameFixed")}>
+              <Input id="slot-name" value={activeSlot.name} readOnly aria-readonly="true" className="mb-3 bg-surface-muted" />
+            </Field>
+          ) : null}
+          {activeSlot && activeSlotInheritedFrom ? (
+            <div className="flex flex-col gap-2">
+              <p className="text-fg-muted">
+                {t("models.inheritedDefinedOn", { type: activeSlotInheritedFrom })}
+              </p>
+              <div>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setSelectedClass(activeSlotInheritedFrom)}
+                >
+                  {t("models.inheritedOpen", { type: activeSlotInheritedFrom })}
+                </Button>
+              </div>
+            </div>
+          ) : activeSlot ? (
+            <div className="flex flex-col gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Field id="slot-range" label={t("models.range")}>
+                  <Select
+                    id="slot-range"
+                    value={activeSlot.range ?? ""}
+                    onChange={(event) => {
+                      const range = event.target.value;
+                      // A class is the other end of a relationship: never a one-sided slot (DM-64).
+                      if (model.classes.some((klass) => klass.name === range)) {
+                        setPrefill((last) => ({ target: range, key: (last?.key ?? 0) + 1 }));
+                        // The form opens under the page: the field's dialog closes, or it would cover it.
+                        setSelectedSlot(null);
+                        return;
+                      }
+                      pickRange(activeSlot, range);
                     }}
                   >
-                    {t("models.unitRule.undo")}
-                  </Button>
-                </span>
-              </Alert>
-            ) : null}
-            <details className="rounded border border-border p-2" open={iriError !== null}>
-              <summary className="cursor-pointer text-body font-medium">{t("models.advanced")}</summary>
-              <div className="mt-2 grid gap-3 sm:grid-cols-2">
-              <Field id="slot-uri" label={t("models.slotUri")} help={t("models.slotUriHint")}>
-                <Input
-                  id="slot-uri"
-                  value={iriDraft ?? activeSlot.slot_uri ?? ""}
-                  onChange={(event) => setSlotIri(activeSlot.name, event.target.value)}
-                />
-              </Field>
-              {/* T-1088: which profiles take this slot, beside the rest of what it declares. */}
-              <Field id="slot-subsets" label={t("models.slotSubsets")}>
-                <Input
-                  id="slot-subsets"
-                  value={(activeSlot.subsets ?? []).join(", ")}
-                  onChange={(event) =>
-                    run({
-                      op: "setSlotSubsets",
-                      name: activeSlot.name,
-                      subsets: event.target.value.split(","),
-                    })
-                  }
-                />
-              </Field>
+                    <option value="">—</option>
+                    <optgroup label={t("models.rangeBasic")}>
+                      {RANGES.map((range) => {
+                        const type = RANGE_TYPE.get(range);
+                        return (
+                          <option key={range} value={range}>
+                            {type ? `${t(`spaces.fields.types.${type}`)} (${range})` : range}
+                          </option>
+                        );
+                      })}
+                    </optgroup>
+                    {model.enums.length > 0 ? (
+                      <optgroup label={t("models.rangeEnums")}>
+                        {model.enums.map((entry) => (
+                          <option key={entry.name} value={entry.name}>
+                            {entry.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                    {model.classes.length > 0 ? (
+                      <optgroup label={t("models.rangeClasses")}>
+                        {model.classes.map((klass) => (
+                          <option key={klass.name} value={klass.name}>
+                            {t("models.word.linkTo", { target: klass.name })}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null}
+                  </Select>
+                </Field>
+                <Field id="slot-kind" label={t("models.kind")} help={t("models.kindHint")}>
+                  <Select
+                    id="slot-kind"
+                    value={activeSlot.kind}
+                    onChange={(event) =>
+                      setSlotField(activeSlot.name, "kind", event.target.value as NgsiLdKind)
+                    }
+                  >
+                    {NGSI_LD_KINDS.map((kind) => (
+                      <option key={kind} value={kind}>
+                        {kind}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+                <Field id="slot-unit" label={t("models.unit")} help={t("models.unitHint")}>
+                  <UnitPicker
+                    id="slot-unit"
+                    label={t("models.unit")}
+                    labelled
+                    clearable
+                    value={unitCode(activeSlot.unit) ?? ""}
+                    onChange={(code) => pickUnit(activeSlot, code)}
+                  />
+                </Field>
               </div>
-            </details>
-            <div className="flex flex-wrap gap-4 text-sm">
-              <Checkbox
-                label={t("models.required")}
-                checked={activeSlot.required === true}
-                onChange={(event) => setSlotField(activeSlot.name, "required", event.target.checked)}
-              />
-              <Checkbox
-                label={t("models.multivalued")}
-                checked={activeSlot.multivalued === true}
-                onChange={(event) => setSlotField(activeSlot.name, "multivalued", event.target.checked)}
-              />
-              <Checkbox
-                label={t("models.deprecatedKeep")}
-                checked={activeSlot.deprecated === true}
-                onChange={(event) => setSlotField(activeSlot.name, "deprecated", event.target.checked)}
-              />
+              {unitUndo && unitUndo.slot === activeSlot.name && unitUndo.after === source ? (
+                <Alert tone="info" role="status">
+                  <span className="flex flex-wrap items-center justify-between gap-2">
+                    <span>{t(`models.unitRule.${unitUndo.notice}`)}</span>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => {
+                        onChange(unitUndo.before);
+                        setUnitUndo(null);
+                      }}
+                    >
+                      {t("models.unitRule.undo")}
+                    </Button>
+                  </span>
+                </Alert>
+              ) : null}
+              <details className="rounded border border-border p-2" open={iriError !== null}>
+                <summary className="cursor-pointer text-body font-medium">{t("models.advanced")}</summary>
+                <div className="mt-2 grid gap-3 sm:grid-cols-2">
+                <Field id="slot-uri" label={t("models.slotUri")} help={t("models.slotUriHint")}>
+                  <Input
+                    id="slot-uri"
+                    value={iriDraft ?? activeSlot.slot_uri ?? ""}
+                    onChange={(event) => setSlotIri(activeSlot.name, event.target.value)}
+                  />
+                </Field>
+                {/* T-1088: which profiles take this slot, beside the rest of what it declares. */}
+                <Field id="slot-subsets" label={t("models.slotSubsets")}>
+                  <Input
+                    id="slot-subsets"
+                    value={(activeSlot.subsets ?? []).join(", ")}
+                    onChange={(event) =>
+                      run({
+                        op: "setSlotSubsets",
+                        name: activeSlot.name,
+                        subsets: event.target.value.split(","),
+                      })
+                    }
+                  />
+                </Field>
+                </div>
+              </details>
+              <div className="flex flex-wrap gap-4 text-sm">
+                <Checkbox
+                  label={t("models.required")}
+                  checked={activeSlot.required === true}
+                  onChange={(event) => setSlotField(activeSlot.name, "required", event.target.checked)}
+                />
+                <Checkbox
+                  label={t("models.multivalued")}
+                  checked={activeSlot.multivalued === true}
+                  onChange={(event) => setSlotField(activeSlot.name, "multivalued", event.target.checked)}
+                />
+                <Checkbox
+                  label={t("models.deprecatedKeep")}
+                  checked={activeSlot.deprecated === true}
+                  onChange={(event) => setSlotField(activeSlot.name, "deprecated", event.target.checked)}
+                />
+              </div>
+              {activeSlot.upstream ? (
+                <p className="text-xs text-surface-fg/70">
+                  {t("models.upstream", { source: activeSlot.upstream })}
+                </p>
+              ) : null}
+              {iriError ? (
+                <Alert tone="danger" role="alert">
+                  {iriError}
+                </Alert>
+              ) : null}
+              {messagesFor(`slots.${activeSlot.name}`).map((diagnostic) => (
+                <p key={diagnostic.message} role="status" className="text-caption text-warning">
+                  {diagnostic.message}
+                </p>
+              ))}
             </div>
-            {activeSlot.upstream ? (
-              <p className="text-xs text-surface-fg/70">
-                {t("models.upstream", { source: activeSlot.upstream })}
-              </p>
-            ) : null}
-            {iriError ? (
-              <Alert tone="danger" role="alert">
-                {iriError}
-              </Alert>
-            ) : null}
-            {messagesFor(`slots.${activeSlot.name}`).map((diagnostic) => (
-              <p key={diagnostic.message} role="status" className="text-caption text-warning">
-                {diagnostic.message}
-              </p>
-            ))}
-          </section>
-        ) : null}
+          ) : null}
+        </Dialog>
 
         {activeClass ? (
           <RelationshipEditor
@@ -791,6 +889,7 @@ export function LinkmlVisualEditor({
             klass={activeClass.name}
             run={runQuietly}
             prefill={prefill}
+            withAdd={Boolean(prefill)}
           />
         ) : null}
         </>

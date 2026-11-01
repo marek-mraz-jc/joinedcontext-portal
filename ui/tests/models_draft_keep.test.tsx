@@ -15,6 +15,20 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+/** New data model is named in its window (owner 2026-11-01, T-6344); then the empty editor opens. */
+async function nameNewModel(user: ReturnType<typeof userEvent.setup>, name: string): Promise<void> {
+  const dialog = await screen.findByRole("dialog", { name: en.models.newDialog.title });
+  await user.type(within(dialog).getByRole("textbox", { name: en.models.identity.name }), name);
+  await user.click(within(dialog).getByRole("button", { name: en.models.newDialog.create }));
+}
+
+/** Types come in from Add type: a Smart Data Model or a spreadsheet (owner 2026-11-01, T-6344). */
+async function addTypeFrom(user: ReturnType<typeof userEvent.setup>, from: "sdm" | "file"): Promise<void> {
+  await user.click(await screen.findByRole("button", { name: en.models.addClass }));
+  const dialog = screen.getByRole("dialog", { name: en.models.addClass });
+  await user.click(within(dialog).getByRole("button", { name: new RegExp(en.models.addFrom[from]) }));
+}
+
 describe("a new model kept as a draft", () => {
   it("keeps the editor view the person chose when the draft lands in the address", async () => {
     const user = userEvent.setup();
@@ -38,10 +52,11 @@ describe("a new model kept as a draft", () => {
         return undefined;
       },
     });
-    await user.type(await screen.findByRole("textbox", { name: en.models.identity.name }), "stations");
+    await nameNewModel(user, "stations");
     // A first edit is what makes the page keep the model.
-    await user.type(screen.getByLabelText("New type"), "Station");
-    await user.click(screen.getByRole("button", { name: "Add type" }));
+    await user.click(await screen.findByRole("button", { name: en.models.addClass }));
+    await user.type(screen.getByRole("textbox", { name: en.models.newClass }), "Station");
+    await user.click(screen.getByRole("button", { name: en.models.add }));
     await user.click(screen.getByRole("tab", { name: en.models.view.preview }));
     expect(screen.getByRole("tab", { name: en.models.view.preview })).toHaveAttribute("aria-selected", "true");
 
@@ -94,6 +109,8 @@ describe("a new model kept as a draft", () => {
       },
     });
     const csv = new File(["station,pm10\nkallio,12.5\n"], "sample.csv", { type: "text/csv" });
+    await nameNewModel(user, "sample");
+    await addTypeFrom(user, "file");
     await user.upload(await screen.findByLabelText("Choose a sample file"), csv);
     const draft = await screen.findByRole("dialog", { name: /sample\.csv/ });
     await user.click(within(draft).getByRole("button", { name: en.models.infer.populate }));

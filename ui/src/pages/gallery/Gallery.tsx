@@ -62,7 +62,7 @@ import {
   Term,
   Textarea,
 } from "../../components/ui";
-import { MayNotCreate, PermissionGuard } from "../../components/ui/PermissionGuard";
+import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { ManifestGrid } from "../../components/grid/ManifestGrid";
 
 const GRID_ROWS = [
@@ -524,7 +524,7 @@ export function Gallery(): JSX.Element {
         </State>
       </Specimen>
 
-      <Specimen name="Icon, Term, SourceLink, ExternalLink, FilePicker, FileDropZone, PermissionGuard, MayNotCreate">
+      <Specimen name="Icon, Term, SourceLink, ExternalLink, FilePicker, FileDropZone, PermissionGuard">
         <State is="decorative and named">
           <span className="flex items-center gap-2">
             <Icon name="spaces" className="size-5" />
@@ -560,9 +560,6 @@ export function Gallery(): JSX.Element {
           <PermissionGuard project="helsinki" kind="Endpoint" verb="propose">
             <Button variant="primary">Propose the change</Button>
           </PermissionGuard>
-        </State>
-        <State is="why a role sees its create actions greyed">
-          <MayNotCreate project="helsinki" kinds={["Endpoint"]} />
         </State>
       </Specimen>
     </main>
