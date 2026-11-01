@@ -69,7 +69,14 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_resource_get",
             "jc_model_source_get",
         ],
-        &["ContextSpace", "DataModel", "Endpoint", "Policy"],
+        &[
+            "ContextSpace",
+            "DataModel",
+            "Endpoint",
+            "Policy",
+            "ModelProjection",
+            "Subscription",
+        ],
     ),
     (
         "pipeline",
@@ -93,6 +100,7 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "ContextSpace",
             "DataModel",
             "Endpoint",
+            "Subscription",
         ],
     ),
     (
@@ -2552,6 +2560,68 @@ pub(crate) mod tests {
             .expect_err("Secret is in no segment");
         assert!(why.contains("on Secret"), "{why}");
         assert!(live.admits(list, "doprava", &secret).is_err());
+    }
+
+    /// T-6288: a steward's Subscription and ModelProjection manifests are project configuration
+    /// the context segment lists and plans (pipeline too for Subscription); data-read still reads
+    /// neither, and a policy whose kinds leave them out refuses them.
+    #[test]
+    fn context_reaches_subscriptions_and_model_projections_within_the_ceiling() {
+        let list = op("jc_resource_list");
+        let plan = op(PLAN);
+        let context = connector(&["context"], vec![item("doprava", None)]);
+        let pipeline = connector(&["pipeline"], vec![item("doprava", None)]);
+        let reader = connector(&["data-read"], vec![item("doprava", None)]);
+        let open = Ceiling::of_policies(vec![(
+            "stewards-doprava".into(),
+            serde_json::from_value(json!({
+                "subjects": [{ "kind": "Group", "name": "stewards" }],
+                "projects": ["doprava"],
+                "segments": ["context", "pipeline", "data-read"],
+            }))
+            .expect("policy"),
+        )]);
+        for kind in ["Subscription", "ModelProjection"] {
+            let args = json!({ "kind": kind });
+            assert_eq!(context.admits(list, "doprava", &args), Ok(()), "{kind}");
+            assert_eq!(context.admits(plan, "doprava", &args), Ok(()), "{kind}");
+            assert_eq!(
+                open.admits(&context, list, "doprava", &args),
+                Ok(()),
+                "{kind}"
+            );
+            assert_eq!(
+                open.admits(&context, plan, "doprava", &args),
+                Ok(()),
+                "{kind}"
+            );
+            let why = reader
+                .admits(list, "doprava", &args)
+                .expect_err("data-read reads no manifest of the kind");
+            assert!(why.contains("read only"), "{why}");
+        }
+        let subscription = json!({ "kind": "Subscription" });
+        assert_eq!(pipeline.admits(plan, "doprava", &subscription), Ok(()));
+        assert!(pipeline
+            .admits(list, "doprava", &json!({ "kind": "ModelProjection" }))
+            .is_err());
+        // The ceiling still decides per kind: a policy naming only Endpoint refuses both.
+        let endpoints_only = Ceiling::of_policies(vec![(
+            "stewards-endpoints".into(),
+            serde_json::from_value(json!({
+                "subjects": [{ "kind": "Group", "name": "stewards" }],
+                "projects": ["doprava"],
+                "segments": ["context"],
+                "kinds": [{ "kind": "Endpoint", "verbs": ["read", "propose"] }],
+            }))
+            .expect("policy"),
+        )]);
+        for kind in ["Subscription", "ModelProjection"] {
+            let why = endpoints_only
+                .admits(&context, list, "doprava", &json!({ "kind": kind }))
+                .expect_err("kind outside the policy");
+            assert!(why.contains(&format!("on {kind}")), "{why}");
+        }
     }
 
     #[test]
