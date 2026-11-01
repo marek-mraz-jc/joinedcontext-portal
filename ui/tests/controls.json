@@ -324,6 +324,7 @@
         "Button": 6
       },
       "tests": [
+        "data_toolbar.test.tsx",
         "endpoint_data_view.test.tsx"
       ]
     },

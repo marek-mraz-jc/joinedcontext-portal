@@ -3,13 +3,14 @@
  * The row draws what the host holds and reports each change; both pages import this one component.
  */
 import { readFileSync } from "node:fs";
-import { screen, within } from "@testing-library/react";
+import { act, render, renderHook, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { FilterColumn } from "@joinedcontext/sdk";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
-import { DataToolbar } from "../src/components/entities/DataToolbar";
+import { DataToolbar, sortKeysOf, useDataToolbarState } from "../src/components/entities/DataToolbar";
+import { schemaState } from "../src/components/entities/EndpointDataView";
 import type { DataToolbarProps } from "../src/components/entities/DataToolbar";
 import { expectNoAxeViolations, renderPart } from "./page_contract";
 
@@ -101,8 +102,86 @@ describe("the grid's one toolbar (T-6303)", () => {
   it("is the one toolbar both pages import", () => {
     for (const file of ["src/pages/spaces/SpaceInside.tsx", "src/components/entities/EndpointDataView.tsx"]) {
       const code = readFileSync(file, "utf8");
-      expect(code).toMatch(/import \{ DataToolbar \} from "[./]+\/(components\/entities\/)?DataToolbar";/);
+      expect(code).toMatch(/import \{ DataToolbar\b[^}]*\} from "[./]+\/(components\/entities\/)?DataToolbar";/);
       expect(code).not.toMatch(/<FilterPanel\b|<SortPanel\b|<GroupPanel\b/);
     }
+  });
+});
+
+describe("the toolbar's own state (T-6303)", () => {
+  const CONDITION = { key: "startDate", filter: { op: "gte" as const, value: "2026-11-01" } };
+
+  it("asks the filters and the search, the search 400 ms after the last key", () => {
+    vi.useFakeTimers();
+    try {
+      const { result } = renderHook(() => useDataToolbarState());
+      expect(result.current.query).toBeUndefined();
+      act(() => result.current.onFilterColumns([{ key: "name", attr: "name", kind: "text" }, ...COLUMNS]));
+      act(() => result.current.props.onFilters({ join: "and", conditions: [CONDITION] }));
+      const filtered = result.current.q;
+      expect(filtered).toContain("startDate");
+      act(() => result.current.props.onSearchText("park"));
+      expect(result.current.q).toBe(filtered);
+      act(() => vi.advanceTimersByTime(400));
+      expect(result.current.q).toContain("park");
+      expect(result.current.query).toEqual({ q: result.current.q });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("opens a default filter once, then leaves the panel to the reader", () => {
+    const preset = { join: "and" as const, conditions: [CONDITION] };
+    const { result, rerender } = renderHook(({ adopt }) => {
+      const tools = useDataToolbarState();
+      tools.adoptDefault(adopt);
+      return tools;
+    }, { initialProps: { adopt: preset } });
+    expect(result.current.group).toEqual(preset);
+    act(() => result.current.props.onFilters({ join: "and", conditions: [] }));
+    rerender({ adopt: preset });
+    expect(result.current.group.conditions).toEqual([]);
+  });
+
+  it("hides beside what is hidden now, and a reset empties every tool", () => {
+    const { result } = renderHook(() => useDataToolbarState());
+    act(() => result.current.hide(["name"], "startDate"));
+    act(() => result.current.props.onGroupBy(["name"]));
+    act(() => result.current.setThenBy([{ attr: "name", dir: "asc" }]));
+    expect(result.current.extras.hidden).toEqual(["name", "startDate"]);
+    act(() => result.current.reset());
+    expect(result.current.extras).toEqual({});
+    expect(result.current.groupBy).toEqual([]);
+    expect(result.current.thenBy).toEqual([]);
+  });
+
+  it("tones the rows a colour rule matches and no other", () => {
+    const { result } = renderHook(() => useDataToolbarState());
+    act(() => result.current.props.onExtras({ colour: [{ when: "pm10>40", colour: "danger" }, { when: " ", colour: "ok" }] }));
+    const row = (pm10: number) => ({ id: "urn:ngsi-ld:A:1", type: "A", cells: { pm10: { kind: "property", value: pm10 } }, raw: {} }) as never;
+    expect(result.current.rowTone(row(50))?.tone).toBe("danger");
+    expect(result.current.rowTone(row(10))).toBeUndefined();
+  });
+
+  it("puts the header's sort first in the Sort panel, once", () => {
+    const thenBy = [{ attr: "name", dir: "asc" as const }, { attr: "startDate", dir: "desc" as const }];
+    expect(sortKeysOf(null, thenBy)).toBe(thenBy);
+    expect(sortKeysOf({ attr: "startDate", dir: "asc" }, thenBy)).toEqual([{ attr: "startDate", dir: "asc" }, { attr: "name", dir: "asc" }]);
+  });
+});
+
+describe("the Data section's wait (T-6303)", () => {
+  const done = { error: null, isPending: false };
+  const t = (key: string) => key;
+
+  it("names a failed schema read, waits for every read, and says when no type is left", () => {
+    render(<>{schemaState({ index: { error: new Error("403: grant read"), isPending: false }, schema: done, widget: done }, false, t)}</>);
+    expect(screen.getByText("403: grant read")).toBeInTheDocument();
+    expect(schemaState({ index: done, schema: done, widget: { error: null, isPending: true } }, true, t)?.props.role).toBe("status");
+    expect(schemaState({ index: done, schema: done, widget: done }, false, t)?.props.children).toBe("endpoints.data.noSchema");
+  });
+
+  it("opens the grid when the widget defaults fail: they are optional", () => {
+    expect(schemaState({ index: done, schema: done, widget: { error: new Error("404"), isPending: false } }, true, t)).toBeNull();
   });
 });

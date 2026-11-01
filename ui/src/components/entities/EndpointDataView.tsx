@@ -10,17 +10,15 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { andQ, EntityCompare, enumsOf, matchesQ, originTransport, parseGridConfig, parseQ, queryFromGroup, relationsOf, searchQuery, sourceFor } from "@joinedcontext/sdk";
-import type { ColumnFilter, FilterColumn, FilterGroup, FilterKind, GridColumn, GridState, RichRow } from "@joinedcontext/sdk";
+import { andQ, EntityCompare, enumsOf, originTransport, parseGridConfig, parseQ, relationsOf, sourceFor } from "@joinedcontext/sdk";
+import type { ColumnFilter, FilterColumn, FilterGroup, FilterKind, GridColumn, GridState } from "@joinedcontext/sdk";
 import { fetchJson, publishedTypes } from "../../pages/endpoints/SchemaProjectionPanel";
 import { classSlots, parseModel } from "../../pages/models/linkml";
 import type { ClassView, LinkmlModel, LinkmlSlot } from "../../pages/models/linkml";
 import { Button, Field, InlineError, Select, safeHref } from "../ui";
-import { DataToolbar } from "./DataToolbar";
+import { DataToolbar, sortKeysOf, useDataToolbarState } from "./DataToolbar";
 import { conditionCount, EMPTY_GROUP, FilterChips } from "./FilterPanel";
 import { GroupCount } from "./GridToolbar";
-import type { RowSize, SortKey } from "./GridToolbar";
-import type { ViewExtras } from "./ViewOptions";
 import { columnLabel, displayOrder } from "./displayOrder";
 import { gridLabels, PortalEntityGrid } from "./PortalEntityGrid";
 import { filtersFromQ } from "./presetFilters";
@@ -624,16 +622,17 @@ function DefaultFilter({
 
 /**
  * Why the CSV is not offered, or undefined when it is (T-5530). The CSV holds every shown column,
- * so it is offered only when the endpoint says the person reads each of them. `slug` is undefined
- * when there is no CSV or another origin is read anonymously: no decisions to ask.
+ * so it is offered only when the endpoint says the person reads each of them. Without a CSV, or
+ * when another origin is read anonymously, there are no decisions to ask.
  */
 function useCsvRefusal(
-  slug: string | undefined,
+  csv: { offered: boolean; origin?: string; slug: string },
   type: string | undefined,
   shown: readonly string[],
   labels: Record<string, string>,
 ): string | undefined {
   const { t } = useTranslation();
+  const slug = csv.offered && !csv.origin ? csv.slug : undefined;
   const decisions = useAttributeAccess(slug, type);
   const unreadable = useMemo(() => unreadableOf(decisions.data, shown), [decisions.data, shown]);
   if (!slug) return undefined;
@@ -641,6 +640,24 @@ function useCsvRefusal(
   if (decisions.isError) return t("endpoints.data.csvUnchecked");
   if (unreadable.length === 0) return undefined;
   return t("endpoints.data.csvRefused", { attributes: unreadable.map((name) => labels[name] ?? name).join(", ") });
+}
+
+/**
+ * What the Data section shows while its reads are not all in: a refused or failed read says why in
+ * the surface's own sentence (a 403 names the grant), a pending one that it loads, a schema without
+ * a type that there is nothing to show. Null once the grid can open.
+ */
+export function schemaState(
+  reads: Record<"index" | "schema" | "widget", { error: Error | null; isPending: boolean }>,
+  ready: boolean,
+  t: (key: string) => string,
+): JSX.Element | null {
+  // The widget's defaults are optional: its error leaves the model's, so only its wait shows.
+  const failed = reads.index.error ?? reads.schema.error;
+  if (failed) return <InlineError>{failed.message}</InlineError>;
+  if (Object.values(reads).some((read) => read.isPending)) return <p role="status">{t("endpoints.projection.loading")}</p>;
+  if (!ready) return <p className="text-caption text-fg-muted">{t("endpoints.data.noSchema")}</p>;
+  return null;
 }
 
 export function EndpointDataView({
@@ -678,12 +695,12 @@ export function EndpointDataView({
     retry: false,
     queryFn: () => fetchJson(`${root}/api/endpoint/${slug}/widget.json`),
   });
-  // The space's toolbar over this grid (T-6303): hidden fields and colours, the filter panel, the
-  // keys after the header's sort, the groups, the row size, the search and the query box.
-  const [extras, setExtras] = useState<ViewExtras>({});
+  // The space's toolbar over this grid (T-6303), its state held by the toolbar's own hook.
+  const tools = useDataToolbarState();
+  const { extras, group } = tools;
   const { types, type, columns, klass, view: classView, slots, shape, hiddenNow, shownColumns, enums, relations, links, kinds, gridColumns } =
     useTypeColumns(schema.data, model.data, chosen, hidden, extras.hidden, i18n.language, widget.data);
-  const csvRefused = useCsvRefusal(csv && !origin ? slug : undefined, type?.name, shownColumns, shape.labels);
+  const csvRefused = useCsvRefusal({ offered: csv, origin, slug }, type?.name, shownColumns, shape.labels);
   // The order and the typed query the grid opens with; the grid holds them from then on.
   const [view, setView] = useState<OpenedView | null>(null);
   // The address is read once, as the view opens: the link this view writes back carries the
@@ -692,32 +709,10 @@ export function EndpointDataView({
   const { dropped, setDropped, defaults, preset } = useDefaultView(classView, gridColumns, enums, opening);
   const { opened, sortText } = gridState(view ?? preset, opening, columns);
   // The default filter's inputs open in the Filter panel; from the first default on, the panel is the reader's.
-  const [filters, setFilters] = useState<FilterGroup | null>(null);
-  if (filters === null && preset?.filters && Object.keys(preset.filters).length > 0) setFilters(groupOf(preset.filters));
-  const group = filters ?? EMPTY_GROUP;
-  const [filterColumns, setFilterColumns] = useState<FilterColumn[]>([]);
-  const onFilterColumns = useCallback(
-    (next: FilterColumn[]) => setFilterColumns((before) => (JSON.stringify(before) === JSON.stringify(next) ? before : next)),
-    [],
-  );
-  const [thenBy, setThenBy] = useState<SortKey[]>([]);
-  const [groupBy, setGroupBy] = useState<string[]>([]);
-  const [rowSize, setRowSize] = useState<RowSize>("small");
-  const [searchText, setSearchText] = useState("");
-  const [search, setSearch] = useState("");
-  const [showQuery, setShowQuery] = useState(false);
-  useEffect(() => {
-    const wait = setTimeout(() => setSearch(searchText), 400);
-    return () => clearTimeout(wait);
-  }, [searchText]);
-  const toolbarQ = useMemo(() => andQ(queryFromGroup(filterColumns, group), searchQuery(search, filterColumns)), [filterColumns, group, search]);
-  const gridQuery = useMemo(() => (toolbarQ ? { q: toolbarQ } : undefined), [toolbarQ]);
-  const allAsked = andQ(asked, toolbarQ);
+  tools.adoptDefault(groupOf(preset?.filters));
+  const allAsked = andQ(asked, tools.q);
   const filtered = opened.filterText !== null || conditionCount(group) > 0;
-  const sortKeys = useMemo(
-    () => (opened.sort ? [opened.sort, ...thenBy.filter((key) => key.attr !== opened.sort?.attr)] : thenBy),
-    [opened.sort, thenBy],
-  );
+  const sortKeys = useMemo(() => sortKeysOf(opened.sort, tools.thenBy), [opened.sort, tools.thenBy]);
   useEffect(() => {
     if (type) onLink?.({ type: type.name, q: allAsked || undefined, sort: sortText, ...(dropped ? { noDefault: true } : {}) });
   }, [type, allAsked, sortText, dropped, onLink]);
@@ -740,14 +735,8 @@ export function EndpointDataView({
     () => ({ filterText: opened.filterText, sort: sortAttr && sortDir ? { attr: sortAttr, dir: sortDir } : null }),
     [opened.filterText, sortAttr, sortDir],
   );
-  const onHide = useCallback((attr: string) => setExtras((before) => ({ ...before, hidden: [...new Set([...hiddenNow, attr])] })), [hiddenNow]);
-  const rowTone = useCallback(
-    (row: RichRow) => {
-      const rule = (extras.colour ?? []).find((each) => each.when.trim() !== "" && matchesQ(row, each.when) === true);
-      return rule ? { tone: rule.colour, label: t("spaces.saved.toneLabel", { when: rule.when }) } : undefined;
-    },
-    [extras.colour, t],
-  );
+  const { hide } = tools;
+  const onHide = useCallback((attr: string) => hide(hiddenNow, attr), [hide, hiddenNow]);
 
   // Escape leaves the full window, as it closes a dialog.
   useEffect(() => {
@@ -758,7 +747,7 @@ export function EndpointDataView({
     window.addEventListener("keydown", leave);
     return () => window.removeEventListener("keydown", leave);
   }, [full]);
-  const rowsPerPage = classView?.pageLength ?? 20;
+  const rowsPerPage = classView?.pageLength;
   const config = useMemo(() => {
     if (!type) {
       return null;
@@ -768,7 +757,7 @@ export function EndpointDataView({
         source: { kind: "endpoint", slug },
         type: type.name,
         columns: gridColumns,
-        pageSize: rowsPerPage,
+        pageSize: rowsPerPage ?? 20,
         // Read only here: a value is corrected in the explorer, where the person chose the endpoint
         // for that purpose.
         mode: "view",
@@ -802,16 +791,9 @@ export function EndpointDataView({
     return column.meta ? `${title} · ${t(`entityGrid.${column.meta}`)}` : title;
   };
 
-  // A refused or failed schema read says why, in the surface's own sentence (a 403 names the grant).
-  const failed = index.error ?? schema.error;
-  if (failed) {
-    return <InlineError>{failed.message}</InlineError>;
-  }
-  if (index.isPending || schema.isPending || widget.isPending) {
-    return <p role="status">{t("endpoints.projection.loading")}</p>;
-  }
-  if (!type || !config) {
-    return <p className="text-caption text-fg-muted">{t("endpoints.data.noSchema")}</p>;
+  const notReady = schemaState({ index, schema, widget }, Boolean(type && config), t);
+  if (notReady || !type || !config) {
+    return notReady ?? <></>;
   }
 
   return (
@@ -826,10 +808,7 @@ export function EndpointDataView({
               setChosen(event.target.value);
               // Another type has other columns: its query, order and tools start empty.
               setView({ filterText: null, sort: null });
-              setFilters(EMPTY_GROUP);
-              setExtras({});
-              setThenBy([]);
-              setGroupBy([]);
+              tools.reset();
               setAsked(undefined);
             }}
           >
@@ -843,28 +822,17 @@ export function EndpointDataView({
       </div>
       <div className="flex flex-wrap items-center gap-1 border-b border-border pb-2" data-testid="grid-toolbar">
         <DataToolbar
-          filterColumns={filterColumns}
+          {...tools.props}
           filterTitle={filterTitle}
-          filters={group}
-          onFilters={setFilters}
           attributes={shape.order}
           enums={enums}
           extras={{ ...extras, hidden: hiddenNow }}
-          onExtras={setExtras}
           fields={panelFields}
           sortKeys={sortKeys}
           onSortKeys={(next) => {
             setView({ filterText: opened.filterText, sort: next[0] ?? null });
-            setThenBy(next.slice(1));
+            tools.setThenBy(next.slice(1));
           }}
-          groupBy={groupBy}
-          onGroupBy={setGroupBy}
-          rowSize={rowSize}
-          onRowSize={setRowSize}
-          searchText={searchText}
-          onSearchText={setSearchText}
-          showQuery={showQuery}
-          onShowQuery={setShowQuery}
         />
         {/* Two doors on the same page of entities: what this endpoint's filter and projection leave
             out is marked on the space's side (T-1435). The CSV is the whole answer of this query as
@@ -884,7 +852,7 @@ export function EndpointDataView({
       </div>
       <div className="flex flex-wrap items-center gap-2 empty:hidden">
         {/* The conditions in force stay in sight, as on the space's grid (T-6161). */}
-        <FilterChips columns={filterColumns} titleOf={filterTitle} value={group} onChange={setFilters} />
+        <FilterChips columns={tools.props.filterColumns} titleOf={filterTitle} value={group} onChange={tools.props.onFilters} />
         <DefaultFilter
           filter={classView?.filter}
           defaults={defaults}
@@ -895,12 +863,12 @@ export function EndpointDataView({
           onClear={() => {
             setDropped(true);
             setView({ filterText: null, sort: opened.sort });
-            setFilters(EMPTY_GROUP);
+            tools.props.onFilters(EMPTY_GROUP);
           }}
           onRestore={() => {
             setDropped(false);
             setView(defaults && { filterText: defaults.filterText, sort: defaults.sort });
-            setFilters(groupOf(defaults?.filters));
+            tools.props.onFilters(groupOf(defaults?.filters));
           }}
         />
       </div>
@@ -928,15 +896,15 @@ export function EndpointDataView({
           onQuery={onQuery}
           hidden={hiddenNow}
           onHide={onHide}
-          thenBy={thenBy}
-          groupBy={groupBy}
+          thenBy={tools.thenBy}
+          groupBy={tools.groupBy}
           groupHeader={(each) => <GroupCount scope={`endpoint/${slug}`} source={countSource} type={type.name} q={allAsked} path={each.path} />}
-          rowTone={rowTone}
-          rowSize={rowSize}
-          query={gridQuery}
+          rowTone={tools.rowTone}
+          rowSize={tools.rowSize}
+          query={tools.query}
           filterRow={false}
-          queryBox={showQuery}
-          onFilterColumns={onFilterColumns}
+          queryBox={tools.showQuery}
+          onFilterColumns={tools.onFilterColumns}
           {...openRowProps(onOpenRow)}
         />
       )}
