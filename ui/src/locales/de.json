@@ -5648,7 +5648,7 @@
     "details": "Spalteneinstellungen",
     "filterExampleText": "Berlin",
     "filterExampleNumber": "40",
-    "filterExampleId": "station-12",
+    "filterExampleId": "messstelle-12",
     "clearFilters": "Alle Filter entfernen",
     "removeFilter": "Filter {name} entfernen",
     "activeFilters": "Aktive Filter",
