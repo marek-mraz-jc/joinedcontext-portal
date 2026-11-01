@@ -612,6 +612,7 @@
 }
 
 .jc-grid-map__area,
+.jc-grid-map__hint,
 .jc-grid-map__points,
 .jc-grid-map__picked,
 .jc-grid-map__summary,
@@ -2366,10 +2367,44 @@ a.jc-cell--link:focus-visible {
   background: color-mix(in srgb, var(--jc-color-accent, #0066cc) 10%, var(--jc-color-surface, #ffffff));
 }
 
-.jc-grid-map__draw .map-wrap,
-.jc-grid-map__draw .map {
+.jc-grid-map__draw .map-wrap {
   position: relative;
+}
+
+/* The drawing map keeps one height, the canvas included: a 40vh canvas in a 22rem box ran over
+   the notes under it at 400 px (T-6345). */
+.jc-grid-map .jc-grid-map__draw :is(.map, .maplibregl-map) {
+  position: relative;
+  flex: none;
+  min-height: 0;
   height: 22rem;
+}
+
+/* The map's own notes sit on the map, not under it where they ran into the panel's lines. */
+.jc-grid-map .map-wrap {
+  position: relative;
+}
+
+.jc-grid-map .map-notice,
+.jc-grid-map .map-count {
+  position: absolute;
+  left: 0.5rem;
+  z-index: 1;
+  /* A note never takes a click meant for the map under it. */
+  pointer-events: none;
+  padding: 0.125rem 0.5rem;
+  border-radius: var(--jc-radius-md, 6px);
+  background: var(--jc-color-surface, #ffffff);
+  color: var(--jc-color-muted, #666);
+  font-size: 0.75rem;
+}
+
+.jc-grid-map .map-notice {
+  top: 0.5rem;
+}
+
+.jc-grid-map .map-count {
+  bottom: 0.5rem;
 }
 
 .jc-grid-map__draw .geo-editor > :not(.geo-toolbar, .map-wrap, .geo-findings) {

@@ -5586,7 +5586,8 @@
       "pointsShown": "na mapě",
       "pointsCapped": "zobrazeny jsou jen první",
       "pointsFailed": "Body se nepodařilo načíst",
-      "selected": "Vybráno"
+      "selected": "Vybráno",
+      "drawHint": "Vyberte tvar a klikejte do mapy: obdélník jsou dva rohy, kruh jeho střed a okraj, oblast každý roh a poslední dvakrát. Escape kreslení ukončí."
     },
     "geo": {
       "tools": "Nástroje kreslení",

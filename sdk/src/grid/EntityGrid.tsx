@@ -1448,7 +1448,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
   // and no row of an earlier answer.
   if (grid.refusal) {
     return (
-      <div className={rootClass} data-jc-sdk="grid">
+      <div className={`jc-grid${className ? ` ${className}` : ""}`} data-jc-sdk="grid">
         <GridRefusalState refusal={grid.refusal} labels={labels} onSignIn={onSignIn} detail={grid.refusalDetail} />
       </div>
     );

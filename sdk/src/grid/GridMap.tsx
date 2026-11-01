@@ -48,6 +48,8 @@ export interface GridMapLabels {
   pointsFailed: string;
   /** "Selected: Hlavná 1 (urn:…)" after a click on a point. */
   selected: string;
+  /** What to do once the drawing tools are open. */
+  drawHint: string;
 }
 
 export const DEFAULT_GRID_MAP_LABELS: GridMapLabels = {
@@ -68,6 +70,7 @@ export const DEFAULT_GRID_MAP_LABELS: GridMapLabels = {
   pointsCapped: "only the first ones are drawn",
   pointsFailed: "The points could not be read",
   selected: "Selected",
+  drawHint: "Choose a shape, then click the map: a rectangle is two corners, a circle its centre and edge, an area each corner and the last one twice. Escape leaves.",
 };
 
 /** What the point read says: progress while it pages, the count once it ended, or why it failed. */
@@ -283,6 +286,7 @@ export function GridMap({
             }
           }}
         >
+        <p className="jc-grid-map__hint">{labels.drawHint}</p>
         <GeoEditor
           value={area?.geometry ?? null}
           onChange={(geometry) => onArea?.(geometry && geometry.type === "Polygon" ? { geoproperty: attr, geometry } : null)}

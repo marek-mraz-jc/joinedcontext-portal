@@ -397,6 +397,7 @@ export function gridMapLabels(t: (key: string) => string): GridMapLabels {
     pointsCapped: t("entityGrid.map.pointsCapped"),
     pointsFailed: t("entityGrid.map.pointsFailed"),
     selected: t("entityGrid.map.selected"),
+    drawHint: t("entityGrid.map.drawHint"),
   };
 }
 

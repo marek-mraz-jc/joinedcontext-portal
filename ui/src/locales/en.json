@@ -5586,7 +5586,8 @@
       "pointsShown": "on the map",
       "pointsCapped": "only the first ones are drawn",
       "pointsFailed": "The points could not be read",
-      "selected": "Selected"
+      "selected": "Selected",
+      "drawHint": "Choose a shape, then click the map: a rectangle is two corners, a circle its centre and edge, an area each corner and the last one twice. Escape leaves."
     },
     "geo": {
       "tools": "Drawing tools",
