@@ -897,7 +897,7 @@ impl Connector {
 
     /// Whether a plan (or, with `write`, an apply) may name `kind`/`name` of `project`: a kind of
     /// the segments, a scope item that reaches the object, and for a write the `writes` switch and
-    /// `write` on that item (AG-144, AG-149). `space` is where the change sits ([`change_space`]).
+    /// `write` on that item (AG-144, AG-149). `space` is where the change sits (`change_space`).
     /// `Err` says which, naming the target.
     pub fn may_change(
         &self,
@@ -997,7 +997,7 @@ impl Connector {
     }
 
     /// The scope's half of one call (AG-144): the project, the kind and the object the call
-    /// names, which sits in the space `space_of(kind, name)` answers ([`space_now`]). `Err` is the
+    /// names, which sits in the space `space_of(kind, name)` answers (`space_now`). `Err` is the
     /// reason the refusal carries, naming the target.
     pub fn admits(
         &self,
