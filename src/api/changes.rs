@@ -3578,7 +3578,7 @@ mod tests {
         assert_eq!(list.items.len(), 8, "{:?}", list.items);
         // One wave: the list, then files and the author together, then head and base together.
         assert!(
-            took < std::time::Duration::from_millis(900),
+            took < std::time::Duration::from_millis(650),
             "the list took {took:?}"
         );
     }
