@@ -365,12 +365,7 @@ pub fn operations() -> Vec<Operation> {
                         Path((project.to_owned(), input.id)),
                     )
                     .await?;
-                    let bytes = axum::body::to_bytes(response.into_body(), 1024 * 1024)
-                        .await
-                        .map_err(|err| {
-                            OpError::Api(crate::error::ApiError::Internal(err.to_string()))
-                        })?;
-                    Ok(serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+                    super::admin::proposed(response).await
                 })
             },
         },
@@ -476,4 +471,42 @@ pub fn operations() -> Vec<Operation> {
             },
         },
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// JC2-23: jc_run_publish answers what its outputSchema declares, the Change wrapped as
+    /// every other propose answers it, not the route's bare Change.
+    #[tokio::test]
+    async fn a_published_run_answers_its_output_schema() {
+        let change = crate::change::Change::new(
+            crate::change::ChangeMeta::new("chg-0123abcd", "demo"),
+            crate::change::ChangeStatus::new(
+                Lane::Yellow,
+                crate::change::ChangePhase::PendingApproval,
+                crate::change::PlanSummary::new(1, 0, 0),
+            )
+            .with_merge_request("https://forge.example/demo/pulls/1".to_owned()),
+        );
+        let response = axum::response::IntoResponse::into_response((
+            axum::http::StatusCode::ACCEPTED,
+            Json(change),
+        ));
+        let answer = super::super::admin::proposed(response)
+            .await
+            .expect("answer");
+        let op = operations()
+            .into_iter()
+            .find(|op| op.name == "jc_run_publish")
+            .expect("op");
+        let schema = (op.output)();
+        let validator = jsonschema::validator_for(&schema).expect("schema");
+        let problems: Vec<String> = validator
+            .iter_errors(&answer)
+            .map(|e| e.to_string())
+            .collect();
+        assert!(problems.is_empty(), "{problems:?} in {answer}");
+    }
 }
