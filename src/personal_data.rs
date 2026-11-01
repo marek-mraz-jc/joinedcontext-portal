@@ -144,6 +144,82 @@ fn strip(node: &mut serde_json::Map<String, Value>, marks: &Marks, removed: &mut
     }
 }
 
+/// The fields the project's DataSource `name` lists in `spec.personalFields` (AG-158). A source
+/// the mirror lacks lists none.
+pub fn source_fields(state: &AppState, project: &str, name: &str) -> BTreeSet<String> {
+    state
+        .mirror
+        .get(project, "DataSource", name)
+        .and_then(|source| source.spec.get("personalFields").cloned())
+        .and_then(|fields| serde_json::from_value(fields).ok())
+        .unwrap_or_default()
+}
+
+/// Removes `fields` of the DataSource `source` from a sample answer of
+/// `jc_pipeline_sample_source` or `jc_pipeline_try_mapping`: from each record of `records` and
+/// of each `steps[].records` that is no entity (an entity is judged by its model's marks), and
+/// from the first input message, which leaves the answer whole when it is text. Returns each
+/// field removed as `DataSource/{source}.{field}`; values are never returned.
+pub fn withhold_source(answer: &mut Value, source: &str, fields: &BTreeSet<String>) -> Vec<String> {
+    if fields.is_empty() {
+        return Vec::new();
+    }
+    let mut removed = BTreeSet::new();
+    let strip_record = |record: &mut Value, removed: &mut BTreeSet<String>| {
+        if let Value::Object(node) = record {
+            if !is_entity(node) {
+                for field in fields {
+                    if node.remove(field).is_some() {
+                        removed.insert(field.clone());
+                    }
+                }
+            }
+        }
+    };
+    let strip_list = |list: Option<&mut Value>, removed: &mut BTreeSet<String>| {
+        list.and_then(Value::as_array_mut)
+            .into_iter()
+            .flatten()
+            .for_each(|record| strip_record(record, removed));
+    };
+    strip_list(answer.get_mut("records"), &mut removed);
+    for step in answer
+        .get_mut("steps")
+        .and_then(Value::as_array_mut)
+        .into_iter()
+        .flatten()
+    {
+        strip_list(step.get_mut("records"), &mut removed);
+    }
+    if let Some(input) = answer.get_mut("input").and_then(Value::as_object_mut) {
+        match input.get_mut("sample") {
+            Some(Value::String(text)) => {
+                // A text message (a CSV body) cannot lose one column: it leaves whole.
+                removed.extend(fields.iter().filter(|f| text.contains(f.as_str())).cloned());
+                input.remove("sample");
+            }
+            Some(sample) => strip_record(sample, &mut removed),
+            None => {}
+        }
+    }
+    let named: Vec<String> = removed
+        .into_iter()
+        .map(|field| format!("DataSource/{source}.{field}"))
+        .collect();
+    if !named.is_empty() {
+        let mut all: BTreeSet<String> = answer["withheld"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(Value::as_str)
+            .map(str::to_owned)
+            .collect();
+        all.extend(named.iter().cloned());
+        answer["withheld"] = serde_json::json!(all);
+    }
+    named
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -270,5 +346,43 @@ slots:
             &json!({"items": [{"kind": "Endpoint", "name": "x"}]})
         ));
         assert!(!carries_entities(&json!({"id": "urn:x", "type": 3})));
+    }
+
+    #[test]
+    fn listed_source_fields_leave_every_sample_record_and_are_named() {
+        let fields = BTreeSet::from(["rider".to_owned(), "phone".to_owned()]);
+        let mut answer = json!({
+            "count": 2,
+            "fields": ["rider", "station"],
+            "records": [
+                { "rider": "Jana Nováková", "station": "Námestie SNP" },
+                { "station": "Hlavná stanica" },
+                { "id": "urn:ngsi-ld:Trip:1", "type": "Trip", "rider": { "type": "Property", "value": "kept for the model" } }
+            ],
+            "steps": [{ "step": 0, "name": "mapping", "records": [{ "rider": "Peter", "station": "SNP" }] }],
+            "input": { "events": 1, "bytes": 40, "sample": "rider,station\nJana,SNP" }
+        });
+        let named = withhold_source(&mut answer, "trips", &fields);
+        assert_eq!(named, ["DataSource/trips.rider"]);
+        assert_eq!(answer["withheld"], json!(["DataSource/trips.rider"]));
+        let text = answer.to_string();
+        for value in ["Jana", "Peter", "Nováková"] {
+            assert!(!text.contains(value), "{value} left in {text}");
+        }
+        assert_eq!(answer["records"][0], json!({ "station": "Námestie SNP" }));
+        assert!(answer["input"].get("sample").is_none());
+        assert_eq!(answer["input"]["events"], 1);
+        // An entity keeps it: the model's marks judge an entity.
+        assert_eq!(answer["records"][2]["rider"]["value"], "kept for the model");
+
+        let mut object_sample = json!({ "input": { "sample": { "rider": "Jana", "a": 1 } } });
+        withhold_source(&mut object_sample, "trips", &fields);
+        assert_eq!(object_sample["input"]["sample"], json!({ "a": 1 }));
+
+        let plain = json!({ "records": [{ "station": "SNP" }] });
+        let mut kept = plain.clone();
+        assert!(withhold_source(&mut kept, "trips", &fields).is_empty());
+        assert!(withhold_source(&mut kept, "trips", &BTreeSet::new()).is_empty());
+        assert_eq!(kept, plain);
     }
 }

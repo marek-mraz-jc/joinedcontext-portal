@@ -21857,6 +21857,13 @@
                     "truncated": {
                       "description": "Whether the source answered more than the records shown",
                       "type": "boolean"
+                    },
+                    "withheld": {
+                      "description": "Each personal field of the source left out, as DataSource/{name}.{field}",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
                     }
                   },
                   "type": "object"
@@ -22213,6 +22220,13 @@
                     },
                     "records": {
                       "description": "Each record as the pipeline would write it",
+                      "type": "array"
+                    },
+                    "withheld": {
+                      "description": "Each personal field of the source left out, as DataSource/{name}.{field}",
+                      "items": {
+                        "type": "string"
+                      },
                       "type": "array"
                     }
                   },
