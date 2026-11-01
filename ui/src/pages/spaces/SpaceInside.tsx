@@ -792,6 +792,7 @@ function SpaceData({
   // The views are drawn while the probe is under way (T-5598): waiting for it put one more round
   // trip before the grid's own read, 0.6 s on a phone's network. A refusal still replaces them.
   const readable = type !== "" && !probe.isError;
+  const typeInGrid = view === "grid" && readable && !hasSavedViews;
 
   // The type and its attributes as the model titles them, the key where it gives no title; an
   // entity is led by its name, its URN the open button's tooltip (T-4264, T-4160 #6).
@@ -921,9 +922,10 @@ function SpaceData({
   return (
     // Baserow's shape (T-4825): the types and their saved views on the left, the rows beside them.
     // The type is picked in the grid's Type column (owner 2026-11-01); the list stays for the
-    // other views and for saved views, which the grid has no place for.
-    <div className={view === "grid" && !hasSavedViews ? "grid gap-4" : "grid gap-4 lg:grid-cols-[14rem_minmax(0,1fr)]"}>
-      {view === "grid" && !hasSavedViews ? null : <TypeList
+    // other views, for saved views, which the grid has no place for, and while no grid is drawn (a
+    // type whose read failed would otherwise leave no way to another type).
+    <div className={typeInGrid ? "grid gap-4" : "grid gap-4 lg:grid-cols-[14rem_minmax(0,1fr)]"}>
+      {typeInGrid ? null : <TypeList
         project={project}
         space={space}
         types={types}

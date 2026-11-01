@@ -7,7 +7,7 @@
  * second endpoint they already have. It also hand-made its type chooser and painted eleven
  * strings with `text-surface-fg/70`, a token diluted by opacity rather than the muted token.
  */
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider, createRootRoute, createRouter } from "@tanstack/react-router";
@@ -58,6 +58,8 @@ const OK: Record<string, Answer> = {
   datamodels: { status: 200, body: MODELS },
   endpoints: { status: 200, body: ENDPOINTS },
   policies: { status: 200, body: list([]) },
+  // The space surface answers the type's rows: none here, so the grid draws its header alone.
+  entities: { status: 200, body: [] },
 };
 
 /** A read that hangs, for the state between asking and knowing. */
@@ -84,7 +86,9 @@ function show(answers: Partial<Record<string, Answer>> = {}, hanging: string[] =
               ? "usage"
               : path.endsWith("/views")
                 ? "views"
-                : "other";
+                : path.endsWith("/entities")
+                  ? "entities"
+                  : "other";
     if (hanging.includes(key)) {
       return hangs();
     }
@@ -179,24 +183,25 @@ describe("what a space holds, against the UI contract", () => {
       en.activity.panelTitle,
     ]);
     expect(screen.getByRole("tab", { name: en.spaces.inside.data })).toHaveAttribute("aria-selected", "true");
-    const list = await screen.findByRole("navigation", { name: en.spaces.inside.types });
-    const observed = within(list).getByRole("button", { name: "AirQualityObserved" });
-    expect(observed).toHaveAttribute("aria-current", "true");
-    expect(observed).toHaveClass("focus-ring");
+    // The type is picked in the grid's Type column (owner 2026-11-01, T-6344): no left list for a
+    // space without saved views.
+    const picker = await screen.findByRole("combobox", { name: en.spaces.inside.type });
+    expect(picker).toHaveValue("AirQualityObserved");
+    expect(screen.queryByRole("navigation", { name: en.spaces.inside.types })).toBeNull();
     // Completing works on one space, so its page offers it with the space filled in (T-6084).
     expect(screen.getByRole("link", { name: en.spaces.complete.title })).toHaveAttribute(
       "href",
       "/projects/banskabystrica/spaces/complete?space=ovzdusie",
     );
     // A type without saved views is all its rows: no "All rows" item repeats it (T-6084).
-    expect(within(list).queryByRole("list", { name: en.spaces.inside.savedViews })).toBeNull();
-    expect(within(list).queryByRole("button", { name: en.spaces.inside.allRows })).toBeNull();
+    expect(screen.queryByRole("list", { name: en.spaces.inside.savedViews })).toBeNull();
+    expect(screen.queryByRole("button", { name: en.spaces.inside.allRows })).toBeNull();
     // The model's types table is not on the landing page any more.
     expect(screen.queryByRole("table", { name: en.spaces.inside.types })).toBeNull();
 
-    await user.click(within(list).getByRole("button", { name: "AirQualityStation" }));
+    await user.selectOptions(picker, "AirQualityStation");
     expect(new URLSearchParams(window.location.search).get("type")).toBe("AirQualityStation");
-    expect(within(list).getByRole("button", { name: "AirQualityStation" })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("combobox", { name: en.spaces.inside.type })).toHaveValue("AirQualityStation");
   });
 
   it("lists \"All rows\" and the saved views under a type that has views (T-6084)", async () => {
@@ -218,9 +223,10 @@ describe("what a space holds, against the UI contract", () => {
     const items = within(views).getAllByRole("button");
     expect(items.map((each) => each.textContent)).toEqual([en.spaces.inside.allRows, "High PM10"]);
     expect(items[0]).toHaveAttribute("aria-current", "true");
-    // The other type has no views of its own: opening it shows no sub-list.
+    // The other type has no views of its own: opening it leaves the list, the grid's picker stays.
     await user.click(within(list_).getByRole("button", { name: "AirQualityStation" }));
-    expect(within(list_).queryByRole("list", { name: en.spaces.inside.savedViews })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("list", { name: en.spaces.inside.savedViews })).toBeNull());
+    expect(screen.getByRole("combobox", { name: en.spaces.inside.type })).toHaveValue("AirQualityStation");
   });
 
   it("opens the tab the address names, and a click puts the tab in the address", async () => {
@@ -253,16 +259,26 @@ describe("what a space holds, against the UI contract", () => {
   // on helsinki beside a grid that had its count ("100 of 121 loaded").
   it("counts the rows only through the grid: the data tab never asks for the whole space's scan", async () => {
     const { fetchMock } = show({ usage: { status: 503, body: { title: "Service Unavailable", status: 503, detail: "the broker took longer than 20 s to count the space" } } });
-    await screen.findByRole("navigation", { name: en.spaces.inside.types });
+    await screen.findByRole("combobox", { name: en.spaces.inside.type });
     const asked = fetchMock.mock.calls.map(([input]) => (input instanceof Request ? input.url : String(input)));
     expect(asked.filter((url) => url.includes("/usage"))).toEqual([]);
     expect(screen.queryByTestId("space-total")).toBeNull();
     expect(document.body.textContent).not.toContain("The count is not available");
   });
 
+  // T-6344: the grid's Type column picks the type, but a type whose read failed draws no grid; the
+  // left list stays then, or the person would have no way to another type.
+  it("keeps the type list while the open type's read failed, and a click there opens another type", async () => {
+    const { user } = show({ entities: { status: 200, body: { not: "a list" } } });
+    const list_ = await screen.findByRole("navigation", { name: en.spaces.inside.types });
+    expect(await screen.findByText(en.spaces.inside.dataFailed)).toBeInTheDocument();
+    await user.click(within(list_).getByRole("button", { name: "AirQualityStation" }));
+    expect(new URLSearchParams(window.location.search).get("type")).toBe("AirQualityStation");
+  });
+
   it("has no axe violation, loaded and with a section that failed", async () => {
     const loaded = show();
-    await screen.findByRole("navigation", { name: en.spaces.inside.types });
+    await screen.findByRole("combobox", { name: en.spaces.inside.type });
     await expectNoViolations(loaded.container);
     loaded.unmount();
     vi.unstubAllGlobals();
@@ -278,7 +294,7 @@ describe("what a space holds, against the UI contract", () => {
       for (const tab of ["", "model"]) {
         const { container, unmount } = show({}, [], tab);
         if (tab) await screen.findByTestId("space-total");
-        else await screen.findByRole("tab", { selected: true });
+        else await screen.findAllByRole("tab", { selected: true });
         expectNoRawKeys(container);
         unmount();
         vi.unstubAllGlobals();

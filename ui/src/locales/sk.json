@@ -2749,7 +2749,12 @@
       "outcome": "Výsledok",
       "message": "Správa",
       "noId": "(bez id)",
-      "states": {"clean": "Bez chýb", "rejected": "Odmietnuté riadky", "failing": "Zlyhané riadky", "silent": "Nezapísal nič"},
+      "states": {
+        "clean": "Bez chýb",
+        "rejected": "Odmietnuté riadky",
+        "failing": "Zlyhané riadky",
+        "silent": "Nezapísal nič"
+      },
       "outcomes": {
         "sent": "Zapísaný",
         "rejected": "Odmietnutý",
@@ -4112,8 +4117,18 @@
     "addClassNameHint": "Alebo začnite prázdny typ: názov z písmen a číslic bez medzier, ako Station.",
     "nameFirst": "Najprv zadajte názov.",
     "addWhat": "Čo pole obsahuje?",
-    "addKind": {"Property": "Hodnotu", "Relationship": "Odkaz na iný typ", "GeoProperty": "Miesto", "LanguageProperty": "Text vo viacerých jazykoch"},
-    "addKindHint": {"Property": "Číslo, text, dátum, áno/nie alebo hodnotu zo zoznamu, ako teplotu.", "Relationship": "Ukazuje na entitu iného typu, ako stanicu, ku ktorej meranie patrí.", "GeoProperty": "Bod, čiaru alebo plochu na mape, ako polohu.", "LanguageProperty": "Jeden text pre každý jazyk, ako názov po fínsky a anglicky."},
+    "addKind": {
+      "Property": "Hodnotu",
+      "Relationship": "Odkaz na iný typ",
+      "GeoProperty": "Miesto",
+      "LanguageProperty": "Text vo viacerých jazykoch"
+    },
+    "addKindHint": {
+      "Property": "Číslo, text, dátum, áno/nie alebo hodnotu zo zoznamu, ako teplotu.",
+      "Relationship": "Ukazuje na entitu iného typu, ako stanicu, ku ktorej meranie patrí.",
+      "GeoProperty": "Bod, čiaru alebo plochu na mape, ako polohu.",
+      "LanguageProperty": "Jeden text pre každý jazyk, ako názov po fínsky a anglicky."
+    },
     "share": {
       "action": "Zdieľať s organizáciou",
       "title": "Zdieľať {name} s organizáciou?",
@@ -4476,10 +4491,7 @@
       "modelLead": "Čo tento model opisuje a čo na ňom stavia.",
       "listCaption": "Dátové modely projektu",
       "new": {
-        "menu": "Nový dátový model",
-        "blank": "Prázdny model",
-        "file": "Zo súboru s dátami (CSV, Excel, JSON, PDF)",
-        "sdm": "Zo Smart Data Models"
+        "menu": "Nový dátový model"
       },
       "emptyTitle": "Zatiaľ žiadny dátový model",
       "emptyLead": "Vytvorte ho pre priestor: začnite prázdny, odvoďte ho zo súboru alebo importujte Smart Data Model.",
@@ -4556,15 +4568,6 @@
       "addType": "Pridať typ",
       "classesMore": "+{count} ďalších",
       "classCount": "Počet typov"
-    },
-    "hints": {
-      "title": "Tento model zatiaľ nemá typ. Tri kroky na začiatok:",
-      "sdm": "Alebo importujte Smart Data Model: jeho triedy, polia a enumy prídu už napísané.",
-      "sdmAction": "Importovať Smart Data Model",
-      "klass": "Pridajte typ: pomenujte ho v poli pod Typmi, napríklad School.",
-      "klassAction": "Pomenovať prvý typ",
-      "relation": "Pridajte vzťah: pod Vzťahmi vyberte cieľovú triedu a kardinalitu, napríklad jedna School má veľa entít User.",
-      "field": "Pridajte pole: pri otvorenom type ho pomenujte pod Poľami, napríklad name."
     },
     "rangeBasic": "Hodnoty",
     "rangeEnums": "Enumy",
@@ -10955,7 +10958,14 @@
     "readComes": "Čítanie prináša predvoľba.",
     "verbsNone": "Zaškrtnite predvoľbu, ktorá navrhuje zmeny, napr. Kontext alebo Pipelines, a vyberte, čo môže meniť.",
     "verbsGreyed": "Sivé slovesá najprv musí schváliť vaša organizácia; požiadajte správcu, aby ich povolil.",
-    "verb": {"read": "čítať", "create": "vytvoriť", "edit": "upraviť", "delete": "zmazať", "run": "spustiť", "propose": "vytvoriť, upraviť, zmazať"},
+    "verb": {
+      "read": "čítať",
+      "create": "vytvoriť",
+      "edit": "upraviť",
+      "delete": "zmazať",
+      "run": "spustiť",
+      "propose": "vytvoriť, upraviť, zmazať"
+    },
     "binds": "použiť ho môže len tento klient",
     "clientRefused": "politika vašej organizácie ho nedovoľuje",
     "intendedFor": "hovorí, pre koho je; uviesť ho môžu aj iné lokálne programy",

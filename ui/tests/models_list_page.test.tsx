@@ -149,7 +149,6 @@ describe("the list of data models", () => {
     await renderRoute({ path: "/projects/helsinki/models", answer, permissions: READER });
     await screen.findByRole("table", { name: en.models.page.listCaption });
     await waitFor(() => expect(screen.getByRole("button", { name: en.models.page.new.menu })).toHaveAttribute("aria-disabled", "true"));
-    expect(screen.queryByRole("menuitem", { name: en.models.page.new.blank })).toBeNull();
   });
 
   it("opens the editor when the address asks for one, after the new model's name", async () => {

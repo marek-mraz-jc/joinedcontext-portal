@@ -2749,7 +2749,12 @@
       "outcome": "Outcome",
       "message": "Message",
       "noId": "(no id)",
-      "states": {"clean": "Clean", "rejected": "Rejected lines", "failing": "Failed lines", "silent": "Wrote nothing"},
+      "states": {
+        "clean": "Clean",
+        "rejected": "Rejected lines",
+        "failing": "Failed lines",
+        "silent": "Wrote nothing"
+      },
       "outcomes": {
         "sent": "Written",
         "rejected": "Rejected",
@@ -4112,8 +4117,18 @@
     "addClassNameHint": "Or start an empty type: a name in letters and digits with no spaces, such as Station.",
     "nameFirst": "Type a name first.",
     "addWhat": "What does the field hold?",
-    "addKind": {"Property": "A value", "Relationship": "A link to another type", "GeoProperty": "A place", "LanguageProperty": "Text in several languages"},
-    "addKindHint": {"Property": "A number, text, date, yes/no or a list value, such as temperature.", "Relationship": "Points at an entity of another type, such as the station a reading belongs to.", "GeoProperty": "A point, line or area on the map, such as location.", "LanguageProperty": "One text per language, such as a name in Finnish and English."},
+    "addKind": {
+      "Property": "A value",
+      "Relationship": "A link to another type",
+      "GeoProperty": "A place",
+      "LanguageProperty": "Text in several languages"
+    },
+    "addKindHint": {
+      "Property": "A number, text, date, yes/no or a list value, such as temperature.",
+      "Relationship": "Points at an entity of another type, such as the station a reading belongs to.",
+      "GeoProperty": "A point, line or area on the map, such as location.",
+      "LanguageProperty": "One text per language, such as a name in Finnish and English."
+    },
     "share": {
       "action": "Share with the organization",
       "title": "Share {name} with the organization?",
@@ -4476,10 +4491,7 @@
       "modelLead": "What this model describes, and what builds on it.",
       "listCaption": "The project's data models",
       "new": {
-        "menu": "New data model",
-        "blank": "Blank model",
-        "file": "From a data file (CSV, Excel, JSON, PDF)",
-        "sdm": "From Smart Data Models"
+        "menu": "New data model"
       },
       "emptyTitle": "No data model yet",
       "emptyLead": "Create one for a space: start blank, infer it from a file, or import a Smart Data Model.",
@@ -4556,15 +4568,6 @@
       "addType": "Add type",
       "classesMore": "+{count} more",
       "classCount": "Number of types"
-    },
-    "hints": {
-      "title": "This model has no type yet. Three steps to start:",
-      "sdm": "Or import a Smart Data Model: its classes, fields and enums arrive written.",
-      "sdmAction": "Import a Smart Data Model",
-      "klass": "Add a type: name it in the box under Types, for example School.",
-      "klassAction": "Name the first type",
-      "relation": "Add a relationship: under Relationships, pick the target class and the cardinality, for example one School has many User entities.",
-      "field": "Add a field: with the type open, name it under Fields, for example name."
     },
     "rangeBasic": "Values",
     "rangeEnums": "Enums",
@@ -10955,7 +10958,14 @@
     "readComes": "Reading comes with the preset.",
     "verbsNone": "Tick a preset that proposes changes, such as Context or Pipelines, to choose what it may change.",
     "verbsGreyed": "Greyed verbs need your organization's approval first; ask an administrator to allow them.",
-    "verb": {"read": "read", "create": "create", "edit": "edit", "delete": "delete", "run": "run", "propose": "create, edit, delete"},
+    "verb": {
+      "read": "read",
+      "create": "create",
+      "edit": "edit",
+      "delete": "delete",
+      "run": "run",
+      "propose": "create, edit, delete"
+    },
     "binds": "only this client can use it",
     "clientRefused": "your organization's policy does not allow it",
     "intendedFor": "says whom it is for; other local programs can name it too",

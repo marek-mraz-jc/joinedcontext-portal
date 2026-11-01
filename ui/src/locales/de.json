@@ -2749,7 +2749,12 @@
       "outcome": "Ergebnis",
       "message": "Meldung",
       "noId": "(ohne ID)",
-      "states": {"clean": "Fehlerfrei", "rejected": "Abgelehnte Zeilen", "failing": "Fehlgeschlagene Zeilen", "silent": "Nichts geschrieben"},
+      "states": {
+        "clean": "Fehlerfrei",
+        "rejected": "Abgelehnte Zeilen",
+        "failing": "Fehlgeschlagene Zeilen",
+        "silent": "Nichts geschrieben"
+      },
       "outcomes": {
         "sent": "Geschrieben",
         "rejected": "Abgelehnt",
@@ -4112,8 +4117,18 @@
     "addClassNameHint": "Oder beginnen Sie einen leeren Typ: ein Name aus Buchstaben und Ziffern ohne Leerzeichen, etwa Station.",
     "nameFirst": "Geben Sie zuerst einen Namen ein.",
     "addWhat": "Was enthält das Feld?",
-    "addKind": {"Property": "Einen Wert", "Relationship": "Einen Verweis auf einen anderen Typ", "GeoProperty": "Einen Ort", "LanguageProperty": "Text in mehreren Sprachen"},
-    "addKindHint": {"Property": "Eine Zahl, einen Text, ein Datum, ja/nein oder einen Listenwert, wie die Temperatur.", "Relationship": "Zeigt auf eine Entität eines anderen Typs, wie die Station einer Messung.", "GeoProperty": "Einen Punkt, eine Linie oder eine Fläche auf der Karte, wie den Standort.", "LanguageProperty": "Einen Text je Sprache, wie einen Namen auf Finnisch und Englisch."},
+    "addKind": {
+      "Property": "Einen Wert",
+      "Relationship": "Einen Verweis auf einen anderen Typ",
+      "GeoProperty": "Einen Ort",
+      "LanguageProperty": "Text in mehreren Sprachen"
+    },
+    "addKindHint": {
+      "Property": "Eine Zahl, einen Text, ein Datum, ja/nein oder einen Listenwert, wie die Temperatur.",
+      "Relationship": "Zeigt auf eine Entität eines anderen Typs, wie die Station einer Messung.",
+      "GeoProperty": "Einen Punkt, eine Linie oder eine Fläche auf der Karte, wie den Standort.",
+      "LanguageProperty": "Einen Text je Sprache, wie einen Namen auf Finnisch und Englisch."
+    },
     "share": {
       "action": "Mit der Organisation teilen",
       "title": "{name} mit der Organisation teilen?",
@@ -4476,10 +4491,7 @@
       "modelLead": "Was dieses Modell beschreibt und was darauf aufbaut.",
       "listCaption": "Die Datenmodelle des Projekts",
       "new": {
-        "menu": "Neues Datenmodell",
-        "blank": "Leeres Modell",
-        "file": "Aus einer Datendatei (CSV, Excel, JSON, PDF)",
-        "sdm": "Aus Smart Data Models"
+        "menu": "Neues Datenmodell"
       },
       "emptyTitle": "Noch kein Datenmodell",
       "emptyLead": "Legen Sie eines für einen Space an: leer beginnen, aus einer Datei ableiten oder ein Smart Data Model importieren.",
@@ -4556,15 +4568,6 @@
       "addType": "Typ hinzufügen",
       "classesMore": "+{count} weitere",
       "classCount": "Anzahl Typen"
-    },
-    "hints": {
-      "title": "Dieses Modell hat noch keine Klasse. Drei Schritte zum Anfang:",
-      "sdm": "Oder ein Smart Data Model importieren: seine Klassen, Felder und Enums kommen fertig geschrieben.",
-      "sdmAction": "Smart Data Model importieren",
-      "klass": "Eine Klasse hinzufügen: im Feld unter Klassen benennen, zum Beispiel School.",
-      "klassAction": "Die erste Klasse benennen",
-      "relation": "Eine Beziehung hinzufügen: unter Beziehungen die Zielklasse und die Kardinalität wählen, zum Beispiel eine School hat viele User-Entitäten.",
-      "field": "Ein Feld hinzufügen: bei geöffneter Klasse unter Attribute benennen, zum Beispiel name."
     },
     "rangeBasic": "Werte",
     "rangeEnums": "Aufzählungen",
@@ -10955,7 +10958,14 @@
     "readComes": "Lesen bringt die Vorlage mit.",
     "verbsNone": "Haken Sie eine Vorlage an, die Änderungen vorschlägt, etwa Kontext oder Pipelines, um festzulegen, was er ändern darf.",
     "verbsGreyed": "Graue Verben muss Ihre Organisation erst freigeben; bitten Sie eine Administratorin oder einen Administrator darum.",
-    "verb": {"read": "lesen", "create": "anlegen", "edit": "bearbeiten", "delete": "löschen", "run": "ausführen", "propose": "anlegen, bearbeiten, löschen"},
+    "verb": {
+      "read": "lesen",
+      "create": "anlegen",
+      "edit": "bearbeiten",
+      "delete": "löschen",
+      "run": "ausführen",
+      "propose": "anlegen, bearbeiten, löschen"
+    },
     "binds": "nur dieser Client kann ihn nutzen",
     "clientRefused": "die Richtlinie Ihrer Organisation lässt ihn nicht zu",
     "intendedFor": "sagt, für wen er ist; auch andere lokale Programme können ihn nennen",
