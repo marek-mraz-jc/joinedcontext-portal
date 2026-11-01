@@ -242,7 +242,7 @@ impl Driver {
             let capable = self.capabilities();
             let offered: Vec<_> = every_operation
                 .iter()
-                .filter(|op| path.is_none_or(|path| path.allows(&op.name)))
+                .filter(|op| Path::offers(path, &op.name))
                 .filter(|op| {
                     capable.as_ref().is_none_or(|capable| {
                         capable.allows_tool(&op.name, !tools_registry::acts(&op.name))
@@ -2301,7 +2301,7 @@ mod tests {
             &driver.project,
         )
         .into_iter()
-        .filter(|op| path.is_none_or(|path| path.allows(&op.name)))
+        .filter(|op| Path::offers(path, &op.name))
         .collect();
         let data = data_query::section(&[], &[], &driver.openable_endpoints(&[]));
         let user = for_path(&turn_pack(&base, path, &data, &offered), path);

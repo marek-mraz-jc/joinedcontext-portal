@@ -111,3 +111,41 @@ async fn an_address_carrying_a_credential_is_refused_without_repeating_it() {
         plain.text()
     );
 }
+
+/// JC1-27, AG-65: an address a caller types is fetched by the runner inside the cluster before
+/// anybody approved it, so a loopback, private or cluster address is refused at its field first,
+/// as a planned DataSource's is; a public one still reaches the runner (absent here).
+#[tokio::test]
+async fn an_address_inside_the_cluster_is_refused_before_the_runner_fetches_it() {
+    let state = state();
+    for url in [
+        "http://127.0.0.1:8080/a.json",
+        "http://localhost/a.json",
+        "http://10.43.0.12/a.json",
+        "http://portal.portal.svc.cluster.local/api/v1/version",
+        "http://gitea:3000/a.json",
+    ] {
+        for (name, input, field) in [
+            ("jc_model_infer", json!({ "url": url }), "url"),
+            (
+                "jc_pipeline_sample_source",
+                json!({ "sample": { "url": url, "format": "json" } }),
+                "sample.url",
+            ),
+        ] {
+            let answer = doors::call(name, &session(steward()), &state, input).await;
+            assert_eq!(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                answer.status,
+                "{name} {url}: {}",
+                answer.text()
+            );
+            assert_eq!(
+                field,
+                answer.body["errors"][0]["path"],
+                "{name} {url}: {}",
+                answer.text()
+            );
+        }
+    }
+}

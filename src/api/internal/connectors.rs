@@ -29,8 +29,6 @@ pub async fn connectors(
     headers: HeaderMap,
 ) -> Result<Json<Value>, ApiError> {
     crate::auth::internal::authenticate_gateway(&state, &headers).await?;
-    // A person whose old connectors the start-up move has not reached yet is moved now.
-    crate::personal_connectors::move_one(&state, &sub).await?;
     let base = crate::api::connectors::base(&state);
     let connectors: Vec<Value> = state
         .connectors

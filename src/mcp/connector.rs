@@ -480,7 +480,9 @@ async fn judge(
             let name = params["name"].as_str().unwrap_or("");
             let target = match (crate::ops::find(name), project.as_deref()) {
                 (Some(op), Some(project)) => connector
-                    .admits(op, project, &params["arguments"])
+                    .admits(op, project, &params["arguments"], &|kind, name| {
+                        crate::connectors::space_now(&state.mirror, project, kind, name)
+                    })
                     .and_then(|()| {
                         if honoured {
                             Ok(())
@@ -881,7 +883,7 @@ mod tests {
         assert_eq!(foreign["params"]["arguments"]["project"], "espoo");
         let op = crate::ops::find("jc_resource_list").expect("op");
         let refused = connector
-            .admits(op, "espoo", &foreign["params"]["arguments"])
+            .admits(op, "espoo", &foreign["params"]["arguments"], &|_, _| None)
             .expect_err("foreign project");
         assert!(
             refused.contains("does not reach project espoo"),

@@ -427,8 +427,10 @@ impl Asker<'_> {
 
     /// Whether the connector, if any, reaches `kind` `name` of the project.
     fn reaches(&self, kind: &str, name: &str) -> Result<(), String> {
-        self.connector
-            .map_or(Ok(()), |c| c.may_change(self.project, kind, name, false))
+        self.connector.map_or(Ok(()), |c| {
+            let space = crate::connectors::space_now(&self.state.mirror, self.project, kind, name);
+            c.may_change(self.project, kind, name, space.as_deref(), false)
+        })
     }
 
     /// Whether the person may read `kind` where it lives: an editor opens only on what they read.

@@ -270,13 +270,25 @@ impl Driver {
             .await?;
             return Ok(format!("error: {reason}"));
         }
-        let answer = data_query::compact_geometry(
+        let index = index.unwrap_or(0);
+        let mut answer = data_query::compact_geometry(
             &self
-                .call_endpoint(chosen, index.unwrap_or(0), &data_query::rpc(call))
+                .call_endpoint(chosen, index, &data_query::rpc(call))
                 .await,
         );
+        let withheld = match self.withhold_personal(chosen, index, &mut answer).await {
+            Ok(withheld) => withheld,
+            Err(reason) => {
+                self.event(
+                    "tool",
+                    json!({ "tool": "query_endpoint", "status": "failed", "durationMs": millis(), "input": input, "error": reason }),
+                )
+                .await?;
+                return Ok(format!("error: {reason}"));
+            }
+        };
         let text = self.redacted(&format!(
-            "{}{}",
+            "{}{}{withheld}",
             data_query::result_text(&answer),
             data_query::reading_notes(call, &answer)
         ));
@@ -294,6 +306,44 @@ impl Driver {
         }
         self.event("tool", payload).await?;
         Ok(text)
+    }
+
+    /// Removes from an endpoint's answer the attributes its project's models mark personal
+    /// before the model provider reads it (AG-158, JC1-03): from `structuredContent`, and the
+    /// text beside it is rewritten from what is left. `Ok` is the note naming what left (empty
+    /// when nothing did); `Err` refuses the answer, whose models could not be read.
+    // ponytail: an answer with entities in its text alone is not parsed; every gateway and
+    // Antares tool declares an outputSchema, so its answer carries structuredContent (AG-12).
+    async fn withhold_personal(
+        &self,
+        chosen: &[endpoints::RunEndpoint],
+        index: usize,
+        answer: &mut Value,
+    ) -> Result<String, String> {
+        let Some(result) = answer.get_mut("result") else {
+            return Ok(String::new());
+        };
+        let carries = result
+            .get("structuredContent")
+            .is_some_and(crate::personal_data::carries_entities);
+        if !carries {
+            return Ok(String::new());
+        }
+        let project = chosen
+            .get(index)
+            .and_then(|endpoint| endpoint_project(&self.state, &endpoint.slug))
+            .unwrap_or_else(|| self.project.clone());
+        let marks = crate::personal_data::of_project(&self.state, &project).await?;
+        let removed = crate::personal_data::withhold(&mut result["structuredContent"], &marks);
+        if removed.is_empty() {
+            return Ok(String::new());
+        }
+        let text = result["structuredContent"].to_string();
+        result["content"] = json!([{ "type": "text", "text": text }]);
+        Ok(format!(
+            "\nwithheld personal attributes (the model marks them personal; the person reads them on the Portal): {}",
+            removed.join(", ")
+        ))
     }
 
     /// Why `name` answers nothing yet, when it is an endpoint on its way (T-2763): its Change
@@ -513,6 +563,18 @@ fn pending_endpoint(open: &[crate::api::changes::ChangeProposal], name: &str) ->
          live; nothing was tested",
         change.metadata.name
     ))
+}
+
+/// The project of the Endpoint with `slug`: the conversation's own, or the one a shared space
+/// reference reaches.
+fn endpoint_project(state: &AppState, slug: &str) -> Option<String> {
+    state
+        .mirror
+        .matching(|env| {
+            env.kind == "Endpoint" && env.spec.get("slug").and_then(Value::as_str) == Some(slug)
+        })
+        .into_iter()
+        .find_map(|env| env.metadata.namespace)
 }
 
 #[cfg(test)]
@@ -916,5 +978,62 @@ mod tests {
             "{section}"
         );
         assert!(!section.contains("`b`"), "{section}");
+    }
+
+    /// JC1-03, AG-158: an endpoint's answer reaches the model provider only after the
+    /// attributes its project's models mark personal leave it; when those models cannot be
+    /// read, the answer is refused whole and its values reach neither the model nor the log.
+    #[tokio::test]
+    async fn an_endpoint_answer_whose_personal_marks_cannot_be_read_never_reaches_the_model() {
+        let proxy = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "jsonrpc": "2.0", "id": 1, "result": {
+                    "content": [{ "type": "text", "text": "jana@example.org" }],
+                    "structuredContent": { "entities": [{
+                        "id": "urn:ngsi-ld:PotholeReport:1",
+                        "type": "PotholeReport",
+                        "contactEmail": { "type": "Property", "value": "jana@example.org" }
+                    }] }
+                }
+            })))
+            .mount(&proxy)
+            .await;
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        endpoint(&state, "reports", open("slug-reports", "public"));
+        let mut driver = Driver::for_tests(state.clone(), "helsinki");
+        driver.proxy_base = proxy.uri();
+        let chosen = vec![run_endpoint("reports")];
+        let tools = vec![vec![json!({ "name": "query_entities" })]];
+        let call = data_query::QueryCall {
+            endpoint: "reports".into(),
+            name: "query_entities".into(),
+            arguments: json!({ "type": "PotholeReport" }),
+        };
+
+        // A project without models marks nothing: the answer passes whole.
+        let read = driver
+            .query_endpoint(&chosen, &call, &tools)
+            .await
+            .expect("read");
+        assert!(read.contains("jana@example.org"), "{read}");
+
+        // A model the Portal cannot read (no forge here): nothing could be withheld.
+        state.mirror.upsert(ResourceEnvelope {
+            api_version: API_VERSION.into(),
+            kind: "DataModel".into(),
+            metadata: ObjectMeta::new("reports", "helsinki"),
+            spec: json!({ "linkml": "model.linkml.yaml" }),
+            status: None,
+        });
+        let refused = driver
+            .query_endpoint(&chosen, &call, &tools)
+            .await
+            .expect("refused");
+        assert!(refused.starts_with("error: "), "{refused}");
+        assert!(!refused.contains("jana@example.org"), "{refused}");
+        let last = logged(&state, "tool").await.pop().expect("logged");
+        assert_eq!("failed", last["status"], "{last}");
+        assert!(!last.to_string().contains("jana@example.org"), "{last}");
     }
 }

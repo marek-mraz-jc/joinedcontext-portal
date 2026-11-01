@@ -46,6 +46,7 @@ interface ToolResult {
   status?: string;
   content?: { type: string; text?: string }[];
   structuredContent?: Record<string, unknown>;
+  _meta?: Record<string, unknown>;
   task?: { taskId: string; status: string };
   tools?: { name: string }[];
 }
@@ -76,7 +77,7 @@ function mcpClient(baseURL: string, token: string) {
   const call = async (name: string, args: Record<string, unknown>): Promise<ToolResult> => {
     const params = { name, project: PROJECT, arguments: { project: PROJECT, ...args } };
     let result = (await rpc("tools/call", params)).result ?? {};
-    const asked = result.structuredContent?.elicitation as { elicitationId?: string } | undefined;
+    const asked = (result._meta?.["joinedcontext.com/elicitation"] as { elicitation?: { elicitationId?: string } } | undefined)?.elicitation;
     if (result.status === "input_required" && asked?.elicitationId) {
       result = (await rpc("tools/call", { ...params, elicitation: { elicitationId: asked.elicitationId, action: "accept" } })).result ?? {};
     }

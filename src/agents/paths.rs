@@ -312,6 +312,13 @@ impl Path {
         }
     }
 
+    /// Whether a turn on `path` is offered `tool`: the path's own (AG-89), or on no path every
+    /// tool but the steps only a path's workbench takes, so the free turn keeps its 4k tokens
+    /// (AG-72; jc_pipeline_validate, offered since JC1-04, is a step of IntegratePipeline).
+    pub fn offers(path: Option<Self>, tool: &str) -> bool {
+        path.map_or(tool != "jc_pipeline_validate", |path| path.allows(tool))
+    }
+
     /// Whether a tool is the path's to call (AG-89); every other one is refused.
     pub fn allows(self, tool: &str) -> bool {
         EVERY_PATH.contains(&tool) || self.own_tools().contains(&tool)
