@@ -2,12 +2,11 @@
 //! (CC-34, AG-11).
 
 use super::bounds;
-use super::parse_input;
-use super::EmptyInput;
+use super::resources;
 use super::Operation;
 use super::OperationAnnotations;
-use super::{empty_input_schema, resources};
-use crate::api::changes;
+use super::{parse_input, OpError};
+use crate::api::changes::{self, ChangeList};
 use crate::change::Lane;
 use jc_core::kinds::Verb;
 use serde::{Deserialize, Serialize};
@@ -19,6 +18,72 @@ pub struct ChangeApproveInput {
     pub id: String,
     #[serde(default)]
     pub confirm: Option<String>,
+}
+
+/// Changes listed when the call names no limit, and the most it may name (T-6291).
+const CHANGES: usize = 20;
+const MAX_CHANGES: usize = 100;
+
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct ChangeListInput {
+    #[serde(default)]
+    pub limit: Option<usize>,
+    /// The `next` of the previous page: the name of the last change it held.
+    #[serde(default)]
+    pub cursor: Option<String>,
+}
+
+fn change_list_input_schema() -> Value {
+    use bounds::*;
+    json!({
+        "type": "object",
+        "properties": {
+            "limit": { "type": "integer", "minimum": 1, "maximum": MAX_CHANGES, "description": "Default 20" },
+            "cursor": text("The last page's next", NAME)
+        },
+        "additionalProperties": false
+    })
+}
+
+/// One page of `list` for an operation (T-6291): the changes after `cursor`, at most
+/// `limit` and [`bounds::PAGE_BYTES`] of them, and `next`, the name of the last one, while more
+/// follow. The REST list stays whole: the page a person reads renders every open change.
+pub fn page_of(list: ChangeList, input: &ChangeListInput) -> Result<Value, OpError> {
+    let ChangeList {
+        mut items, outside, ..
+    } = list;
+    if let Some(cursor) = &input.cursor {
+        let at = items
+            .iter()
+            .position(|change| &change.metadata.name == cursor)
+            .ok_or_else(|| OpError::InvalidInput {
+                path: "cursor".into(),
+                message: format!(
+                    "'{cursor}' is no longer an open change of this list; list again without cursor"
+                ),
+            })?;
+        items.drain(..=at);
+    }
+    let limit = input.limit.unwrap_or(CHANGES).clamp(1, MAX_CHANGES);
+    let mut more = items.len() > limit;
+    items.truncate(limit);
+    let kept = bounds::fitting(&items, bounds::PAGE_BYTES);
+    more |= kept < items.len();
+    items.truncate(kept);
+    let next = more
+        .then(|| items.last().map(|change| change.metadata.name.clone()))
+        .flatten();
+    let mut page = ChangeList::new(items);
+    // The merge requests that are no Change are told once, on the first page.
+    if input.cursor.is_none() {
+        page.outside = outside;
+    }
+    let mut value = serde_json::to_value(page)?;
+    if let (Some(next), Some(map)) = (next, value.as_object_mut()) {
+        map.insert("next".into(), Value::String(next));
+    }
+    Ok(value)
 }
 
 fn change_approve_input_schema() -> Value {
@@ -114,7 +179,8 @@ fn change_list_output_schema() -> Value {
                         "proposedBy": { "type": "string" }
                     }
                 }
-            }
+            },
+            "next": { "type": "string", "description": "Present when more changes follow: send it as cursor" }
         },
         "required": ["apiVersion", "kind", "items"]
     })
@@ -132,7 +198,7 @@ pub fn operations() -> Vec<Operation> {
             name: "jc_change_list",
             title: "List Changes",
             description: "Lists open change proposals and merge requests for review",
-            input: empty_input_schema,
+            input: change_list_input_schema,
             output: change_list_output_schema,
             annotations: OperationAnnotations {
                 read_only_hint: true,
@@ -145,13 +211,13 @@ pub fn operations() -> Vec<Operation> {
             kind: "*",
             verb: None,
             lane: Lane::Green,
-            validate: |val| parse_input::<EmptyInput>(val.clone()).map(|_| ()),
+            validate: |val| parse_input::<ChangeListInput>(val.clone()).map(|_| ()),
             run: |caller, state, project, val| {
                 Box::pin(async move {
-                    let _: EmptyInput = parse_input(val)?;
+                    let input: ChangeListInput = parse_input(val)?;
                     let list =
                         changes::list_changes_readable(state, &caller.identity, project).await?;
-                    Ok(serde_json::to_value(list)?)
+                    page_of(list, &input)
                 })
             },
         },

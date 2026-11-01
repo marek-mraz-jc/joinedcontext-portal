@@ -686,6 +686,8 @@ pub struct EmptyInput {}
 /// checks an input against before the operation's own parse: a property says what it is, a
 /// string says how long it may be, and an object either names its properties or says how many
 /// it may carry.
+pub use bounds::PAGE_BYTES;
+
 pub(crate) mod bounds {
     use serde_json::{json, Value};
 
@@ -707,6 +709,26 @@ pub(crate) mod bounds {
     pub const MANIFEST_MEMBERS: u64 = 5;
     /// The members of one free-form record: an entity, a sample row, a parameter map.
     pub const RECORD_MEMBERS: u64 = 512;
+
+    /// The most one listing page of an operation carries, in bytes of its items' JSON (T-6291):
+    /// well under a connector's answer (`connectors::DEFAULT_LIMITS.result_bytes`) and a few
+    /// thousand tokens of a model's context, so a page reaches the client whole.
+    pub const PAGE_BYTES: usize = 32 * 1024;
+
+    /// How many of `items`, from the first, fit in `bytes` of their JSON: at least one when there
+    /// is one, so a single large item still pages on.
+    pub fn fitting<T: serde::Serialize>(items: &[T], bytes: usize) -> usize {
+        let mut used = 0;
+        items
+            .iter()
+            .take_while(|item| {
+                used += serde_json::to_vec(item).map_or(bytes, |b| b.len());
+                used <= bytes
+            })
+            .count()
+            .max(1)
+            .min(items.len())
+    }
 
     /// A string property with its description and its length bound.
     pub fn text(description: &str, max: u64) -> Value {

@@ -999,3 +999,153 @@ async fn get_schema_answers_every_kind_of_jc_core() {
         .expect("response");
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
 }
+
+/// T-6291: a 200-row activity page answered 196 KB, which Claude Code would not read. The
+/// operation's page stops at `PAGE_BYTES` and its `next` reads the rest; nothing is lost or
+/// repeated across the pages.
+#[tokio::test]
+async fn an_activity_page_stays_under_its_byte_bound_and_next_reads_the_rest() {
+    use joinedcontext_portal::activity::ActivityEvent;
+    let mirror = Arc::new(Mirror::new());
+    mirror.upsert(ResourceEnvelope {
+        api_version: API_VERSION.to_string(),
+        kind: "ContextSpace".to_string(),
+        metadata: ObjectMeta::new("ovzdusie", "ovzdusie"),
+        spec: json!({ "isSandbox": false }),
+        status: None,
+    });
+    let state = AppState::new(Config::for_tests(), None).with_mirror(mirror);
+    let start = chrono::Utc::now();
+    let events: Vec<ActivityEvent> = (0..200)
+        .map(|n| ActivityEvent {
+            time: start - chrono::Duration::seconds(n),
+            project: "ovzdusie".into(),
+            space: None,
+            kind: "pipeline.run".into(),
+            source: "reconciler".into(),
+            summary: format!("run {n} of counters-hourly wrote {}", "x".repeat(700)),
+            severity: "info".into(),
+            correlation_id: None,
+            details: json!({ "object": "pipelines/counters-hourly", "n": n }),
+        })
+        .collect();
+    state.activity.append(&events).await.expect("appended");
+    let caller = ops::Caller {
+        bearer: None,
+        identity: Identity {
+            client: None,
+            subject: "sub-steward".into(),
+            username: "steward".into(),
+            email: Some("steward@banskabystrica.sk".into()),
+            name: None,
+            roles: vec!["portal-approver".into()],
+            groups: vec!["platform-admins".into()],
+            second_factor: false,
+        },
+        via: ops::Via::Mcp,
+        access: None,
+    };
+
+    let mut seen = Vec::new();
+    let mut cursor: Option<String> = None;
+    for _ in 0..20 {
+        let mut input = json!({ "limit": 200 });
+        if let Some(cursor) = &cursor {
+            input["cursor"] = json!(cursor);
+        }
+        let page = ops::call(
+            ops::find("jc_activity_list").expect("registered"),
+            &caller,
+            &state,
+            "ovzdusie",
+            input,
+        )
+        .await
+        .expect("a page");
+        let bytes = page["items"].to_string().len();
+        assert!(bytes <= ops::PAGE_BYTES, "{bytes} bytes");
+        let items = page["items"].as_array().expect("items");
+        assert!(!items.is_empty());
+        seen.extend(
+            items
+                .iter()
+                .map(|item| item["details"]["n"].as_i64().expect("n")),
+        );
+        match page["next"].as_str() {
+            Some(next) => cursor = Some(next.to_owned()),
+            None => break,
+        }
+    }
+    assert_eq!(
+        seen,
+        (0..200).collect::<Vec<i64>>(),
+        "every event once, newest first"
+    );
+}
+
+fn change(name: &str) -> Value {
+    json!({
+        "apiVersion": API_VERSION,
+        "kind": "Change",
+        "metadata": { "name": name, "namespace": "ovzdusie" },
+        "status": { "lane": "green", "phase": "PendingApproval", "plan": { "create": 1 } },
+        "summary": { "key": "changes.create", "params": {} },
+        "author": { "name": "steward" },
+        "createdAt": "2026-10-31T23:00:00Z"
+    })
+}
+
+/// T-6291: `jc_change_list` answered every open change at once (60 proposals reach 49 KB).
+/// `limit` 5 answers five and a `next` that reads on, and a cursor naming a
+/// change no longer listed is refused by its field.
+#[test]
+fn the_change_list_pages_by_limit_and_cursor() {
+    use joinedcontext_portal::api::changes::ChangeList;
+    use joinedcontext_portal::ops::changes::{page_of, ChangeListInput};
+    let list: ChangeList = serde_json::from_value(json!({
+        "apiVersion": API_VERSION,
+        "kind": "ChangeList",
+        "items": (0..12)
+            .map(|n| change(&format!("chg-{n:08x}")))
+            .collect::<Vec<_>>()
+    }))
+    .expect("a list");
+    let names = |page: &Value| -> Vec<String> {
+        page["items"]
+            .as_array()
+            .expect("items")
+            .iter()
+            .map(|item| item["metadata"]["name"].as_str().expect("name").to_owned())
+            .collect()
+    };
+    let input = |value: Value| -> ChangeListInput { serde_json::from_value(value).expect("input") };
+
+    let first = page_of(list.clone(), &input(json!({ "limit": 5 }))).expect("a page");
+    assert_eq!(names(&first).len(), 5);
+    assert_eq!(first["next"], json!("chg-00000004"));
+    let second = page_of(
+        list.clone(),
+        &input(json!({ "limit": 5, "cursor": "chg-00000004" })),
+    )
+    .expect("a page");
+    assert_eq!(names(&second)[0], "chg-00000005");
+    let last = page_of(
+        list.clone(),
+        &input(json!({ "limit": 5, "cursor": "chg-00000009" })),
+    )
+    .expect("a page");
+    assert_eq!(names(&last), vec!["chg-0000000a", "chg-0000000b"]);
+    assert_eq!(last.get("next"), None, "the end names no next");
+
+    assert_eq!(
+        names(&page_of(list.clone(), &input(json!({}))).expect("a page")).len(),
+        12
+    );
+
+    let gone = page_of(list, &input(json!({ "cursor": "chg-ffffffff" })));
+    assert!(
+        matches!(gone, Err(ops::OpError::InvalidInput { ref path, .. }) if path == "cursor"),
+        "{gone:?}"
+    );
+    assert!(serde_json::from_value::<ChangeListInput>(json!({ "page": 2 })).is_err());
+}
