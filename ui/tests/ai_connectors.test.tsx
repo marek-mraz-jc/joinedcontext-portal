@@ -359,6 +359,16 @@ describe("the scope tree", () => {
     expect(verbs).toHaveBeenLastCalledWith({ Pipeline: ["run"] });
   });
 
+  it("puts a server refusal of the list beside the kind it names", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <KindVerbsPicker options={OPTIONS} form={emptyForm(OPTIONS, NOW)} onChange={() => undefined} refusal={{ kind: "ContextSpace", message: "no edit on ContextSpace" }} />
+      </I18nextProvider>,
+    );
+    const alert = screen.getByText("no edit on ContextSpace");
+    expect(screen.getByRole("group", { name: "What it may do on ContextSpace" }).nextElementSibling).toContainElement(alert);
+  });
+
   it("says what to tick first when no preset is ticked", () => {
     render(
       <I18nextProvider i18n={i18n}>

@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from "react";
+import { Fragment, useState, useSyncExternalStore } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -384,6 +384,12 @@ function withoutField(message: string): string {
   return message.replace(/^[A-Za-z]+(\[\d+\])?(\.[A-Za-z]+)?: /, "");
 }
 
+/** The kind a refusal of `kinds[i]...` names, read from the request the form sent. */
+function refusedKind(field: string | undefined, form: AiConnectorForm, options: ConnectorOptions): string | undefined {
+  const at = /^kinds\[(\d+)\]/.exec(field ?? "")?.[1];
+  return at === undefined ? undefined : toRequest(form, options).kinds?.[Number(at)]?.kind;
+}
+
 /** `Endpoint: create`, one per kind with a verb beyond read; none for a connector without a list. */
 function changeLines(connector: AiConnector, word: (verb: string) => string): string[] {
   return (connector.kinds ?? [])
@@ -396,10 +402,13 @@ export function KindVerbsPicker({
   options,
   form,
   onChange,
+  refusal,
 }: {
   options: ConnectorOptions;
   form: AiConnectorForm;
   onChange: (verbs: Record<string, ChangeVerb[]>) => void;
+  /** A server refusal of the list: beside its kind's row, or under the rows when it names none. */
+  refusal?: { kind?: string; message: string };
 }): JSX.Element {
   const { t } = useTranslation();
   const rows = kindRows(options, form.segments);
@@ -416,13 +425,14 @@ export function KindVerbsPicker({
         <div key={row.segment} className="flex flex-col gap-1">
           <p className="text-body font-semibold">{t(`aiConnectors.segment.${row.segment}`)}</p>
           {row.kinds.map((kind) => (
-            <fieldset key={kind} className="flex flex-col gap-1 border-t border-border py-1 sm:flex-row sm:items-center">
+            <Fragment key={kind}>
+            <fieldset className="flex flex-col gap-1 border-t border-border py-1 sm:flex-row sm:items-center">
               <legend className="sr-only">{t("aiConnectors.verbsOf", { kind })}</legend>
               <span aria-hidden className="text-body font-medium sm:w-40 sm:shrink-0">
                 {kind}
               </span>
-              <div className="grid grid-cols-3 gap-x-4 gap-y-1 sm:grid-cols-5">
-                <span className="text-body text-fg-muted">{t("aiConnectors.verb.reads")}</span>
+              <div className="grid grid-cols-4 gap-x-4 gap-y-1 sm:grid-cols-5">
+                <span className="hidden text-body sm:inline">{t("aiConnectors.verb.reads")}</span>
                 {verbsOf(kind).map((verb) => {
                   const allowed = ceilingAllows(options, kind, verb);
                   return (
@@ -438,9 +448,12 @@ export function KindVerbsPicker({
                 })}
               </div>
             </fieldset>
+            {refusal?.kind === kind ? <Alert tone="danger">{refusal.message}</Alert> : null}
+            </Fragment>
           ))}
         </div>
       ))}
+      {refusal && !rows.some((row) => refusal.kind !== undefined && row.kinds.includes(refusal.kind)) ? <Alert tone="danger">{refusal.message}</Alert> : null}
     </div>
   );
 }
@@ -460,7 +473,7 @@ export function CreateDialog({
   const [now] = useState(() => new Date());
   const [form, setForm] = useState<AiConnectorForm | null>(null);
   const [tried, setTried] = useState(false);
-  const [refused, setRefused] = useState<{ section?: string; message: string } | null>(null);
+  const [refused, setRefused] = useState<{ section?: string; field?: string; message: string } | null>(null);
   const current = form ?? (stored ? toForm(stored, options.data) : emptyForm(options.data, now));
   const set = (patch: Partial<AiConnectorForm>) => setForm({ ...current, ...patch });
   const problems = options.data ? formProblems(current, options.data, now) : {};
@@ -484,7 +497,8 @@ export function CreateDialog({
     },
     onError: (error: Error) => {
       const problem = error instanceof ApiError ? error.problem : undefined;
-      setRefused({ section: refusedSection(problem?.errors ?? undefined, problem?.detail ?? error.message), message: problem?.detail ?? error.message });
+      const message = problem?.detail ?? error.message;
+      setRefused({ section: refusedSection(problem?.errors ?? undefined, message), field: problem?.errors?.[0] ?? /^\S+(?=: )/.exec(message)?.[0], message });
     },
   });
   const errorsOf = (section: string) =>
@@ -562,8 +576,12 @@ export function CreateDialog({
             <p id="ai-connector-kinds-help" className="text-caption text-fg-muted">
               {t("aiConnectors.help.kinds")}
             </p>
-            <KindVerbsPicker options={options.data} form={current} onChange={(verbs) => set({ verbs })} />
-            {errorsOf("kinds") ? <Alert tone="danger">{errorsOf("kinds")?.[0]}</Alert> : null}
+            <KindVerbsPicker
+              options={options.data}
+              form={current}
+              onChange={(verbs) => set({ verbs })}
+              refusal={refused?.section === "kinds" ? { kind: refusedKind(refused.field, current, options.data), message: withoutField(refused.message) } : undefined}
+            />
           </fieldset>
           <fieldset className="flex flex-col gap-1" aria-describedby="ai-connector-scope-help">
             <legend className="text-body font-semibold">{t("aiConnectors.field.scope")}</legend>

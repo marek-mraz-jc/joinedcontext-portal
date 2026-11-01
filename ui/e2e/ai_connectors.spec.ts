@@ -69,7 +69,7 @@ async function stubApi(page: Page, stub: Stub = {}) {
       if (path === "/api/v1/connectors" && request.method() === "POST") {
         if (stub.refuseKinds) {
           return json(
-            { type: "https://docs.joinedcontext.com/problems/forbidden", title: "Forbidden", status: 403, detail: "kinds[2].verbs: DelegationPolicy creators does not let a connector edit Endpoint", errors: ["kinds[2].verbs"] },
+            { type: "https://docs.joinedcontext.com/problems/forbidden", title: "Forbidden", status: 403, detail: "kinds[0].verbs: DelegationPolicy creators does not let a connector edit Endpoint", errors: ["kinds[0].verbs"] },
             403,
           );
         }
