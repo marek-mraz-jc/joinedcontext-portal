@@ -16385,7 +16385,19 @@
               "example": {},
               "schema": {
                 "additionalProperties": false,
-                "properties": {},
+                "properties": {
+                  "cursor": {
+                    "description": "The last page's next",
+                    "maxLength": 253,
+                    "type": "string"
+                  },
+                  "limit": {
+                    "description": "Default 20",
+                    "maximum": 100,
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
                 "type": "object"
               }
             }
@@ -16440,6 +16452,10 @@
                       "enum": [
                         "ChangeList"
                       ],
+                      "type": "string"
+                    },
+                    "next": {
+                      "description": "Present when more changes follow: send it as cursor",
                       "type": "string"
                     }
                   },

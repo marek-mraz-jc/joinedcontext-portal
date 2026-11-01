@@ -265,6 +265,26 @@ impl Cursor {
 pub struct Page {
     pub items: Vec<ActivityEvent>,
     pub next: Option<String>,
+    /// Where each item sits, so a page cut short still names the cursor past its last item.
+    keys: Vec<Cursor>,
+}
+
+impl Page {
+    /// The first items that fit in `bytes` of their JSON, and the cursor past the last one kept
+    /// when the cut dropped any (T-6291): an operation's answer stays small enough for a model to
+    /// read, and `next` reads on from the cut.
+    pub fn within(mut self, bytes: usize) -> Self {
+        let kept = crate::ops::bounds::fitting(&self.items, bytes);
+        if kept < self.items.len() {
+            self.next = kept
+                .checked_sub(1)
+                .and_then(|last| self.keys.get(last))
+                .map(Cursor::encode);
+            self.items.truncate(kept);
+            self.keys.truncate(kept);
+        }
+        self
+    }
 }
 
 /// The live half: what a connected browser is handed as the events arrive, while the store is
@@ -423,16 +443,18 @@ impl ActivityStore {
     fn page_of(mut rows: Vec<(i64, ActivityEvent)>, limit: i64) -> Page {
         let more = rows.len() as i64 > limit;
         rows.truncate(limit as usize);
-        let next = more.then(|| rows.last()).flatten().map(|(id, event)| {
-            Cursor {
+        let keys: Vec<Cursor> = rows
+            .iter()
+            .map(|(id, event)| Cursor {
                 time: event.time,
                 id: *id,
-            }
-            .encode()
-        });
+            })
+            .collect();
+        let next = more.then(|| keys.last()).flatten().map(Cursor::encode);
         Page {
             items: rows.into_iter().map(|(_, event)| event).collect(),
             next,
+            keys,
         }
     }
 

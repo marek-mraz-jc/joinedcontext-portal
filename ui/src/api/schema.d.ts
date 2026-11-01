@@ -23711,7 +23711,12 @@ export interface operations {
         requestBody: {
             content: {
                 /** @example {} */
-                "application/json": Record<string, never>;
+                "application/json": {
+                    /** @description The last page's next */
+                    cursor?: string;
+                    /** @description Default 20 */
+                    limit?: number;
+                };
             };
         };
         responses: {
@@ -23736,6 +23741,8 @@ export interface operations {
                         }[];
                         /** @enum {string} */
                         kind: "ChangeList";
+                        /** @description Present when more changes follow: send it as cursor */
+                        next?: string;
                     };
                 };
             };

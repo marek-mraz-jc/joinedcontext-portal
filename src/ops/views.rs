@@ -417,7 +417,10 @@ pub fn operations() -> Vec<Operation> {
                         .activity
                         .list(project, &filter)
                         .await
-                        .map_err(|err| crate::error::ApiError::Unavailable(err.to_string()))?;
+                        .map_err(|err| crate::error::ApiError::Unavailable(err.to_string()))?
+                        // The REST page keeps its rows whole; a model reads at most PAGE_BYTES
+                        // and pages on (T-6291).
+                        .within(super::bounds::PAGE_BYTES);
                     Ok(json!({ "items": page.items, "next": page.next }))
                 })
             },
