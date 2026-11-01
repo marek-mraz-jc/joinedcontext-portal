@@ -10936,6 +10936,10 @@
     "loadingOptions": "Wird geladen, was Sie weitergeben dürfen",
     "needsApproval": "braucht die Freigabe Ihrer Organisation",
     "aboveCeiling": "Ihre Organisation erlaubt einem Konnektor diese Vorgabe noch nicht.",
+    "verbsOf": "Was er mit {kind} tun darf",
+    "readComes": "Lesen bringt die Vorlage mit.",
+    "verbsNone": "Wählen Sie oben eine Vorlage, um festzulegen, was er ändern darf.",
+    "verb": {"read": "lesen", "create": "anlegen", "edit": "bearbeiten", "delete": "löschen", "run": "ausführen", "propose": "anlegen, bearbeiten, löschen"},
     "binds": "nur dieser Client kann ihn nutzen",
     "intendedFor": "sagt, für wen er ist; auch andere lokale Programme können ihn nennen",
     "state": {
@@ -10964,7 +10968,8 @@
       "segments": "Vorgaben",
       "scope": "Was er erreicht",
       "expires": "Gültig bis",
-      "clients": "Erlaubte Clients"
+      "clients": "Erlaubte Clients",
+      "kinds": "Änderungen, die er vorschlagen darf"
     },
     "segment": {
       "data-read": "Daten lesen",
@@ -11014,7 +11019,8 @@
       "scope": "Kreuzen Sie ein ganzes Projekt oder einzelne Räume, Endpoints oder Pipelines an, z. B. helsinki / Endpoint bike-counters.",
       "expires": "Der letzte gültige Tag, höchstens {days} Tage ab heute, z. B. das Monatsende.",
       "clients": "Leer lassen für jeden Client, oder z. B. Claude Code ankreuzen, für wen er ist.",
-      "nameStays": "Der Name bleibt; unter ihm listet Ihr KI-Client den Konnektor."
+      "nameStays": "Der Name bleibt; unter ihm listet Ihr KI-Client den Konnektor.",
+      "kinds": "Je Art, was der KI-Client außer Lesen vorschlagen darf, z. B. neue Endpoints anlegen, aber keine bearbeiten. Jede Änderung genehmigt weiterhin ein Mensch."
     },
     "problem": {
       "name": "Geben Sie einen Namen aus Kleinbuchstaben, Ziffern und Bindestrichen an, z. B. verkehr-in-claude.",

@@ -10936,6 +10936,10 @@
     "loadingOptions": "Načítava sa, čo smiete odovzdať",
     "needsApproval": "vyžaduje schválenie vašou organizáciou",
     "aboveCeiling": "Vaša organizácia zatiaľ nedovoľuje konektoru niesť túto predvoľbu.",
+    "verbsOf": "Čo môže robiť s {kind}",
+    "readComes": "Čítanie prináša predvoľba.",
+    "verbsNone": "Zaškrtnite predvoľbu vyššie a vyberte, čo môže meniť.",
+    "verb": {"read": "čítať", "create": "vytvoriť", "edit": "upraviť", "delete": "zmazať", "run": "spustiť", "propose": "vytvoriť, upraviť, zmazať"},
     "binds": "použiť ho môže len tento klient",
     "intendedFor": "hovorí, pre koho je; uviesť ho môžu aj iné lokálne programy",
     "state": {
@@ -10964,7 +10968,8 @@
       "segments": "Predvoľby",
       "scope": "Na čo siaha",
       "expires": "Platí do",
-      "clients": "Povolení klienti"
+      "clients": "Povolení klienti",
+      "kinds": "Zmeny, ktoré môže navrhnúť"
     },
     "segment": {
       "data-read": "Čítanie údajov",
@@ -11014,7 +11019,8 @@
       "scope": "Zaškrtnite celý projekt alebo jednotlivé priestory, Endpointy či pipelines, napr. helsinki / Endpoint bike-counters.",
       "expires": "Posledný deň platnosti, najviac {days} dní odo dneška, napr. koniec tohto mesiaca.",
       "clients": "Nechajte prázdne pre ktoréhokoľvek klienta, alebo zaškrtnite napr. Claude Code, pre koho je.",
-      "nameStays": "Názov ostáva; podľa neho konektor zobrazuje váš AI klient."
+      "nameStays": "Názov ostáva; podľa neho konektor zobrazuje váš AI klient.",
+      "kinds": "Pre každý druh, čo môže AI klient navrhnúť okrem čítania, napr. vytvárať nové Endpointy, ale žiadne neupravovať. Každú zmenu aj tak schvaľuje človek."
     },
     "problem": {
       "name": "Zadajte názov z malých písmen, číslic a pomlčiek, napr. doprava-v-claude.",

@@ -9,15 +9,30 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
-import { AiConnectorsPage, ScopeTree, SetupPanel } from "../src/pages/mcp/AiConnectorsPage";
-import { emptyForm, formProblems, refusedSection, scopeLines, setup, toRequest } from "../src/pages/mcp/aiConnectors";
+import { AiConnectorsPage, KindVerbsPicker, ScopeTree, SetupPanel } from "../src/pages/mcp/AiConnectorsPage";
+import { emptyForm, formProblems, kindRows, refusedSection, scopeLines, setup, toForm, toRequest } from "../src/pages/mcp/aiConnectors";
 import type { AiConnector, ConnectorOptions } from "../src/pages/mcp/aiConnectors";
 
 const IDENTITY = { subject: "b7c1e0f4", username: "eva.steward", name: "Eva Steward", roles: [] };
 const NOW = new Date("2026-10-28T12:00:00Z");
 const OPTIONS: ConnectorOptions = {
   segments: ["data-read", "context", "pipeline", "access", "publish", "apps", "operate", "knowledge", "admin"],
-  ceiling: { segments: ["data-read"], writes: false, maxDays: 30 },
+  segmentKinds: [
+    { segment: "data-read", kinds: ["Endpoint", "ContextSpace", "DataModel"] },
+    { segment: "context", kinds: ["ContextSpace", "DataModel", "Endpoint", "Policy"] },
+    { segment: "pipeline", kinds: ["Pipeline", "DataSource", "Endpoint"] },
+    { segment: "apps", kinds: ["App", "Dashboard", "Layer"] },
+  ],
+  ceiling: {
+    segments: ["data-read"],
+    writes: false,
+    maxDays: 30,
+    kinds: [
+      { kind: "Endpoint", verbs: ["read"] },
+      { kind: "ContextSpace", verbs: ["read"] },
+      { kind: "DataModel", verbs: ["read"] },
+    ],
+  },
   projects: [{ project: "doprava", spaces: ["parking"], endpoints: ["bike-counters"], pipelines: ["load-counters"] }],
   clients: [
     { id: "mcp-local", isBoundary: false },
@@ -55,11 +70,28 @@ describe("AI connector helpers", () => {
       name: "a",
       segments: ["data-read"],
       scope: [{ project: "doprava", access: "read" }, { project: "doprava", endpoint: "bike-counters", access: "read" }],
+      kinds: [],
       writes: false,
       expiresAt: "2026-11-26T23:59:59Z",
       allowedClients: [],
     });
     expect(toRequest({ ...form, picks: [{ project: "doprava", kind: "space", name: "parking", access: "write" }] }).writes).toBe(true);
+  });
+
+  it("sends read alone on every kind the presets reach unless a verb is ticked (T-6302)", () => {
+    const form = { ...emptyForm(OPTIONS, NOW), segments: ["context", "apps"], verbs: { Endpoint: ["create" as const], App: ["edit" as const] } };
+    expect(toRequest(form, OPTIONS).kinds).toEqual([
+      { kind: "ContextSpace", verbs: ["read"] },
+      { kind: "DataModel", verbs: ["read"] },
+      { kind: "Endpoint", verbs: ["read", "create"] },
+      { kind: "Policy", verbs: ["read"] },
+      { kind: "App", verbs: ["read", "edit"] },
+      { kind: "Dashboard", verbs: ["read"] },
+      { kind: "Layer", verbs: ["read"] },
+    ]);
+    expect(kindRows(OPTIONS, ["data-read", "context"]).map((row) => row.kinds)).toEqual([["Endpoint", "ContextSpace", "DataModel"], ["Policy"]]);
+    expect(toForm(connector({ kinds: [{ kind: "Endpoint", verbs: ["read", "propose"] }] })).verbs).toEqual({ Endpoint: ["create", "edit", "delete"] });
+    expect(refusedSection(["kinds[0].verbs"], "kinds[0].verbs: no")).toBe("kinds");
   });
 
   it("refuses a bad name, no preset, no tick and a day past the cap before the server is asked", () => {
@@ -178,6 +210,11 @@ describe("the AI connectors page (T-5951)", () => {
     const sent = requests.find((one) => one.method === "POST")?.body as { scope: unknown; segments: string[]; writes: boolean };
     expect(sent.scope).toEqual([{ project: "doprava", endpoint: "bike-counters", access: "read" }]);
     expect([sent.segments, sent.writes]).toEqual([["data-read"], false]);
+    expect((sent as unknown as { kinds: unknown }).kinds).toEqual([
+      { kind: "Endpoint", verbs: ["read"] },
+      { kind: "ContextSpace", verbs: ["read"] },
+      { kind: "DataModel", verbs: ["read"] },
+    ]);
 
     expect(await screen.findByText(`claude mcp add --transport http doprava-in-claude ${URL_OF}`)).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/eyJ|Bearer|token=/);
@@ -298,6 +335,37 @@ describe("the scope tree", () => {
     expect(child).toHaveAttribute("aria-disabled", "true");
     await user.click(child);
     expect(picks).not.toHaveBeenCalled();
+  });
+
+  it("ticks change verbs per kind, read always on, and greys a verb above the ceiling (T-6302)", async () => {
+    const user = userEvent.setup();
+    const verbs = vi.fn();
+    const options = { ...OPTIONS, ceiling: { ...OPTIONS.ceiling, kinds: [{ kind: "Endpoint", verbs: ["read", "create"] }, { kind: "Pipeline", verbs: ["read", "create", "edit", "delete", "run"] }] } } as ConnectorOptions;
+    render(
+      <I18nextProvider i18n={i18n}>
+        <KindVerbsPicker options={options} form={{ ...emptyForm(OPTIONS, NOW), segments: ["pipeline"] }} onChange={verbs} />
+      </I18nextProvider>,
+    );
+    const endpoint = screen.getByRole("group", { name: "What it may do on Endpoint" });
+    expect(within(endpoint).getByRole("checkbox", { name: /read/ })).toBeChecked();
+    expect(within(endpoint).getByRole("checkbox", { name: /edit/ })).toHaveAttribute("aria-disabled", "true");
+    expect(within(endpoint).queryByRole("checkbox", { name: /run/ })).toBeNull();
+    await user.click(within(endpoint).getByRole("checkbox", { name: /edit/ }));
+    expect(verbs).not.toHaveBeenCalled();
+    await user.click(within(endpoint).getByRole("checkbox", { name: /create/ }));
+    expect(verbs).toHaveBeenLastCalledWith({ Endpoint: ["create"] });
+    const pipeline = screen.getByRole("group", { name: "What it may do on Pipeline" });
+    await user.click(within(pipeline).getByRole("checkbox", { name: /run/ }));
+    expect(verbs).toHaveBeenLastCalledWith({ Pipeline: ["run"] });
+  });
+
+  it("says what to tick first when no preset is ticked", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <KindVerbsPicker options={OPTIONS} form={{ ...emptyForm(OPTIONS, NOW), segments: [] }} onChange={() => undefined} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText(/Tick a preset above/)).toBeInTheDocument();
   });
 
   it("says what to do when the person reads no project", () => {

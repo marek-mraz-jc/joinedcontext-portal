@@ -18,7 +18,8 @@ use serde_json::{json, Value};
 use utoipa::ToSchema;
 
 use jc_core::envelope::Kind as _;
-use jc_core::kinds::{AboveCeiling, ConnectorVerb, DelegationPolicySpec, Segment};
+use jc_core::kinds::delegation_policy::{validate_kind_verbs, verbs_allow};
+use jc_core::kinds::{AboveCeiling, ConnectorVerb, DelegationPolicySpec, KindVerbs, Segment};
 
 use crate::activity::{chrono_to_odt, odt_to_chrono};
 use crate::error::ApiError;
@@ -208,6 +209,7 @@ pub fn of_conversation(run_id: &str, owner: &str, project: &str, segment: &str) 
             access: ItemAccess::Read,
             personal_data: false,
         }],
+        kinds: None,
         writes: false,
         expires_at: now + Duration::hours(1),
         allowed_clients: Vec::new(),
@@ -412,6 +414,29 @@ impl Ceiling {
         self.each().iter().any(|p| p.writes)
     }
 
+    /// Whether some policy (over `project`, when named) lets a connector `verb` on `kind`
+    /// (T-6302). A policy listing no kinds leaves changes to the segments and `writes`.
+    pub fn allows_verb(&self, project: Option<&str>, kind: &str, verb: ConnectorVerb) -> bool {
+        self.each().iter().any(|p| {
+            project.is_none_or(|project| Self::allows_project(p, project))
+                && (p.kinds.is_none() || verbs_allow(p.verbs_for(kind), verb))
+        })
+    }
+
+    /// The verbs the ceiling lets a connector tick on each of `kinds`, for the dialog.
+    pub fn kind_verbs(&self, kinds: &[&str]) -> Vec<KindGrant> {
+        kinds
+            .iter()
+            .map(|kind| KindGrant {
+                kind: (*kind).to_owned(),
+                verbs: kind_choices(kind)
+                    .into_iter()
+                    .filter(|verb| self.allows_verb(None, kind, *verb))
+                    .collect(),
+            })
+            .collect()
+    }
+
     pub fn max_days(&self) -> i64 {
         self.each()
             .iter()
@@ -466,6 +491,9 @@ impl Ceiling {
                     let touches = kind == Some("Endpoint") || endpoint.is_some();
                     !touches || endpoint.is_some_and(|e| listed.iter().any(|l| l == e))
                 })
+                && (op.name != RUN
+                    || p.kinds.is_none()
+                    || verbs_allow(p.verbs_for("Pipeline"), ConnectorVerb::Run))
         };
         if self.each().into_iter().any(fits) {
             Ok(())
@@ -645,6 +673,34 @@ impl ScopeItem {
     }
 }
 
+/// The verbs a connector carries on one kind (API/14 §1, T-6302): `read`, `create` (an object
+/// the project does not hold yet), `edit` (`replace`, `patch`), `delete` and, on `Pipeline`, `run`;
+/// `propose` stands for create, edit and delete.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+#[schema(as = ConnectorKindVerbs)]
+pub struct KindGrant {
+    /// A kind the segments reach, e.g. `Endpoint`.
+    pub kind: String,
+    /// e.g. `["read", "create"]`.
+    #[schema(value_type = Vec<String>, example = json!(["read", "create"]))]
+    pub verbs: Vec<ConnectorVerb>,
+}
+
+/// The verbs a person may tick on `kind`: `run` only on `Pipeline`.
+pub fn kind_choices(kind: &str) -> Vec<ConnectorVerb> {
+    let mut verbs = vec![
+        ConnectorVerb::Read,
+        ConnectorVerb::Create,
+        ConnectorVerb::Edit,
+        ConnectorVerb::Delete,
+    ];
+    if kind == "Pipeline" {
+        verbs.push(ConnectorVerb::Run);
+    }
+    verbs
+}
+
 /// What a person asks for when creating a connector (API/14 §1).
 #[derive(Debug, Clone, Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -654,6 +710,10 @@ pub struct NewConnector {
     /// Presets, e.g. `["data-read"]`.
     pub segments: Vec<String>,
     pub scope: Vec<ScopeItem>,
+    /// Verbs per kind, e.g. `[{"kind": "Endpoint", "verbs": ["read", "create"]}]`; a kind left
+    /// out is read only. Absent: every change the segments reach, as before T-6302.
+    #[serde(default)]
+    pub kinds: Option<Vec<KindGrant>>,
     #[serde(default)]
     pub writes: bool,
     /// RFC 3339, e.g. `2026-11-27T00:00:00Z`.
@@ -670,6 +730,9 @@ pub struct NewConnector {
 struct GrantDoc {
     segments: Vec<String>,
     scope: Vec<ScopeItem>,
+    /// Absent on a record kept before T-6302.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    kinds: Option<Vec<KindGrant>>,
     writes: bool,
     expires_at: DateTime<Utc>,
     allowed_clients: Vec<String>,
@@ -716,6 +779,9 @@ pub struct Connector {
     pub owner: String,
     pub segments: Vec<String>,
     pub scope: Vec<ScopeItem>,
+    /// Verbs per kind (T-6302); absent: every change the segments reach.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kinds: Option<Vec<KindGrant>>,
     pub writes: bool,
     #[schema(value_type = String, format = DateTime)]
     pub expires_at: DateTime<Utc>,
@@ -838,6 +904,34 @@ impl Connector {
         ))
     }
 
+    /// Whether this connector's verbs let it `verb` on `kind` (T-6302): a kind its `kinds` list
+    /// leaves out is read only, and a connector without the list changes what its segments
+    /// reach. `Err` names the kind, the object and the missing verb.
+    pub fn may_verb(&self, kind: &str, name: &str, verb: ConnectorVerb) -> Result<(), String> {
+        let Some(kinds) = &self.kinds else {
+            return Ok(());
+        };
+        let verbs = kinds
+            .iter()
+            .find(|k| k.kind == kind)
+            .map_or(&[ConnectorVerb::Read][..], |k| k.verbs.as_slice());
+        if verbs_allow(verbs, verb) {
+            return Ok(());
+        }
+        let held: Vec<&str> = verbs.iter().map(|v| v.word()).collect();
+        Err(format!(
+            "this connector may not {word} {kind} {name}: its verbs on {kind} are {held}; tick \
+             {word} on {kind} for connector {connector} on the My connectors page",
+            word = verb.word(),
+            held = if held.is_empty() {
+                "none".to_owned()
+            } else {
+                held.join(", ")
+            },
+            connector = self.name,
+        ))
+    }
+
     /// The projects the scope names, in order, once each.
     pub fn projects(&self) -> Vec<&str> {
         let mut projects: Vec<&str> = Vec::new();
@@ -896,6 +990,7 @@ impl Connector {
         }
         if op.name == RUN {
             let name = text("name").ok_or("jc_pipeline_run names the pipeline: name it")?;
+            self.may_verb("Pipeline", name, ConnectorVerb::Run)?;
             return self.may_change(project, "Pipeline", name, true);
         }
         // A plan or an apply names its objects per change; the operation holds each one to
@@ -1017,6 +1112,7 @@ impl Record {
             owner: self.owner.clone(),
             segments: self.grant.segments.clone(),
             scope: self.grant.scope.clone(),
+            kinds: self.grant.kinds.clone(),
             writes: self.grant.writes,
             expires_at: self.grant.expires_at,
             client_is_boundary: !self.grant.allowed_clients.is_empty()
@@ -1098,6 +1194,7 @@ pub fn validate(
     }
     validate_segments(&new.segments)?;
     validate_scope(new)?;
+    validate_kinds(new)?;
     validate_personal(&new.scope, ceiling)?;
     if new.expires_at <= now {
         return Err(invalid(
@@ -1152,6 +1249,31 @@ fn above(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Vec<(Stri
             above.push((format!("scope[{i}].endpoint"), why));
         }
     }
+    for (i, entry) in new.kinds.iter().flatten().enumerate() {
+        for verb in &entry.verbs {
+            let wanted = match verb {
+                ConnectorVerb::Propose => vec![
+                    ConnectorVerb::Create,
+                    ConnectorVerb::Edit,
+                    ConnectorVerb::Delete,
+                ],
+                verb => vec![*verb],
+            };
+            if let Some(verb) = wanted
+                .into_iter()
+                .find(|v| !ceiling.allows_verb(None, &entry.kind, *v))
+            {
+                above.push((
+                    format!("kinds[{i}].verbs"),
+                    format!(
+                        "{named} does not let a connector {} {}",
+                        verb.word(),
+                        entry.kind
+                    ),
+                ));
+            }
+        }
+    }
     if new.writes && !ceiling.writes() {
         above.push((
             "writes".into(),
@@ -1174,6 +1296,44 @@ fn above(new: &NewConnector, ceiling: &Ceiling, now: DateTime<Utc>) -> Vec<(Stri
         above.push(("allowedClients".into(), why));
     }
     above
+}
+
+/// A connector's `kinds`: the shape jc-core checks for a policy's list, and only kinds its
+/// segments reach (T-6302).
+fn validate_kinds(new: &NewConnector) -> Result<(), ApiError> {
+    let Some(kinds) = &new.kinds else {
+        return Ok(());
+    };
+    let listed: Vec<KindVerbs> = kinds
+        .iter()
+        .map(|k| KindVerbs {
+            kind: k.kind.clone(),
+            verbs: k.verbs.clone(),
+        })
+        .collect();
+    if let Err(jc_core::Error::Name {
+        field,
+        value,
+        reason,
+    }) = validate_kind_verbs("kinds", &listed)
+    {
+        return Err(invalid(field, format!("kind {value}: {reason}")));
+    }
+    let (_, reached) = reach_of(|segment| new.segments.iter().any(|s| s == segment || s == ADMIN));
+    for (i, entry) in kinds.iter().enumerate() {
+        if !reached.contains(&entry.kind.as_str()) {
+            return Err(invalid(
+                &format!("kinds[{i}].kind"),
+                format!(
+                    "the segments {} do not reach {}; they reach {}",
+                    new.segments.join(", "),
+                    entry.kind,
+                    reached.join(", ")
+                ),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn validate_segments(segments: &[String]) -> Result<(), ApiError> {
@@ -1424,6 +1584,7 @@ impl ConnectorStore {
             grant: GrantDoc {
                 segments: new.segments,
                 scope: new.scope,
+                kinds: new.kinds,
                 writes: new.writes,
                 expires_at: new.expires_at,
                 allowed_clients: new.allowed_clients,
@@ -1501,6 +1662,7 @@ impl ConnectorStore {
         let grant = GrantDoc {
             segments: new.segments,
             scope: new.scope,
+            kinds: new.kinds,
             writes: new.writes,
             expires_at: new.expires_at,
             allowed_clients: new.allowed_clients,
@@ -1879,6 +2041,7 @@ pub(crate) mod tests {
             grant: GrantDoc {
                 segments: segments.iter().map(|s| (*s).to_owned()).collect(),
                 scope,
+                kinds: None,
                 writes: false,
                 expires_at: Utc::now() + Duration::days(1),
                 allowed_clients: vec![],
@@ -2044,6 +2207,7 @@ pub(crate) mod tests {
             name: "doprava-in-claude".into(),
             segments: segments.iter().map(|s| (*s).to_owned()).collect(),
             scope: vec![item("doprava", None)],
+            kinds: None,
             writes,
             expires_at: Utc::now() + Duration::days(days),
             allowed_clients: vec![],
@@ -2312,6 +2476,7 @@ pub(crate) mod tests {
             grant: GrantDoc {
                 segments: vec!["data-read".into()],
                 scope: vec![item("doprava", None)],
+                kinds: None,
                 writes: false,
                 expires_at: Utc::now() - Duration::seconds(1),
                 allowed_clients: vec![],
@@ -2789,5 +2954,100 @@ pub(crate) mod tests {
             .map(|o| (o.connector.name.as_str(), o.connector.state.as_str()))
             .collect();
         assert_eq!(rows, [("c", "active"), ("b", "revoked"), ("a", "revoked")]);
+    }
+
+    fn grant(kind: &str, verbs: &[ConnectorVerb]) -> KindGrant {
+        KindGrant {
+            kind: kind.into(),
+            verbs: verbs.to_vec(),
+        }
+    }
+
+    /// T-6302: each change is held to its verb on its kind; a kind the list leaves out is read
+    /// only, `propose` stands for the three, and a connector without a list changes as before.
+    #[test]
+    fn a_kinds_list_holds_each_change_to_its_verb() {
+        use ConnectorVerb::{Create, Delete, Edit, Propose, Read, Run};
+        let mut c = connector(&["context", "apps"], vec![item("banskabystrica", None)]);
+        c.kinds = Some(vec![
+            grant("Endpoint", &[Read, Create]),
+            grant("App", &[Read, Edit]),
+        ]);
+        assert_eq!(c.may_verb("Endpoint", "fresh", Create), Ok(()));
+        let edit = c.may_verb("Endpoint", "counters", Edit).unwrap_err();
+        assert!(edit.contains("may not edit Endpoint counters"), "{edit}");
+        assert!(
+            edit.contains("its verbs on Endpoint are read, create"),
+            "{edit}"
+        );
+        assert!(c.may_verb("Endpoint", "counters", Delete).is_err());
+        assert_eq!(c.may_verb("App", "board", Edit), Ok(()));
+        assert!(c.may_verb("App", "board", Create).is_err());
+        let left_out = c.may_verb("DataModel", "bikes", Create).unwrap_err();
+        assert!(left_out.contains("are read;"), "{left_out}");
+        c.kinds = Some(vec![grant("Endpoint", &[Propose])]);
+        for verb in [Create, Edit, Delete] {
+            assert_eq!(c.may_verb("Endpoint", "counters", verb), Ok(()));
+        }
+        c.kinds = Some(vec![grant("Pipeline", &[Read])]);
+        assert!(c.may_verb("Pipeline", "p", Run).is_err());
+        c.kinds = None;
+        assert_eq!(c.may_verb("Endpoint", "counters", Delete), Ok(()));
+    }
+
+    /// T-6302: a connector's list has the policy's shape, names only kinds its presets reach,
+    /// and asks no verb the ceiling withholds; a policy without `kinds` withholds none.
+    #[test]
+    fn a_kinds_list_is_checked_and_held_to_the_ceiling() {
+        use ConnectorVerb::{Create, Edit, Read, Run};
+        let now = Utc::now();
+        let invalid =
+            |n: NewConnector, field: &str| match validate(&n, &Ceiling::of_policies(vec![]), now) {
+                Err(ApiError::Invalid { errors, .. }) => assert_eq!(errors, vec![field.to_owned()]),
+                other => panic!("{field}: {other:?}"),
+            };
+        let mut bad = new(&["data-read"], false, 1);
+        bad.kinds = Some(vec![grant("Pipeline", &[Read])]);
+        invalid(bad, "kinds[0].kind");
+        let mut bad = new(&["data-read"], false, 1);
+        bad.kinds = Some(vec![grant("Endpoint", &[Run])]);
+        invalid(bad, "kinds[].verbs");
+        let mut ok = new(&["data-read"], false, 1);
+        ok.kinds = Some(vec![grant("Endpoint", &[Read])]);
+        assert!(validate(&ok, &Ceiling::of_policies(vec![]), now).is_ok());
+
+        let mut policy = default_policy();
+        policy.projects = vec!["doprava".into()];
+        policy.segments = Some(vec![Segment::Context]);
+        policy.kinds = Some(vec![KindVerbs {
+            kind: "Endpoint".into(),
+            verbs: vec![Read, Create],
+        }]);
+        let ceiling = Ceiling::of_policies(vec![("creators".into(), policy.clone())]);
+        let mut ask = new(&["context"], false, 1);
+        ask.kinds = Some(vec![grant("Endpoint", &[Read, Create])]);
+        assert!(matches!(validate(&ask, &ceiling, now), Ok(above) if above.is_empty()));
+        ask.kinds = Some(vec![grant("Endpoint", &[Read, Edit])]);
+        match validate(&ask, &ceiling, now) {
+            Err(ApiError::Denied(why)) => {
+                assert!(why.starts_with("kinds[0].verbs"), "{why}");
+                assert!(why.contains("edit Endpoint"), "{why}");
+            }
+            other => panic!("expected a ceiling refusal, got {other:?}"),
+        }
+        assert!(ceiling.allows_verb(Some("doprava"), "Endpoint", Create));
+        assert!(!ceiling.allows_verb(Some("doprava"), "Endpoint", Edit));
+        assert!(!ceiling.allows_verb(Some("other"), "Endpoint", Create));
+        assert_eq!(
+            ceiling.kind_verbs(&["Endpoint", "Pipeline"]),
+            vec![grant("Endpoint", &[Read, Create]), grant("Pipeline", &[])]
+        );
+        policy.kinds = None;
+        let open = Ceiling::of_policies(vec![("open".into(), policy)]);
+        assert!(open.allows_verb(Some("doprava"), "Endpoint", Edit));
+        assert_eq!(
+            open.kind_verbs(&["Pipeline"]),
+            vec![grant("Pipeline", &kind_choices("Pipeline"))]
+        );
     }
 }

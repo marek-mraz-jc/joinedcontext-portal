@@ -10936,6 +10936,10 @@
     "loadingOptions": "Loading what you may give",
     "needsApproval": "needs your organization's approval",
     "aboveCeiling": "Your organization does not let a connector carry this preset yet.",
+    "verbsOf": "What it may do on {kind}",
+    "readComes": "Reading comes with the preset.",
+    "verbsNone": "Tick a preset above to choose what it may change.",
+    "verb": {"read": "read", "create": "create", "edit": "edit", "delete": "delete", "run": "run", "propose": "create, edit, delete"},
     "binds": "only this client can use it",
     "intendedFor": "says whom it is for; other local programs can name it too",
     "state": {
@@ -10964,7 +10968,8 @@
       "segments": "Presets",
       "scope": "What it reaches",
       "expires": "Expires",
-      "clients": "Allowed clients"
+      "clients": "Allowed clients",
+      "kinds": "Changes it may propose"
     },
     "segment": {
       "data-read": "Data read",
@@ -11014,7 +11019,8 @@
       "scope": "Tick a whole project or single spaces, Endpoints or pipelines, e.g. helsinki / Endpoint bike-counters.",
       "expires": "The last day it works, at most {days} days from today, e.g. the end of this month.",
       "clients": "Leave empty for any client, or tick e.g. Claude Code to say whom it is for.",
-      "nameStays": "The name stays; it is how your AI client lists the connector."
+      "nameStays": "The name stays; it is how your AI client lists the connector.",
+      "kinds": "Per kind, what the AI client may propose besides reading, e.g. create new Endpoints but edit none. Every change still waits for a person to approve it."
     },
     "problem": {
       "name": "Give a name of lowercase letters, digits and dashes, e.g. doprava-in-claude.",

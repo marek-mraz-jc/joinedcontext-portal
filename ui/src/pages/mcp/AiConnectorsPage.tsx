@@ -21,7 +21,21 @@ import {
 import { ManifestGrid } from "../../components/grid/ManifestGrid";
 import { CopyValue } from "./McpServerPanels";
 import { connectTab, disconnectTab, onPairingChange, pairing } from "../../connectors/pairedTab";
-import { emptyForm, formProblems, lastDay, pickKey, refusedSection, scopeLines, setup, toForm, toRequest } from "./aiConnectors";
+import {
+  ceilingAllows,
+  emptyForm,
+  formProblems,
+  kindRows,
+  lastDay,
+  pickKey,
+  refusedSection,
+  scopeLines,
+  setup,
+  toForm,
+  toRequest,
+  verbsOf,
+  type ChangeVerb,
+} from "./aiConnectors";
 import type { AiConnector, AiConnectorForm, ConnectorOptions, Pick, PickKind } from "./aiConnectors";
 
 const KEY = ["ai-connectors"] as const;
@@ -78,6 +92,7 @@ export function AiConnectorCard({ connector, justCreated }: { connector: AiConne
   const { t, i18n } = useTranslation();
   const client = useQueryClient();
   const [confirming, setConfirming] = useState(false);
+  const verbWord = (verb: string) => t(`aiConnectors.verb.${verb}`);
   const [showSetup, setShowSetup] = useState(Boolean(justCreated));
   const [showActivity, setShowActivity] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -178,6 +193,12 @@ export function AiConnectorCard({ connector, justCreated }: { connector: AiConne
           <div>
             <dt className="text-caption font-semibold">{t("aiConnectors.field.segments")}</dt>
             <dd>{connector.segments.map((segment) => t(`aiConnectors.segment.${segment}`)).join(", ")}</dd>
+            {changeLines(connector, verbWord).length > 0 ? (
+              <>
+                <dt className="text-caption font-semibold">{t("aiConnectors.field.kinds")}</dt>
+                <dd>{changeLines(connector, verbWord).join(" · ")}</dd>
+              </>
+            ) : null}
           </div>
           <div>
             <dt className="text-caption font-semibold">{t("aiConnectors.field.clients")}</dt>
@@ -353,6 +374,68 @@ export function ScopeTree({
 }
 
 /** A new connector, or an edit of `stored`: one form, checked by the server again on submit. */
+/**
+ * The verbs per kind under the ticked presets (T-6302): read comes with the preset, create, edit,
+ * delete and (on Pipeline) run are ticked one by one, nothing by default; a verb the ceiling
+ * withholds is greyed with the reason.
+ */
+/** `Endpoint: create`, one per kind with a verb beyond read; none for a connector without a list. */
+function changeLines(connector: AiConnector, word: (verb: string) => string): string[] {
+  return (connector.kinds ?? [])
+    .map((one) => ({ kind: one.kind, verbs: one.verbs.filter((verb) => verb !== "read") }))
+    .filter((one) => one.verbs.length > 0)
+    .map((one) => `${one.kind}: ${one.verbs.map(word).join(", ")}`);
+}
+
+export function KindVerbsPicker({
+  options,
+  form,
+  onChange,
+}: {
+  options: ConnectorOptions;
+  form: AiConnectorForm;
+  onChange: (verbs: Record<string, ChangeVerb[]>) => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const rows = kindRows(options, form.segments);
+  if (rows.length === 0) return <p className="text-caption text-fg-muted">{t("aiConnectors.verbsNone")}</p>;
+  const toggle = (kind: string, verb: ChangeVerb, on: boolean) => {
+    const held = form.verbs[kind] ?? [];
+    onChange({ ...form.verbs, [kind]: on ? [...held, verb] : held.filter((one) => one !== verb) });
+  };
+  return (
+    <div className="flex flex-col gap-3">
+      {rows.map((row) => (
+        <div key={row.segment} className="flex flex-col gap-1">
+          <p className="text-caption font-semibold">{t(`aiConnectors.segment.${row.segment}`)}</p>
+          {row.kinds.map((kind) => (
+            <fieldset key={kind} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border py-1">
+              <legend className="sr-only">{t("aiConnectors.verbsOf", { kind })}</legend>
+              <span aria-hidden className="w-40 text-body">
+                {kind}
+              </span>
+              <Checkbox label={t("aiConnectors.verb.read")} checked readOnly disabled disabledReason={t("aiConnectors.readComes")} />
+              {verbsOf(kind).map((verb) => {
+                const allowed = ceilingAllows(options, kind, verb);
+                return (
+                  <Checkbox
+                    key={verb}
+                    label={t(`aiConnectors.verb.${verb}`)}
+                    checked={allowed && (form.verbs[kind]?.includes(verb) ?? false)}
+                    disabled={!allowed}
+                    disabledReason={allowed ? undefined : t("aiConnectors.aboveCeiling")}
+                    onChange={(event) => toggle(kind, verb, event.target.checked)}
+                  />
+                );
+              })}
+            </fieldset>
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function CreateDialog({
   stored,
   onClose,
@@ -369,20 +452,21 @@ export function CreateDialog({
   const [form, setForm] = useState<AiConnectorForm | null>(null);
   const [tried, setTried] = useState(false);
   const [refused, setRefused] = useState<{ section?: string; message: string } | null>(null);
-  const current = form ?? (stored ? toForm(stored) : emptyForm(options.data, now));
+  const current = form ?? (stored ? toForm(stored, options.data) : emptyForm(options.data, now));
   const set = (patch: Partial<AiConnectorForm>) => setForm({ ...current, ...patch });
   const problems = options.data ? formProblems(current, options.data, now) : {};
   const create = useMutation({
     mutationFn: async () => {
-      const { segments, scope, writes, expiresAt, allowedClients } = toRequest(current);
+      const request = toRequest(current, options.data);
+      const { segments, scope, kinds, writes, expiresAt, allowedClients } = request;
       return stored
         ? unwrap(
             await api.PATCH("/api/v1/connectors/{id}", {
               params: { path: { id: stored.id } },
-              body: { segments, scope, writes, expiresAt, allowedClients },
+              body: { segments, scope, kinds, writes, expiresAt, allowedClients },
             }),
           )
-        : unwrap(await api.POST("/api/v1/connectors", { body: toRequest(current) }));
+        : unwrap(await api.POST("/api/v1/connectors", { body: request }));
     },
     onSuccess: (connector) => {
       void client.invalidateQueries({ queryKey: KEY });
@@ -463,6 +547,14 @@ export function CreateDialog({
               );
             })}
             {errorsOf("segments") ? <Alert tone="danger">{errorsOf("segments")?.[0]}</Alert> : null}
+          </fieldset>
+          <fieldset className="flex flex-col gap-1" aria-describedby="ai-connector-kinds-help">
+            <legend className="text-body font-semibold">{t("aiConnectors.field.kinds")}</legend>
+            <p id="ai-connector-kinds-help" className="text-caption text-fg-muted">
+              {t("aiConnectors.help.kinds")}
+            </p>
+            <KindVerbsPicker options={options.data} form={current} onChange={(verbs) => set({ verbs })} />
+            {errorsOf("kinds") ? <Alert tone="danger">{errorsOf("kinds")?.[0]}</Alert> : null}
           </fieldset>
           <fieldset className="flex flex-col gap-1" aria-describedby="ai-connector-scope-help">
             <legend className="text-body font-semibold">{t("aiConnectors.field.scope")}</legend>
