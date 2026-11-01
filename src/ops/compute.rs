@@ -25,10 +25,8 @@ use serde_json::{json, Value};
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct CatalogSearchInput {
-    #[serde(default)]
-    pub q: Option<String>,
-    #[serde(default)]
-    pub query: Option<String>,
+    /// Required: a search without keywords lists nothing (T-6274).
+    pub q: String,
     #[serde(default)]
     pub scope: Option<String>,
 }
@@ -91,10 +89,15 @@ fn catalog_search_input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "q": text("Keywords in names, titles and descriptions", QUERY),
-            "query": text("Alias of q; q wins", QUERY),
+            "q": {
+                "type": "string",
+                "description": "Required keywords in names, titles and descriptions, e.g. bike",
+                "pattern": "\\S",
+                "maxLength": QUERY
+            },
             "scope": text("One kind only; Dataset is the open-data catalogue", TERM)
         },
+        "required": ["q"],
         "additionalProperties": false
     })
 }
@@ -223,8 +226,7 @@ async fn catalog_search(
     project: &str,
     input: CatalogSearchInput,
 ) -> Result<Value, OpError> {
-    let q = input.q.or(input.query).unwrap_or_default();
-    let q = q.trim();
+    let q = input.q.trim();
     if q.is_empty() {
         return Err(OpError::Api(ApiError::BadRequest(
             "q must not be empty".into(),

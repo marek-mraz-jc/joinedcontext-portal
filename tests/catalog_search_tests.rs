@@ -205,6 +205,26 @@ async fn anonymous_search_is_401_and_an_empty_question_is_400() {
     );
 }
 
+/// T-6274: the schema a model reads says q is required and not blank, so a call it admits is
+/// never refused for a missing q, and `{scope}` alone is refused naming q.
+#[tokio::test]
+async fn the_schema_requires_q_and_a_scope_alone_is_refused_naming_it() {
+    let op = joinedcontext_portal::ops::registry()
+        .iter()
+        .find(|op| op.name == "jc_catalog_search")
+        .expect("jc_catalog_search is registered");
+    let schema = (op.input)();
+    assert_eq!(schema["required"], json!(["q"]));
+    let blank = regex::Regex::new(schema["properties"]["q"]["pattern"].as_str().unwrap()).unwrap();
+    assert!(!blank.is_match("") && !blank.is_match("  ") && blank.is_match("bike"));
+
+    let config = Config::for_tests();
+    let cookie = session_cookie(&config);
+    let (status, body) = search(config, Some(&cookie), json!({ "scope": "Endpoint" })).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(body.to_string().contains("`q`"), "{body}");
+}
+
 #[tokio::test]
 async fn the_words_of_a_question_find_endpoints_spaces_and_models_of_this_project_only() {
     let config = Config::for_tests();
