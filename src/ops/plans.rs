@@ -246,11 +246,12 @@ fn through_connector(
     project: &str,
     kind: &str,
     name: &str,
+    space: Option<&str>,
     write: bool,
 ) -> Result<(), OpError> {
     match caller.access.as_ref().and_then(|a| a.connector()) {
         Some(connector) => connector
-            .may_change(project, kind, name, write)
+            .may_change(project, kind, name, space, write)
             .map_err(|why| OpError::Api(ApiError::Denied(why))),
         None => Ok(()),
     }
@@ -286,17 +287,17 @@ fn verb_through_connector(
     )))
 }
 
-/// Both connector checks on one change: its scope (`write` at apply) and its verb.
+/// Both connector checks on one change: its scope (`write` at apply) and its verb. `target` is
+/// the kind, the name and where the change sits ([`crate::connectors::change_space`]).
 fn connector_admits(
     caller: &Caller,
     state: &AppState,
     project: &str,
-    kind: &str,
-    name: &str,
+    (kind, name, space): (&str, &str, Option<&str>),
     write: bool,
     verb: ConnectorVerb,
 ) -> Result<(), OpError> {
-    through_connector(caller, project, kind, name, write)?;
+    through_connector(caller, project, kind, name, space, write)?;
     verb_through_connector(caller, state, project, kind, name, verb)
 }
 
@@ -447,10 +448,17 @@ async fn checked(
     }
     let home = super::resources::home_holding(state, info, project, &change.name);
     // Create or edit is the forge's answer, never the `op` the client sent (T-6302).
-    let exists = state.mirror.get(&home, info.kind, &change.name).is_some();
-    let verb = change_verb(&change.op, exists);
-    connector_admits(caller, state, project, info.kind, &change.name, false, verb)?;
-    let mut manifest = manifest_of(state, at, &home, change)?;
+    let current = state.mirror.get(&home, info.kind, &change.name);
+    let verb = change_verb(&change.op, current.is_some());
+    // The connector is asked before a manifest error can tell it what exists outside its scope.
+    let manifest = manifest_of(state, at, &home, change);
+    let space = crate::connectors::change_space(
+        current.and_then(|c| serde_json::to_value(c).ok()).as_ref(),
+        manifest.as_ref().ok().and_then(Option::as_ref),
+    );
+    let target = (info.kind, change.name.as_str(), space.as_deref());
+    connector_admits(caller, state, project, target, false, verb)?;
+    let mut manifest = manifest?;
     // The slug is the platform's to mint (EP-75): a typed one is refused under this change's own
     // path here, before the check below mints one and records it on the Endpoint's draft.
     slug_settled(caller, state, at, &home, manifest.clone().as_mut()).await?;
@@ -1212,7 +1220,13 @@ async fn apply(
         .ok_or_else(not_found)?;
     for item in &plan.items {
         let verb = item_verb(item.manifest.is_some(), &item.base);
-        connector_admits(caller, state, project, &item.kind, &item.name, true, verb)?;
+        let now = state.mirror.get(&item.home, &item.kind, &item.name);
+        let space = crate::connectors::change_space(
+            now.and_then(|n| serde_json::to_value(n).ok()).as_ref(),
+            item.manifest.as_ref(),
+        );
+        let target = (item.kind.as_str(), item.name.as_str(), space.as_deref());
+        connector_admits(caller, state, project, target, true, verb)?;
     }
     unchanged_and_gated(state, &plan.items).await?;
     let workspace = plan.workspace.as_deref();
@@ -1490,7 +1504,8 @@ async fn revert(
             return Err(missing());
         }
         // A narrowed connector hears of nothing outside its scope, a conflict included.
-        through_connector(caller, project, &kind, &name, false)?;
+        let space = crate::connectors::change_space(now.as_ref(), before.as_ref());
+        through_connector(caller, project, &kind, &name, space.as_deref(), false)?;
         if now != made {
             moved.push(file.path.clone());
             continue;

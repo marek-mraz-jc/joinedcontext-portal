@@ -423,6 +423,7 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
             // A draft is readable exactly where its manifest would be (PF-59, T-1455).
             for draft in drafts
                 .into_iter()
+                .filter(|draft| may_read_kind(&state, &caller, &project, &draft.kind))
                 .filter(|draft| effective.may_read_manifest(&draft.kind, &draft.manifest))
             {
                 resources.push(json!({
@@ -455,7 +456,9 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
             // The open changes and their plans (AG-60, CC-34). The list is what the change
             // route lists for this caller; a plan is read one at a time, because reading one
             // asks the forge.
-            if may_read(&state, &caller, &project) {
+            if may_read(&state, &caller, &project)
+                && may_read_kind(&state, &caller, &project, "Change")
+            {
                 let open =
                     crate::api::changes::list_changes_readable(&state, &caller.identity, &project)
                         .await
@@ -652,9 +655,14 @@ fn readable_item(
 }
 
 /// Whether the caller reads this kind here (PF-59): the same rule the REST list and get apply,
-/// so a resource the API hides is not handed out over MCP either.
+/// so a resource the API hides is not handed out over MCP either. An agent run reads only the
+/// kinds its profile grants `read` (AG-70, JC1-02).
 fn may_read_kind(state: &AppState, caller: &crate::ops::Caller, project: &str, kind: &str) -> bool {
-    crate::permissions::for_request(state, &caller.identity, project).may_read(kind)
+    caller
+        .access
+        .as_ref()
+        .is_none_or(|access| access.reads(kind))
+        && crate::permissions::for_request(state, &caller.identity, project).may_read(kind)
 }
 /// One `tools/call`, answered as its JSON-RPC envelope: an error, or a result the caller grounds.
 ///
@@ -731,9 +739,13 @@ async fn answer_call(
         return error(id, -32602, "unknown tool");
     };
 
+    // A client that can only fill arguments answers a question there (T-6361); it is no
+    // argument of the operation, so neither the digest nor the input schema sees it.
     let mut input = arguments.clone();
+    let mut answered_in_arguments = None;
     if let Some(map) = input.as_object_mut() {
         map.remove("project");
+        answered_in_arguments = map.remove("elicitation");
     }
 
     // Refusal before the question (AG-63): a caller who may not run this is told so,
@@ -755,7 +767,7 @@ async fn answer_call(
     if lane != crate::change::Lane::Green || op.annotations.destructive_hint {
         let owner = caller.identity.subject.as_str();
         let digest = elicitation::digest_of(&input);
-        match params.get("elicitation") {
+        match params.get("elicitation").or(answered_in_arguments.as_ref()) {
             None => {
                 // PF-57: a proposal whose check has not run is refused on every door
                 // with the same three fields, so a client that reads
@@ -959,7 +971,7 @@ async fn read_resource(
         // project *and* on the kind the change proposes, so a caller who may read a Pipeline
         // here is not handed a change that rewrites a Role. `change_for` asks neither, and
         // reading it behind a project-level check handed out the whole diff.
-        [project, "changes", change_id] => {
+        [project, "changes", change_id] if may_read_kind(state, caller, project, "Change") => {
             let change =
                 crate::api::changes::change_readable(state, &caller.identity, project, change_id)
                     .await
@@ -1541,6 +1553,88 @@ mod tests {
             envelope.to_string().contains("mcp-elicitations"),
             "{envelope}"
         );
+    }
+
+    /// T-6361: a client that can only fill arguments reads the id from the text and answers the
+    /// question inside the arguments; the call runs only on the decision the person recorded.
+    #[tokio::test]
+    async fn a_question_is_answered_from_the_text_inside_the_arguments() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let caller = || crate::ops::Caller {
+            bearer: None,
+            identity: crate::auth::session::Identity {
+                subject: "f:1:steward".to_owned(),
+                username: "steward".to_owned(),
+                email: None,
+                name: None,
+                roles: Vec::new(),
+                groups: vec![state.config.bootstrap_admins.clone()],
+                client: None,
+                second_factor: true,
+            },
+            via: crate::ops::Via::Mcp,
+            access: None,
+        };
+        state.mirror.upsert(crate::resource::ResourceEnvelope {
+            api_version: crate::resource::API_VERSION.into(),
+            kind: "Pipeline".into(),
+            metadata: crate::resource::ObjectMeta::new("bikeshare-stations", "ovzdusie"),
+            spec: json!({}),
+            status: None,
+        });
+        let via = crate::change::ProposedVia::mcp(None);
+        let arguments = json!({ "project": "ovzdusie", "name": "bikeshare-stations" });
+        let mut answer = None;
+        let asked = answer_call(
+            &state,
+            caller(),
+            json!(1),
+            &json!({ "name": "jc_pipeline_run", "arguments": arguments }),
+            &via,
+            &mut answer,
+        )
+        .await;
+        let result = &asked["result"];
+        assert_eq!(result["status"], "input_required", "{asked}");
+        assert!(result.get("structuredContent").is_none(), "{asked}");
+        let text = result["content"][0]["text"].as_str().unwrap_or_default();
+        assert!(
+            text.contains("/projects/ovzdusie/mcp-elicitations/eli-"),
+            "{text}"
+        );
+        let id = text
+            .split('"')
+            .find(|word| word.starts_with("eli-"))
+            .unwrap_or_default()
+            .to_owned();
+        assert_eq!(
+            result["_meta"][elicitation::ELICITATION_META]["elicitation"]["elicitationId"],
+            json!(id),
+            "{asked}"
+        );
+
+        let mut again = arguments.clone();
+        again["elicitation"] = json!({ "elicitationId": id, "action": "accept" });
+        let params = json!({ "name": "jc_pipeline_run", "arguments": again });
+        let waiting = answer_call(&state, caller(), json!(2), &params, &via, &mut answer).await;
+        assert!(
+            waiting["result"]["content"][0]["text"]
+                .to_string()
+                .contains("has not decided"),
+            "the client's own accept runs nothing: {waiting}"
+        );
+        assert!(answer.is_none());
+        assert!(state
+            .mcp_elicitations
+            .decide(
+                "f:1:steward",
+                "ovzdusie",
+                &id,
+                elicitation::ElicitationDecision::Accept
+            )
+            .is_some());
+        answer_call(&state, caller(), json!(3), &params, &via, &mut answer).await;
+        assert_eq!(answer, Some("accepted"));
     }
 
     /// T-6042: a client hands its model the text alone, so the text names each of `errors`.

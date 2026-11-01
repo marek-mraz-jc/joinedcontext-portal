@@ -817,17 +817,6 @@ pub async fn start_conversation(
             .map_err(ApiError::BadRequest)?;
         crate::agents::endpoints::resolve_readable(&state.mirror, &project, &names)?
     };
-    // AG-70: a profile that lists endpoints lets the assistant read only those.
-    if let Some(refused) = run_endpoints
-        .iter()
-        .find(|endpoint| !profile.access.grants_endpoint(&endpoint.name, false))
-    {
-        return Err(ApiError::Denied(format!(
-            "agent profile '{}' does not grant reading endpoint '{}' (AG-70)",
-            profile.name, refused.name
-        )));
-    }
-
     if let Some(parent_id) = &request.continues {
         let parent = state
             .agents
@@ -852,10 +841,28 @@ pub async fn start_conversation(
                 "run '{parent_id}' is not visible to you"
             )));
         }
-        // A continuation that names no endpoints keeps the ones it continues.
+        // A continuation that names no endpoints keeps the ones it continues, resolved again
+        // for this person and held to this profile like named ones (AG-70, JC1-24).
         if run_endpoints.is_empty() {
-            run_endpoints = crate::agents::endpoints::of_run(&parent);
+            let names: Vec<String> = crate::agents::endpoints::of_run(&parent)
+                .into_iter()
+                .map(|endpoint| endpoint.name)
+                .collect();
+            if !names.is_empty() {
+                run_endpoints =
+                    crate::agents::endpoints::resolve_readable(&state.mirror, &project, &names)?;
+            }
         }
+    }
+    // AG-70: a profile that lists endpoints lets the assistant read only those.
+    if let Some(refused) = run_endpoints
+        .iter()
+        .find(|endpoint| !profile.access.grants_endpoint(&endpoint.name, false))
+    {
+        return Err(ApiError::Denied(format!(
+            "agent profile '{}' does not grant reading endpoint '{}' (AG-70)",
+            profile.name, refused.name
+        )));
     }
 
     let id = mint_run_id();

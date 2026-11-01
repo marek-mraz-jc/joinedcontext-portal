@@ -530,6 +530,8 @@ async fn infer_from_url(
         Verb::Propose,
         None,
     )?;
+    // The runner fetches it inside the cluster and nobody approved it (AG-65, JC1-27).
+    super::pipeline_steps::sample_address(url, "/url").await?;
     let spec = json!({ "type": "http", "http": { "url": url } });
     let probe = pipeline_test::probe_source(state, project, &spec)
         .await

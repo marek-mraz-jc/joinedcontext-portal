@@ -29,7 +29,7 @@ import { shot } from "./shoot";
 type Session = { context: BrowserContext; page: Page };
 type Row = { step: string; lapS: number; clicks: number; verdict: string };
 type Queued = { id: string; source: string; what: string; lane?: string; approvedAt?: number; appliedS?: number };
-type ToolResult = { isError?: boolean; status?: string; content?: { text?: string }[]; structuredContent?: Record<string, unknown>; task?: { taskId: string } };
+type ToolResult = { isError?: boolean; status?: string; content?: { text?: string }[]; structuredContent?: Record<string, unknown>; _meta?: Record<string, unknown>; task?: { taskId: string } };
 
 const PROJECT = "helsinki";
 const SUFFIX = process.env.E2E_SUFFIX ?? new Date().toISOString().slice(11, 16).replace(":", "");
@@ -130,7 +130,7 @@ function mcpClient(baseURL: string, token: string) {
   const call = async (tool: string, args: Record<string, unknown>): Promise<ToolResult> => {
     const params = { name: tool, project: PROJECT, arguments: { project: PROJECT, ...args } };
     let result = (await rpc("tools/call", params)).result ?? {};
-    const asked = result.structuredContent?.elicitation as { elicitationId?: string } | undefined;
+    const asked = (result._meta?.["joinedcontext.com/elicitation"] as { elicitation?: { elicitationId?: string } } | undefined)?.elicitation;
     if (result.status === "input_required" && asked?.elicitationId) {
       result = (await rpc("tools/call", { ...params, elicitation: { elicitationId: asked.elicitationId, action: "accept" } })).result ?? {};
     }

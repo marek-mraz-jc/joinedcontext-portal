@@ -253,9 +253,21 @@ pub fn operations() -> Vec<Operation> {
             verb: None,
             lane: Lane::Red,
             validate: |val| parse_input::<DeleteProjectInput>(val.clone()).map(|_| ()),
-            run: |caller, state, _project, val| {
+            run: |caller, state, project, val| {
                 Box::pin(async move {
                     let input: DeleteProjectInput = parse_input(val)?;
+                    // The ceiling (an agent profile, a connector scope) was judged on the project
+                    // the call is addressed to: the name confirms that one and no other (JC1-01).
+                    if input.name != project {
+                        return Err(OpError::InvalidInput {
+                            path: "/name".into(),
+                            message: format!(
+                                "this call is addressed to project {project}: name that project \
+                                 to delete it, or address the call to {}",
+                                input.name
+                            ),
+                        });
+                    }
                     let change = crate::api::projects::delete_project_for(
                         state,
                         &caller.identity,

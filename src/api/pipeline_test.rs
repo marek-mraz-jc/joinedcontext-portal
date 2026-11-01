@@ -236,6 +236,13 @@ pub async fn execute_test_pipeline(
     request: TestRequest,
 ) -> Result<TestTrace, ApiError> {
     let spec = tested_spec(identity, state, project, &request.pipeline)?;
+    // A sample URL the caller typed is fetched by the runner inside the cluster before anybody
+    // approved it: held to the public internet first (AG-65, JC1-27).
+    if let Some(url) = request.sample.url.as_deref() {
+        crate::ops::pipeline_steps::sample_address(url, "/sample/url")
+            .await
+            .map_err(crate::ops::OpError::into_api_error)?;
+    }
     run_harness(state, project, &spec, &request.sample).await
 }
 
