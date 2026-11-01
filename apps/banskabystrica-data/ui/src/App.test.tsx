@@ -167,7 +167,10 @@ describe("the city's datasets", () => {
   it("names a row without a name by its id, and opens it so", async () => {
     show(true, {}, true);
     await userEvent.click(screen.getByRole("tab", { name: s.dataset.air }));
-    expect(await screen.findByRole("button", { name: `${s.grid.openRow}: urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:banskabystrica-verejne:x9` })).toBeInTheDocument();
+    // The SDK grid calls a row named by its id by the id's last part, as the Portal does (T-5619).
+    const air = screen.getByRole("tabpanel", { name: s.dataset.air });
+    const open = await within(air).findByRole("button", { name: `${s.grid.openRow}: x9` });
+    expect(open).toHaveAttribute("title", "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:banskabystrica-verejne:x9");
   });
 
   it("says it has nothing to read when the app has no endpoint of the public space", () => {

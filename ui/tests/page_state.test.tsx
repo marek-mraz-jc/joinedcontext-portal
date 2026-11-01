@@ -19,10 +19,10 @@ import type { AuthStatus } from "../src/auth/AuthProvider";
 import { expectNoAxeViolations, inEveryLocale } from "./page_contract";
 
 /** The session's status as the page sees it; `undefined` is a page outside any AuthProvider. */
-const authStatus = vi.hoisted(() => ({ value: undefined as AuthStatus | undefined }));
+const authStatus = vi.hoisted(() => ({ value: "authenticated" as AuthStatus | undefined }));
 vi.mock("../src/auth/AuthProvider", () => ({ useAuthStatus: () => authStatus.value }));
 beforeEach(() => {
-  authStatus.value = undefined;
+  authStatus.value = "authenticated";
 });
 
 const show = (element: React.ReactElement) =>
@@ -286,8 +286,13 @@ describe("the page's failed state", () => {
     expect(screen.queryByRole("link")).toBeNull();
     unmount();
     authStatus.value = "authenticated";
-    show(<PageFailed error={new ApiError(409, "Conflict", conflict)} />);
+    const signedIn = show(<PageFailed error={new ApiError(409, "Conflict", conflict)} />);
     expect(screen.getByRole("link", { name: en.app.error.problemPage })).toHaveAttribute("href", "/docs/API/09-errors#draft-conflict");
+    signedIn.unmount();
+    // T-6313: a page outside any AuthProvider (the public catalogue explorer) has no session either.
+    authStatus.value = undefined;
+    show(<PageFailed error={new ApiError(409, "Conflict", conflict)} />);
+    expect(screen.queryByRole("link")).toBeNull();
   });
 
   it("T-3244: offline says so and reads again by itself once the connection is back", () => {

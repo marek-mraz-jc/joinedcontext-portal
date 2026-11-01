@@ -4,16 +4,16 @@
  * in and the bundle holds no token (AP-28).
  *
  * The table is the SDK's `EntityGrid`: paging, a filter per column that becomes the endpoint's own
- * `q`, the model's enum as a pick list. The page sits in the SDK's `AppShell` (SDK-39), and a row's
- * name opens the entity in the SDK's panel (SDK-40): a public App, so the panel reads it and links
+ * `q`, the model's enum as a pick list, id, type and name first as on the Portal's Endpoint page
+ * (T-6210). The page sits in the SDK's `AppShell` (SDK-39), and a row's pinned id opens the entity
+ * in the SDK's panel (SDK-40): a public App, so the panel reads it and links
  * to it in the Portal (AP-140). What this application adds is one tab per dataset, the city's
  * labels and the endpoint's own downloads of each dataset.
  */
 import { useMemo, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
-import { AppShell, cellText, endpointSource, EntityGrid, Page, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
-import type { RichCell, RichRow } from "@joinedcontext/sdk";
-import { DATASETS, EVENT_CATEGORIES, exportUrl, gridConfig, TYPE_OF } from "./datasets";
+import { AppShell, endpointSource, EntityGrid, Page, transportFor, useClient } from "@joinedcontext/sdk";
+import { DATASETS, EVENT_CATEGORIES, exportUrl, gridConfig } from "./datasets";
 import type { Dataset } from "./datasets";
 import { stringsFor } from "./locales";
 
@@ -30,7 +30,6 @@ function Datasets() {
   const { config } = useClient();
   const s = stringsFor(config.language);
   const language = config.language;
-  const { select } = useEntitySelection();
   const slug = config.endpoints?.find((candidate) => candidate.space === SPACE)?.slug ?? (config.space === SPACE ? config.slug : null);
   const [dataset, setDataset] = useState<Dataset>("events");
   const tabs = useRef<Record<Dataset, HTMLButtonElement | null>>({ events: null, schools: null, air: null });
@@ -46,21 +45,6 @@ function Datasets() {
     () => ({ eventCategory: EVENT_CATEGORIES.map((value) => ({ value, title: s.category[value] ?? value })) }),
     [s.category],
   );
-  // A row's name opens the entity in the shell's panel, by click or Enter.
-  const renderers = useMemo(
-    () => ({
-      name: (cell: RichCell | RichCell[] | undefined, row: RichRow) => {
-        const name = cellText(cell) || row.id;
-        return (
-          <button type="button" className="jc-grid-open" aria-label={`${s.grid.openRow}: ${name}`} title={row.id} onClick={() => select({ id: row.id, type: TYPE_OF[dataset] })}>
-            {name}
-          </button>
-        );
-      },
-    }),
-    [s.grid.openRow, select, dataset],
-  );
-
   // The tabs move with the arrow keys, Home and End, as a tablist does (WAI-ARIA APG).
   const onTabKey = (event: KeyboardEvent<HTMLButtonElement>) => {
     const at = DATASETS.indexOf(dataset);
@@ -112,7 +96,7 @@ function Datasets() {
               </a>
               <small>{s.downloadNote}</small>
             </div>
-            <EntityGrid key={dataset} config={grid} source={source} labels={s.grid} enums={enums} renderers={renderers} />
+            <EntityGrid key={dataset} config={grid} source={source} labels={s.grid} enums={enums} />
           </section>
         </>
       ) : (

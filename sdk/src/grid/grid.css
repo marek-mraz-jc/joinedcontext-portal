@@ -27,6 +27,9 @@
 }
 
 .jc-grid-scroll {
+  /* The containing block of every absolute child (each empty cell's screen-reader "not set"), so
+     the box clips them: without it they sit at their cell's place outside it and widen the page. */
+  position: relative;
   overflow-x: auto;
   overflow-y: auto;
   max-height: 100%;
@@ -1328,6 +1331,9 @@ a.jc-cell--link:focus-visible {
 .jc-grid td:is(.jc-grid-pinned, [data-col="entity:type"]) > .jc-grid-cell,
 .jc-grid td.jc-grid-pinned > .jc-grid-cell > .jc-grid-open {
   display: block;
+  /* A block button still sizes to its text: without the cap a long id ran past the cell, which cut
+     the button off instead of the button cutting its own text. */
+  max-width: 100%;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

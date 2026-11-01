@@ -131,7 +131,9 @@ export function PageFailed({
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const kind = failureKind(error);
-  const anonymous = useAuthStatus() === "anonymous";
+  // Outside any AuthProvider (the public catalogue explorer, T-6313) nobody is signed in either.
+  const status = useAuthStatus();
+  const anonymous = status === undefined || status === "anonymous";
   // A refusal already says who gives access; an ended session and a lost connection have their
   // own sentence. Every other problem says what to do about it (T-3243).
   const hint =
