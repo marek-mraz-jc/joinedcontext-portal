@@ -2101,7 +2101,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
         {/* The endpoint's own count, not the page's: an answer the gateway narrowed carries none,
             and then the footer says nothing rather than a number it guessed (R22). */}
         {grid.total !== undefined && (
-          <span className="jc-grid-total">{`${grid.total} ${labels.matching}`}</span>
+          <span className="jc-grid-total">{labels.matching.includes("{n}") ? labels.matching.replace("{n}", String(grid.total)) : `${grid.total} ${labels.matching}`}</span>
         )}
         <button
           type="button"

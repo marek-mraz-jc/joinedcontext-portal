@@ -5492,7 +5492,7 @@
     "notReadable": "Další pole ({count}) se nezobrazují: váš přístup je nezahrnuje.",
     "queryRefused": "Broker tento dotaz odmítl",
     "errorDetail": "Co broker odpověděl",
-    "matching": "odpovídajících",
+    "matching": "Odpovídá: {n}",
     "noTotal": "endpoint u této odpovědi neuvádí celkový počet",
     "history": "Historie",
     "historyWindow": {

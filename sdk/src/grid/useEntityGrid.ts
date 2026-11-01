@@ -97,7 +97,8 @@ export interface GridLabels {
   queryRefused: string;
   /** The disclosure holding the broker's own sentence about a refused query. */
   errorDetail: string;
-  /** What the footer calls the endpoint's own count of matching entities. */
+  /** What the footer calls the endpoint's own count of matching entities: a word after the number, or a
+   *  text holding `{n}` where the number goes, for a language whose word agrees with it (sk "Vyhovuje: {n}"). */
   matching: string;
   /** Beside the loaded rows when the endpoint's answer carries no total (R22, T-4885). */
   noTotal: string;
