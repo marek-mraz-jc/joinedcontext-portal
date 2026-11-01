@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RichRow, RichCell } from "./model";
 import type { ResolvedGridConfig } from "./config";
-import { cellText, toRichCell } from "./model";
+import { cellText } from "./model";
 import type { ColumnLayout, GridLabels, MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
 import { readableName } from "./readableName";
 import { DEFAULT_LABELS, MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, NAME_COLUMN, useEntityGrid } from "./useEntityGrid";
@@ -32,6 +32,7 @@ import type { AttributeAccess } from "./source";
 import { RowDetail } from "./RowDetail";
 import { AttributeMetadata } from "./AttributeMetadata";
 import type { RowDetailTab } from "./RowDetail";
+import { useChangesFeed } from "./EntityChanges";
 import { parseClipboard, planPaste } from "./paste";
 import { problemOf } from "./rules";
 import { queryExample } from "./queryExample";
@@ -1144,15 +1145,9 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
   }, [detailId, listedRow, loading, getRow, setDetailId]);
   const detailRow = listedRow ?? (linked && linked.id === detailId ? linked : undefined);
   // One stable reader per open row, so the dialog's Changes read runs once per row (T-6333).
-  const changesSource = hookOptions.source;
-  const changesId = detailRow?.id;
-  const loadChanges = useMemo(
-    () => {
-      const read = changesSource.changes;
-      return read && changesId ? (attrs: string[]) => read.call(changesSource, changesId, attrs) : undefined;
-    },
-    [changesSource, changesId],
-  );
+  const changesFeed = useChangesFeed(hookOptions.source, detailRow?.id, where, hookOptions.labels?.changesLabels, (cell) => (
+    <CellView cell={cell} locale={where} labels={cellLabels} targets={targets} />
+  ));
   const historyOn = Boolean(hookOptions.source.history) && hookOptions.config.history.enabled !== false;
 
   // What is typed and not applied yet, with Review and Discard: under the toolbar, and inside the row
@@ -1850,19 +1845,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
               labels={hookOptions.labels?.metadataLabels}
             />
           )}
-          changes={
-            loadChanges
-              ? {
-                  load: loadChanges,
-                  renderValue: (_attr, instance) => {
-                    const cell = toRichCell(instance, where);
-                    return cell ? <CellView cell={cell} locale={where} labels={cellLabels} targets={targets} /> : null;
-                  },
-                  locale: where,
-                  labels: hookOptions.labels?.changesLabels,
-                }
-              : undefined
-          }
+          changes={changesFeed}
           tabs={detailTabs?.(detailRow)}
           place={detailPlace}
           onPlace={onDetailPlace}

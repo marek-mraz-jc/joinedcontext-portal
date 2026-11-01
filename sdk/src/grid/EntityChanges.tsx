@@ -14,6 +14,9 @@ import React, {
 import { actorName, changesCsv, filterChanges } from "./changes";
 import type { EntityChange } from "./changes";
 import { SourceError } from "./source";
+import type { EntitySource } from "./source";
+import { toRichCell } from "./model";
+import type { RichCell } from "./model";
 import "./grid.css";
 
 export interface ChangesLabels {
@@ -424,4 +427,29 @@ export function useRowChanges(
       />
     ) : null;
   return { tabs, panel, mark };
+}
+
+/**
+ * What a grid hands its row dialog for Changes: a reader bound to the open row, stable while the
+ * row is (one read per row), and each kept value drawn by the grid's own cell view.
+ */
+export function useChangesFeed(
+  source: EntitySource,
+  id: string | undefined,
+  locale: string,
+  labels: Partial<ChangesLabels> | undefined,
+  renderCell: (cell: RichCell) => React.ReactNode,
+): RowChanges | undefined {
+  const load = useMemo(() => {
+    const read = source.changes;
+    return read && id
+      ? (attrs: string[]) => read.call(source, id, attrs)
+      : undefined;
+  }, [source, id]);
+  if (!load) return undefined;
+  const renderValue = (_attr: string, instance: Record<string, unknown>) => {
+    const cell = toRichCell(instance, locale);
+    return cell ? renderCell(cell) : null;
+  };
+  return { load, renderValue, locale, labels };
 }

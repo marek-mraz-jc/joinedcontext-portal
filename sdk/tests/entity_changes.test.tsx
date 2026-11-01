@@ -10,6 +10,7 @@ import {
   within,
 } from "@testing-library/react";
 import { EntityGrid } from "../src/grid/EntityGrid";
+import { EntityChanges } from "../src/grid/EntityChanges";
 import { parseGridConfig } from "../src/grid/config";
 import { changesCsv, changesOf, filterChanges } from "../src/grid/changes";
 import type { EntityChange } from "../src/grid/changes";
@@ -286,5 +287,57 @@ describe("the Changes tab (T-6333)", () => {
     expect(
       await within(dialog).findByText(/No change of this row is kept yet/),
     ).toBeInTheDocument();
+  });
+});
+
+describe("EntityChanges alone (T-6333)", () => {
+  it("tells two writers with one short name apart, and its reset clears both filters", () => {
+    const changes = changesOf(answer).map((change, index) =>
+      index === 1
+        ? {
+            ...change,
+            provenance: { ...change.provenance, actor: "serviceAccount:jana" },
+          }
+        : change,
+    );
+    const attrs = [
+      { attr: "name", label: "Name" },
+      { attr: "temperature", label: "Temperature" },
+    ];
+    let attr: string | null = "temperature";
+    const { rerender } = render(
+      <EntityChanges
+        state={{ status: "ready", changes }}
+        attr={attr}
+        onAttr={(next) => (attr = next)}
+        attrs={attrs}
+        renderValue={(_name, instance) => String(instance.value)}
+        locale="en"
+      />,
+    );
+    const person = screen.getByRole("combobox", { name: "Changed by" });
+    expect(
+      within(person)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual(["All", "peter", "serviceAccount:jana", "user:jana"]);
+    fireEvent.change(person, { target: { value: "user:jana" } });
+    // The correction of temperature is serviceAccount:jana's: nothing of user:jana's is left.
+    expect(
+      screen.getByText("No change matches these filters."),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Show every change" }));
+    expect(attr).toBeNull();
+    rerender(
+      <EntityChanges
+        state={{ status: "ready", changes }}
+        attr={attr}
+        onAttr={(next) => (attr = next)}
+        attrs={attrs}
+        renderValue={(_name, instance) => String(instance.value)}
+        locale="en"
+      />,
+    );
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
   });
 });
