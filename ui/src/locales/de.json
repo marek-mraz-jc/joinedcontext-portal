@@ -669,7 +669,8 @@
       "proposeAll": "Alles vorschlagen",
       "open": "Öffnen",
       "noDrafts": "Noch keine Entwürfe vervollständigt.",
-      "needInput": "Geben Sie eine Endpunkt-URL ein oder fügen Sie eine Datei hinzu."
+      "needInput": "Geben Sie eine Endpunkt-URL ein oder fügen Sie eine Datei hinzu.",
+      "filesHint": "Eine Probe der Daten als CSV, Excel (.xlsx), JSON oder GeoJSON, mit Manifesten, README oder .env, die die Quelle beschreiben; zusammen bis 10 MB. Beispiel: stationen.xlsx."
     },
     "segment": "in Entitäts-IDs: {segment}",
     "quality": {
@@ -1120,11 +1121,17 @@
         }
       }
     },
+    "sheet": {
+      "label": "Tabellenblatt",
+      "hint": "Gelesen wird jeweils ein Blatt: Wählen Sie das mit Ihren Zeilen, etwa {example}.",
+      "option": "{name} ({rows, plural, one {# Zeile} other {# Zeilen}}, {columns, plural, one {# Spalte} other {# Spalten}})"
+    },
     "upload": {
       "open": "CSV hochladen",
       "title": "CSV hochladen",
-      "lead": "Wählen Sie eine CSV-Datei oder eine Excel-Arbeitsmappe (.xlsx) bis 50 MB; aus einer Arbeitsmappe wird das erste Blatt gelesen. Sie wird mit den Smart-Data-Models-Typen abgeglichen; Modell, Space, sein Endpoint und Ihr Recht, die Zeilen zu schreiben, werden als eine Änderung vorgeschlagen, und sobald die Änderung live ist, werden die Zeilen in Ihrem Namen über das Gateway geschrieben.",
+      "lead": "Wählen Sie eine CSV- oder Excel-Datei. Das Portal schlägt einen Standardtyp für ihre Spalten vor und beantragt den Raum mit Ihrem Schreibrecht; nach der Freigabe schreiben Sie die Zeilen.",
       "choose": "CSV-Datei oder Excel-Arbeitsmappe (.xlsx) wählen",
+      "chooseHint": "CSV, TSV oder Excel (.xlsx) bis 50 MB, die erste Zeile sind die Spaltennamen. Beispiel: garagen.xlsx mit den Spalten name, lat, lon.",
       "reading": "{name} wird gelesen und seine Spalten mit den Smart-Data-Models-Typen abgeglichen…",
       "type": "Was die Zeilen sind",
       "noMatch": "Kein Smart-Data-Models-Typ benennt genug dieser Spalten: Die Datei bekommt ein eigenes Modell.",
@@ -1134,6 +1141,10 @@
       "ownTypeHint": "Ein Wort mit großem Anfangsbuchstaben, etwa Garage.",
       "space": "Name des Raums",
       "notReady": "Wählen Sie zuerst eine Datei, einen Typ und einen Space.",
+      "spaceHint": "Ein bestehender Raum oder ein neuer Name in Kleinbuchstaben, etwa parkhaeuser.",
+      "missingSpace": "Wählen Sie einen Kontextraum für den Antrag.",
+      "missingType": "Wählen Sie einen Typ oder schreiben Sie einen eigenen Typnamen.",
+      "columns": "Spalten: {names}",
       "notLive": "Die Zeilen lassen sich schreiben, sobald die Änderung genehmigt und live ist.",
       "propose": "Änderung vorschlagen",
       "proposing": "Wird vorgeschlagen…",
@@ -6157,7 +6168,8 @@
         "wrongType": "Diese Frage nimmt {formats}-Dateien.",
         "tooLarge": "Die Datei ist größer als {kilobytes} KB. Geben Sie eine Stichprobe davon.",
         "empty": "Die Datei ist leer.",
-        "notJson": "Die Datei ist kein gültiges JSON."
+        "notJson": "Die Datei ist kein gültiges JSON.",
+        "sendSheet": "Blatt {name} übergeben"
       },
       "url": {
         "label": "Oder die Adresse eines Feeds",

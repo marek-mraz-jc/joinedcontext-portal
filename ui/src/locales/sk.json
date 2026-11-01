@@ -669,7 +669,8 @@
       "proposeAll": "Navrhnúť všetko",
       "open": "Otvoriť",
       "noDrafts": "Zatiaľ nie sú doplnené žiadne návrhy.",
-      "needInput": "Zadajte URL endpointu alebo pridajte súbor."
+      "needInput": "Zadajte URL endpointu alebo pridajte súbor.",
+      "filesHint": "Ukážka údajov ako CSV, Excel (.xlsx), JSON alebo GeoJSON, s manifestmi, README alebo .env, ktoré opisujú zdroj; spolu do 10 MB. Príklad: stanice.xlsx."
     },
     "segment": "v identifikátoroch entít: {segment}",
     "quality": {
@@ -1120,11 +1121,17 @@
         }
       }
     },
+    "sheet": {
+      "label": "Hárok",
+      "hint": "Číta sa vždy jeden hárok: vyberte ten s vašimi riadkami, napríklad {example}.",
+      "option": "{name} ({rows, plural, one {# riadok} few {# riadky} other {# riadkov}}, {columns, plural, one {# stĺpec} few {# stĺpce} other {# stĺpcov}})"
+    },
     "upload": {
       "open": "Nahrať CSV",
       "title": "Nahrať CSV",
-      "lead": "Vyberte CSV alebo zošit Excel (.xlsx) do 50 MB; zo zošita sa číta prvý hárok. Porovná sa s typmi Smart Data Models; model, priestor, jeho Endpoint a vaše právo zapisovať riadky sa navrhnú ako jedna zmena a keď je zmena nasadená, riadky sa zapíšu cez bránu pod vaším menom.",
+      "lead": "Vyberte CSV alebo Excel. Portál navrhne štandardný typ pre jeho stĺpce a navrhne priestor s vaším právom zapisovať; po schválení zapíšete riadky.",
       "choose": "Vybrať súbor CSV alebo zošit Excel (.xlsx)",
+      "chooseHint": "CSV, TSV alebo Excel (.xlsx) do 50 MB, prvý riadok sú názvy stĺpcov. Príklad: garaze.xlsx so stĺpcami name, lat, lon.",
       "reading": "Čítam {name} a porovnávam jeho stĺpce s typmi Smart Data Models…",
       "type": "Čo riadky sú",
       "noMatch": "Žiadny typ Smart Data Models nepomenúva dosť týchto stĺpcov: súbor dostane vlastný model.",
@@ -1134,6 +1141,10 @@
       "ownTypeHint": "Jedno slovo s veľkým začiatočným písmenom, napríklad Garage.",
       "space": "Názov priestoru",
       "notReady": "Najprv vyberte súbor, typ a priestor.",
+      "spaceHint": "Existujúci priestor alebo nový názov malými písmenami, ako parkovacie-domy.",
+      "missingSpace": "Vyberte kontextový priestor, ktorý sa má navrhnúť.",
+      "missingType": "Vyberte typ alebo napíšte názov vlastného typu.",
+      "columns": "Stĺpce: {names}",
       "notLive": "Riadky zapíšete, keď je zmena schválená a nasadená.",
       "propose": "Navrhnúť zmenu",
       "proposing": "Navrhuje sa…",
@@ -6157,7 +6168,8 @@
         "wrongType": "Táto otázka prijíma súbory {formats}.",
         "tooLarge": "Súbor je väčší ako {kilobytes} KB. Odovzdajte jeho vzorku.",
         "empty": "Súbor je prázdny.",
-        "notJson": "Súbor nie je platný JSON."
+        "notJson": "Súbor nie je platný JSON.",
+        "sendSheet": "Odovzdať hárok {name}"
       },
       "url": {
         "label": "Alebo adresa zdroja údajov",

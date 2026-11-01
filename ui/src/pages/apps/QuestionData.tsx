@@ -2,6 +2,10 @@ import type { JSX } from "react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button, Field, FileDropZone, InlineError, Input } from "../../components/ui";
+import { sampleOf } from "../spaces/csvUpload";
+import { csvOf, readSheets, sheetFileName, unreadableText } from "../spaces/importRows";
+import type { Sheet } from "../spaces/importRows";
+import { SheetChoice } from "../spaces/SheetChoice";
 
 /** What a question asks the person to hand over besides choosing (T-2694, API/04 section 5). */
 export interface QuestionInput {
@@ -67,6 +71,24 @@ export function QuestionData({
   const [address, setAddress] = useState("");
   const [addressProblem, setAddressProblem] = useState<string | null>(null);
   const kilobytes = input.file ? Math.floor(input.file.maxBytes / 1024) : 0;
+  // A workbook of several sheets waits here for the person to say which one is the data.
+  const [book, setBook] = useState<{ name: string; sheets: Sheet[]; sheet: string } | null>(null);
+  const sheetId = useId();
+
+  /**
+   * One sheet as the answer: the CSV of its rows, cut to the question's size at a whole row,
+   * since a question takes a sample (JC1-07). The Portal takes text, so the format is csv.
+   */
+  const sendSheet = (name: string, sheets: Sheet[], sheet: Sheet, maxBytes: number): void => {
+    const text = sampleOf(csvOf(sheet.table), maxBytes);
+    if (text === "") {
+      setProblem(t("agentRun.question.file.tooLarge", { kilobytes }));
+      return;
+    }
+    setProblem(null);
+    setBook(null);
+    onAnswer({ file: { name: sheetFileName(name, sheets, sheet), format: "csv", text } });
+  };
 
   const take = async (file: File): Promise<void> => {
     if (!input.file) {
@@ -75,6 +97,23 @@ export function QuestionData({
     const format = formatOf(file.name);
     if (!input.file.accept.includes(format)) {
       setProblem(t("agentRun.question.file.wrongType", { formats: input.file.accept.join(", ") }));
+      return;
+    }
+    if (format === "xlsx") {
+      try {
+        const sheets = (await readSheets(file)).filter((sheet) => sheet.table.rows.length > 0);
+        const [only, ...more] = sheets;
+        if (!only) {
+          setProblem(t("agentRun.question.file.empty"));
+        } else if (more.length === 0) {
+          sendSheet(file.name, sheets, only, input.file.maxBytes);
+        } else {
+          setProblem(null);
+          setBook({ name: file.name, sheets, sheet: only.name });
+        }
+      } catch (error) {
+        setProblem(unreadableText(t, error));
+      }
       return;
     }
     if (file.size === 0 || file.size > input.file.maxBytes) {
@@ -108,12 +147,30 @@ export function QuestionData({
             }
           }}
         >
+          {book ? <p className="text-caption text-fg">{t("form.chosenFiles", { names: book.name })}</p> : null}
           {problem ? (
             <InlineError>
               {problem}
             </InlineError>
           ) : null}
         </FileDropZone>
+      ) : null}
+      {input.file && book ? (
+        <div className="flex flex-col gap-2">
+          <SheetChoice id={sheetId} sheets={book.sheets} value={book.sheet} onChange={(sheet) => setBook({ ...book, sheet })} />
+          <Button
+            variant="primary"
+            className="w-fit"
+            disabled={disabled}
+            disabledReason={t("app.busyReason")}
+            onClick={() => {
+              const sheet = book.sheets.find((s) => s.name === book.sheet);
+              if (input.file && sheet) sendSheet(book.name, book.sheets, sheet, input.file.maxBytes);
+            }}
+          >
+            {t("agentRun.question.file.sendSheet", { name: book.sheet })}
+          </Button>
+        </div>
       ) : null}
       {input.url ? (
         <form
