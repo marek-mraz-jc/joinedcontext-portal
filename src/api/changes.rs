@@ -3290,12 +3290,27 @@ mod tests {
             .and(query_param("state", "open"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!([
                 pull(1, "portal/create-contextspace-mobility-12345678"),
-                // Merged a moment ago: every read of its own answers 404 (wiremock's default).
                 pull(2, "portal/create-contextspace-traffic-87654321"),
             ])))
             .mount(&server)
             .await;
         let manifest = "apiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata:\n  name: mobility\n  namespace: ovzdusie\nspec:\n  isSandbox: true\n";
+        // The second change is merged and its branch deleted between its first read and the
+        // next: that read and every later one answers 404 (wiremock's default).
+        Mock::given(method("GET"))
+            .and(path(
+                "/api/v1/repos/test-owner/test-repo/contents/projects/ovzdusie/spaces/traffic/space.yaml",
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "sha": "blob-2",
+                "content": base64::engine::Engine::encode(
+                    &base64::engine::general_purpose::STANDARD,
+                    manifest.replace("mobility", "traffic").as_bytes(),
+                )
+            })))
+            .up_to_n_times(1)
+            .mount(&server)
+            .await;
         Mock::given(method("GET"))
             .and(path(
                 "/api/v1/repos/test-owner/test-repo/contents/projects/ovzdusie/spaces/mobility/space.yaml",
