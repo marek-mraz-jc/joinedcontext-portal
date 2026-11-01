@@ -1500,12 +1500,12 @@ pub(crate) struct ChangeRead {
 /// Project, repository, merge request, head commit, base commit.
 type ChangeReadKey = (String, String, u64, String, String);
 
-/// The [`ChangeRead`]s of open changes, per head and base commit (T-6347). The notification
+/// The `ChangeRead`s of open changes, per head and base commit (T-6347). The notification
 /// badge lists the changes every 30 s, and dev's forge took ~1 s for a list of open changes that
 /// had not moved. The forge answers these reads with the Portal's own token, the same for every
 /// person, and a commit never changes, so one read per commit pair is the whole truth; who may
 /// read a change is still decided per request by [`list_changes_readable`], after this.
-/// ponytail: cleared whole at [`CHANGE_READS_HELD`]; an LRU when a forge holds that many open.
+/// ponytail: cleared whole at `CHANGE_READS_HELD`; an LRU when a forge holds that many open.
 #[derive(Clone, Default)]
 pub struct ChangeReads(
     std::sync::Arc<
