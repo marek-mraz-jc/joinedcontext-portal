@@ -582,6 +582,39 @@ impl Admin {
         Ok(found.as_array().and_then(|list| list.first()).cloned())
     }
 
+    /// Every optional scope unlinked from the client, reported in `outcome.drift` (T-6301). An
+    /// App or MCP server login asks for `openid` alone, yet Keycloak links the realm's
+    /// `defaultOptionalClientScopes` (`connector`, `offline_access`: the CIMD clients' list) to
+    /// every client created without its own list, so a token of this client could otherwise
+    /// carry the connectors' audience or an offline session.
+    pub(crate) async fn drop_optional_scopes(
+        &self,
+        token: &str,
+        uuid: &str,
+        outcome: &mut ClientOutcome,
+    ) -> Result<(), String> {
+        let path = format!("/clients/{uuid}/optional-client-scopes");
+        let linked: Vec<KcNamed> = self.get(token, &path).await?;
+        for scope in &linked {
+            self.send(
+                token,
+                reqwest::Method::DELETE,
+                &format!("{path}/{}", scope.id),
+                None,
+            )
+            .await?;
+        }
+        if !linked.is_empty() {
+            let names: Vec<&str> = linked.iter().map(|scope| scope.name.as_str()).collect();
+            outcome.drift.push(format!(
+                "the client could ask for the scopes {}, which its login never needs; they were \
+                 removed",
+                names.join(", ")
+            ));
+        }
+        Ok(())
+    }
+
     /// The client's mappers brought to exactly `wanted` ([`audience_mapper`]s, and an App's
     /// [`groups_mapper`]): a missing one is added, a changed one written back, and every other
     /// mapper removed. `owner` names what decides them in the drift report, "the App" or "the
@@ -1179,9 +1212,14 @@ impl AppClientSync {
                         &mut outcome,
                     )
                     .await;
+                let scopes = self
+                    .admin
+                    .drop_optional_scopes(token, &uuid, &mut outcome)
+                    .await;
                 [
                     grants.err().map(|err| format!("roles of {id}: {err}")),
                     reach.err().map(|err| format!("audiences of {id}: {err}")),
+                    scopes.err().map(|err| format!("scopes of {id}: {err}")),
                 ]
                 .into_iter()
                 .flatten()
@@ -1283,6 +1321,73 @@ mod tests {
             .await
             .expect_err("refused");
         assert_eq!(said, "GET /users: 500 Internal Server Error");
+    }
+
+    /// T-6301: a client the Portal creates inherits the realm's optional scopes (the CIMD
+    /// clients' `connector` and `offline_access`); each pass unlinks every one and says so.
+    #[tokio::test]
+    async fn every_inherited_optional_scope_is_unlinked_and_reported() {
+        use wiremock::matchers::{method, path};
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(method("GET"))
+            .and(path("/admin/realms/r/clients/u1/optional-client-scopes"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!([
+                { "id": "s-con", "name": "connector" },
+                { "id": "s-off", "name": "offline_access" },
+            ])))
+            .mount(&server)
+            .await;
+        for id in ["s-con", "s-off"] {
+            wiremock::Mock::given(method("DELETE"))
+                .and(path(format!(
+                    "/admin/realms/r/clients/u1/optional-client-scopes/{id}"
+                )))
+                .respond_with(wiremock::ResponseTemplate::new(204))
+                .expect(1)
+                .mount(&server)
+                .await;
+        }
+        let admin = Admin::new(
+            &format!("{}/realms/r", server.uri()),
+            "c".into(),
+            ClientAuth::Secret("s".into()),
+        )
+        .expect("a realm URL");
+        let mut outcome = ClientOutcome::of("app-x");
+        admin
+            .drop_optional_scopes("t", "u1", &mut outcome)
+            .await
+            .expect("unlinked");
+        assert_eq!(outcome.drift.len(), 1, "{:?}", outcome.drift);
+        assert!(
+            outcome.drift[0].contains("connector, offline_access"),
+            "{:?}",
+            outcome.drift
+        );
+
+        // Nothing linked: nothing deleted, nothing reported.
+        let empty = wiremock::MockServer::start().await;
+        wiremock::Mock::given(method("GET"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!([])))
+            .mount(&empty)
+            .await;
+        wiremock::Mock::given(method("DELETE"))
+            .respond_with(wiremock::ResponseTemplate::new(204))
+            .expect(0)
+            .mount(&empty)
+            .await;
+        let admin = Admin::new(
+            &format!("{}/realms/r", empty.uri()),
+            "c".into(),
+            ClientAuth::Secret("s".into()),
+        )
+        .expect("a realm URL");
+        let mut outcome = ClientOutcome::of("app-x");
+        admin
+            .drop_optional_scopes("t", "u1", &mut outcome)
+            .await
+            .expect("nothing to unlink");
+        assert!(outcome.drift.is_empty(), "{:?}", outcome.drift);
     }
 
     #[test]
