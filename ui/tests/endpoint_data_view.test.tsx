@@ -13,7 +13,9 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
+import { useCallback, useState } from "react";
 import { EndpointDataView, fieldsOf, sortOfLink } from "../src/components/entities/EndpointDataView";
+import type { DataLink } from "../src/components/entities/EndpointDataView";
 import { filtersFromQ } from "../src/components/entities/presetFilters";
 import type { FilterColumn } from "@joinedcontext/sdk";
 import { expectNoAxeViolations, json, renderPart } from "./page_contract";
@@ -109,6 +111,36 @@ describe("what an endpoint answers", () => {
     await waitFor(() => expect(screen.getByRole("grid")).toBeInTheDocument());
     expect(columns().some((header) => header.includes("Temperature"))).toBe(true);
     expect(columns().some((header) => header.includes("Co2"))).toBe(false);
+  });
+
+  it("narrows the rows by a condition of the space's Filter panel, typed in, with the address fed back (T-6303)", async () => {
+    const user = userEvent.setup();
+    // The host writes each link into the address and hands it back, as the Endpoint page does.
+    const links: DataLink[] = [];
+    function Host() {
+      const [link, setLink] = useState<DataLink>({});
+      const onLink = useCallback((next: DataLink) => {
+        links.push(next);
+        setLink(next);
+      }, []);
+      return <EndpointDataView project="helsinki" slug="air-quality" link={link} onLink={onLink} />;
+    }
+    renderPart(<Host />, { answer });
+    await waitFor(() => expect(screen.getByRole("grid")).toBeInTheDocument());
+    await user.click(screen.getByText(en.spaces.toolbar.filter, { selector: "summary" }));
+    await user.click(screen.getByRole("button", { name: en.spaces.toolbar.addCondition }));
+    await waitFor(() => expect(screen.getByRole("combobox", { name: en.spaces.toolbar.field })).toBeInTheDocument());
+    await user.selectOptions(screen.getByRole("combobox", { name: en.spaces.toolbar.field }), "temperature");
+    await user.selectOptions(screen.getByRole("combobox", { name: en.spaces.toolbar.operator }), "gt");
+    // Typing settles: the grid's state and the page's held view do not chase each other.
+    await user.type(screen.getByRole("spinbutton", { name: en.spaces.toolbar.value }), "18");
+    const reads = () =>
+      (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((call) => new URL(String(call[0]), "http://localhost"));
+    await waitFor(() => expect(reads().some((url) => url.pathname.endsWith("/entities") && url.searchParams.get("q") === "temperature>18")).toBe(true));
+    expect(screen.getByRole("list", { name: en.spaces.toolbar.activeFilters })).toBeInTheDocument();
+    // The link names the condition once: a link read back is not the grid's query a second time.
+    await waitFor(() => expect(links.at(-1)?.q).toBe("temperature>18"));
+    expect(links.every((each) => !(each.q ?? "").includes(";"))).toBe(true);
   });
 
   it("reads the type a person chooses", async () => {

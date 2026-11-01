@@ -17,7 +17,7 @@ import { classSlots, parseModel } from "../../pages/models/linkml";
 import type { ClassView, LinkmlModel, LinkmlSlot } from "../../pages/models/linkml";
 import { Button, Field, InlineError, Select, safeHref } from "../ui";
 import { DataToolbar } from "./DataToolbar";
-import { conditionCount, EMPTY_GROUP } from "./FilterPanel";
+import { conditionCount, EMPTY_GROUP, FilterChips } from "./FilterPanel";
 import { GroupCount } from "./GridToolbar";
 import type { RowSize, SortKey } from "./GridToolbar";
 import type { ViewExtras } from "./ViewOptions";
@@ -686,8 +686,11 @@ export function EndpointDataView({
   const csvRefused = useCsvRefusal(csv && !origin ? slug : undefined, type?.name, shownColumns, shape.labels);
   // The order and the typed query the grid opens with; the grid holds them from then on.
   const [view, setView] = useState<OpenedView | null>(null);
-  const { dropped, setDropped, defaults, preset } = useDefaultView(classView, gridColumns, enums, link);
-  const { opened, sortText } = gridState(view ?? preset, link, columns);
+  // The address is read once, as the view opens: the link this view writes back carries the
+  // toolbar's query too, and reading it again would hand that query to the grid a second time.
+  const [opening] = useState(link);
+  const { dropped, setDropped, defaults, preset } = useDefaultView(classView, gridColumns, enums, opening);
+  const { opened, sortText } = gridState(view ?? preset, opening, columns);
   // The default filter's inputs open in the Filter panel; from the first default on, the panel is the reader's.
   const [filters, setFilters] = useState<FilterGroup | null>(null);
   if (filters === null && preset?.filters && Object.keys(preset.filters).length > 0) setFilters(groupOf(preset.filters));
@@ -721,7 +724,22 @@ export function EndpointDataView({
   const map = useMemo(() => (type ? mapDefaultsOf(widget.data, type.name) : undefined), [widget.data, type]);
   useRowCard(type?.name, klass, slots, shape, kinds, enums, i18n.language, map, onCard);
   const onQuery = useCallback((query: { q?: string }) => setAsked(query.q), []);
-  const onGridState = useCallback((next: GridState) => setView({ filterText: next.filterText ?? null, sort: next.sort ?? null }), []);
+  // The grid reports its state on every change; the same text and order keep the held one, or the two would chase each other.
+  const onGridState = useCallback(
+    (next: GridState) =>
+      setView((before) =>
+        before && (before.filterText ?? null) === (next.filterText ?? null) && before.sort?.attr === next.sort?.attr && before.sort?.dir === next.sort?.dir
+          ? before
+          : { filterText: next.filterText ?? null, sort: next.sort ?? null },
+      ),
+    [],
+  );
+  const sortAttr = opened.sort?.attr;
+  const sortDir = opened.sort?.dir;
+  const gridView = useMemo(
+    () => ({ filterText: opened.filterText, sort: sortAttr && sortDir ? { attr: sortAttr, dir: sortDir } : null }),
+    [opened.filterText, sortAttr, sortDir],
+  );
   const onHide = useCallback((attr: string) => setExtras((before) => ({ ...before, hidden: [...new Set([...hiddenNow, attr])] })), [hiddenNow]);
   const rowTone = useCallback(
     (row: RichRow) => {
@@ -865,6 +883,8 @@ export function EndpointDataView({
         </div>
       </div>
       <div className="flex flex-wrap items-center gap-2 empty:hidden">
+        {/* The conditions in force stay in sight, as on the space's grid (T-6161). */}
+        <FilterChips columns={filterColumns} titleOf={filterTitle} value={group} onChange={setFilters} />
         <DefaultFilter
           filter={classView?.filter}
           defaults={defaults}
@@ -903,7 +923,7 @@ export function EndpointDataView({
           enums={enums}
           relations={relations}
           renderers={renderers}
-          view={{ filterText: opened.filterText, sort: opened.sort }}
+          view={gridView}
           onGridState={onGridState}
           onQuery={onQuery}
           hidden={hiddenNow}
