@@ -22,6 +22,7 @@ import { CodeBlock,
   Select,
   Switch,
 } from "../../components/ui";
+import { LocalRecordLink } from "../../components/RecordLink";
 import { UsageSummary } from "./UsageSummary";
 import { timeText } from "./knowledge";
 import {
@@ -187,9 +188,15 @@ export function ConversationsPage({
             // The question first: on a phone the first column stays in view while the rest scrolls.
             cell: (row) => (
               <>
-                <Button variant="ghost" size="sm" className="h-auto text-left underline" onClick={() => setOpen(row.id)}>
+                {/* The row's link (T-2875, T-6322): a plain click opens the conversation below, a
+                    modified one opens its own address (`?open=`) in a new tab. */}
+                <LocalRecordLink
+                  href={`?open=${encodeURIComponent(row.id)}`}
+                  onOpen={() => setOpen(row.id)}
+                  className="text-left underline"
+                >
                   {visible(row.firstQuestion)}
-                </Button>
+                </LocalRecordLink>
                 <div className="text-caption text-fg-muted">{row.deployment}</div>
               </>
             ),

@@ -1470,7 +1470,7 @@
     },
     "src/pages/knowledge/ConversationsPage.tsx": {
       "controls": {
-        "Button": 9,
+        "Button": 8,
         "Switch": 2
       },
       "tests": [

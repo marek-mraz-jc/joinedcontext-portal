@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { RouterProvider, createMemoryHistory, createRootRoute, createRouter } from "@tanstack/react-router";
 import { Table, TableBody, TableCell, TableRow } from "../src/components/ui/Table";
-import { RecordLink } from "../src/components/RecordLink";
+import { LocalRecordLink, RecordLink } from "../src/components/RecordLink";
 import { jsonResponse, list, renderRoute } from "./pageHarness";
 import { pageFindings } from "./pageChecks";
 
@@ -179,6 +179,33 @@ describe("a record link", () => {
       "href",
       "/projects/helsinki/datasources/feed/edit",
     );
+  });
+
+  it("opens in place on a plain click and leaves a modified click to the browser's new tab", () => {
+    const onOpen = vi.fn();
+    render(
+      <LocalRecordLink href="?open=c-1" onOpen={onOpen}>
+        The question
+      </LocalRecordLink>,
+    );
+    const link = screen.getByRole("link", { name: "The question" });
+    expect(link).toHaveAttribute("href", "?open=c-1");
+    expect(link).toHaveAttribute("data-row-link");
+    expect(fireEvent.click(link)).toBe(false);
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    for (const keys of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }]) {
+      expect(fireEvent.click(link, keys)).toBe(true);
+    }
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses an address that is not safe to follow", () => {
+    render(
+      <LocalRecordLink href="javascript:alert(1)" onOpen={vi.fn()}>
+        Unsafe
+      </LocalRecordLink>,
+    );
+    expect(screen.getByText("Unsafe").closest("a")?.getAttribute("href") ?? "").not.toContain("javascript");
   });
 });
 

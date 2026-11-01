@@ -59,19 +59,42 @@ export function FormRecordLink({
     return <>{children ?? name}</>;
   }
   return (
+    <LocalRecordLink href={route.editHref(name)} onOpen={() => route.openEdit(name)} className={className}>
+      {children ?? name}
+    </LocalRecordLink>
+  );
+}
+
+/**
+ * A record link on a page that opens the record in place (local state, a form or a detail pane).
+ * The address is one the page's route reads back, so a plain click calls `onOpen` and a modified
+ * one (Ctrl, Cmd, Shift, Alt, middle) is the browser's: the record's address in a new tab.
+ */
+export function LocalRecordLink({
+  href,
+  onOpen,
+  className,
+  children,
+}: {
+  href: string;
+  onOpen: () => void;
+  className?: string;
+  children: ReactNode;
+}): React.JSX.Element {
+  return (
     <a
       data-row-link=""
-      href={safeHref(route.editHref(name))}
+      href={safeHref(href)}
       className={clsx(RECORD_LINK_STYLE, className)}
       onClick={(event) => {
         if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) {
           return;
         }
         event.preventDefault();
-        route.openEdit(name);
+        onOpen();
       }}
     >
-      {children ?? name}
+      {children}
     </a>
   );
 }

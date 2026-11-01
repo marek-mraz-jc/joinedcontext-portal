@@ -75,7 +75,7 @@ for (const width of [1440, 390]) {
     await stubApi(page);
     await page.goto(`/projects/${PROJECT}/knowledge/conversations?lang=en`);
 
-    await page.getByRole("table").getByRole("button", { name: "Aké je PM10?" }).click();
+    await page.getByRole("table").getByRole("link", { name: "Aké je PM10?" }).click();
     await page.getByRole("button", { name: "Same question" }).click();
     await page.getByRole("list", { name: "Same question" }).getByRole("button", { name: "Compare" }).click();
 
