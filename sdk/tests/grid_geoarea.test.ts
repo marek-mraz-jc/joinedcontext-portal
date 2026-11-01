@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   areaQuery,
+  circleOf,
   decimate,
   MAX_COORDINATES_CHARS,
   ringOf,
@@ -98,5 +99,44 @@ describe("the drawn area becomes a geo query", () => {
       area += ring[i][0] * ring[i + 1][1] - ring[i + 1][0] * ring[i][1];
     }
     expect(area).toBeGreaterThan(0);
+  });
+});
+
+/** A circle's outline as terra-draw draws one: 64 vertices `metres` from the centre, over the sphere. */
+function circle(lon: number, lat: number, metres: number, n = 64): Geometry {
+  const ring: Position[] = [];
+  const dLat = (metres / 6_371_008.8) * (180 / Math.PI);
+  const dLon = dLat / Math.cos((lat * Math.PI) / 180);
+  for (let i = 0; i < n; i += 1) {
+    const angle = (i / n) * Math.PI * 2;
+    ring.push([lon + Math.cos(angle) * dLon, lat + Math.sin(angle) * dLat]);
+  }
+  ring.push(ring[0]);
+  return { type: "Polygon", coordinates: [ring] } as Geometry;
+}
+
+describe("a drawn circle is asked as a centre and a radius (T-6345)", () => {
+  it("becomes near;maxDistance around a Point", () => {
+    const query = areaQuery({ geoproperty: "location", geometry: circle(19.1462, 48.7363, 500) });
+    expect(query).not.toBeNull();
+    expect(query!.geometry).toBe("Point");
+    const metres = Number(/^near;maxDistance==(\d+)$/.exec(query!.georel)?.[1]);
+    expect(Math.abs(metres - 500)).toBeLessThanOrEqual(5);
+    const [lon, lat] = JSON.parse(query!.coordinates) as number[];
+    expect(lon).toBeCloseTo(19.1462, 4);
+    expect(lat).toBeCloseTo(48.7363, 4);
+    expect(query!.simplified).toBe(false);
+  });
+
+  it("knows a circle from a rectangle, a hand-drawn polygon and an ellipse", () => {
+    expect(circleOf(ringOf(square)!)).toBeNull();
+    expect(circleOf(ringOf(manyVertices(64))!)).toBeNull();
+    expect(circleOf(ringOf(circle(17.1, 48.1, 2000, 8))!)).toBeNull();
+    expect(circleOf(ringOf(circle(17.1, 48.1, 2000))!)?.metres).toBeGreaterThan(1980);
+  });
+
+  it("keeps a rectangle and a polygon as georel=within", () => {
+    expect(areaQuery({ geoproperty: "location", geometry: square })!.georel).toBe("within");
+    expect(areaQuery({ geoproperty: "location", geometry: manyVertices(64) })!.georel).toBe("within");
   });
 });

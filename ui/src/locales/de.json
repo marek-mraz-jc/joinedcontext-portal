@@ -5577,7 +5577,12 @@
       "reshaped": "geändert",
       "replaced": "ersetzt",
       "noGeometry": "Diese Zeile hat noch keine Geometrie",
-      "viewerCannotEdit": "Sie dürfen diese Karte ansehen, nicht ändern"
+      "viewerCannotEdit": "Sie dürfen diese Karte ansehen, nicht ändern",
+      "pointsLoading": "Punkte werden geladen",
+      "pointsShown": "auf der Karte",
+      "pointsCapped": "nur die ersten werden gezeichnet",
+      "pointsFailed": "Die Punkte konnten nicht gelesen werden",
+      "selected": "Ausgewählt"
     },
     "geo": {
       "tools": "Zeichenwerkzeuge",

@@ -386,6 +386,11 @@ export function gridMapLabels(t: (key: string) => string): GridMapLabels {
     replaced: t("entityGrid.map.replaced"),
     noGeometry: t("entityGrid.map.noGeometry"),
     viewerCannotEdit: t("entityGrid.map.viewerCannotEdit"),
+    pointsLoading: t("entityGrid.map.pointsLoading"),
+    pointsShown: t("entityGrid.map.pointsShown"),
+    pointsCapped: t("entityGrid.map.pointsCapped"),
+    pointsFailed: t("entityGrid.map.pointsFailed"),
+    selected: t("entityGrid.map.selected"),
   };
 }
 

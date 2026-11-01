@@ -5577,7 +5577,12 @@
       "reshaped": "změněn",
       "replaced": "vyměněn",
       "noGeometry": "Tento řádek ještě nemá geometrii",
-      "viewerCannotEdit": "Na mapu se můžete dívat, měnit ji ne"
+      "viewerCannotEdit": "Na mapu se můžete dívat, měnit ji ne",
+      "pointsLoading": "Načítají se body",
+      "pointsShown": "na mapě",
+      "pointsCapped": "zobrazeny jsou jen první",
+      "pointsFailed": "Body se nepodařilo načíst",
+      "selected": "Vybráno"
     },
     "geo": {
       "tools": "Nástroje kreslení",

@@ -9,6 +9,7 @@
 import type { Transport } from "../sdk/transport";
 import { queryString } from "../sdk/query";
 import type { GeoQuery } from "./geoarea";
+import type { Geometry } from "../geo/validate";
 import type { RichRow } from "./model";
 import { toRichRow } from "./model";
 import { changesOf } from "./changes";
@@ -26,6 +27,30 @@ export interface GridQuery {
   area?: GeoQuery;
   /** The order of the whole answer, as CIM 009 4.23 writes it: `attr` or `attr;desc`, keys by commas. */
   orderBy?: string;
+}
+
+/** An entity as the map draws it: where it is and what it is called, nothing else (T-6345). */
+export interface MapPoint {
+  id: string;
+  name?: string;
+  geometry: Geometry;
+}
+
+export interface PointPage {
+  points: MapPoint[];
+  /** How many entities the page held, with a geometry or not: a full page means ask for the next. */
+  read: number;
+  total?: number;
+}
+
+/** A keyValues entity as a point: a name as text (or in the asked language) and a geometry. */
+export function pointOf(entity: unknown, attr: string): MapPoint | null {
+  if (typeof entity !== "object" || entity === null) return null;
+  const raw = entity as Record<string, unknown>;
+  const geometry = raw[attr] as { type?: unknown; coordinates?: unknown } | undefined;
+  if (typeof raw.id !== "string" || !geometry || typeof geometry.type !== "string" || geometry.coordinates === undefined) return null;
+  const name = typeof raw.name === "string" && raw.name !== "" ? raw.name : undefined;
+  return { id: raw.id, name, geometry: geometry as Geometry };
 }
 
 export interface GridPage {
@@ -102,6 +127,11 @@ export interface EntitySource {
   /** `count: false` asks for rows alone: the broker then skips counting the whole match (T-6161). */
   query(q: GridQuery, page: { offset: number; limit: number; count?: boolean }): Promise<GridPage>;
   get(id: string): Promise<RichRow | null>;
+  /**
+   * One page of the map's points: id, name and the geometry of `attr` alone, as plain values
+   * (`attrs` + keyValues), so a map of a whole type is not a read of every attribute (T-6345).
+   */
+  points?(q: GridQuery, attr: string, page: { offset: number; limit: number; count?: boolean }): Promise<PointPage>;
   history?(id: string, attr: string, window: HistoryWindow): Promise<HistoryPoint[]>;
   /** Who changed `attrs` of one entity and when, newest first (T-6333): a 403 without `readVersions`. */
   changes?(id: string, attrs: string[]): Promise<EntityChange[]>;
@@ -337,6 +367,33 @@ function ngsiSource(base: string, transport: Transport, language: string, hidden
       if (!Array.isArray(body)) throw new SourceError(status, "the answer is not a list of entities");
       return {
         rows: body.map((item) => toRichRow(item as Record<string, unknown>, language)),
+        total: resultsCount(headers),
+      };
+    },
+    async points(q, attr, page) {
+      const query = queryString({
+        type: q.type,
+        attrs: attr === "name" ? attr : `name,${attr}`,
+        options: "keyValues",
+        // A LanguageProperty name comes as one text in the person's language.
+        lang: language,
+        count: page.count ? "true" : undefined,
+        limit: String(Math.min(page.limit, BROKER_PAGE)),
+        offset: page.offset > 0 ? String(page.offset) : undefined,
+        q: q.q || undefined,
+        idPattern: q.idPattern || undefined,
+        scopeQ: q.scopeQ || undefined,
+        georel: q.area?.georel,
+        geometry: q.area?.geometry,
+        coordinates: q.area?.coordinates,
+        geoproperty: q.area?.geoproperty,
+      });
+      const { status, body, headers } = await transport({ method: "GET", path: `${base}/entities?${query}` });
+      if (!ok(status)) refuse(status, body, "the read was refused", headers);
+      if (!Array.isArray(body)) throw new SourceError(status, "the answer is not a list of entities");
+      return {
+        points: body.flatMap((item) => pointOf(item, attr) ?? []),
+        read: body.length,
         total: resultsCount(headers),
       };
     },

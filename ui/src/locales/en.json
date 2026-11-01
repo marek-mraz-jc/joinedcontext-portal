@@ -5577,7 +5577,12 @@
       "reshaped": "reshaped",
       "replaced": "replaced",
       "noGeometry": "This row has no geometry yet",
-      "viewerCannotEdit": "You may look at this map, not change it"
+      "viewerCannotEdit": "You may look at this map, not change it",
+      "pointsLoading": "Loading points",
+      "pointsShown": "on the map",
+      "pointsCapped": "only the first ones are drawn",
+      "pointsFailed": "The points could not be read",
+      "selected": "Selected"
     },
     "geo": {
       "tools": "Drawing tools",

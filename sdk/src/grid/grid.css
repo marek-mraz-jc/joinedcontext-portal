@@ -157,6 +157,39 @@
   color: var(--jc-color-muted, #666);
 }
 
+/* Refused for who is asking (T-6376): a panel that says what to do, never an empty grid. */
+.jc-grid-refusal {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--jc-space-2, 8px);
+  padding: var(--jc-space-6, 24px) var(--jc-space-4, 16px);
+  text-align: center;
+  border: 1px dashed var(--jc-color-border, #d0d0d0);
+  border-radius: var(--jc-radius-md, 6px);
+}
+
+.jc-grid-refusal__title {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.jc-grid-refusal__body {
+  margin: 0;
+  max-width: 36rem;
+  color: var(--jc-color-muted, #666);
+}
+
+.jc-grid-refusal__action {
+  min-height: 2.25rem;
+  padding: 0 var(--jc-space-4, 16px);
+  border-radius: var(--jc-radius-md, 6px);
+  border: 1px solid var(--jc-color-primary, #1f5fbf);
+  background: var(--jc-color-primary, #1f5fbf);
+  color: var(--jc-color-on-primary, #fff);
+  cursor: pointer;
+}
+
 .jc-grid-error {
   color: var(--jc-color-danger, #cc0000);
 }
@@ -573,6 +606,8 @@
 }
 
 .jc-grid-map__area,
+.jc-grid-map__points,
+.jc-grid-map__picked,
 .jc-grid-map__summary,
 .jc-grid-map__off,
 .jc-grid-map__note {

@@ -5577,7 +5577,12 @@
       "reshaped": "zmenený",
       "replaced": "vymenený",
       "noGeometry": "Tento riadok ešte nemá geometriu",
-      "viewerCannotEdit": "Na mapu sa môžete pozerať, meniť ju nie"
+      "viewerCannotEdit": "Na mapu sa môžete pozerať, meniť ju nie",
+      "pointsLoading": "Načítavajú sa body",
+      "pointsShown": "na mape",
+      "pointsCapped": "zobrazené sú len prvé",
+      "pointsFailed": "Body sa nepodarilo načítať",
+      "selected": "Vybraté"
     },
     "geo": {
       "tools": "Nástroje kreslenia",

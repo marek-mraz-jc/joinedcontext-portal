@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { RichRow, RichCell } from "./model";
 import type { ResolvedGridConfig } from "./config";
 import { cellText } from "./model";
-import type { ColumnLayout, GridLabels, MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
+import type { ColumnLayout, GridLabels, GridRefusal, MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
 import { readableName } from "./readableName";
 import { DEFAULT_LABELS, MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, NAME_COLUMN, useEntityGrid } from "./useEntityGrid";
 import { CellView, cellDisplayText, columnKind, formatDate, kindOfCell, IdLabel, targetName, webHref } from "./cells";
@@ -21,6 +21,7 @@ import { useEntitySelection } from "../sdk/panel";
 import type { GridMapLabels } from "./GridMap";
 import { mapAttrOf } from "./mapRows";
 import { TILE_THRESHOLD, useTileTemplate } from "../geo/tiles";
+import { featuresOfPoints, useMapPoints } from "./mapPoints";
 import type { DrawEngine, GeoLabels } from "../geo/GeoEditor";
 import type { GeometryType } from "../geo/validate";
 import { optionLabel } from "../enums";
@@ -104,6 +105,11 @@ export interface EntityGridProps extends UseEntityGridOptions {
   /** The bounds the "Draw area" action asks about; the host owns the map's viewport. */
   mapBounds?: () => [number, number, number, number] | null;
   empty?: React.ReactNode;
+  /**
+   * Where a private dataset read without a session sends the person (T-6376): the host's own
+   * sign-in, which comes back to this page. Without it the signed-out state has no button.
+   */
+  onSignIn?: () => void;
   /**
    * Each attribute's rule as its model states it (range, bounds, pattern, required), by name: a
    * pending value that breaks it is marked at its cell and holds Apply back (T-3097).
@@ -344,6 +350,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
     basemap,
     mapBounds,
     empty: emptySlot,
+    onSignIn,
     rules,
     rowTone,
     reloadKey,
@@ -453,7 +460,8 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
   }, [copied]);
   // On a phone the filter row folds under one button (T-5415); wider screens always show it.
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const activeFilters = Object.keys(state.filters).length;
+  // The drawn area is a filter as much as a typed one: the folded filter row counts it (T-6345).
+  const activeFilters = Object.keys(state.filters).length + (grid.area ? 1 : 0);
   useEffect(() => {
     onFilterColumns?.([...filterable.values()]);
   }, [filterable, onFilterColumns]);
@@ -1156,6 +1164,16 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
     hookOptions.config.type,
     mapAttr === "location" && !grid.narrowed && (grid.total ?? 0) > TILE_THRESHOLD,
   );
+  // Every entity of the question as a point, read lean while the map is open and no tiles draw the
+  // type (T-6345). The question is the grid's own without the area, so a person drawing one sees
+  // what it will catch, and without the order, which a map does not need.
+  const mapOpen = Boolean(mapConfig?.enabled || areaMap !== null || grid.area);
+  const pointsKey = useMemo(() => {
+    const asked = grid.valuesQuery("");
+    return JSON.stringify({ ...asked, area: undefined, attrs: undefined });
+  }, [grid.valuesQuery]);
+  const pointsState = useMapPoints(hookOptions.source, pointsKey, mapAttr, mapOpen && !tileTemplate);
+  const mapPoints = useMemo(() => featuresOfPoints(pointsState?.points ?? []), [pointsState]);
   const activeRowId = rows[state.activeCell?.row ?? -1]?.id ?? null;
   const listedRow = detailId === null ? undefined : rows.find((row) => row.id === detailId);
   // A deep link to a row the page has not loaded: read by its id, through the same source and Policy.
@@ -1425,6 +1443,16 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
   };
 
   const rootClass = `jc-grid${className ? ` ${className}` : ""}${classNames?.root ? ` ${classNames.root}` : ""}${mapAttr ? ` jc-grid--map-${mapPosition}` : ""}${virtual ? " jc-grid--virtual" : ""}`;
+
+  // Refused for who is asking (T-6376): a designed state in place of the grid, never an empty grid,
+  // and no row of an earlier answer.
+  if (grid.refusal) {
+    return (
+      <div className={rootClass} data-jc-sdk="grid">
+        <GridRefusalState refusal={grid.refusal} labels={labels} onSignIn={onSignIn} />
+      </div>
+    );
+  }
 
   return (
     // `data-jc-sdk`: the grid's own controls are the SDK suite's to test, not each App's (T-3373).
@@ -1862,6 +1890,8 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
           labels={mapLabels}
           tiles={tileTemplate ? { template: tileTemplate, layer: hookOptions.config.type } : null}
           basemap={basemap}
+          points={mapPoints}
+          pointsState={pointsState}
           engine={mapEngine}
           geoLabels={geoLabels}
           position={mapPosition}
@@ -2204,6 +2234,33 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
 }
 
 /** The config without the attributes the person may not read: neither a column nor asked in `attrs` (T-5530). */
+/** The signed-out or no-access state: a title, what to do, and the way to sign in where there is one. */
+export function GridRefusalState({
+  refusal,
+  labels,
+  onSignIn,
+}: {
+  refusal: GridRefusal;
+  labels: Pick<GridLabels, "signedOutTitle" | "signedOutBody" | "signIn" | "noAccessTitle" | "noAccessBody">;
+  onSignIn?: () => void;
+}): React.JSX.Element {
+  const signedOut = refusal === "signedOut";
+  const titleId = React.useId();
+  return (
+    <section className="jc-grid-refusal" data-refusal={refusal} role="status" aria-labelledby={titleId}>
+      <h3 id={titleId} className="jc-grid-refusal__title">
+        {signedOut ? labels.signedOutTitle : labels.noAccessTitle}
+      </h3>
+      <p className="jc-grid-refusal__body">{signedOut ? labels.signedOutBody : labels.noAccessBody}</p>
+      {signedOut && onSignIn ? (
+        <button type="button" className="jc-grid-refusal__action" onClick={onSignIn}>
+          {labels.signIn}
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
 function withoutAttrs(config: ResolvedGridConfig, gone: readonly string[]): ResolvedGridConfig {
   if (gone.length === 0) return config;
   const preset = config.filters.preset;
