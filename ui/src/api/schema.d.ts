@@ -28839,7 +28839,7 @@ export interface operations {
                      * @description What kind of run to execute
                      * @enum {string}
                      */
-                    kind?: "application" | "dashboard" | "analysis" | "conversation";
+                    kind?: "application" | "dashboard" | "analysis";
                     /** @description The AgentProfile; app-builder when absent */
                     profile?: string;
                     /** @description What the application should do, in the person's own words */

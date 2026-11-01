@@ -154,6 +154,11 @@ pub struct Session {
     pub expires_at: i64,
     /// Unix seconds; a back-channel logout invalidates every session issued at or before its mark.
     pub issued_at: i64,
+    /// Unix seconds the person signed in to the SSO session, for a bearer token its
+    /// `auth_time`: the same on every refreshed token. It names the session where `issued_at`
+    /// names one token, and only a paired tab reads it (JC2-19); revocation keeps `issued_at`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub signed_in_at: Option<i64>,
     /// Kept only as `id_token_hint` for RP-initiated logout.
     pub id_token: String,
     /// Unix seconds the access token stops being valid. A cookie session refreshes shortly
@@ -165,6 +170,14 @@ pub struct Session {
     /// and `store`/`load` join the two. `None` for a bearer session.
     #[serde(skip)]
     pub refresh_token: Option<String>,
+}
+
+impl Session {
+    /// When this session began: the SSO sign-in a bearer token names, else `issued_at` (a
+    /// cookie session's own login). What a paired tab is bound to (JC2-19).
+    pub fn started_at(&self) -> i64 {
+        self.signed_in_at.unwrap_or(self.issued_at)
+    }
 }
 
 impl std::fmt::Debug for Session {
@@ -487,6 +500,7 @@ mod tests {
             },
             expires_at: now + expires_in,
             issued_at: now,
+            signed_in_at: None,
             // Deliberately not JWT-shaped: a real-looking token literal trips gitleaks in CI.
             id_token: "opaque-id-token-for-tests".into(),
             access_expires_at: now + expires_in,

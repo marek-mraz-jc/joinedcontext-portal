@@ -259,6 +259,7 @@ pub async fn execute_dry_run(
         identity: identity.clone(),
         expires_at: i64::MAX,
         issued_at: 0,
+        signed_in_at: None,
         id_token: String::new(),
         access_expires_at: i64::MAX,
         refresh_token: None,

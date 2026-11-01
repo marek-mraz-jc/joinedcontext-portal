@@ -233,7 +233,8 @@ impl Path {
             },
             Path::UploadData => FirstStep {
                 pick: Some("spaces"),
-                page: Some("import"),
+                // The rows upload, not the bundle import at /import (JC1-16).
+                page: Some("spaces/upload"),
                 ..free("Which space should the data go into?")
             },
             Path::FindData => free("What are you looking for?"),
@@ -423,7 +424,17 @@ mod tests {
 
     #[test]
     fn every_path_has_an_id_that_reads_back_and_a_first_question() {
+        // JC1-16: the page a first step opens is one the Portal's router serves.
+        let router = include_str!("../../ui/src/router.tsx");
+        assert_eq!(Path::UploadData.first_step().page, Some("spaces/upload"));
         for path in Path::ALL {
+            if let Some(page) = path.first_step().page {
+                assert!(
+                    router.contains(&format!("path: \"/projects/$project/{page}\"")),
+                    "{}: no route /projects/$project/{page}",
+                    path.id()
+                );
+            }
             assert_eq!(Path::from_id(path.id()), Some(path));
             assert_eq!(
                 serde_json::to_value(path).expect("serializes"),

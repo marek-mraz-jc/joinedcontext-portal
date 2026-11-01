@@ -25173,8 +25173,7 @@
                     "enum": [
                       "application",
                       "dashboard",
-                      "analysis",
-                      "conversation"
+                      "analysis"
                     ],
                     "type": "string"
                   },
