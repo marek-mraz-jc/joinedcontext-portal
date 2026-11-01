@@ -3652,6 +3652,9 @@ async fn a_schema_example_plans_as_a_create() {
         if let Some(need) = manifest.pointer_mut("/spec/dataNeeds/0/contextSpaceRef") {
             *need = json!("doprava");
         }
+        if let Some(target) = manifest.pointer_mut("/spec/outputs/0/targetEndpoint") {
+            *target = json!(format!("urn:ngsi-ld:Endpoint:{own}-intake"));
+        }
         if manifest["spec"].get("targetEndpoint").is_some() {
             manifest["spec"]["targetEndpoint"] = json!(format!(
                 "urn:ngsi-ld:Endpoint:hel.fi:{own}-doprava:{own}-intake"

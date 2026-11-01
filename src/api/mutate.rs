@@ -2287,12 +2287,22 @@ fn check_one_model(
             && own(spec)
             && ref_name(&spec["contextSpaceRef"]).as_deref() == Some(space.as_str())
     };
+    let in_project = |m: &ResourceEnvelope| m.metadata.namespace.as_deref() == Some(project);
+    // A model the space already counts adds no second one: a repository that holds two from
+    // before this check can still change either.
+    let counted = state.mirror.find(|m| {
+        in_project(m)
+            && m.kind == "DataModel"
+            && m.metadata.name == name
+            && own(&m.spec)
+            && ref_name(&m.spec["contextSpaceRef"]).as_deref() == Some(space.as_str())
+    });
+    if counted.is_some() {
+        return Ok(());
+    }
     let held = state
         .mirror
-        .find(|m| {
-            m.metadata.namespace.as_deref() == Some(project)
-                && of_space(&m.kind, &m.metadata.name, &m.spec)
-        })
+        .find(|m| in_project(m) && of_space(&m.kind, &m.metadata.name, &m.spec))
         .map(|m| m.metadata.name)
         .or_else(|| {
             crate::references::bundled().into_iter().find_map(|m| {
@@ -3987,6 +3997,12 @@ mod tests {
         ] {
             assert!(line.contains(part), "{part}: {line}");
         }
+        // A repository holding two models of one space from before DM-61 changes either.
+        state
+            .mirror
+            .upsert(manifest("DataModel", "reports", model("walk", "published")));
+        check("reports", model("walk", "published")).expect("a model the space already counts");
+        refusal(check("third", model("walk", "draft")));
     }
 
     /// PL-111, ADR-N-057 decision 5, T-5040: a write Policy no Endpoint binds and a Pipeline aimed
