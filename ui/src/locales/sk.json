@@ -6818,7 +6818,7 @@
       "about": "Zužuje túto položku po atribútoch; nikdy nedá viac než operácie vyššie. Bunka na predvolenej hodnote zachová dnešné správanie.",
       "caption": "Schopnosti atribútov typu {types}",
       "every": "Všetky atribúty (*)",
-      "asGrant": "Predvolené oprávnením",
+      "asGrant": "Podľa oprávnenia",
       "asEvery": "Ako všetky (*)",
       "yes": "Áno",
       "no": "Nie",

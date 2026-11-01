@@ -232,7 +232,9 @@ export function ChoiceCell({ attribute, column, row, every, limits, frozen, desc
   const value = row?.[column];
   const name = useCellName(attribute, column);
   const inherit = useInherited(attribute, every?.[column]);
+  // A stacked cell (phone) aligns its items to the start: the wrapper stretches the select across.
   return (
+    <div className="w-full justify-self-stretch">
     <Select
       aria-label={name}
       aria-describedby={describedBy}
@@ -245,6 +247,7 @@ export function ChoiceCell({ attribute, column, row, every, limits, frozen, desc
       <option value="true">{t("policies.capabilities.yes")}</option>
       <option value="false">{t("policies.capabilities.no")}</option>
     </Select>
+    </div>
   );
 }
 
