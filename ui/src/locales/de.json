@@ -5652,6 +5652,11 @@
     "kindList": "Liste",
     "points": "Punkte",
     "openTarget": "Öffnen",
+    "moreInstances": "{count} weitere Instanzen",
+    "wrongKind": "Das Modell erwartet: {kind}",
+    "drillTrail": "Geöffnete Verknüpfungen",
+    "drillBack": "Zurück",
+    "defaultInstance": "Standard",
     "hint": {
       "filterText": "Einen Test wählen, dann die Wörter tippen, z. B. enthält Espoo.",
       "filterNumber": "Einen Test wählen, dann eine Zahl tippen, z. B. größer als 40.",

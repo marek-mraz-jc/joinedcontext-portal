@@ -128,23 +128,21 @@ describe("EntityGrid", () => {
     });
   });
 
-  it("renders relationship URN as button when onOpenRelationship given", async () => {
+  it("names a readable relationship target and opens it; an unreadable one is its id alone", async () => {
     const onOpen = vi.fn();
+    const counter = { id: "urn:ngsi-ld:Device:hel:001", type: "Device", name: { type: "Property", value: "Counter 1" } };
     render(
       <EntityGrid
         config={config}
-        source={fixtureSource(bikeEntities)}
+        source={fixtureSource([...bikeEntities, counter])}
         onOpenRelationship={onOpen}
       />,
     );
-    await waitFor(() => {
-      const buttons = screen.getAllByRole("button");
-      // A chip names its target by the end of its id, the URN is its title (T-4827).
-      const relBtn = buttons.find((b) => b.textContent === "001" && b.title === "urn:ngsi-ld:Device:hel:001");
-      expect(relBtn).toBeInTheDocument();
-      fireEvent.click(relBtn!);
-      expect(onOpen).toHaveBeenCalledWith("urn:ngsi-ld:Device:hel:001");
-    });
+    // The page's targets are read once, and the chip then says the target's name (G-R2GRID2-017).
+    const relBtn = await screen.findByRole("button", { name: `${DEFAULT_LABELS.openTarget}: Device · Counter 1` });
+    expect(relBtn).toHaveAttribute("title", "urn:ngsi-ld:Device:hel:001");
+    fireEvent.click(relBtn);
+    expect(onOpen).toHaveBeenCalledWith("urn:ngsi-ld:Device:hel:001");
   });
 
   it("shows empty label when source has no rows", async () => {
@@ -457,7 +455,8 @@ describe("EntityGrid", () => {
     const fixture = fixtureSource(bikeEntities);
     const asked: (string | undefined)[] = [];
     const nothingMatches = { ...fixture, query: (q: Parameters<typeof fixture.query>[0], page: Parameters<typeof fixture.query>[1]) => {
-      asked.push(q.q);
+      // The page's relationship targets are their own read, by id (G-R2GRID2-017).
+      if (!q.ids) asked.push(q.q);
       return q.q ? Promise.resolve({ rows: [], total: 0 }) : fixture.query(q, page);
     } };
     render(<EntityGrid config={columnless} source={nothingMatches} virtual />);
