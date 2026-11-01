@@ -297,20 +297,11 @@ async fn deleting_a_project_removes_its_registry_entry() {
     )
     .await;
     assert_eq!(answer.status, StatusCode::ACCEPTED, "{}", answer.text);
-    let mut removed: Vec<String> = server
-        .received_requests()
-        .await
-        .expect("requests")
-        .into_iter()
-        .filter(|r| r.method.as_str() == "DELETE")
-        .map(|r| r.url.path().to_owned())
-        .collect();
-    removed.sort();
     assert_eq!(
-        removed,
+        common::removed_in_one_commit(&server).await,
         [
-            format!("{REPO}/contents/projects/doprava.yaml"),
-            format!("{REPO}/contents/users/assignments/doprava-creator.yaml"),
+            "projects/doprava.yaml",
+            "users/assignments/doprava-creator.yaml",
         ],
         "the entry and the binding, and not the other project's entry nor the repository"
     );

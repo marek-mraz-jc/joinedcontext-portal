@@ -755,8 +755,9 @@ async fn a_project_role_naming_an_organization_kind_is_refused_at_the_door() {
             answer.status,
             answer.text
         );
+        // The refusal names the kind and the rule: an organization kind is the organization's.
         assert!(
-            answer.text.contains("a project role grants no roles"),
+            answer.text.contains(&format!("`{kind}`")) && answer.text.contains("organization"),
             "{kind}: the refusal says why: {}",
             answer.text
         );

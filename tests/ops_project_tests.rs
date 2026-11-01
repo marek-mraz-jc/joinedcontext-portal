@@ -134,22 +134,7 @@ fn delete_input() -> Value {
 
 /// The paths the deletion removed on its branch.
 async fn removed(server: &MockServer) -> Vec<String> {
-    let mut paths: Vec<String> = server
-        .received_requests()
-        .await
-        .unwrap_or_default()
-        .iter()
-        .filter(|request| request.method.as_str() == "DELETE")
-        .filter_map(|request| {
-            request
-                .url
-                .path()
-                .split_once("/contents/")
-                .map(|(_, file)| file.to_owned())
-        })
-        .collect();
-    paths.sort();
-    paths
+    common::removed_in_one_commit(server).await
 }
 
 /// PF-50, AG-64: the steward and the viewer read the project, its history and the manifests they

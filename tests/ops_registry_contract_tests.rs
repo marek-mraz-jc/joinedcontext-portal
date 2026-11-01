@@ -31,8 +31,7 @@ fn the_tool_list_and_the_openapi_document_say_the_same_of_every_operation() {
             .expect("required")
             .retain(|name| name != "project");
         // MCP drops the schema's own description: the tool's description says it (T-6058).
-        let mut documented =
-            entry["requestBody"]["content"]["application/json"]["schema"].clone();
+        let mut documented = entry["requestBody"]["content"]["application/json"]["schema"].clone();
         if let Some(schema) = documented.as_object_mut() {
             schema.remove("description");
         }

@@ -268,7 +268,7 @@ async fn a_topic_or_role_outside_the_broker_is_refused_naming_the_field() {
     )
     .await;
     assert_eq!(answer.status, 422, "{}", answer.text);
-    assert!(answer.text.contains("name:"), "{}", answer.text);
+    assert!(answer.names_field("name", ""), "{}", answer.text);
     assert!(written(&gitea).await.is_empty());
 }
 
