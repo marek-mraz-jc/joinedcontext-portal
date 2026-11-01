@@ -31,6 +31,8 @@ export interface GridMapLabels {
   offTheMap: string;
   drawArea: string;
   clearArea: string;
+  /** The header button while the drawing tools are open and nothing is drawn yet. */
+  stopDrawing: string;
   areaAsked: string;
   areaSimplified: string;
   editGeometry: string;
@@ -57,6 +59,7 @@ export const DEFAULT_GRID_MAP_LABELS: GridMapLabels = {
   offTheMap: "not on the map",
   drawArea: "Draw area",
   clearArea: "Clear area",
+  stopDrawing: "Stop drawing",
   areaAsked: "Filtered to the drawn area",
   areaSimplified: "The filter is a simplified outline of what you drew",
   editGeometry: "Edit geometry",
@@ -70,7 +73,7 @@ export const DEFAULT_GRID_MAP_LABELS: GridMapLabels = {
   pointsCapped: "only the first ones are drawn",
   pointsFailed: "The points could not be read; the rows are still listed, try again by reopening the map",
   selected: "Selected",
-  drawHint: "Choose a shape, then click the map: a rectangle is two corners, a circle its centre and edge, an area each corner and the last one twice. Escape leaves.",
+  drawHint: "Pick a shape and click the map; click an area's last corner twice to finish. Escape leaves.",
 };
 
 /** What the point read says: progress while it pages, the count once it ended, or why it failed. */
@@ -224,7 +227,7 @@ export function GridMap({
             aria-pressed={areaOpen}
             onClick={() => (area || drawingArea ? (onArea(null), setDrawingArea(false)) : setDrawingArea(true))}
           >
-            {area || drawingArea ? labels.clearArea : labels.drawArea}
+            {area ? labels.clearArea : drawingArea ? labels.stopDrawing : labels.drawArea}
           </button>
         ) : null}
         {mode === "edit" && activeRow ? (
@@ -261,17 +264,20 @@ export function GridMap({
         ) : null}
       </header>
 
-      {asked ? (
-        <p className="jc-grid-map__area" role="status">
-          {labels.areaAsked}
-          {asked.simplified ? ` — ${labels.areaSimplified}` : ""}
-        </p>
-      ) : null}
-
-      {pointsState ? (
-        <p className="jc-grid-map__points" role="status" aria-live="polite">
-          {pointsLine(pointsState, labels)}
-        </p>
+      {asked || pointsState ? (
+        <div className="jc-grid-map__status">
+          {asked ? (
+            <p className="jc-grid-map__area" role="status">
+              {labels.areaAsked}
+              {asked.simplified ? ` — ${labels.areaSimplified}` : ""}
+            </p>
+          ) : null}
+          {pointsState ? (
+            <p className="jc-grid-map__points" role="status" aria-live="polite">
+              {pointsLine(pointsState, labels)}
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       {areaOpen ? (

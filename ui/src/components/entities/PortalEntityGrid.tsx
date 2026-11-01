@@ -384,6 +384,7 @@ export function gridMapLabels(t: (key: string) => string): GridMapLabels {
     offTheMap: t("entityGrid.map.offTheMap"),
     drawArea: t("entityGrid.map.drawArea"),
     clearArea: t("entityGrid.map.clearArea"),
+    stopDrawing: t("entityGrid.map.stopDrawing"),
     areaAsked: t("entityGrid.map.areaAsked"),
     areaSimplified: t("entityGrid.map.areaSimplified"),
     editGeometry: t("entityGrid.map.editGeometry"),

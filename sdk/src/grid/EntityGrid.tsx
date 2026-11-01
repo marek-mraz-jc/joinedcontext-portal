@@ -2115,7 +2115,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
                 onChange={(e) => setFilterText(e.target.value)}
               />
             ) : (
-              <output className="jc-grid-query-value">{queryText(askedQuery, grid.area) || labels.queryAll}</output>
+              <output className="jc-grid-query-value">{breakable(queryText(askedQuery, grid.area) || labels.queryAll)}</output>
             )}
           </label>
           <span className="jc-grid-query-actions">
@@ -2237,6 +2237,11 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
 
 /** The config without the attributes the person may not read: neither a column nor asked in `attrs` (T-5530). */
 /** The signed-out or no-access state: a title, what to do, and the way to sign in where there is one. */
+/** A long query wraps after its commas and ampersands, never inside a coordinate (T-6345). */
+function breakable(text: string): React.ReactNode[] {
+  return text.split(/(?<=[,&])/).flatMap((part, at) => (at === 0 ? [part] : [<wbr key={at} />, part]));
+}
+
 export function GridRefusalState({
   refusal,
   labels,

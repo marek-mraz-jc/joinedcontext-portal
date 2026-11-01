@@ -772,6 +772,9 @@ export function EndpointDataView({
   // The query the grid last asked, for the link and the download of exactly these rows.
   const [asked, setAsked] = useState<string | undefined>(link?.q);
   const [comparing, setComparing] = useState(false);
+  // Refused (401/403, T-6376): the grid shows sign-in or no access, and no tool or CSV offers
+  // rows the person cannot read.
+  const [refused, setRefused] = useState(false);
   const root = origin ?? window.location.origin;
   const base = `${root}/api/endpoint/${slug}/schema`;
   // Another origin is read anonymously: a cross-origin fetch with `same-origin` credentials sends no cookie.
@@ -855,6 +858,8 @@ export function EndpointDataView({
 
   return (
     <div {...windowProps(full, t("endpoints.data.title"))}>
+      {refused ? null : (
+      <>
       <div className="flex flex-wrap items-center gap-1 border-b border-border pb-2" data-testid="grid-toolbar">
         <DataToolbar
           {...tools.props}
@@ -907,6 +912,8 @@ export function EndpointDataView({
           }}
         />
       </div>
+      </>
+      )}
 
       {comparing && space ? (
         <EntityCompare
@@ -942,6 +949,7 @@ export function EndpointDataView({
           view={gridView}
           onGridState={onGridState}
           onQuery={onQuery}
+          onRefused={setRefused}
           hidden={hiddenNow}
           onHide={onHide}
           thenBy={tools.thenBy}

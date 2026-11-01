@@ -6,16 +6,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
  * mocks it, so what these tests read is the part that has to work by keyboard — the toolbar, the
  * coordinate table, the paste and the check between them and `onChange`.
  */
-const maps: Array<{ fitBounds: ReturnType<typeof vi.fn> }> = [];
+const maps: Array<{ fitBounds: ReturnType<typeof vi.fn>; setData: ReturnType<typeof vi.fn>; addLayer: ReturnType<typeof vi.fn> }> = [];
 let loadHandler: (() => void) | undefined;
 
 vi.mock("maplibre-gl", () => {
   class Map {
     fitBounds = vi.fn();
     setData = vi.fn();
-    constructor() {
-      maps.push({ fitBounds: this.fitBounds });
-    }
     on(event: string, ...args: unknown[]) {
       if (event === "load" && typeof args[0] === "function") {
         loadHandler = args[0] as () => void;
@@ -24,6 +21,7 @@ vi.mock("maplibre-gl", () => {
     addSource = vi.fn();
     addLayer = vi.fn();
     getSource = () => ({ setData: this.setData });
+    registered = maps.push({ fitBounds: this.fitBounds, setData: this.setData, addLayer: this.addLayer });
     remove = vi.fn();
   }
   return { Map, setWorkerUrl: vi.fn() };
@@ -324,5 +322,21 @@ describe("what a host may change and what it may not", () => {
     fireEvent.click(screen.getByRole("button", { name: DEFAULT_GEO_LABELS.take }));
     expect(onChange).not.toHaveBeenCalled();
     expect(screen.getByRole("alert").textContent).toBe(DEFAULT_GEO_LABELS.tooLarge);
+  });
+});
+
+describe("the features drawn against (T-6345)", () => {
+  it("stay on the map under the tools, and follow a new list", async () => {
+    const drawing = { start: vi.fn(), stop: vi.fn(), setMode: vi.fn(), addFeatures: vi.fn(), getSnapshot: () => [], clear: vi.fn(), undo: vi.fn(), redo: vi.fn(), on: vi.fn() };
+    const engine = { create: vi.fn(() => drawing) };
+    const point = (id: string, x: number) => ({ type: "Feature" as const, id, geometry: { type: "Point" as const, coordinates: [x, 60.17] } });
+    const { rerender } = render(<GeoEditor value={null} onChange={vi.fn()} allowed={["Polygon"]} snapTo={[point("a", 24.9)]} engine={engine} />);
+    await waitFor(() => expect(loadHandler).toBeTruthy());
+    loadHandler?.();
+    const map = maps[maps.length - 1];
+    expect(map.addLayer.mock.calls.map(([layer]) => layer.id)).toEqual(["geo-editor-reference-lines", "geo-editor-reference-points"]);
+    expect(map.setData).toHaveBeenLastCalledWith(expect.objectContaining({ features: [expect.objectContaining({ id: "a" })] }));
+    rerender(<GeoEditor value={null} onChange={vi.fn()} allowed={["Polygon"]} snapTo={[point("a", 24.9), point("b", 25)]} engine={engine} />);
+    expect(map.setData.mock.lastCall?.[0].features.map((each: { id: string }) => each.id)).toEqual(["a", "b"]);
   });
 });

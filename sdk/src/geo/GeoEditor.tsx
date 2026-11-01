@@ -17,6 +17,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Map as MapLibreMap } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
 import { mapWorkerReady, NO_BASEMAP, styleFor } from "../sdk/map";
+import { mapColors } from "../sdk/tokens";
 import { GEOMETRY_TYPES, checkGeometry, geometryOf } from "./validate";
 import type { GeoFinding, Geometry, GeometryType, Position } from "./validate";
 import type { GeoFeature } from "./GeoView";
@@ -92,6 +93,14 @@ export const DEFAULT_GEO_LABELS: GeoLabels = {
  * by accident. It is parsed as data and never evaluated, and no URL of any kind is read out of it.
  */
 export const MAX_GEOJSON_BYTES = 1_000_000;
+
+/** The map source of the read-only features drawn against (`snapTo`). */
+const REFERENCE = "geo-editor-reference";
+
+function showReference(map: MapLibreMap, features: GeoFeature[] | undefined): void {
+  const source = map.getSource?.(REFERENCE) as { setData?: (data: unknown) => void } | undefined;
+  source?.setData?.({ type: "FeatureCollection", features: (features ?? []).map((feature) => ({ ...feature, properties: { id: feature.id } })) });
+}
 
 /** The modes a host may offer for a type, which is what the toolbar is built from. */
 export function modesFor(allowed: readonly GeometryType[]): DrawMode[] {
@@ -275,6 +284,9 @@ export function GeoEditor({
   latest.current = emit;
   const allowedNow = useRef(allowed);
   allowedNow.current = allowed;
+  const colors = mapColors();
+  const snapNow = useRef(snapTo);
+  snapNow.current = snapTo;
 
   useEffect(() => {
     let gone = false;
@@ -303,6 +315,24 @@ export function GeoEditor({
         if (!ready) {
           return;
         }
+        // The features drawn against (`snapTo`) stay in sight under the tools as plain read-only
+        // marks: drawing an area over the points it should catch needs the points (T-6345).
+        ready.addSource(REFERENCE, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+        showReference(ready, snapNow.current);
+        ready.addLayer({
+          id: `${REFERENCE}-lines`,
+          type: "line",
+          source: REFERENCE,
+          filter: ["match", ["geometry-type"], ["LineString", "MultiLineString", "Polygon", "MultiPolygon"], true, false],
+          paint: { "line-color": colors.point, "line-width": 1.5, "line-opacity": 0.7 },
+        });
+        ready.addLayer({
+          id: `${REFERENCE}-points`,
+          type: "circle",
+          source: REFERENCE,
+          filter: ["match", ["geometry-type"], ["Point", "MultiPoint"], true, false],
+          paint: { "circle-radius": 5, "circle-color": colors.point, "circle-stroke-width": 1, "circle-stroke-color": colors.stroke },
+        });
         void (engine ? Promise.resolve(engine) : terraDrawEngine()).then((library) => {
           if (gone) {
             return;
@@ -354,6 +384,10 @@ export function GeoEditor({
       map.current.fitBounds(bounds, { padding: 32, maxZoom: 16, duration: 0 });
     }
   }, [value, snapTo, mapReady]);
+
+  useEffect(() => {
+    if (map.current) showReference(map.current, snapTo);
+  }, [snapTo, mapReady]);
 
   const choose = (name: string): void => {
     setMode(name);

@@ -5587,6 +5587,7 @@
       "offTheMap": "nicht auf der Karte",
       "drawArea": "Bereich zeichnen",
       "clearArea": "Bereich entfernen",
+      "stopDrawing": "Zeichnen beenden",
       "areaAsked": "Auf den gezeichneten Bereich gefiltert",
       "areaSimplified": "Der Filter ist ein vereinfachter Umriss des Gezeichneten",
       "editGeometry": "Geometrie bearbeiten",
@@ -5600,7 +5601,7 @@
       "pointsCapped": "nur die ersten werden gezeichnet",
       "pointsFailed": "Die Punkte konnten nicht gelesen werden; die Zeilen bleiben gelistet, öffnen Sie die Karte erneut, um es noch einmal zu versuchen",
       "selected": "Ausgewählt",
-      "drawHint": "Wählen Sie eine Form und klicken Sie in die Karte: ein Rechteck sind zwei Ecken, ein Kreis sein Mittelpunkt und Rand, eine Fläche jede Ecke und die letzte zweimal. Escape beendet."
+      "drawHint": "Wählen Sie eine Form und klicken Sie in die Karte; eine Fläche endet mit einem zweiten Klick auf die letzte Ecke. Escape beendet."
     },
     "geo": {
       "tools": "Zeichenwerkzeuge",

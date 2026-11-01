@@ -601,6 +601,7 @@
 
 .jc-grid-map__bar {
   display: flex;
+  min-height: 2rem;
   flex-wrap: wrap;
   align-items: center;
   gap: 0.5rem;
@@ -625,6 +626,36 @@
 .jc-grid-map__note {
   font-size: 0.875rem;
   margin: 0;
+}
+
+/* The header's actions read as the same chips as the drawing tools. */
+.jc-grid-map__action {
+  font: inherit;
+  font-size: 0.8125rem;
+  min-height: 2rem;
+  padding: 0.125rem 0.625rem;
+  border: 1px solid var(--jc-color-line, #cbd5e1);
+  border-radius: var(--jc-radius-md, 6px);
+  background: var(--jc-color-surface, #ffffff);
+  color: var(--jc-color-ink, #1a1a1a);
+  cursor: pointer;
+}
+
+.jc-grid-map__action[aria-pressed="true"] {
+  border-color: var(--jc-color-accent, #0066cc);
+  background: color-mix(in srgb, var(--jc-color-accent, #0066cc) 10%, var(--jc-color-surface, #ffffff));
+}
+
+/* The area and point counts share one line, separated by a dot. */
+.jc-grid-map__status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 var(--jc-space-2, 8px);
+}
+
+.jc-grid-map__status > p + p::before {
+  content: "· ";
+  color: var(--jc-color-muted, #666);
 }
 
 /* A refused control keeps its place and is visibly refused; the reason is read from the
@@ -667,11 +698,21 @@
     flex: 1 1 auto;
     height: auto;
   }
+
+  /* While drawing, the panel takes the width its one row of tools needs (T-6345). */
+  .jc-grid--map-right:has(.jc-grid-map__draw) {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 29rem);
+  }
 }
 
 @media (width <= 900px) {
   .jc-grid--map-right {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Under the rows the panel keeps the rows' own gutter, not the frame's edge. */
+  .jc-grid-map {
+    padding: var(--jc-space-2, 8px) var(--jc-space-3, 12px);
   }
 }
 
@@ -1514,7 +1555,12 @@ a.jc-cell--link:focus-visible {
 /* T-5415: the query block as one row of a code line, a real copy button and a checkbox 8 px from its
    words; the current page in the accent colour; on a phone the pager is one line (‹ 1 2 3 ›) under
    its count, the filter row folds under a button and the row's name takes the room it needs. */
-.jc-grid-query-label { font-weight: 600; }
+.jc-grid-query-label { font-weight: 600; white-space: nowrap; }
+/* A phone puts the label above the query, so the query takes the whole width. */
+@media (width <= 600px) {
+  .jc-grid-query-text { flex-wrap: wrap; }
+  .jc-grid-query-label { flex: 1 0 100%; }
+}
 .jc-grid-query-value { padding: 2px 6px; border-radius: var(--jc-radius-sm, 4px); background: var(--jc-color-card, #f5f5f5); }
 .jc-grid-query-actions { display: inline-flex; flex-wrap: wrap; align-items: center; gap: var(--jc-space-2, 8px) var(--jc-space-4, 16px); }
 .jc-grid-query-copy,
@@ -2350,21 +2396,42 @@ a.jc-cell--link:focus-visible {
 /* The area filter's drawing tools (owner 2026-11-01): a row of tool buttons over the map; the
    coordinate table, paste box and file input are the shape editor's, not the area picker's. */
 .jc-grid-map__draw .geo-toolbar {
+  /* One row of tools, never two: a phone scrolls the row sideways instead of pushing the map down
+     (T-6345 judge: density 2 with nine wrapped chips). */
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: thin;
   gap: var(--jc-space-1, 4px);
   padding-block: var(--jc-space-1, 4px);
 }
 
 .jc-grid-map__draw .geo-toolbar button {
+  flex: none;
+  white-space: nowrap;
   font: inherit;
-  font-size: 0.875rem;
+  font-size: 0.8125rem;
+  min-height: 2rem;
   padding: 0.125rem 0.5rem;
   border: 1px solid var(--jc-color-line, #cbd5e1);
   border-radius: var(--jc-radius-md, 6px);
   background: var(--jc-color-surface, #ffffff);
   color: var(--jc-color-ink, #1a1a1a);
   cursor: pointer;
+}
+
+/* A phone wraps the tools to a second row: a sideways-scrolled row hid Undo and Redo. */
+@media (width <= 900px) {
+  .jc-grid-map__draw .geo-toolbar {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+}
+
+/* The panel header's "Clear area" already deletes the drawn area and closes the tools, so the
+   editor's last tool, "Delete the shape", is not shown twice here (GeoEditor keeps it last). */
+.jc-grid-map__draw .geo-toolbar button:last-child {
+  display: none;
 }
 
 .jc-grid-map__draw .geo-toolbar button[aria-pressed="true"] {

@@ -82,5 +82,9 @@ describe("the query line", () => {
     (editorCalls.at(-1)!.onChange as (g: unknown) => void)({ type: "Polygon", coordinates: [[[19, 48.6], [19.3, 48.6], [19.3, 48.9], [19, 48.6]]] });
     await waitFor(() => expect(document.querySelector(".jc-grid-query-value")?.textContent).toContain("georel=within&geometry=Polygon"));
     expect(document.querySelector(".jc-grid-query-value")?.textContent).toContain("geoproperty=location");
+    // A phone wraps it after commas and ampersands, never inside a coordinate.
+    const value = document.querySelector(".jc-grid-query-value") as HTMLElement;
+    for (const mark of value.querySelectorAll("wbr")) expect(mark.previousSibling?.textContent).toMatch(/[,&]$/);
+    expect(value.querySelectorAll("wbr").length).toBeGreaterThan(4);
   });
 });

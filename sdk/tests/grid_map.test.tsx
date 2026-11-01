@@ -257,10 +257,19 @@ describe("the drawn area as a filter", () => {
     expect(onArea).toHaveBeenLastCalledWith(null);
   });
 
+  it("names its header button for what it does now: draw, stop drawing, clear the area", () => {
+    const area = { geoproperty: "location", geometry: { type: "Polygon" as const, coordinates: [[[24.8, 60], [25.1, 60], [25.1, 60.3], [24.8, 60]]] } };
+    const { rerender } = render(<GridMap rows={rows} attr="location" activeId={null} onActivate={() => {}} onArea={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: DEFAULT_GRID_MAP_LABELS.drawArea }));
+    expect(screen.getByRole("button", { name: DEFAULT_GRID_MAP_LABELS.stopDrawing })).toHaveAttribute("aria-pressed", "true");
+    rerender(<GridMap rows={rows} attr="location" activeId={null} onActivate={() => {}} onArea={vi.fn()} area={area} />);
+    expect(screen.getByRole("button", { name: DEFAULT_GRID_MAP_LABELS.clearArea })).toBeTruthy();
+  });
+
   it("opens straight on the drawing tools when the location filter asks for it", () => {
     render(<GridMap rows={rows} attr="location" activeId={null} onActivate={() => {}} onArea={vi.fn()} startDrawing />);
     expect(screen.getByTestId("geo-editor")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: DEFAULT_GRID_MAP_LABELS.clearArea })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: DEFAULT_GRID_MAP_LABELS.stopDrawing })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("stays visible while it filters, and is removed by the same control", async () => {

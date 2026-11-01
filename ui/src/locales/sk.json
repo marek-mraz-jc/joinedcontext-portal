@@ -5587,6 +5587,7 @@
       "offTheMap": "nie je na mape",
       "drawArea": "Nakresliť oblasť",
       "clearArea": "Zrušiť oblasť",
+      "stopDrawing": "Ukončiť kreslenie",
       "areaAsked": "Filtrované na nakreslenú oblasť",
       "areaSimplified": "Filter je zjednodušený obrys toho, čo ste nakreslili",
       "editGeometry": "Upraviť geometriu",
@@ -5600,7 +5601,7 @@
       "pointsCapped": "zobrazené sú len prvé",
       "pointsFailed": "Body sa nepodarilo načítať; riadky ostávajú v zozname, skúste to znova opätovným otvorením mapy",
       "selected": "Vybraté",
-      "drawHint": "Vyberte tvar a klikajte do mapy: obdĺžnik sú dva rohy, kruh jeho stred a okraj, oblasť každý roh a posledný dvakrát. Escape kreslenie ukončí."
+      "drawHint": "Vyberte tvar a klikajte do mapy; oblasť dokončíte druhým klikom na posledný roh. Escape kreslenie ukončí."
     },
     "geo": {
       "tools": "Nástroje kreslenia",

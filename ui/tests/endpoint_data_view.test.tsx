@@ -752,6 +752,17 @@ describe("a failed schema read (T-6313)", () => {
 });
 
 describe("the refused states of a private dataset (T-6376)", () => {
+  it("drops the toolbar and the CSV when the rows are refused", async () => {
+    show({ csv: true }, (url) =>
+      url.pathname.includes("/ngsi-ld/v1/entities")
+        ? new Response(JSON.stringify({ title: "Forbidden", status: 403, detail: "no policy grants you this type" }), { status: 403, headers: { "Content-Type": "application/problem+json" } })
+        : answer(url),
+    );
+    expect(await screen.findByText(en.entityGrid.noAccessTitle)).toBeInTheDocument();
+    expect(screen.queryByTestId("grid-toolbar")).toBeNull();
+    expect(screen.queryByRole("link", { name: en.endpoints.data.csv })).toBeNull();
+  });
+
   it("offers the Portal's sign-in when signed out, and none for a missing grant", async () => {
     const t = (key: string) => i18n.t(key);
     const onSignIn = vi.fn();
