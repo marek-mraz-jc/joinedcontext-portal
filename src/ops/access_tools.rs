@@ -335,13 +335,16 @@ async fn preview(
     Ok(serde_json::to_value(page)?)
 }
 
+/// An operation's input and output schemas.
+type Schemas = (fn() -> Value, fn() -> Value);
+
 /// A read about access: green, idempotent, gated by the route.
 fn read(
     name: &'static str,
     title: &'static str,
     description: &'static str,
     kind: &'static str,
-    schemas: (fn() -> Value, fn() -> Value),
+    schemas: Schemas,
     validate: fn(&Value) -> Result<(), OpError>,
     run: super::RunFn,
 ) -> Operation {
