@@ -752,6 +752,7 @@ async fn answer_call(
     // rather than asked to confirm something that would be refused after they answered.
     if let Err(refused) = caller
         .may_run(op)
+        .and_then(|()| caller.grants_input(op, &input))
         .map_err(|refused| {
             decided_in_portal(&state.config.public_base_url, op, project, &input, refused)
         })
