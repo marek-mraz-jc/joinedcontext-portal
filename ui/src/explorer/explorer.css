@@ -56,12 +56,12 @@
 }
 /* T-6319: the data toolbar's panels (T-6303). On a phone the Portal opens each as a sheet fixed to the
    window's bottom; the catalogue's frame is as tall as its content, so that bottom lies far below the
-   reader. Here a panel opens under the toolbar, as wide as it. The panels' controls read at the
-   table's size, as the filter row's did (T-5192). */
+   reader. Here a panel opens under the toolbar, as wide as it. The panels' controls read at 14 px,
+   as the filter row's did (T-5192): the Portal's root is 80 %, so rem would give 11.2 px. */
 @media (max-width: 39.99rem) {
   .jc-explorer [data-testid="grid-toolbar"] { position: relative; }
   .jc-explorer [data-testid="grid-toolbar"] details { position: static; }
   .jc-explorer [data-testid="grid-toolbar"] details > div { position: absolute; inset: 100% 0 auto 0; margin-top: 0.25rem; }
 }
 .jc-explorer [data-testid="grid-toolbar"] details select,
-.jc-explorer [data-testid="grid-toolbar"] details input { font-size: 0.875rem; }
+.jc-explorer [data-testid="grid-toolbar"] details input { font-size: 14px; }
