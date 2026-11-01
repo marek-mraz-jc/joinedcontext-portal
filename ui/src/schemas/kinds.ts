@@ -16,6 +16,11 @@ import {
 } from "../pages/endpoints/catalog";
 import { withCatalog } from "../pages/organization/limits";
 import type { LimitEntry } from "../pages/organization/limits";
+import {
+  METADATA_MEMBERS,
+  VERSIONS_CAPABILITIES,
+  WRITE_CAPABILITIES,
+} from "../components/forms/widgets/attributeCapabilities";
 
 /**
  * Draft-07 schemas for the kinds the Portal writes, mirroring jc-core's `ContextSpaceSpec`
@@ -1810,6 +1815,11 @@ export function policySchema(
               items: { type: "string" },
               uniqueItems: true,
             },
+            attributes: {
+              type: "object",
+              title: t("policies.capabilities.title"),
+              additionalProperties: attributeCapabilitiesSchema(t),
+            },
           },
         },
       },
@@ -1842,6 +1852,25 @@ export function policySchema(
   };
 }
 
+/**
+ * One attribute's capabilities in a grant, as jc-core's `AttributeCapabilities` (ADR-N-066).
+ * Metadata members are titled by their own names: they are the names a reader of the answer sees.
+ */
+function attributeCapabilitiesSchema(t: (key: string) => string): JsonSchema {
+  const list = (choices: JsonSchema): JsonSchema => ({ type: "array", items: { type: "string", ...choices }, uniqueItems: true });
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      read: { type: "boolean" },
+      history: { type: "boolean" },
+      versions: list(words(t, "policies.capabilities.value", VERSIONS_CAPABILITIES)),
+      metadata: list({ oneOf: METADATA_MEMBERS.map((member) => ({ const: member, title: member })) }),
+      write: list(words(t, "policies.capabilities.value", WRITE_CAPABILITIES)),
+    },
+  };
+}
+
 /** The members a rule of `rules[]` carries, which the Policy then holds in no other place (ADR-N-057). */
 export const POLICY_RULE_MEMBERS = ["effect", "assignee", "operations", "actions", "information", "q", "scopeQ", "geoQ", "temporalQ"];
 
@@ -1857,6 +1886,7 @@ export function hasPolicyRules(spec: Record<string, unknown> | undefined): boole
  */
 export const policyUiSchema: UiSchema = {
   operations: { "ui:widget": "operations" },
+  information: { items: { attributes: { "ui:field": "attributeCapabilities" } } },
   q: { "ui:autocomplete": "off" },
   scopeQ: { "ui:autocomplete": "off" },
   geoQ: { "ui:autocomplete": "off" },
