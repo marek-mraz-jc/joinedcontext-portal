@@ -20,7 +20,7 @@ use crate::pipeline_log::LogLine;
 
 /// The most a log page carries, in bytes of its lines' JSON: well under a connector's answer
 /// (`connectors::DEFAULT_LIMITS.result_bytes`), so a page always reaches the client whole.
-pub const LOG_BYTES: usize = 32 * 1024;
+pub const LOG_BYTES: usize = super::bounds::PAGE_BYTES;
 /// The run list and log operation's name.
 pub const LOGS: &str = "jc_pipeline_logs";
 /// Lines read from the store per page, before the byte cut.
@@ -104,16 +104,7 @@ fn runs_output_schema() -> Value {
 /// the id of the last line kept, when lines were cut or the store may hold more.
 fn page(mut lines: Vec<LogLine>, asked: usize) -> (Vec<LogLine>, Option<i64>) {
     let fetched = lines.len();
-    let mut bytes = 0;
-    let kept = lines
-        .iter()
-        .take_while(|line| {
-            bytes += serde_json::to_vec(line).map_or(LOG_BYTES, |b| b.len());
-            bytes <= LOG_BYTES
-        })
-        .count()
-        .max(1)
-        .min(fetched);
+    let kept = super::bounds::fitting(&lines, LOG_BYTES);
     lines.truncate(kept);
     let more = kept < fetched || fetched == asked;
     let next = more.then(|| lines.last().map(|line| line.id)).flatten();
