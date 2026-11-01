@@ -6839,6 +6839,48 @@
     "more": "Ďalšie akcie pre {name}"
   },
   "policies": {
+    "capabilities": {
+      "title": "Čo oprávnenie dovoľuje volajúcemu s každým atribútom",
+      "about": "Zužuje túto položku po atribútoch; nikdy nedá viac než operácie vyššie. Bunka na predvolenej hodnote zachová dnešné správanie.",
+      "caption": "Schopnosti atribútov typu {types}",
+      "every": "Všetky atribúty (*)",
+      "asGrant": "Podľa oprávnenia",
+      "asEvery": "Ako všetky (*)",
+      "yes": "Povolené",
+      "no": "Odopreté",
+      "hintsTitle": "Čo znamená každý stĺpec, s príkladmi",
+      "limitsTitle": "Čo toto oprávnenie nemôže dať",
+      "none": "Žiadne",
+      "value": {
+        "read": "čítať staršie verzie",
+        "keep": "uchovať každý zápis",
+        "update": "meniť",
+        "append": "pridávať",
+        "delete": "mazať"
+      },
+      "noType": "Vyberte vyššie typ entity, aby sa zobrazili jeho atribúty; dovtedy riadok * pokrýva všetky.",
+      "needsTemporal": "Vyžaduje queryTemporal alebo retrieveTemporal v operáciách.",
+      "needsWrite": "Vyžaduje zapisovaciu operáciu, napríklad updateAttrs.",
+      "needsReadVersions": "Vyžaduje, aby oprávnenie povoľovalo čítať staršie verzie; doplňte to v zobrazení YAML.",
+      "neverPublicWrite": "Verejné oprávnenie nikdy nezapisuje.",
+      "neverPublicKeep": "Verejné oprávnenie nikdy neukladá verzie.",
+      "neverPublicActor": "Autor zmeny a pôvod hodnoty nie sú nikdy verejné: autor je konto osoby.",
+      "column": {
+        "attribute": "Atribút",
+        "read": "Čítanie",
+        "history": "História",
+        "versions": "Verzie",
+        "metadata": "Metadáta",
+        "write": "Úpravy"
+      },
+      "hint": {
+        "read": "Aktuálna hodnota. Napríklad Odopreté pri pm10 ju ponechá len pre históriu.",
+        "history": "Minulé hodnoty v čase. Napríklad Povolené pri pm10 poskytne merania za minulý týždeň.",
+        "versions": "read poskytne staršie verzie hodnoty, keep uloží každý zápis ako verziu. Napríklad keep pri name.",
+        "metadata": "Ktoré údaje idú s hodnotou. Napríklad observedAt a unitCode.",
+        "write": "Ktoré zmeny smie volajúci urobiť. Napríklad update pri name, nič pri pm10."
+      }
+    },
     "title": "Politiky",
     "filter": {
       "label": "Nájsť politiku",

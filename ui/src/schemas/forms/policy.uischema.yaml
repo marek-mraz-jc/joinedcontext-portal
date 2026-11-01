@@ -135,6 +135,12 @@ spec:
         sk: Vzťahy, na ktoré oprávnenie dosiahne; prázdny zoznam znamená všetky.
         cs: Vztahy, na které oprávnění dosáhne; prázdný seznam znamená všechny.
         de: Die Beziehungen dieser Berechtigung; eine leere Liste bedeutet alle.
+    information[].attributes:
+      help:
+        en: "Per attribute, what the grant allows, such as history of pm10 but no edit; unset cells keep today's behaviour."
+        sk: "Pre každý atribút, čo oprávnenie dovoľuje, napríklad históriu pm10 bez úprav; nevyplnené bunky zachovajú dnešné správanie."
+        cs: "Pro každý atribut, co oprávnění dovoluje, například historii pm10 bez úprav; nevyplněné buňky zachovají dnešní chování."
+        de: "Je Attribut, was die Berechtigung erlaubt, etwa den Verlauf von pm10 ohne Bearbeiten; leere Zellen behalten das heutige Verhalten."
     q:
       placeholder: "pm10>=0"
       help:
