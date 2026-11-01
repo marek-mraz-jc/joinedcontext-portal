@@ -28,7 +28,7 @@ use crate::state::AppState;
 
 /// The kind whose `propose` lets a person write a project's credentials: a DataSource is what
 /// reads them (PL-15).
-const KIND: &str = "DataSource";
+pub(crate) const KIND: &str = "DataSource";
 /// Keys one secret holds at most.
 const MAX_KEYS: usize = 10;
 /// Bytes one value holds at most: a PEM private key fits.

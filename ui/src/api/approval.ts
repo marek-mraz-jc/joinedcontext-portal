@@ -96,7 +96,8 @@ export function approvalStanding(
     planFields?: PlannedField[] | null;
   },
 ): ApprovalStanding {
-  const kind = changedKind(change);
+  // A secret's change names no manifest kind: the API judges it on DataSource (T-6359).
+  const kind = changedKind(change) === "Secret" ? "DataSource" : changedKind(change);
   if (!permissions.can(kind, "approve")) {
     return { block: "needsRole", ownAsAdministrator: false };
   }

@@ -1145,6 +1145,8 @@ pub fn operations() -> Vec<Operation> {
                         .map_err(draft_error)?
                         .iter()
                         .filter(|draft| effective.may_read_manifest(&draft.kind, &draft.manifest))
+                        // A run sees only the kinds its profile reads (T-6366).
+                        .filter(|draft| caller.reads_kind(&draft.kind))
                         .map(crate::ops::drafts::DraftLine::from)
                         .collect();
                     Ok(json!({ "items": items }))

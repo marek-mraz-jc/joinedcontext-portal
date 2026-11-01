@@ -730,6 +730,9 @@ pub async fn approve_connector(
 ) -> Result<Json<Connector>, ApiError> {
     let identity = &user.0.identity;
     administrator(&state, identity)?;
+    // An approval widens a delegation past the ceiling: a decision door like a Change approval,
+    // so it wants the second factor too (JC2-17, T-5567).
+    crate::auth::session::require_second_factor(identity, &state.config)?;
     if !connectors::is_id(&id) {
         return Err(not_found());
     }
@@ -1793,6 +1796,32 @@ mod tests {
         assert_eq!(approved.state, "active");
         let again = approve(administrator_user(), &made.id).await;
         assert!(matches!(again, Err(ApiError::NotFound(_))));
+    }
+
+    /// JC2-17: approving a connector above the ceiling is a decision: without the second factor
+    /// in the session, where the deployment asks for one, it is refused and stays pending.
+    #[tokio::test]
+    async fn an_approval_above_the_ceiling_wants_the_second_factor() {
+        let mut config = Config::for_tests();
+        config.decisions_need_second_factor = true;
+        let state = AppState::new(config, None);
+        let new = body("ana-asks").expect("body").0;
+        let made = state
+            .connectors
+            .create("f:1:ana", new, vec!["writes: above".into()], "")
+            .await
+            .expect("kept");
+        let approve =
+            |who: CurrentUser| approve_connector(who, State(state.clone()), Path(made.id.clone()));
+        let refused = approve(administrator_user()).await;
+        assert!(
+            matches!(refused, Err(ApiError::SecondFactorRequired)),
+            "{refused:?}"
+        );
+        let mut proven = administrator_user();
+        proven.0.identity.second_factor = true;
+        let Json(approved) = approve(proven).await.expect("approved");
+        assert_eq!(approved.state, "active");
     }
 
     /// T-5975: only an administrator lists every person's connectors, with the day's calls and

@@ -29,6 +29,14 @@ pub fn path_of(project: &str, name: &str) -> String {
     format!("projects/{project}/secrets/{name}.enc.yaml")
 }
 
+/// The project and secret name of a secrets file, the inverse of [`path_of`]; `None` for any
+/// other path.
+pub fn parse_path(path: &str) -> Option<(&str, &str)> {
+    let (project, file) = path.strip_prefix("projects/")?.split_once("/secrets/")?;
+    let name = file.strip_suffix(".enc.yaml")?;
+    (!project.is_empty() && !project.contains('/') && valid_name(name)).then_some((project, name))
+}
+
 /// Whether `name` may be a secret's name or key: a DNS label's letters, as a `secretRef` names it.
 pub fn valid_name(name: &str) -> bool {
     (1..=63).contains(&name.len())
@@ -65,6 +73,32 @@ pub fn names(text: &str) -> Option<BTreeMap<String, Vec<String>>> {
             })
             .collect(),
     )
+}
+
+/// Whether `text` is a SOPS file whose every value is encrypted: a `sops` block, and each leaf
+/// outside it an `ENC[…]` literal. A file carrying a `sops` key beside a plain value (a bundle
+/// import, a direct push) is not, so it never lands as a sealed secret (CC-06, T-6359).
+pub fn sealed(text: &str) -> bool {
+    fn encrypted(node: &serde_norway::Value) -> bool {
+        match node {
+            serde_norway::Value::Mapping(map) => map.values().all(encrypted),
+            serde_norway::Value::Sequence(items) => items.iter().all(encrypted),
+            serde_norway::Value::String(value) => {
+                value.starts_with("ENC[AES256_GCM,") && value.ends_with(']')
+            }
+            _ => false,
+        }
+    }
+    let Ok(document) = serde_norway::from_str::<serde_norway::Mapping>(text) else {
+        return false;
+    };
+    document
+        .get("sops")
+        .is_some_and(serde_norway::Value::is_mapping)
+        && document
+            .iter()
+            .filter(|(name, _)| name.as_str() != Some("sops"))
+            .all(|(_, node)| encrypted(node))
 }
 
 /// The age recipients a SOPS file names, as their `age1…` strings.
@@ -186,6 +220,47 @@ fn wrap(data_key: &[u8], recipient: &age::x25519::Recipient) -> Result<String, S
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn a_file_is_sealed_only_when_every_value_outside_sops_is_encrypted() {
+        let enc = "ENC[AES256_GCM,data:x,iv:y,tag:z,type:str]";
+        let sops = "sops:\n  version: 3.9.0\n";
+        for (text, want) in [
+            (format!("t:\n  token: {enc}\n{sops}"), true),
+            (format!("t: {enc}\nu:\n  - {enc}\n{sops}"), true),
+            (format!("t:\n  token: hunter2\n{sops}"), false),
+            (format!("t:\n  token: {enc}\n  other: plain\n{sops}"), false),
+            (format!("t:\n  port: 5432\n{sops}"), false),
+            ("x:\n  token: plain\nsops: {}\n".to_owned(), false),
+            (format!("t:\n  token: {enc}\nsops: 3\n"), false),
+            (format!("t:\n  token: {enc}\n"), false),
+            (
+                "t:\n  token: ENC[plain]\nsops:\n  version: 3\n".to_owned(),
+                false,
+            ),
+            ("not: [yaml".to_owned(), false),
+        ] {
+            assert_eq!(super::sealed(&text), want, "{text}");
+        }
+    }
+
+    #[test]
+    fn a_secrets_path_names_its_project_and_secret_and_nothing_else_does() {
+        assert_eq!(
+            parse_path(&path_of("hel-mobility", "github-token")),
+            Some(("hel-mobility", "github-token"))
+        );
+        for other in [
+            "projects/p/secrets/x.yaml",
+            "projects/p/secrets/.enc.yaml",
+            "projects/p/secrets/a/b.enc.yaml",
+            "projects/p/spaces/air/secrets/x.enc.yaml",
+            "projects//secrets/x.enc.yaml",
+            "users/secrets/x.enc.yaml",
+        ] {
+            assert_eq!(parse_path(other), None, "{other}");
+        }
+    }
+
     use super::*;
     use jc_core::envelope::SecretRef;
 
