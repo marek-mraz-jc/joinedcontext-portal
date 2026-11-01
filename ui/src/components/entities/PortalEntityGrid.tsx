@@ -158,6 +158,9 @@ export function gridLabels(t: (key: string, values?: Record<string, string>) => 
     matching: t("entityGrid.matching", { n: "{n}" }),
     noTotal: t("entityGrid.noTotal"),
     history: t("entityGrid.history"),
+    areaPick: t("entityGrid.areaPick"),
+    rowsPerPage: t("entityGrid.rowsPerPage"),
+    areaClear: t("entityGrid.areaClear"),
     historyLabels: {
       title: t("entityGrid.history"),
       window: {
@@ -488,6 +491,8 @@ export function PortalEntityGrid({ project, config, source, view, onGridState, e
     <EntityGrid
       // An enum value links to the model term it stands for, where that is a web address (G-R2GRID2-019).
       termHref={(meaning) => meaning}
+      // The project's own basemap (AP-67) under the grid's map, so an area is drawn on streets.
+      basemap={`/api/v1/projects/${encodeURIComponent(project)}/basemap/default/style.json`}
       {...rest}
       config={config}
       source={watched}

@@ -20,6 +20,8 @@ import { currentTokens } from "../sdk/tokens";
 import { SourceError } from "./source";
 import type { EntitySource, HistoryPoint, HistoryWindow } from "./source";
 import { csvCell } from "../artifact";
+import { historyKind, StateTimeline, valueText } from "./historyKinds";
+import type { HistoryKind } from "./historyKinds";
 // Its rules live beside the grid's: an application may show the history without the grid.
 import "./grid.css";
 
@@ -31,6 +33,9 @@ const HOURS: Record<Exclude<Window, "custom">, number> = { hour: 1, day: 24, wee
 
 /** The most points one read may ask for, whatever the window (EP-07). */
 export const MAX_POINTS = 1000;
+
+/** Sources that refused versions once: the next attribute starts on plain readings, no second 403. */
+const versionsRefusedBy = new WeakSet<object>();
 
 export interface HistoryLabels {
   title: string;
@@ -262,6 +267,10 @@ export interface EntityHistoryProps {
   labels?: Partial<HistoryLabels>;
   /** Offer the switch to every version of each value; the gateway decides who gets them (DM-114). */
   versions?: boolean;
+  /** Start on every version (an attribute's own view: who changed it and when, owner 2026-11-01). */
+  versionsFirst?: boolean;
+  /** A host's own picture of a kind of history, in place of the built-in one (null draws only the table). */
+  views?: Partial<Record<HistoryKind, (points: HistoryPoint[]) => React.ReactNode>>;
   onClose?: () => void;
   now?: () => Date;
 }
@@ -282,7 +291,8 @@ export function EntityHistory(props: EntityHistoryProps): React.JSX.Element {
   const [custom, setCustom] = useState({ from: "", to: "" });
   const [points, setPoints] = useState<HistoryPoint[] | null>(null);
   const [error, setError] = useState<{ text: string; retry: boolean } | null>(null);
-  const [allVersions, setAllVersions] = useState(false);
+  const [allVersions, setAllVersions] = useState(Boolean(props.versionsFirst) && !versionsRefusedBy.has(props.source));
+  const [versionsDenied, setVersionsDenied] = useState(versionsRefusedBy.has(props.source));
 
   const read = useCallback(async () => {
     if (!source.history) {
@@ -298,13 +308,19 @@ export function EntityHistory(props: EntityHistoryProps): React.JSX.Element {
       // A refusal names the missing right and offers no retry: reading again cannot change it.
       const text = err instanceof Error && err.message ? err.message : "";
       if (err instanceof SourceError && err.status === 403) {
-        const refused = allVersions ? labels.versionsRefused : text ? `${labels.refused} (${text})` : labels.refused;
-        setError({ text: refused, retry: false });
+        if (allVersions) {
+          // Versions refused: say so beside the switch and show the readings the role may read.
+          versionsRefusedBy.add(source);
+          setVersionsDenied(true);
+          setAllVersions(false);
+          return;
+        }
+        setError({ text: text ? `${labels.refused} (${text})` : labels.refused, retry: false });
       } else {
         setError({ text: text ? `${labels.error}: ${text}` : labels.error, retry: true });
       }
     }
-  }, [source, id, attr, choice, custom, maxPoints, now, allVersions, labels.error, labels.refused, labels.versionsRefused]);
+  }, [source, id, attr, choice, custom, maxPoints, now, allVersions, labels.error, labels.refused]);
 
   useEffect(() => {
     void read();
@@ -314,7 +330,13 @@ export function EntityHistory(props: EntityHistoryProps): React.JSX.Element {
   const digits = props.fractionDigits ?? 2;
   const { time, stamp, number } = useMemo(() => {
     const numbers = new Intl.NumberFormat(locale, { maximumFractionDigits: digits });
-    const clock = new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" });
+    // A window longer than a day names the day on the axis, or a week reads as one day's clock.
+    const clock = new Intl.DateTimeFormat(
+      locale,
+      choice === "hour" || choice === "day"
+        ? { hour: "2-digit", minute: "2-digit" }
+        : { day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" },
+    );
     const full = new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short" });
     return {
       time: (at: number) => clock.format(at),
@@ -324,14 +346,13 @@ export function EntityHistory(props: EntityHistoryProps): React.JSX.Element {
       },
       number: (value: number) => numbers.format(value),
     };
-  }, [locale, digits]);
+  }, [locale, digits, choice]);
   const heading = props.heading ?? `${labels.title}: ${attr}`;
   // The line follows the values that hold today: a replaced version is a row of the table only.
   const series = points ? numericSeries(points.filter((point) => !point.supersededAt)) : null;
-  const shown = (value: unknown): string => {
-    if (value === null || value === undefined) return "";
-    return typeof value === "number" ? number(value) : String(value);
-  };
+  const shown = (value: unknown): string => valueText(value, number);
+  const current = points ? points.filter((point) => !point.supersededAt) : [];
+  const kind = historyKind(current);
 
   return (
     <section className="jc-grid-history" aria-label={heading}>
@@ -360,10 +381,11 @@ export function EntityHistory(props: EntityHistoryProps): React.JSX.Element {
 
       {props.versions && (
         <label className="jc-grid-history-versions">
-          <input type="checkbox" checked={allVersions} onChange={(e) => setAllVersions(e.target.checked)} />
+          <input type="checkbox" checked={allVersions} disabled={versionsDenied} onChange={(e) => setAllVersions(e.target.checked)} />
           {labels.versions}
         </label>
       )}
+      {props.versions && versionsDenied && <p className="jc-grid-history-note">{labels.versionsRefused}</p>}
 
       {choice === "custom" && (
         <fieldset>
@@ -402,7 +424,13 @@ export function EntityHistory(props: EntityHistoryProps): React.JSX.Element {
       {points !== null && points.length > 0 && (
         <>
           {points.length >= maxPoints && <p className="jc-grid-history-cut">{labels.cut}</p>}
-          {series && <Chart numbers={series} label={heading} unit={unit} time={time} number={number} />}
+          {kind && props.views?.[kind] ? (
+            props.views[kind]!(current)
+          ) : kind === "number" ? (
+            series && <Chart numbers={series} label={heading} unit={unit} time={time} number={number} />
+          ) : kind === "boolean" || kind === "state" ? (
+            <StateTimeline points={current} label={heading} time={time} text={shown} now={(now?.() ?? new Date()).getTime()} />
+          ) : null}
           <table>
             <thead>
               <tr>

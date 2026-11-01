@@ -2749,7 +2749,12 @@
       "outcome": "Výsledok",
       "message": "Správa",
       "noId": "(bez id)",
-      "states": {"clean": "Bez chýb", "rejected": "Odmietnuté riadky", "failing": "Zlyhané riadky", "silent": "Nezapísal nič"},
+      "states": {
+        "clean": "Bez chýb",
+        "rejected": "Odmietnuté riadky",
+        "failing": "Zlyhané riadky",
+        "silent": "Nezapísal nič"
+      },
       "outcomes": {
         "sent": "Zapísaný",
         "rejected": "Odmietnutý",
@@ -4094,6 +4099,36 @@
     "download": "Stiahnuť"
   },
   "models": {
+    "newDialog": {
+      "title": "Nový dátový model",
+      "description": "Pomenujte model. Editor sa otvorí prázdny; typy doň pridáte ručne, zo Smart Data Models alebo z tabuľky.",
+      "create": "Vytvoriť model"
+    },
+    "structures": "Štruktúry hodnôt ({count})",
+    "structuresHint": "Tvar hodnoty štruktúrovaného poľa, ako jeho časti L1, L2, L3; nie typy entít.",
+    "inlinePart": "Časť štruktúrovanej hodnoty, prevzatá zo Smart Data Model.",
+    "addFrom": {
+      "sdm": "Importovať zo Smart Data Models",
+      "sdmHint": "Skopíruje zverejnený typ s jeho poľami.",
+      "file": "Z tabuľky",
+      "fileHint": "Excel, CSV alebo JSON: zo stĺpcov sa stanú polia.",
+      "fileTitle": "Typy z tabuľky"
+    },
+    "addClassNameHint": "Alebo začnite prázdny typ: názov z písmen a číslic bez medzier, ako Station.",
+    "nameFirst": "Najprv zadajte názov.",
+    "addWhat": "Čo pole obsahuje?",
+    "addKind": {
+      "Property": "Hodnotu",
+      "Relationship": "Odkaz na iný typ",
+      "GeoProperty": "Miesto",
+      "LanguageProperty": "Text vo viacerých jazykoch"
+    },
+    "addKindHint": {
+      "Property": "Číslo, text, dátum, áno/nie alebo hodnotu zo zoznamu, ako teplotu.",
+      "Relationship": "Ukazuje na entitu iného typu, ako stanicu, ku ktorej meranie patrí.",
+      "GeoProperty": "Bod, čiaru alebo plochu na mape, ako polohu.",
+      "LanguageProperty": "Jeden text pre každý jazyk, ako názov po fínsky a anglicky."
+    },
     "share": {
       "action": "Zdieľať s organizáciou",
       "title": "Zdieľať {name} s organizáciou?",
@@ -4456,10 +4491,7 @@
       "modelLead": "Čo tento model opisuje a čo na ňom stavia.",
       "listCaption": "Dátové modely projektu",
       "new": {
-        "menu": "Nový dátový model",
-        "blank": "Prázdny model",
-        "file": "Zo súboru s dátami (CSV, Excel, JSON, PDF)",
-        "sdm": "Zo Smart Data Models"
+        "menu": "Nový dátový model"
       },
       "emptyTitle": "Zatiaľ žiadny dátový model",
       "emptyLead": "Vytvorte ho pre priestor: začnite prázdny, odvoďte ho zo súboru alebo importujte Smart Data Model.",
@@ -4536,15 +4568,6 @@
       "addType": "Pridať typ",
       "classesMore": "+{count} ďalších",
       "classCount": "Počet typov"
-    },
-    "hints": {
-      "title": "Tento model zatiaľ nemá typ. Tri kroky na začiatok:",
-      "sdm": "Alebo importujte Smart Data Model: jeho triedy, polia a enumy prídu už napísané.",
-      "sdmAction": "Importovať Smart Data Model",
-      "klass": "Pridajte typ: pomenujte ho v poli pod Typmi, napríklad School.",
-      "klassAction": "Pomenovať prvý typ",
-      "relation": "Pridajte vzťah: pod Vzťahmi vyberte cieľovú triedu a kardinalitu, napríklad jedna School má veľa entít User.",
-      "field": "Pridajte pole: pri otvorenom type ho pomenujte pod Poľami, napríklad name."
     },
     "rangeBasic": "Hodnoty",
     "rangeEnums": "Enumy",
@@ -4696,7 +4719,14 @@
       "newHint": "Hodnota, ktorú entity ukladajú, po pridaní pevná, napríklad active.",
       "unused": "Tento číselník zatiaľ nepoužíva žiadne pole: vyberte ho ako typ hodnoty poľa.",
       "usedBy": "Používa {fields}"
-    }
+    },
+    "rules": "Pravidlá",
+    "optional": "nepovinné",
+    "deprecatedBadge": "Zastarané",
+    "slotName": "Názov",
+    "slotNameHint": "Ako temperature alebo openingHours: písmená a číslice, bez medzier.",
+    "slotNameFirst": "Pomenujte pole a pridajte ho; typ, druh, jednotka a pravidlá nasledujú v tomto formulári.",
+    "slotNameFixed": "Pole si ponechá svoj názov: používa ho každá uložená hodnota aj dáta partnerov."
   },
   "apps": {
     "title": "Aplikácie",
@@ -5495,6 +5525,9 @@
     "matching": "Vyhovuje: {n}",
     "noTotal": "endpoint pri tejto odpovedi neuvádza celkový počet",
     "history": "História",
+    "areaPick": "Vybrať oblasť na mape",
+    "rowsPerPage": "Riadkov na stranu",
+    "areaClear": "Zrušiť oblasť",
     "historyWindow": {
       "hour": "Poslednú hodinu",
       "day": "Posledný deň",
@@ -10925,7 +10958,14 @@
     "readComes": "Čítanie prináša predvoľba.",
     "verbsNone": "Zaškrtnite predvoľbu, ktorá navrhuje zmeny, napr. Kontext alebo Pipelines, a vyberte, čo môže meniť.",
     "verbsGreyed": "Sivé slovesá najprv musí schváliť vaša organizácia; požiadajte správcu, aby ich povolil.",
-    "verb": {"read": "čítať", "create": "vytvoriť", "edit": "upraviť", "delete": "zmazať", "run": "spustiť", "propose": "vytvoriť, upraviť, zmazať"},
+    "verb": {
+      "read": "čítať",
+      "create": "vytvoriť",
+      "edit": "upraviť",
+      "delete": "zmazať",
+      "run": "spustiť",
+      "propose": "vytvoriť, upraviť, zmazať"
+    },
     "binds": "použiť ho môže len tento klient",
     "clientRefused": "politika vašej organizácie ho nedovoľuje",
     "intendedFor": "hovorí, pre koho je; uviesť ho môžu aj iné lokálne programy",
@@ -11145,6 +11185,26 @@
       "action": "Zobraziť YAML",
       "title": "{name} ako YAML",
       "lead": "Manifest tak, ako ho drží repozitár projektu, len na čítanie. Tajomstvá sú len odkazom (secretRef); hodnota pod kľúčom, ktorý vyzerá ako tajomstvo, je skrytá."
+    }
+  },
+  "settingsPage": {
+    "title": "Nastavenia",
+    "description": "Vaše vlastné nastavenia, nastavenia projektu a pre administrátora aj nastavenia platformy.",
+    "projectSettings": "Nastavenia projektu {project}",
+    "scope": {
+      "personal": "Osobné",
+      "project": "Projekt",
+      "platform": "Platforma"
+    },
+    "scopeHint": {
+      "personal": "Vidíte a používate ich len vy.",
+      "project": "Spoločné pre všetkých v projekte; zmeny idú cez schválenie.",
+      "platform": "Celá platforma: projekty, ľudia a prihlásenie."
+    },
+    "hint": {
+      "aiConnectors": "Claude a iní asistenti, ktorí čítajú dáta vaším menom",
+      "project": "priestory, členovia, tajomstvá",
+      "administration": "pre administrátorov platformy"
     }
   }
 }

@@ -145,13 +145,11 @@ describe("the Organization page's addresses (T-2605)", () => {
     }
   });
 
-  it("names the signed-in person at the bottom, with sign-out and no second organization link", async () => {
+  it("keeps the signed-in person in the header only, not a second copy at the sidebar's foot (owner 2026-11-01)", async () => {
     renderAt("/organization/members");
     const nav = await screen.findByRole("navigation", { name: "Main navigation" });
-    const profile = await within(nav).findByRole("region", { name: en.nav.profile });
-    expect(within(profile).getByText(IDENTITY.username)).toBeInTheDocument();
-    expect(within(profile).queryByRole("link", { name: en.nav.organization })).toBeNull();
-    expect(within(profile).getByRole("button", { name: en.auth.signOut })).toBeEnabled();
+    expect(within(nav).queryByRole("region", { name: en.nav.profile })).toBeNull();
+    expect(within(nav).queryByRole("button", { name: en.auth.signOut })).toBeNull();
   });
 
   it("opens a tab's create form as a page of its own, the assistant's `…/new` address", async () => {

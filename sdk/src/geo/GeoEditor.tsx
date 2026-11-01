@@ -291,6 +291,7 @@ export function GeoEditor({
         canvasContextAttributes: { preserveDrawingBuffer: true },
       });
       map.current = instance;
+      setMapReady(true);
       // For a person debugging a screenshot and for the browser check, which needs `project` to
       // know where a vertex sits on screen: the map instance, as `MapView` also exposes it.
       (window as unknown as { kitGeoMap?: MapLibreMap }).kitGeoMap = instance;
@@ -341,6 +342,7 @@ export function GeoEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const [mapReady, setMapReady] = useState(false);
   const fitted = useRef(false);
   useEffect(() => {
     const bounds = boundsOf([
@@ -351,7 +353,7 @@ export function GeoEditor({
       fitted.current = true;
       map.current.fitBounds(bounds, { padding: 32, maxZoom: 16, duration: 0 });
     }
-  }, [value, snapTo]);
+  }, [value, snapTo, mapReady]);
 
   const choose = (name: string): void => {
     setMode(name);

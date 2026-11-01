@@ -52,6 +52,7 @@ const ConversationsPage = lazy(() =>
   import("./pages/knowledge/ConversationsPage").then((module) => ({ default: module.ConversationsPage })),
 );
 const AiConnectorsPage = lazy(() => import("./pages/mcp/AiConnectorsPage").then((module) => ({ default: module.AiConnectorsPage })));
+const SettingsPage = lazy(() => import("./pages/settings/SettingsPage").then((module) => ({ default: module.SettingsPage })));
 const McpServersPage = lazy(() => import("./pages/mcp/McpServersPage").then((module) => ({ default: module.McpServersPage })));
 const CataloguePage = lazy(() => import("./pages/catalogue/CataloguePage").then((module) => ({ default: module.CataloguePage })));
 const DatasetPage = lazy(() => import("./pages/catalogue/DatasetPage").then((module) => ({ default: module.DatasetPage })));
@@ -1051,6 +1052,24 @@ const aiConnectorsRoute = createRoute({
   },
 });
 
+/** Every setting a person reaches, personal, project and platform (owner 2026-11-01). */
+const settingsRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/settings",
+  component: function SettingsRoute() {
+    const projects = useProjects();
+    const first = usePreferredProject();
+    if (!first) {
+      return <NoProject projects={projects} />;
+    }
+    return (
+      <Shell project={first}>
+        <SettingsPage project={first} />
+      </Shell>
+    );
+  },
+});
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** The assistant's stored conversations, for its administrator (API/01 §34, T-4670). */
@@ -1447,6 +1466,7 @@ export const routeTree = rootRoute.addChildren([
     mcpServersRoute,
     connectorsRoute,
     aiConnectorsRoute,
+    settingsRoute,
     importRoute,
     federationRoute,
     spaceCompleteRoute,

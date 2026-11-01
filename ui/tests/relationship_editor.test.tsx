@@ -53,6 +53,13 @@ function renderEditor(initial = SOURCE) {
     source: () => (screen.getByLabelText("source") as HTMLTextAreaElement).value,
     user: userEvent.setup(),
     form: () => screen.getByRole("form", { name: "Add a relationship from School" }),
+    // A link is added through Add field (owner 2026-11-01, T-6344): what the field holds first, and a
+    // link takes the relationship form in the same dialog.
+    openForm: async () => {
+      await userEvent.click(screen.getByRole("button", { name: i18n.t("models.addSlot") }));
+      await userEvent.click(screen.getByRole("radio", { name: new RegExp(i18n.t("models.addKind.Relationship")) }));
+      return screen.getByRole("form", { name: i18n.t("models.relationships.add.title", { owner: "School" }) });
+    },
   };
 }
 
@@ -69,8 +76,8 @@ describe("relationship editor", () => {
   });
 
   it.each(CARDINALITIES)("adds a %s relationship with both ends from the form", async (cardinality) => {
-    const { source, user, form } = renderEditor();
-    const add = within(form());
+    const { source, user, openForm } = renderEditor();
+    const add = within(await openForm());
 
     await user.click(add.getByRole("radio", { name: NAMES[cardinality] }));
     await user.selectOptions(add.getByLabelText("Target class"), "User");
@@ -83,16 +90,16 @@ describe("relationship editor", () => {
     const [relationship] = relationships(model);
     expect(relationship).toMatchObject({ cardinality, source: { class: "School" }, target: { class: "User" }, onDelete: "restrict" });
     expect(model.classes.find((klass) => klass.name === "User")?.slots).toEqual([relationship.target.slot]);
-    // The row says it as a sentence, and the form is empty again.
+    // The row says it as a sentence, and the dialog closed.
     const table = screen.getByRole("table", { name: "Relationships" });
     expect(within(table).getByRole("cell", { name: relationship.source.slot })).toBeInTheDocument();
-    expect(add.getByLabelText("Target class")).toHaveValue("");
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("builds School, User and Course with every cardinality", async () => {
-    const { source, user, form } = renderEditor();
+    const { source, user, openForm } = renderEditor();
     const build = async (cardinality: Cardinality, target: string, name: string, inverse: string) => {
-      const add = within(form());
+      const add = within(await openForm());
       await user.click(add.getByRole("radio", { name: NAMES[cardinality] }));
       await user.selectOptions(add.getByLabelText("Target class"), target);
       await user.clear(add.getByLabelText("Name on School"));
@@ -117,8 +124,8 @@ describe("relationship editor", () => {
   });
 
   it("requires the inverse: an empty one keeps Add disabled and says why", async () => {
-    const { source, user, form } = renderEditor();
-    const add = within(form());
+    const { source, user, openForm } = renderEditor();
+    const add = within(await openForm());
     await user.selectOptions(add.getByLabelText("Target class"), "User");
     await user.clear(add.getByLabelText(/^Inverse on User/));
 
@@ -128,8 +135,8 @@ describe("relationship editor", () => {
   });
 
   it("keeps Add disabled while the form is invalid", async () => {
-    const { user, form } = renderEditor();
-    const add = within(form());
+    const { user, openForm } = renderEditor();
+    const add = within(await openForm());
     const button = () => add.getByRole("button", { name: "Add relationship" });
     // No target yet.
     expect(button()).toHaveAttribute("aria-disabled", "true");
@@ -155,8 +162,8 @@ describe("relationship editor", () => {
   });
 
   it("lets only the stored end be required", async () => {
-    const { source, user, form } = renderEditor();
-    const add = within(form());
+    const { source, user, openForm } = renderEditor();
+    const add = within(await openForm());
     await user.click(add.getByRole("radio", { name: "One to many" }));
     await user.selectOptions(add.getByLabelText("Target class"), "User");
 
@@ -174,8 +181,8 @@ describe("relationship editor", () => {
   });
 
   it("asks before removing, and removes both ends", async () => {
-    const { source, user, form } = renderEditor();
-    const add = within(form());
+    const { source, user, openForm } = renderEditor();
+    const add = within(await openForm());
     await user.selectOptions(add.getByLabelText("Target class"), "User");
     await user.click(add.getByRole("button", { name: "Add relationship" }));
     const withRelationship = source();
@@ -193,8 +200,8 @@ describe("relationship editor", () => {
   });
 
   it("changes the cardinality and the delete rule from the row", async () => {
-    const { source, user, form } = renderEditor();
-    const add = within(form());
+    const { source, user, openForm } = renderEditor();
+    const add = within(await openForm());
     await user.selectOptions(add.getByLabelText("Target class"), "User");
     await user.click(add.getByRole("button", { name: "Add relationship" }));
 
@@ -212,6 +219,8 @@ describe("relationship editor", () => {
 
     await user.selectOptions(range, "User");
     expect(source()).toBe(SOURCE);
+    // The field's dialog closes so the form under the page is the one in view.
+    expect(screen.queryByRole("dialog")).toBeNull();
     expect(within(form()).getByLabelText("Target class")).toHaveValue("User");
     expect(within(form()).getByLabelText("Name on School")).toHaveValue("users");
   });
@@ -245,8 +254,8 @@ describe("relationship editor", () => {
 
   it.each(SUPPORTED_LOCALES)("reads in %s with no raw key and no axe violation", async (locale) => {
     await i18n.changeLanguage(locale);
-    const { view, user } = renderEditor();
-    const add = within(screen.getAllByRole("form")[0]);
+    const { view, user, openForm } = renderEditor();
+    const add = within(await openForm());
     await user.selectOptions(add.getAllByRole("combobox")[0], "User");
     await user.click(add.getAllByRole("button").at(-1) as HTMLElement);
     expectNoRawKeys(view.container);

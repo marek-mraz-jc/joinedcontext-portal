@@ -136,39 +136,43 @@ describe("the list of data models", () => {
     expect(within(table).getAllByRole("link").map((link) => link.textContent)).toEqual(["events", "culture"]);
   });
 
-  it("offers the three ways to a new model when there is none", async () => {
+  it("opens the new model's window straight from New when there is none", async () => {
     await renderRoute({ path: "/projects/helsinki/models", answer: (path) => (path.endsWith("/datamodels") ? jsonResponse(list([])) : answer(path)) });
     expect(await screen.findByText(en.models.page.emptyTitle)).toBeInTheDocument();
-    // One New button; its menu holds the three ways (owner 2026-10-31).
-    await userEvent.click(screen.getAllByRole("button", { name: en.models.page.new.menu })[0]);
-    for (const way of ["blank", "file", "sdm"] as const) {
-      expect(await screen.findByRole("menuitem", { name: en.models.page.new[way] })).toHaveAttribute("href", `/projects/helsinki/models?new=${way}`);
-    }
+    // No menu first (owner 2026-11-01): New goes to the window that names the model.
+    const links = screen.getAllByRole("link", { name: en.models.page.new.menu });
+    for (const link of links) expect(link).toHaveAttribute("href", "/projects/helsinki/models?new=file");
+    expect(screen.queryByRole("menuitem")).toBeNull();
   });
 
   it("gives a person who may not propose a model the reason instead of the way", async () => {
     await renderRoute({ path: "/projects/helsinki/models", answer, permissions: READER });
     await screen.findByRole("table", { name: en.models.page.listCaption });
     await waitFor(() => expect(screen.getByRole("button", { name: en.models.page.new.menu })).toHaveAttribute("aria-disabled", "true"));
-    expect(screen.queryByRole("menuitem", { name: en.models.page.new.blank })).toBeNull();
   });
 
-  it("opens the editor when the address asks for one", async () => {
+  it("opens the editor when the address asks for one, after the new model's name", async () => {
     await renderRoute({ path: "/projects/helsinki/models?new=blank", answer });
+    const dialog = await screen.findByRole("dialog", { name: en.models.newDialog.title });
+    await userEvent.type(within(dialog).getByRole("textbox", { name: en.models.identity.name }), "trams");
+    await userEvent.click(within(dialog).getByRole("button", { name: en.models.newDialog.create }));
     expect(await screen.findByRole("tab", { name: en.models.view.structure, selected: true })).toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: en.models.importDialog.title })).toBeNull();
     expect(screen.queryByRole("table", { name: en.models.page.listCaption })).toBeNull();
   });
 
-  it("starts a new model in the import dialog, and closing it leaves the editor (T-6106)", async () => {
+  // New data model is one window for the name (owner 2026-11-01, T-6344); types then come in from
+  // the editor's Add type, a Smart Data Model among them.
+  it("names a new model in its window, then brings a Smart Data Model in from Add type", async () => {
     await renderRoute({ path: "/projects/helsinki/models?new=sdm", answer });
-    const dialog = await screen.findByRole("dialog", { name: en.models.importDialog.title });
-    expect(screen.queryByRole("tab", { name: en.models.view.import })).toBeNull();
-    await userEvent.click(within(dialog).getByRole("button", { name: en.models.importDialog.close }));
-    expect(screen.queryByRole("dialog", { name: en.models.importDialog.title })).toBeNull();
+    const dialog = await screen.findByRole("dialog", { name: en.models.newDialog.title });
+    const create = within(dialog).getByRole("button", { name: en.models.newDialog.create });
+    expect(create).toHaveAttribute("aria-disabled", "true");
+    await userEvent.type(within(dialog).getByRole("textbox", { name: en.models.identity.name }), "trams");
+    await userEvent.click(create);
+    expect(screen.queryByRole("dialog", { name: en.models.newDialog.title })).toBeNull();
     expect(await screen.findByRole("tab", { name: en.models.view.structure, selected: true })).toBeInTheDocument();
-    // The rail's import button opens it again.
-    await userEvent.click(screen.getAllByRole("button", { name: en.models.hints.sdmAction })[0]);
+    await userEvent.click(screen.getByRole("button", { name: en.models.addClass }));
+    await userEvent.click(within(screen.getByRole("dialog", { name: en.models.addClass })).getByRole("button", { name: new RegExp(en.models.addFrom.sdm) }));
     expect(await screen.findByRole("dialog", { name: en.models.importDialog.title })).toBeInTheDocument();
   });
 });
