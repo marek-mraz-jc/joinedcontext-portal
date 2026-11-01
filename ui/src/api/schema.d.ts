@@ -10445,6 +10445,17 @@ export interface components {
         };
         /** @description One project the caller reads, with the objects of it they read, in name order. */
         ProjectReach: {
+            /**
+             * @description Whether the caller's ceiling lets a connector reach this project at all; Create refuses
+             *     an item of a project with `false`.
+             */
+            allowed: boolean;
+            /**
+             * @description The Endpoints of `endpoints` the ceiling lets an item name when its policy lists
+             *     Endpoints: then the whole project, its spaces and pipelines are refused. Absent when every
+             *     object of an allowed project may be named.
+             */
+            allowedEndpoints?: string[] | null;
             endpoints: string[];
             pipelines: string[];
             project: string;

@@ -10831,6 +10831,8 @@
     "loadingOptions": "Loading what you may give",
     "needsApproval": "needs your organization's approval",
     "aboveCeiling": "Your organization does not let a connector carry this preset yet.",
+    "projectAboveCeiling": "Your organization does not let a connector reach this project yet.",
+    "endpointsOnly": "Your organization lets a connector reach only some Endpoints of this project.",
     "binds": "only this client can use it",
     "intendedFor": "says whom it is for; other local programs can name it too",
     "state": {
