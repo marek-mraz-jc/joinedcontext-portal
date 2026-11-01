@@ -19,7 +19,7 @@ import { usePermissions } from "../../api/permissions";
 import { CodeBlock, Alert, Button, Card, Field, FilePicker, Input, PageHeader, RadioGroup } from "../../components/ui";
 import { CITY_SUBJECTS, SAMPLE_BYTES, modelsOf, rankModels, sampleOf, uploadInput } from "./csvUpload";
 import type { SdmMatch } from "./csvUpload";
-import { createInBatches, decodeAs, importSlotsOf, MAX_ROWS, readTable, rejectedCsv, suggestMapping, toEntities, unreadableText } from "./importRows";
+import { createInBatches, decodeAs, importSlotsOf, MAX_ROWS, readTable, rejectedCsv, suggestMapping, tableCsv, toEntities, unreadableText } from "./importRows";
 import type { Rejected, Table } from "./importRows";
 
 /** How many entities the preview shows as NGSI-LD before they are written. */
@@ -75,7 +75,12 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
       }
       // The sample is read in the encoding the table was, or a Windows-1250 header reaches the
       // model inference garbled and its slots no longer match the columns (F-UI3-013).
-      const sample = sampleOf(decodeAs(new Uint8Array(await file.slice(0, SAMPLE_BYTES).arrayBuffer()), table.detected?.encoding));
+      // A workbook is a ZIP: its sample is its first sheet as CSV, proposed under a .csv name
+      // while the page keeps naming the file the person chose (JC1-07).
+      const workbook = file.name.toLowerCase().endsWith(".xlsx");
+      const sample = workbook
+        ? sampleOf(tableCsv(table))
+        : sampleOf(decodeAs(new Uint8Array(await file.slice(0, SAMPLE_BYTES).arrayBuffer()), table.detected?.encoding));
       // The catalogue is a help, not a gate: unreachable, the file still gets its own model.
       let matches: SdmMatch[] = [];
       try {
@@ -110,7 +115,7 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
       const answer = await callOperation(
         project,
         "jc_space_complete",
-        uploadInput({ space: space.trim(), fileName: read.name, sample: read.sample, typeName, linkml }),
+        uploadInput({ space: space.trim(), fileName: read.name.replace(/\.xlsx$/i, ".csv"), sample: read.sample, typeName, linkml }),
       );
       if (!answer.ok) {
         setProblem(answer.reason ?? `HTTP ${answer.status}`);
@@ -165,7 +170,7 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
         </Alert>
       ) : null}
       <Card className="flex flex-col gap-4">
-        <FilePicker label={t("spaces.upload.choose")} accept=".csv,.tsv,.txt" onFile={(file) => void choose(file)}>
+        <FilePicker label={t("spaces.upload.choose")} accept=".csv,.tsv,.txt,.xlsx" onFile={(file) => void choose(file)}>
           <span className="inline-flex items-center rounded-md border border-dashed border-border px-4 py-3 text-body">
             {t("spaces.upload.choose")}
           </span>

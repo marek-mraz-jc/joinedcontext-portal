@@ -281,6 +281,12 @@ impl Driver {
         last: bool,
     ) -> Result<Worked, String> {
         const TOOL: &str = "change_resource";
+        // A model is drawn from the editor's operations, never from a manifest patch (DM-13).
+        if info.kind == "DataModel" {
+            return self
+                .create_model(params, answer, input, started, last)
+                .await;
+        }
         let name = params.name.trim();
         let home = self.home(info.kind);
         let drafted = if self.state.mirror.get(&home, info.kind, name).is_some() {
@@ -726,6 +732,136 @@ impl Driver {
         )
         .await?;
         Ok(Worked::Done(prose))
+    }
+
+    /// A new data model (AG-45, DM-13): the editor's operations applied to the model the editor
+    /// starts with, put through the source's check, which compiles it; the draft is kept in the
+    /// shape the Models page keeps its own (`spec.linkml` holds the source) and the page opens on
+    /// it, so the person reads and saves it in the editor. What does not check goes back.
+    pub(super) async fn create_model(
+        &self,
+        params: &change::ChangeResource,
+        answer: &str,
+        input: Value,
+        started: std::time::Instant,
+        last: bool,
+    ) -> Result<Worked, String> {
+        const TOOL: &str = "change_resource";
+        let name = params.name.trim();
+        let home = self.home("DataModel");
+        let operations = params.operations.as_deref().unwrap_or_default();
+        let drafted = self.drafted_model(&home, name, operations).await;
+        let source = match drafted {
+            Ok(source) => source,
+            Err(reason) => {
+                self.event("tool", failed_step(TOOL, started, &input, &reason))
+                    .await?;
+                return self
+                    .again(
+                        last,
+                        format!("error: {reason}"),
+                        format!("The new data model could not be drafted: {reason}"),
+                    )
+                    .await;
+            }
+        };
+        let workspace = self.active_workspace().await;
+        let manifest = json!({
+            "kind": "DataModel",
+            "metadata": { "name": name },
+            "spec": { "linkml": source },
+        });
+        if let Err(err) = self
+            .state
+            .drafts
+            .put_in(
+                workspace.as_deref(),
+                &home,
+                "DataModel",
+                name,
+                manifest,
+                None,
+                &self.created_by,
+                "assistant",
+            )
+            .await
+        {
+            let reason = format!("the draft could not be kept: {err}");
+            self.event("tool", failed_step(TOOL, started, &input, &reason))
+                .await?;
+            return Ok(Worked::Done(format!(
+                "The new data model '{name}' could not be kept: {err}"
+            )));
+        }
+        self.event(
+            "tool",
+            json!({
+                "tool": TOOL,
+                "status": "ok",
+                "durationMs": u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+                "input": input,
+                "output": { "kind": "DataModel", "name": name, "checked": true, "create": true },
+            }),
+        )
+        .await?;
+        let mut prose = share::prose_of(answer);
+        if prose.is_empty() {
+            prose =
+                format!("Opened the new data model '{name}' in the editor; review it and save it.");
+        }
+        self.thought(&prose).await?;
+        let route = within(
+            change::create_route(&self.project, "DataModel", "datamodels"),
+            workspace.as_deref(),
+        );
+        self.event(
+            "navigate",
+            json!({ "route": route, "draft": { "kind": "DataModel", "name": name } }),
+        )
+        .await?;
+        Ok(Worked::Done(prose))
+    }
+
+    /// The LinkML source of a new model `name` built from `operations`, checked as a save checks
+    /// it; `Err` says what the model must change.
+    async fn drafted_model(
+        &self,
+        home: &str,
+        name: &str,
+        operations: &[model_change::Operation],
+    ) -> Result<String, String> {
+        if !crate::resource::is_dns1123(name) {
+            return Err(format!(
+                "'{name}' is no data model name: lower-case letters, digits and '-', such as 'bike-lanes'"
+            ));
+        }
+        if self.state.mirror.get(home, "DataModel", name).is_some() {
+            return Err(format!(
+                "DataModel '{name}' already exists; change it with operations instead of creating it"
+            ));
+        }
+        if operations.is_empty() {
+            return Err(
+                "a new data model carries its classes and attributes as operations: addClass \
+                 (is_a Entity) per entity type, addSlot with its class and range per attribute"
+                    .to_owned(),
+            );
+        }
+        let domain = crate::api::assistant::org_domain(&self.state, &self.project);
+        let model = model_change::apply(&model_change::blank(&domain, name), operations)?;
+        let source = serde_norway::to_string(&model).map_err(|err| err.to_string())?;
+        crate::api::datamodels::check_source(
+            &self.state,
+            &self.identity,
+            home,
+            name,
+            &Value::Null,
+            &source,
+            None,
+        )
+        .await
+        .map_err(|err| format!("the platform's check refuses the model: {err}"))?;
+        Ok(source)
     }
 
     /// A role for people or a group (AG-77, PF-52): the binding named and checked like any
@@ -1964,6 +2100,159 @@ mod new_dashboard_tests {
             .await
             .is_ok());
         assert!(forge
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .is_empty());
+    }
+}
+
+#[cfg(test)]
+mod model_create_tests {
+    //! JC1-05: the Create a data model path drafts a new DataModel and opens its editor.
+
+    use super::*;
+    use crate::agents::change::ChangeResource;
+    use crate::agents::paths::Path;
+    use crate::state::AppState;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    /// A steward of `helsinki` and a Model Tools service that compiles every source it is sent.
+    async fn steward() -> (Driver, AppState, MockServer) {
+        let tools = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/generate"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "errors": [] })))
+            .mount(&tools)
+            .await;
+        let mut config = crate::config::Config::for_tests();
+        config.model_tools_url = Some(tools.uri());
+        let state = AppState::new(config, None);
+        let mut driver = Driver::for_tests(state.clone(), "helsinki");
+        driver.identity.roles = vec![state.config.bootstrap_admins.clone()];
+        // A profile granting the proposal, so the person's own rights decide (AG-70).
+        let operations: Vec<&str> = crate::ops::registry().iter().map(|op| op.name).collect();
+        driver.access = crate::agents::access::Access::from_spec(&json!({ "access": {
+            "operations": operations,
+            "kinds": [{ "kind": "DataModel", "verbs": ["read", "propose"] }],
+        } }));
+        *driver.path.lock().unwrap_or_else(PoisonError::into_inner) = Some(Path::CreateDataModel);
+        (driver, state, tools)
+    }
+
+    fn lanes(operations: Value) -> ChangeResource {
+        ChangeResource {
+            kind: "DataModel".into(),
+            name: "bike-lanes".into(),
+            create: true,
+            operations: serde_json::from_value(operations).expect("operations"),
+            ..Default::default()
+        }
+    }
+
+    async fn logged(state: &AppState, kind: &str) -> Vec<Value> {
+        state
+            .agents
+            .events_since("test-run", 0)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|event| event.kind == kind)
+            .map(|event| event.payload)
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn a_new_data_model_is_drafted_and_its_editor_opens_on_the_draft() {
+        let (driver, state, tools) = steward().await;
+        let worked = driver
+            .change_resource(
+                Ok(lanes(json!([
+                    { "op": "addClass", "name": "BikeLane", "is_a": "Entity" },
+                    { "op": "addSlot", "name": "widthMeters", "class": "BikeLane", "range": "float" },
+                ]))),
+                "Drafting the bike lanes model.",
+                true,
+            )
+            .await
+            .expect("worked");
+        assert!(matches!(worked, Worked::Done(_)));
+        let draft = state
+            .drafts
+            .get("helsinki", "DataModel", "bike-lanes")
+            .await
+            .expect("read")
+            .expect("a draft is kept");
+        let source = draft.manifest["spec"]["linkml"]
+            .as_str()
+            .expect("the source");
+        let model: Value = serde_norway::from_str(source).expect("yaml");
+        assert_eq!(model["name"], "bike-lanes");
+        assert_eq!(model["classes"]["BikeLane"]["is_a"], "Entity");
+        assert!(source.contains("widthMeters"), "{source}");
+        let opened = logged(&state, "navigate").await;
+        assert_eq!(opened.len(), 1, "{opened:?}");
+        assert_eq!(opened[0]["route"], "/projects/helsinki/models");
+        assert_eq!(
+            opened[0]["draft"],
+            json!({ "kind": "DataModel", "name": "bike-lanes" })
+        );
+        let sent = tools.received_requests().await.unwrap_or_default();
+        assert_eq!(
+            sent.len(),
+            1,
+            "the source is compiled once before the editor opens"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_model_without_operations_or_with_a_bad_name_goes_back_and_keeps_nothing() {
+        let (driver, state, _tools) = steward().await;
+        for (params, says) in [
+            (lanes(json!([])), "operations"),
+            (
+                ChangeResource {
+                    name: "Bike Lanes".into(),
+                    ..lanes(json!([{ "op": "addClass", "name": "BikeLane" }]))
+                },
+                "no data model name",
+            ),
+        ] {
+            driver
+                .change_resource(Ok(params), "", false)
+                .await
+                .expect("worked");
+            let failed = logged(&state, "tool").await;
+            let error = failed
+                .last()
+                .and_then(|e| e["error"].as_str())
+                .unwrap_or_default();
+            assert!(error.contains(says), "{error}");
+        }
+        assert!(logged(&state, "navigate").await.is_empty());
+        assert!(state
+            .drafts
+            .get("helsinki", "DataModel", "bike-lanes")
+            .await
+            .expect("read")
+            .is_none());
+    }
+
+    #[tokio::test]
+    async fn a_person_who_may_not_propose_a_model_is_refused_before_anything_is_drafted() {
+        let (mut driver, state, tools) = steward().await;
+        driver.identity.roles.clear();
+        driver
+            .change_resource(
+                Ok(lanes(json!([{ "op": "addClass", "name": "BikeLane" }]))),
+                "",
+                true,
+            )
+            .await
+            .expect("worked");
+        assert!(logged(&state, "navigate").await.is_empty());
+        assert!(tools
             .received_requests()
             .await
             .unwrap_or_default()
