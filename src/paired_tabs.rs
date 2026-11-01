@@ -100,7 +100,7 @@ impl PairedTabs {
     /// The actions of `tab`, when it is the connector's paired tab of this person's session.
     /// The stream ends when the pairing does (disconnect, a newer tab, the session's end). A
     /// listen of the same session on a refreshed token (`expires_at` later) renews the pairing,
-    /// within [`RENEW_GRACE`] of its end.
+    /// within `RENEW_GRACE` seconds of its end.
     pub fn listen(
         &self,
         connector: &str,
