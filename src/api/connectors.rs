@@ -1294,8 +1294,11 @@ mod tests {
         let ok = within_own_rights(&state, &petra, &edits);
         assert!(ok.is_ok(), "{ok:?}");
         // Delete on Endpoint, ticked or carried by `propose`: Petra holds no delete.
-        for verbs in [json!(["read", "delete"]), json!(["propose"])] {
-            let deletes = with("deletes", json!([{ "kind": "Endpoint", "verbs": verbs }])).await;
+        for (name, verbs) in [
+            ("ticks-delete", json!(["read", "delete"])),
+            ("ticks-propose", json!(["propose"])),
+        ] {
+            let deletes = with(name, json!([{ "kind": "Endpoint", "verbs": verbs }])).await;
             match within_own_rights(&state, &petra, &deletes) {
                 Err(ApiError::Denied(why)) => {
                     assert!(why.contains("Delete on Endpoint"), "{why}")
