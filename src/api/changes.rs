@@ -3434,6 +3434,13 @@ mod tests {
             .mount(&server)
             .await;
         Mock::given(method("GET"))
+            .and(wiremock::matchers::path_regex("/branches/"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "commit": { "id": "head-7" } })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
             .and(wiremock::matchers::path_regex("/git/trees/"))
             .respond_with(ResponseTemplate::new(200).set_body_json(json!({
                 "sha": "tree-1",
