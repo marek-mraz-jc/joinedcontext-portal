@@ -6839,6 +6839,48 @@
     "more": "Weitere Aktionen für {name}"
   },
   "policies": {
+    "capabilities": {
+      "title": "Was die Berechtigung mit jedem Attribut erlaubt",
+      "about": "Grenzt diesen Eintrag je Attribut ein; sie gibt nie mehr als die Operationen oben. Eine Zelle auf ihrem Standard behält das heutige Verhalten.",
+      "caption": "Attributfähigkeiten von {types}",
+      "every": "Alle Attribute (*)",
+      "asGrant": "Standard der Berechtigung",
+      "asEvery": "Wie alle (*)",
+      "yes": "Erlaubt",
+      "no": "Verweigert",
+      "hintsTitle": "Was jede Spalte bedeutet, mit Beispielen",
+      "limitsTitle": "Was diese Berechtigung nicht geben kann",
+      "none": "Keine",
+      "value": {
+        "read": "frühere Versionen lesen",
+        "keep": "jeden Schreibvorgang bewahren",
+        "update": "ändern",
+        "append": "hinzufügen",
+        "delete": "löschen"
+      },
+      "noType": "Wählen Sie oben einen Entitätstyp, um seine Attribute zu sehen; bis dahin deckt die Zeile * alle ab.",
+      "needsTemporal": "Braucht queryTemporal oder retrieveTemporal in den Operationen.",
+      "needsWrite": "Braucht eine schreibende Operation, etwa updateAttrs.",
+      "needsReadVersions": "Braucht eine Freigabe zum Lesen früherer Versionen; ergänzen Sie sie in der YAML-Ansicht.",
+      "neverPublicWrite": "Eine öffentliche Berechtigung schreibt nie.",
+      "neverPublicKeep": "Eine öffentliche Berechtigung bewahrt nie Versionen.",
+      "neverPublicActor": "Wer einen Wert geändert hat und woher er stammt, ist nie öffentlich: der Autor ist das Konto einer Person.",
+      "column": {
+        "attribute": "Attribut",
+        "read": "Lesen",
+        "history": "Verlauf",
+        "versions": "Versionen",
+        "metadata": "Metadaten",
+        "write": "Bearbeiten"
+      },
+      "hint": {
+        "read": "Der aktuelle Wert. Beispiel: Verweigert bei pm10 behält ihn nur für den Verlauf.",
+        "history": "Frühere Werte über die Zeit. Beispiel: Erlaubt bei pm10 liefert die Messungen der letzten Woche.",
+        "versions": "read liefert frühere Versionen eines Werts, keep bewahrt jeden Schreibvorgang als Version. Beispiel: keep bei name.",
+        "metadata": "Welche Angaben mit dem Wert reisen. Beispiel: observedAt und unitCode.",
+        "write": "Welche Änderungen erlaubt sind. Beispiel: update bei name, nichts bei pm10."
+      }
+    },
     "title": "Richtlinien",
     "filter": {
       "label": "Richtlinie finden",

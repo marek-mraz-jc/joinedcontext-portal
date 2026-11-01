@@ -1,3 +1,4 @@
+import { AttributeCapabilitiesField } from "./AttributeCapabilitiesField";
 import { EntityPicker } from "./EntityPicker";
 import { EntitySelectorField, FormDataContext } from "./EntitySelectorField";
 import { RepresentationOutputsField } from "./RepresentationOutputsField";
@@ -36,6 +37,7 @@ export const portalWidgets = {
 
 /** The Portal's own fields, which a uiSchema names with `ui:field`. */
 export const portalFields = {
+  attributeCapabilities: AttributeCapabilitiesField,
   entitySelector: EntitySelectorField,
   representationOutputs: RepresentationOutputsField,
   knowledgeSources: KnowledgeSourcesField,

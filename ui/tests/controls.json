@@ -442,6 +442,15 @@
         "access_presets.test.tsx"
       ]
     },
+    "src/components/forms/widgets/AttributeCapabilitiesField.tsx": {
+      "controls": {
+        "Button": 1,
+        "Checkbox": 1
+      },
+      "tests": [
+        "policy_attribute_capabilities.test.tsx"
+      ]
+    },
     "src/components/forms/widgets/KnowledgeSourcesField.tsx": {
       "controls": {
         "Checkbox": 1
@@ -2265,6 +2274,7 @@
         "edit_keeps_stored_metadata.test.ts",
         "edit_prefill.test.tsx",
         "form_required_reference_check.test.tsx",
+        "policy_attribute_capabilities.test.tsx",
         "policy_form.test.tsx"
       ]
     },
