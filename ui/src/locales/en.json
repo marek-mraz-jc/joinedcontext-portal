@@ -10832,6 +10832,11 @@
     "aboveCeiling": "Your organization does not let a connector carry this preset yet.",
     "projectAboveCeiling": "Your organization does not let a connector reach this project yet: ask an administrator to add it to your organization's connector policy.",
     "endpointsOnly": "Your organization lets a connector reach only some Endpoints of this project: ask an administrator to add more to your organization's connector policy.",
+    "verbsOf": "What it may do on {kind}",
+    "readComes": "Reading comes with the preset.",
+    "verbsNone": "Tick a preset that proposes changes, such as Context or Pipelines, to choose what it may change.",
+    "verbsGreyed": "Greyed verbs need your organization's approval first; ask an administrator to allow them.",
+    "verb": {"read": "read", "create": "create", "edit": "edit", "delete": "delete", "run": "run", "propose": "create, edit, delete"},
     "binds": "only this client can use it",
     "clientRefused": "your organization's policy does not allow it",
     "intendedFor": "says whom it is for; other local programs can name it too",
@@ -10861,7 +10866,8 @@
       "segments": "Presets",
       "scope": "What it reaches",
       "expires": "Expires",
-      "clients": "Allowed clients"
+      "clients": "Allowed clients",
+      "kinds": "Changes it may propose"
     },
     "segment": {
       "data-read": "Data read",
@@ -10912,7 +10918,8 @@
       "expires": "The last day it works, at most {days} days from today, e.g. the end of this month.",
       "clients": "Leave empty for any client, or tick e.g. Claude Code to say whom it is for.",
       "clientsListed": "Tick the client you will use, e.g. claude.ai: your organization lets a connector answer only the clients its policy lists.",
-      "nameStays": "The name stays; it is how your AI client lists the connector."
+      "nameStays": "The name stays; it is how your AI client lists the connector.",
+      "kinds": "E.g. create new Endpoints but edit none. Only presets that propose changes add rows; every change still waits for a person's approval."
     },
     "problem": {
       "name": "Give a name of lowercase letters, digits and dashes, e.g. doprava-in-claude.",

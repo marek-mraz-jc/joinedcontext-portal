@@ -27,6 +27,10 @@ describe("the catalogue widget's mount", () => {
   it("carries only the view's strings, in English and Slovak, and no map", () => {
     expect(Object.keys(i18n.options.resources ?? {}).sort()).toEqual(["en", "sk"]);
     expect(Object.keys(i18n.options.resources?.sk.translation ?? {}).sort()).toEqual(["app", "endpoints", "entityGrid", "spaces"]);
+    // The Data toolbar (T-6303) reads its labels from spaces.toolbar: the explorer showed the raw keys (T-6313).
+    expect(Object.keys((i18n.options.resources?.sk.translation as { spaces: object }).spaces).sort()).toEqual(["saved", "toolbar"]);
+    expect(i18n.getFixedT("sk")("spaces.toolbar.filter")).not.toBe("spaces.toolbar.filter");
+    expect(i18n.getFixedT("sk")("spaces.toolbar.hide")).toBe("Skryť polia");
     expect(i18n.getFixedT("sk")("endpoints.data.full")).not.toBe(i18n.getFixedT("en")("endpoints.data.full"));
     expect(() => new NoMap()).toThrow(/no map/);
   });

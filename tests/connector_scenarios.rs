@@ -2559,9 +2559,22 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
         json!([{ "project": own, "spaces": ["lot-tree"], "endpoints": ["lot-tree-cars"],
                  "pipelines": ["lot-tree-load"], "allowed": true }])
     );
+    let mut ceiling = options["ceiling"].clone();
+    let kinds = ceiling
+        .as_object_mut()
+        .and_then(|c| c.remove("kinds"))
+        .unwrap_or_default();
     assert_eq!(
-        options["ceiling"],
+        ceiling,
         json!({ "segments": ["data-read"], "writes": false, "maxDays": 30 })
+    );
+    // The default ceiling plans nothing (data-read, writes off): every kind offers read alone,
+    // so the dialog greys each change verb (T-6302).
+    let rows = kinds.as_array().cloned().unwrap_or_default();
+    assert!(rows.iter().any(|k| k["kind"] == "Endpoint"), "{kinds}");
+    assert!(
+        rows.iter().all(|k| k["verbs"] == json!(["read"])),
+        "{kinds}"
     );
     assert_eq!(options["segments"].as_array().map(Vec::len), Some(9));
     assert_eq!(
@@ -2838,6 +2851,7 @@ async fn the_connector_door_holds_its_budget_under_load() {
                     personal_data: false,
                     access: joinedcontext_portal::connectors::ItemAccess::Read,
                 }],
+                kinds: None,
                 writes: false,
                 expires_at,
                 allowed_clients: Vec::new(),
@@ -3631,4 +3645,54 @@ async fn a_schema_example_plans_as_a_create() {
     ] {
         assert!(planned.contains(&kind), "{kind} not planned: {planned:?}");
     }
+}
+
+/// T-6302: a connector holding `create` but not `edit` on a kind is refused a change of an
+/// existing object of it, whatever `op` it sends, with the kind and the missing verb named; the
+/// same plan passes once `edit` is ticked; a verb the policy's `kinds` withholds is a `403` at
+/// the connector's create, naming the field.
+#[tokio::test]
+async fn a_create_only_connector_is_refused_an_edit_with_the_verb_named() {
+    let harness = Harness::start(1).await;
+    let own = project_of(1);
+    let patch = json!({ "changes": [{ "op": "patch", "kind": "ContextSpace", "name": "doprava",
+                                      "patch": { "spec": { "isSandbox": false } } }] });
+    let scenario: Scenario = serde_json::from_value(json!({
+        "id": "S-00", "segment": "context", "as": "steward", "says": "selftest",
+        "expect": "selftest", "deny": "selftest", "script": [
+            { "proves": "expect", "manifest": { "kind": "Group", "name": "verb-writers",
+              "spec": { "members": [{ "user": user_of("steward") }] } } },
+            { "proves": "expect", "manifest": { "kind": "DelegationPolicy", "name": "verb-writers",
+              "spec": { "subjects": [{ "kind": "Group", "name": "verb-writers" }],
+                        "projects": ["{project}"], "segments": ["context"], "writes": true,
+                        "maxExpiry": "P90D" } } },
+            { "proves": "expect", "rest": { "method": "POST", "path": "/connectors",
+              "body": { "name": "create-only", "segments": ["context"],
+                        "scope": [{ "project": "{project}", "access": "read" }],
+                        "kinds": [{ "kind": "ContextSpace", "verbs": ["read", "create"] }],
+                        "expiresAt": "{in7days}" } },
+              "contains": ["\"state\":\"active\""] },
+            { "proves": "deny", "via": "connector", "call": "jc_change_plan", "args": patch,
+              "refused": true,
+              "contains": ["may not edit ContextSpace doprava", "read, create"] },
+            { "proves": "expect", "rest": { "method": "PATCH", "path": "/connectors/{connector}",
+              "body": { "kinds": [{ "kind": "ContextSpace", "verbs": ["read", "edit"] }] } },
+              "contains": ["\"edit\""] },
+            { "proves": "expect", "via": "connector", "call": "jc_change_plan", "args": patch,
+              "contains": ["\"planId\""] },
+            { "proves": "expect", "manifest": { "kind": "DelegationPolicy", "name": "verb-writers",
+              "spec": { "subjects": [{ "kind": "Group", "name": "verb-writers" }],
+                        "projects": ["{project}"], "segments": ["context"], "writes": true,
+                        "kinds": [{ "kind": "ContextSpace", "verbs": ["read", "create"] }],
+                        "maxExpiry": "P90D" } } },
+            { "proves": "deny", "rest": { "method": "POST", "path": "/connectors",
+              "body": { "name": "edit-above", "segments": ["context"],
+                        "scope": [{ "project": "{project}", "access": "read" }],
+                        "kinds": [{ "kind": "ContextSpace", "verbs": ["read", "edit"] }],
+                        "expiresAt": "{in7days}" } },
+              "refused": true, "contains": ["kinds[0].verbs", "edit ContextSpace"] }
+        ]
+    }))
+    .expect("scenario");
+    assert_eq!(harness.run(&scenario, &own).await, Ok(()));
 }
