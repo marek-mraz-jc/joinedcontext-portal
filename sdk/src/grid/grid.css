@@ -611,8 +611,13 @@
   margin: 0;
 }
 
+.jc-grid-map__hint {
+  font-size: 0.75rem;
+  margin: 0;
+  color: var(--jc-color-muted, #666);
+}
+
 .jc-grid-map__area,
-.jc-grid-map__hint,
 .jc-grid-map__points,
 .jc-grid-map__picked,
 .jc-grid-map__summary,
@@ -653,6 +658,9 @@
 @media (width > 900px) {
   .jc-grid--map-right > .jc-grid-map {
     align-self: stretch;
+    /* A gutter and a rule between the rows and the map, so the panel reads as its own part. */
+    padding-left: var(--jc-space-3, 12px);
+    border-left: 1px solid var(--jc-color-line, #cbd5e1);
   }
 
   .jc-grid--map-right > .jc-grid-map :is(.maplibregl-map, [data-jc-map]) {

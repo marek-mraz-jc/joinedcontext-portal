@@ -72,3 +72,15 @@ describe("the location filter cell", () => {
     expect(asked.mock.calls.at(-1)![0].area).toBeUndefined();
   });
 });
+
+describe("the query line", () => {
+  it("names the drawn area's geo query beside the filters (T-6345)", async () => {
+    render(<EntityGrid config={config} source={fixtureSource(stations)} />);
+    await screen.findByText("Inside");
+    fireEvent.click(within(document.querySelector(".jc-grid-filter-row") as HTMLElement).getByRole("button", { name: "Pick area on map" }));
+    await screen.findByTestId("geo-editor");
+    (editorCalls.at(-1)!.onChange as (g: unknown) => void)({ type: "Polygon", coordinates: [[[19, 48.6], [19.3, 48.6], [19.3, 48.9], [19, 48.6]]] });
+    await waitFor(() => expect(document.querySelector(".jc-grid-query-value")?.textContent).toContain("georel=within&geometry=Polygon"));
+    expect(document.querySelector(".jc-grid-query-value")?.textContent).toContain("geoproperty=location");
+  });
+});

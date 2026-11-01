@@ -22,6 +22,8 @@ import type { GridMapLabels } from "./GridMap";
 import { mapAttrOf } from "./mapRows";
 import { TILE_THRESHOLD, useTileTemplate } from "../geo/tiles";
 import { featuresOfPoints, useMapPoints } from "./mapPoints";
+import { areaQuery } from "./geoarea";
+import type { GeoArea } from "./geoarea";
 import type { DrawEngine, GeoLabels } from "../geo/GeoEditor";
 import type { GeometryType } from "../geo/validate";
 import { optionLabel } from "../enums";
@@ -2113,17 +2115,17 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
                 onChange={(e) => setFilterText(e.target.value)}
               />
             ) : (
-              <output className="jc-grid-query-value">{queryText(askedQuery) || labels.queryAll}</output>
+              <output className="jc-grid-query-value">{queryText(askedQuery, grid.area) || labels.queryAll}</output>
             )}
           </label>
           <span className="jc-grid-query-actions">
             {/* Nothing to copy while every row is asked for: the line says "all records" instead. */}
-            {queryText(askedQuery) !== "" && (
+            {queryText(askedQuery, grid.area) !== "" && (
               <button
                 type="button"
                 className="jc-grid-query-copy"
                 onClick={() => {
-                  void navigator.clipboard?.writeText(queryText(askedQuery)).then(() => setCopied(true), () => setCopied(false));
+                  void navigator.clipboard?.writeText(queryText(askedQuery, grid.area)).then(() => setCopied(true), () => setCopied(false));
                 }}
               >
                 {copied ? labels.copied : labels.copyQuery}
@@ -2332,13 +2334,18 @@ function firstWordWidth(label: string): string {
 }
 
 /** The query as a person reads and copies it: the `q`, and the id pattern when one is asked. */
-function queryText(asked: { q?: string; idPattern?: string }): string {
+/** The query as the endpoint receives it, the drawn area's geo query included (T-6345). */
+function queryText(asked: { q?: string; idPattern?: string }, area?: GeoArea | null): string {
   const parts: string[] = [];
   if (asked.q) {
     parts.push(`q=${asked.q}`);
   }
   if (asked.idPattern) {
     parts.push(`idPattern=${asked.idPattern}`);
+  }
+  const geo = areaQuery(area);
+  if (geo) {
+    parts.push(`georel=${geo.georel}&geometry=${geo.geometry}&coordinates=${geo.coordinates}&geoproperty=${geo.geoproperty}`);
   }
   return parts.join("&");
 }

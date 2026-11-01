@@ -286,7 +286,7 @@ export function GridMap({
             }
           }}
         >
-        <p className="jc-grid-map__hint">{labels.drawHint}</p>
+        {area ? null : <p className="jc-grid-map__hint">{labels.drawHint}</p>}
         <GeoEditor
           value={area?.geometry ?? null}
           onChange={(geometry) => onArea?.(geometry && geometry.type === "Polygon" ? { geoproperty: attr, geometry } : null)}
