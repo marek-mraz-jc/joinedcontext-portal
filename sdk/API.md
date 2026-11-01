@@ -275,6 +275,19 @@ attribute is at the broker. `setArea` holds the drawn rectangle, which `areaQuer
 `georel=within` + `geometry` + `coordinates` + `geoproperty`; the ring is rounded to six decimals and
 then evenly decimated to fit the URL, and the panel says so when the filter is no longer the shape.
 
+### A dashboard from its config (T-6402)
+```ts
+function Dashboard(props: DashboardProps): JSX.Element     // EntityGrid props + config + words
+function parseDashboardConfig(raw: unknown, known?: string[]): { config?; findings: ConfigFinding[] }
+function toneOf(colour, row): { tone, label } | undefined; function kpiValue(kpi, rows): number | null
+function chartBars(chart, rows, top?): { x: string; y: number }[]; function filtersQ(filters): string | undefined
+const TONES, AGGS, FILTER_OPS   // the allowed tone, agg and filter op words
+```
+A dashboard App keeps what a person edits without code in `src/dashboard.json`, imported and parsed by
+`parseDashboardConfig`: `{ title?, grid, filters?: [{ attr, op, value }], colour?: { attr, bands: [{ below?,
+tone, label }] }, chart?: { x, y, agg }, kpis?: [{ label, agg, attr?, where? }] }` (`agg` count/sum/avg/min/max,
+`tone` neutral/info/success/warning/danger, `where` a formula). The Portal proposes each edit as a Change.
+
 ### Geometry: view and edit (UI-72, SDK-29)
 ```ts
 function GeoView(props: { value, selectedId?, onSelect?, accent?, basemap?, label? }): JSX.Element

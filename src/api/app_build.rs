@@ -63,7 +63,7 @@ pub fn router() -> Router<AppState> {
 
 /// The App as this person may see it, its repository when it is built on the forge, and the
 /// forge client. An App the caller may not read is the same `404` as one that does not exist.
-fn app_of(
+pub(crate) fn app_of(
     state: &AppState,
     user: &CurrentUser,
     project: &str,
@@ -129,7 +129,7 @@ fn rebuild_refusal(
         .then(|| format!("Rebuild needs propose on App in project {project}"))
 }
 
-const NOT_ON_FORGE: &str =
+pub(crate) const NOT_ON_FORGE: &str =
     "the App is not built on the forge: it names no spec.source.git of its own (AP-100)";
 
 #[utoipa::path(

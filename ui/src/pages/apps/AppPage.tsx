@@ -23,6 +23,7 @@ import type { AgentRun } from "./useAgentRun";
 
 // Loaded on first open: the dialog is not needed to draw the page (bundle cap).
 const ShareDialog = lazy(() => import("./ShareDialog").then((module) => ({ default: module.ShareDialog })));
+const DashboardEditor = lazy(() => import("./DashboardEditor").then((module) => ({ default: module.DashboardEditor })));
 
 /**
  * An application and its runs (AP-68, AP-69, T-0559).
@@ -123,6 +124,7 @@ export function AppPage({ project, name }: { project: string; name: string }): J
       <AppBuildPanel project={project} name={name} />
       <AppJobRuns project={project} name={name} />
       <RolesAndMembers project={project} name={name} />
+      <DashboardFor project={project} name={name} />
       <GeneratorFor project={project} name={name} />
       <AppServices project={project} name={name} />
     </div>
@@ -179,6 +181,29 @@ function GeneratorFor({ project, name }: { project: string; name: string }): JSX
       <div className="mt-3">
         <AppGenerator project={project} initialName={name} embedded />
       </div>
+    </details>
+  );
+}
+
+/**
+ * The dashboard editor behind its action (T-6402): the editor reads the App's file only when a
+ * person opens it, and a name no App holds yet has none.
+ */
+export function DashboardFor({ project, name }: { project: string; name: string }): JSX.Element | null {
+  const { t } = useTranslation();
+  const app = useApp(project, name);
+  const [open, setOpen] = useState(false);
+  if (app.data?.kind !== "App") return null;
+  return (
+    <details className="group rounded-md border border-border p-3" onToggle={(e) => setOpen(e.currentTarget.open)}>
+      <summary className="focus-ring cursor-pointer rounded-sm font-medium text-primary-soft-fg">{t("apps.dashboard.section")}</summary>
+      {open ? (
+        <div className="mt-3">
+          <Suspense fallback={<PageLoading label={t("app.loading")} />}>
+            <DashboardEditor project={project} name={name} />
+          </Suspense>
+        </div>
+      ) : null}
     </details>
   );
 }

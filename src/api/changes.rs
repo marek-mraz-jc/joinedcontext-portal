@@ -2507,6 +2507,14 @@ pub async fn approve_change_for(
         approver,
     )
     .await;
+    // An edited dashboard's branch merges at the commit the approved App names (T-6402).
+    crate::api::app_dashboard::merge_approved_edit(
+        state,
+        project,
+        data.head_envelope.as_ref(),
+        approver,
+    )
+    .await;
 
     sync_soon(state);
 
