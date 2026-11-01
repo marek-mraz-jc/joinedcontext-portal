@@ -142,6 +142,7 @@ const cs: Strings = {
       present: "má hodnotu",
       pattern: "odpovídá",
       anyOf: "je jednou z",
+      startsWith: "začíná na",
     },
     value: "Hodnota",
     upperValue: "Horní hodnota",

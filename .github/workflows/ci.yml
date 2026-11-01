@@ -306,5 +306,10 @@ jobs:
       - if: steps.has.outputs.ui == 'yes'
         name: the build lane refuses foreign packages and bundles functions
         run: ln -s ../sdk/node_modules builder/node_modules && node --test builder/lane.test.mjs builder/runner.test.mjs
+      # Every reference App's type check when the SDK or that App changed (T-6341): an SDK type the
+      # Apps fill turned only the image build red, an hour after the merge.
+      - if: steps.has.outputs.ui == 'yes'
+        name: the reference Apps type-check against this SDK
+        run: sh scripts/apps-ci.sh typecheck
       # The plain-HTML example's tests (AP-83) are vitest files now, run with its coverage by
       # scripts/apps-ci.sh ui above (T-3416); node's own runner cannot run them.
