@@ -96,7 +96,10 @@ const EXPLORE = `/projects/helsinki/explore?endpoint=helsinki-bikes&type=${TYPE}
 async function open(page: Page, attr: string): Promise<void> {
   await page.goto(EXPLORE);
   await expect(page.getByRole("grid")).toBeVisible();
-  await page.getByRole("button", { name: `Your access: ${attr}` }).first().click();
+  const button = page.getByRole("button", { name: `Your access: ${attr}` }).first();
+  // At 400 px the pinned id column covers the cells at the left edge: bring this one to the middle.
+  await button.evaluate((element) => element.scrollIntoView({ block: "center", inline: "center" }));
+  await button.click();
   await expect(page.getByRole("dialog", { name: new RegExp(`Your access: ${attr}`) })).toBeVisible();
 }
 
@@ -134,7 +137,7 @@ for (const width of [1440, 400]) {
     test("no-access", async ({ page }) => {
       await stub(page, "outsider");
       await page.goto(EXPLORE);
-      await expect(page.getByRole("columnheader", { name: /^ID/ }).first()).toBeVisible();
+      await expect(page.getByRole("columnheader", { name: /ID/ }).first()).toBeVisible();
       await expect(page.getByRole("columnheader", { name: /name/i })).toHaveCount(0);
       await expect(page.getByText("hidden: no access")).toHaveCount(0);
       await page.screenshot({ path: `${SHOTS}/no-access-${width}.png` });

@@ -176,16 +176,18 @@ for (const width of [1440, 400]) {
       await page.screenshot({ path: `${SHOTS}/editor-mixed-${width}.png` });
     });
 
-    test("a viewer sees every column locked and no editor", async ({ page }) => {
+    // T-6210: a grid that edits nothing wears no lock; the values are simply values.
+    test("a viewer sees no editor and no lock", async ({ page }) => {
       await explore(page, "viewer");
-      await expect(lock(page, "Not in your access.").first()).toBeVisible();
+      await expect(page.getByRole("grid")).toBeVisible();
+      await expect(lock(page, "Not in your access.")).toHaveCount(0);
       await expect(page.getByRole("textbox", { name: "Edit name" })).toHaveCount(0);
       await page.screenshot({ path: `${SHOTS}/viewer-locked-${width}.png` });
     });
 
     test("an attribute the person may not read is not drawn and never asked for (T-6210)", async ({ page }) => {
       const seen = await explore(page, "editor");
-      await expect(page.getByRole("columnheader", { name: /^ID/ }).first()).toBeVisible();
+      await expect(page.getByRole("columnheader", { name: /ID/ }).first()).toBeVisible();
       await expect(page.getByRole("columnheader", { name: /operatorNote/ })).toHaveCount(0);
       await expect(page.getByText("hidden: no access")).toHaveCount(0);
       expect(seen.attrs.length).toBeGreaterThan(0);

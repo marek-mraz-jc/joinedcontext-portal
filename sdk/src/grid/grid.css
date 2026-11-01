@@ -74,19 +74,18 @@
   text-overflow: ellipsis;
 }
 
-/* The row's name may wrap anywhere, so the table's own sizing gave its column the width of one
-   letter and a long text column took the rest: names ran over four lines at 1440 (T-4992). It
-   keeps 180 px, or 40% of a phone's width, before the other columns share the rest. */
+/* The pinned column is the id (T-6210), shown by its last segment: 128 px, or a quarter of a
+   phone's width, keeps it readable without taking the row from the type and the name beside it. */
 .jc-grid :is(th, td).jc-grid-pinned {
-  min-width: min(11.25rem, 40vw);
+  min-width: min(8rem, 25vw);
 }
 
 .jc-grid td.jc-grid-pinned {
   position: sticky;
   left: 0;
   z-index: 1;
-  /* A URN is long: the pinned column keeps at most 40% of the grid, the rest scrolls (UI-70). */
-  max-width: min(40vw, 22rem);
+  /* A URN is long: the pinned column keeps at most 30% of the grid, the rest scrolls (UI-70). */
+  max-width: min(30vw, 16rem);
   overflow: hidden;
   text-overflow: ellipsis;
   background: var(--jc-color-surface, #ffffff);
@@ -863,11 +862,11 @@
   background: color-mix(in srgb, var(--jc-tone) 10%, transparent);
 }
 
-/* On a phone the pinned name keeps a column to read in: a name may wrap anywhere, so without a
-   floor the table squeezes it to a few letters a line (T-4162 #6); the other columns scroll. */
+/* On a phone the pinned id keeps a floor, so the table never squeezes it to a few letters a line
+   (T-4162 #6); the other columns scroll. */
 @media (width <= 640px) {
   .jc-grid td.jc-grid-pinned {
-    min-width: min(45vw, 12rem);
+    min-width: min(25vw, 7rem);
   }
 }
 
@@ -1186,7 +1185,7 @@ a.jc-cell--link:focus-visible {
   }
 
   .jc-grid[data-row-size] td.jc-grid-pinned {
-    min-width: min(40vw, 10rem);
+    min-width: min(25vw, 7rem);
   }
 }
 
@@ -1274,7 +1273,7 @@ a.jc-cell--link:focus-visible {
   .jc-grid-filter-toggle[aria-expanded="true"]::after { content: "\25B4"; }
   .jc-grid-pages button { min-width: 2.75rem; min-height: 2.75rem; }
   .jc-grid:not([data-filters="open"]) .jc-grid-filter-row { display: none; }
-  .jc-grid :is(th, td).jc-grid-pinned { min-width: min(58vw, 15rem); }
+  .jc-grid :is(th, td).jc-grid-pinned { min-width: min(25vw, 7rem); }
 }
 
 /* T-5530: the review's copy button beside a row's name holds the URN the table no longer prints. */
