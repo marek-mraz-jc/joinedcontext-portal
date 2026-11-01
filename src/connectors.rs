@@ -1119,7 +1119,7 @@ pub(crate) fn change_space(now: Option<&Value>, next: Option<&Value>) -> Option<
     let spaces: Vec<Option<String>> = [now, next]
         .into_iter()
         .flatten()
-        .map(|manifest| crate::permissions::space_ref(manifest))
+        .map(crate::permissions::space_ref)
         .collect();
     match spaces.as_slice() {
         [Some(space)] => Some(space.clone()),
