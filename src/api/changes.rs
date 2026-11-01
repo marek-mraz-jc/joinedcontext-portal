@@ -3269,9 +3269,13 @@ mod tests {
     #[tokio::test]
     async fn a_change_closed_while_the_list_is_read_leaves_the_list_instead_of_failing_it() {
         let server = MockServer::start().await;
-        let client =
-            GiteaClient::new(server.uri().parse().unwrap(), "test-owner", "test-repo", "token-xyz")
-                .unwrap();
+        let client = GiteaClient::new(
+            server.uri().parse().unwrap(),
+            "test-owner",
+            "test-repo",
+            "token-xyz",
+        )
+        .unwrap();
         let state = AppState::new(Config::for_tests(), None).with_gitea(Arc::new(client));
         let pull = |number: u64, branch: &str| {
             json!({
