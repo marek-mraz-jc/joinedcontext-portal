@@ -240,26 +240,27 @@ describe("what the Endpoint receives", () => {
 describe("the drawn area as a filter", () => {
   const rows = [station("a", [24.9, 60.1])];
 
-  it("asks for the area a person drew, on the attribute the map is showing", async () => {
+  it("asks for the area a person drew on the map, on the attribute the map is showing", () => {
     const onArea = vi.fn();
-    render(
-      <GridMap
-        rows={rows}
-        attr="location"
-        activeId={null}
-        onActivate={() => {}}
-        onArea={onArea}
-        boundsNow={() => [24.8, 60.0, 25.1, 60.3]}
-      />,
-    );
+    render(<GridMap rows={rows} attr="location" activeId={null} onActivate={() => {}} onArea={onArea} />);
     fireEvent.click(screen.getByRole("button", { name: DEFAULT_GRID_MAP_LABELS.drawArea }));
-    expect(onArea).toHaveBeenCalledWith({
-      geoproperty: "location",
-      geometry: {
-        type: "Polygon",
-        coordinates: [[[24.8, 60], [25.1, 60], [25.1, 60.3], [24.8, 60.3], [24.8, 60]]],
-      },
-    });
+    // The drawing tools open on the map (owner 2026-11-01): polygon, rectangle, circle and freehand
+    // all draw a Polygon, the one shape `georel=within` takes; nothing is asked before a shape ends.
+    const editor = geoEditorCalls[geoEditorCalls.length - 1];
+    expect(editor.allowed).toEqual(["Polygon"]);
+    expect(onArea).not.toHaveBeenCalled();
+    const drawn = { type: "Polygon", coordinates: [[[24.8, 60], [25.1, 60], [25.1, 60.3], [24.8, 60.3], [24.8, 60]]] };
+    (editor.onChange as (g: unknown) => void)(drawn);
+    expect(onArea).toHaveBeenLastCalledWith({ geoproperty: "location", geometry: drawn });
+    // A deleted shape (or anything but a Polygon) is no area.
+    (editor.onChange as (g: unknown) => void)(null);
+    expect(onArea).toHaveBeenLastCalledWith(null);
+  });
+
+  it("opens straight on the drawing tools when the location filter asks for it", () => {
+    render(<GridMap rows={rows} attr="location" activeId={null} onActivate={() => {}} onArea={vi.fn()} startDrawing />);
+    expect(screen.getByTestId("geo-editor")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: DEFAULT_GRID_MAP_LABELS.clearArea })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("stays visible while it filters, and is removed by the same control", async () => {

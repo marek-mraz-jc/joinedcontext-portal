@@ -270,9 +270,9 @@ export function SmartDataModelsImport({
         <h2 id="sdm-browse" className="text-base font-semibold">
           {t("models.sdm.browse")}
         </h2>
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-4">
           <Input
-            className="w-56"
+            className="w-full"
             type="search"
             aria-label={t("models.sdm.search")}
             placeholder={t("models.sdm.search")}

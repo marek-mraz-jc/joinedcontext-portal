@@ -35,7 +35,7 @@ export interface LinkmlEditorProps {
   onSubsetChange?: (subset: Subset) => void;
   initialView?: EditorView;
   /** Where the empty model's "Import a Smart Data Model" hint goes, when the page offers it. */
-  onImport?: () => void;
+  onImport?: (from: "sdm" | "file") => void;
   /** The drawing without edit handles, for a person who may not propose the model (T-3589). */
   readOnlyDrawing?: boolean;
 }

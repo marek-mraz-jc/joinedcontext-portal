@@ -126,10 +126,14 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
     setOwnAttr(next);
     onPlace?.({ tab, attr: next });
   };
-  const rowChanges = useRowChanges(changes, row.id, all.map((column) => ({ attr: column.attr ?? "", label: column.label })), () => setTab("changes"));
+  // An attribute's own view reads that attribute only (owner 2026-11-01): no whole-row versions read.
+  const rowChanges = useRowChanges(tab === "attribute" ? undefined : changes, row.id, all.map((column) => ({ attr: column.attr ?? "", label: column.label })), () => setTab("changes"));
   const historyTab = history && all.length > 0 ? [{ id: "history", label: labels.rowHistory }] : [];
   const metadataTab = metadata && all.length > 0 ? [{ id: "metadata", label: labels.rowMetadata ?? "Metadata" }] : [];
-  const list = [{ id: "fields", label: labels.rowFields }, ...historyTab, ...metadataTab, ...rowChanges.tabs, ...tabs.map(({ id, label }) => ({ id, label }))];
+  // A clicked cell opens on its attribute: value, metadata, readings over time and changes in one
+  // view (owner 2026-11-01), named by the attribute; the row's other tabs stay beside it.
+  const attributeTab = place?.tab === "attribute" && all.length > 0 ? [{ id: "attribute", label: all.find((column) => column.attr === attr)?.label ?? attr }] : [];
+  const list = [...attributeTab, { id: "fields", label: labels.rowFields }, ...historyTab, ...metadataTab, ...rowChanges.tabs, ...tabs.map(({ id, label }) => ({ id, label }))];
   const current = list.some((one) => one.id === tab) ? tab : "fields";
   const tabId = (id: string) => `${tabsId}-tab-${id}`;
   const panelId = (id: string) => `${tabsId}-panel-${id}`;
@@ -180,8 +184,10 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
           >
             {copied ? (labels.copied ?? "Copied") : (labels.copyId ?? "Copy identifier")}
           </button>
-          <button type="button" onClick={close}>
-            {labels.close}
+          <button type="button" className="jc-grid-detail-close" onClick={close} aria-label={labels.close} title={labels.close}>
+            <svg viewBox="0 0 20 20" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round">
+              <path d="M5 5l10 10M15 5L5 15" />
+            </svg>
           </button>
         </span>
         <span className="jc-grid-sr-only" role="status">
@@ -236,6 +242,27 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
             </label>
             {/* A new attribute is a new read: nothing of the last one's window or answer carries over. */}
             <React.Fragment key={attr}>{current === "history" ? history?.(attr, label) : metadata?.(attr)}</React.Fragment>
+          </>
+        ) : null}
+        {current === "attribute" ? (
+          <>
+            <label className="jc-grid-detail-attr">
+              {labels.historyAttr}
+              <select value={attr} onChange={(e) => setAttr(e.target.value)}>
+                {all.map((column) => (
+                  <option key={column.key} value={column.attr ?? ""}>
+                    {column.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="jc-grid-attr-view" key={attr}>
+              <p className="jc-grid-attr-value" aria-label={label}>
+                {renderValue(row, all.find((column) => column.attr === attr) ?? all[0])}
+              </p>
+              {metadata ? <section className="jc-grid-detail-section">{metadata(attr)}</section> : null}
+              {history ? <section className="jc-grid-detail-section">{history(attr, label)}</section> : null}
+            </div>
           </>
         ) : null}
         {current === "changes" ? rowChanges.panel : null}

@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { isMap, isScalar, type Document } from "yaml";
-import { Button, Field, Icon, Input } from "../../components/ui";
+import { Button, Icon, InlineError, Input } from "../../components/ui";
 
 /**
  * The name line under the editor's title (T-6162, owner review v2): the model's name, which a
@@ -67,20 +67,9 @@ export function ModelIdentity({ name, id, creating, version, readOnly, onRename 
   return (
     // One row: the name, Rename and the version; the id and the file under Details (T-6254).
     <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-body">
-      {creating && !readOnly ? (
-        // A new model is named as it is typed: the id below follows, and Save waits for it.
-        <>
-          <h1 className="text-display font-semibold tracking-tight text-fg">{t("models.page.new.menu")}</h1>
-          <Field id={inputId} label={t("models.identity.name")} help={t("models.create.nameHint")}>
-            <Input
-              id={inputId}
-              className="w-64 max-w-full"
-              value={name}
-              onChange={(event) => onRename(event.target.value)}
-            />
-          </Field>
-        </>
-      ) : draft === undefined ? (
+      {/* A new model is named in the new-model window; here it reads like a saved one, with Rename
+          (owner 2026-11-01: no second name field on the page). */}
+      {draft === undefined ? (
         <span className="flex items-center gap-1">
           {/* A model without a title says so, rather than repeating its id (T-6162 judge). */}
           {/* The page's heading: the editor names the model, not itself. */}
@@ -101,20 +90,18 @@ export function ModelIdentity({ name, id, creating, version, readOnly, onRename 
         </span>
       ) : (
         <form
-          className="flex flex-wrap items-start gap-2"
+          className="flex flex-wrap items-center gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             commit();
           }}
         >
-          <Field
-            id={inputId}
-            label={t("models.identity.name")}
-            help={t("models.identity.nameHint")}
-            errors={empty ? [t("models.identity.nameEmpty")] : undefined}
-          >
+          <div className="w-64 max-w-full">
             <Input
               id={inputId}
+              aria-label={t("models.identity.name")}
+              aria-describedby={`${inputId}-hint`}
+              aria-invalid={empty || undefined}
               className="w-64 max-w-full"
               ref={field}
               value={draft}
@@ -129,8 +116,8 @@ export function ModelIdentity({ name, id, creating, version, readOnly, onRename 
                 }
               }}
             />
-          </Field>
-          <div className="flex gap-2 sm:mt-6">
+          </div>
+          <div className="flex gap-2">
             <Button size="sm" type="submit" variant="primary">
               {t("models.identity.done")}
             </Button>
@@ -138,6 +125,13 @@ export function ModelIdentity({ name, id, creating, version, readOnly, onRename 
               {t("app.cancel")}
             </Button>
           </div>
+          {/* The field's hint under the row (UI-44, owner 2026-10-21): the row stays one line. */}
+          <p id={`${inputId}-hint`} className="basis-full text-caption text-fg-muted">
+            {t("models.identity.nameHint")}
+          </p>
+          {empty ? (
+            <InlineError className="basis-full">{t("models.identity.nameEmpty")}</InlineError>
+          ) : null}
         </form>
       )}
       {renamed && id ? (

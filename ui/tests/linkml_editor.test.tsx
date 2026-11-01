@@ -118,8 +118,9 @@ describe("LinkML editor", () => {
     expect(parseModel(source()).classes[0].slots).toEqual(["id", "name", "speed", "colour"]);
 
     // And a click in the tree edits the same string the assistant edited.
-    await user.type(screen.getByLabelText("New field"), "plate");
     await user.click(screen.getByRole("button", { name: "Add field" }));
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "plate");
+    await user.click(screen.getByRole("button", { name: "Add" }));
     expect(parseModel(source()).classes[0].slots).toEqual(["id", "name", "speed", "colour", "plate"]);
   });
 
