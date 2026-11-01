@@ -554,8 +554,14 @@ impl Asker<'_> {
             ),
         };
         let mut payload = json!({ "route": route });
-        if let Some(manifest) = &item.manifest {
-            payload["prefill"] = form_prefill(info.kind, manifest.clone());
+        // A model's editor opens on the planned LinkML, so the person reads its diff against the
+        // published source there (JC2-11); every other kind's form takes the planned manifest.
+        match (&item.source, &item.manifest) {
+            (Some(source), _) => payload["prefill"] = json!({ "source": source }),
+            (None, Some(manifest)) => {
+                payload["prefill"] = form_prefill(info.kind, manifest.clone())
+            }
+            (None, None) => {}
         }
         Ok(("navigate", payload))
     }

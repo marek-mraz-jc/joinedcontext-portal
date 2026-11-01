@@ -3514,6 +3514,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/ops/jc_access_explore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Explore Access
+         * @description Every Endpoint of the project a subject reaches, with its Policies and the gateway's grant document; organization administrators
+         */
+        post: operations["jc_access_explore"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/ops/jc_access_simulate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Try A Policy
+         * @description What the gateway decides for a person, group, role, ServiceAccount or the public doing one action on an Endpoint, and the Policy that decides; organization administrators
+         */
+        post: operations["jc_access_simulate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/ops/jc_activity_list": {
         parameters: {
             query?: never;
@@ -3554,6 +3594,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/ops/jc_attribute_explain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Why An Attribute Is Refused
+         * @description What decided one attribute of an Endpoint for you and, if you may read it, the Policy that decided
+         */
+        post: operations["jc_attribute_explain"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/ops/jc_catalog_search": {
         parameters: {
             query?: never;
@@ -3568,6 +3628,26 @@ export interface paths {
          * @description Find spaces, endpoints, models and open datasets by keywords
          */
         post: operations["jc_catalog_search"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/ops/jc_catalogue_draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Draft A Catalogue Entry
+         * @description The spec.catalog and spec.publish the publish flow proposes for an Endpoint, and whether publishing makes it public; writes nothing
+         */
+        post: operations["jc_catalogue_draft"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3628,6 +3708,26 @@ export interface paths {
          * @description One proposed change: what it does, who wrote it, its lane and where it stands
          */
         post: operations["jc_change_get"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/ops/jc_change_history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List Closed Changes
+         * @description One page of the merged and rejected changes, most recently closed first, each naming who decided it; `next` is the page that continues it
+         */
+        post: operations["jc_change_history"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3754,6 +3854,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/ops/jc_data_write": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Write Data
+         * @description Creates, upserts, merges or deletes up to 100 entities through one Endpoint of the project, as you; its Policy decides each
+         */
+        post: operations["jc_data_write"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/ops/jc_datasource_check": {
         parameters: {
             query?: never;
@@ -3868,6 +3988,26 @@ export interface paths {
          * @description Every Endpoint of every project with its project, for an organization administrator (PF-61, PF-03)
          */
         post: operations["jc_endpoint_list_all"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/ops/jc_endpoint_preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Preview An Endpoint Filter
+         * @description The count and one page of an Endpoint's entities under a draft projection and hidden attributes, before proposing them; writes nothing
+         */
+        post: operations["jc_endpoint_preview"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4034,6 +4174,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/ops/jc_model_generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Model Artifacts
+         * @description Compiles LinkML source into its artifacts (JSON Schema, JSON-LD context, SHACL and the rest) through the model tools service, or answers the messages of a source that does not compile. Writes nothing
+         */
+        post: operations["jc_model_generate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/ops/jc_model_infer": {
         parameters: {
             query?: never;
@@ -4048,6 +4208,46 @@ export interface paths {
          * @description Infers a draft LinkML data model from sample data bytes or text
          */
         post: operations["jc_model_infer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/ops/jc_model_sdm_import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import A Smart Data Model
+         * @description Compiles one Smart Data Models catalogue model into LinkML and its artifacts. Writes nothing; proposing it as a DataModel is a separate change
+         */
+        post: operations["jc_model_sdm_import"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/ops/jc_model_sdm_search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Search Smart Data Models
+         * @description Models of the Smart Data Models catalogue whose name, description or attributes match q; import one with jc_model_sdm_import
+         */
+        post: operations["jc_model_sdm_search"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4108,6 +4308,46 @@ export interface paths {
          * @description The newest messages a capture broker kept; 404 to whoever may not approve MqttBrokers
          */
         post: operations["jc_mqtt_captured"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/ops/jc_mqtt_test_publish": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test an MQTT Publish
+         * @description Dry-runs one device message on a topic through the broker's ACL and limits, the bound DataSource and Pipeline, the mapping and the Endpoint's record check; publishes and writes nothing
+         */
+        post: operations["jc_mqtt_test_publish"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/ops/jc_permissions_me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read My Permissions
+         * @description Your effective rules in the project: which verbs on which kinds, from which bindings
+         */
+        post: operations["jc_permissions_me"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4248,6 +4488,26 @@ export interface paths {
          * @description Ends every session of a person
          */
         post: operations["jc_person_sign_out"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/ops/jc_pipeline_inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Inspect A Running Pipeline
+         * @description One panel of the pipeline page: the last message per node, per-node rates, the records validation refused, or a snapshot pipeline's source-delete dry run
+         */
+        post: operations["jc_pipeline_inspect"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4768,6 +5028,26 @@ export interface paths {
          * @description Opens an endpoint or folder that partly defines a space and completes LinkML, data source, and pipeline drafts (MCP clients pass the files)
          */
         post: operations["jc_space_complete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/ops/jc_space_governance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read Space Governance
+         * @description One reading about a Context Space's data: quality, checks on write, entity count, history creation, surface fit or drift
+         */
+        post: operations["jc_space_governance"];
         delete?: never;
         options?: never;
         head?: never;
@@ -23289,6 +23569,212 @@ export interface operations {
             };
         };
     };
+    jc_access_explore: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "subject": {
+                 *         "kind": "person"
+                 *       }
+                 *     }
+                 */
+                "application/json": {
+                    /** @description person takes id; group, role, serviceAccount take name */
+                    subject: {
+                        /** @description Keycloak user id */
+                        id?: string;
+                        /**
+                         * @description Subject kind
+                         * @enum {string}
+                         */
+                        kind: "person" | "group" | "role" | "serviceAccount" | "public";
+                        /** @description e.g. city-stewards */
+                        name?: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        consents: Record<string, never>[];
+                        /** @description Each Endpoint the subject reaches with its Policies and grant document */
+                        endpoints: Record<string, never>[];
+                        mcpServers: string[];
+                        subject: Record<string, never>;
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_access_simulate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "action": "example",
+                 *       "endpoint": "example",
+                 *       "subject": {
+                 *         "kind": "person"
+                 *       }
+                 *     }
+                 */
+                "application/json": {
+                    /** @description A CIM 009 operation, e.g. retrieveEntity */
+                    action: string;
+                    /** @description Endpoint name, e.g. air-public */
+                    endpoint: string;
+                    /** @description person takes id; group, role, serviceAccount take name */
+                    subject: {
+                        /** @description Keycloak user id */
+                        id?: string;
+                        /**
+                         * @description Subject kind
+                         * @enum {string}
+                         */
+                        kind: "person" | "group" | "role" | "serviceAccount" | "public";
+                        /** @description e.g. city-stewards */
+                        name?: string;
+                    };
+                    /** @description Entity type; absent: any type */
+                    type?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        assigner?: string;
+                        decision: boolean;
+                        /** @description The Policy that decided */
+                        policy?: string;
+                        reason: string;
+                        /** @description The subject as the gateway resolved it */
+                        subject: Record<string, never>;
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     jc_activity_list: {
         parameters: {
             query?: never;
@@ -23472,6 +23958,106 @@ export interface operations {
             };
         };
     };
+    jc_attribute_explain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "attribute": "example",
+                 *       "name": "example",
+                 *       "type": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /**
+                     * @description default write
+                     * @enum {string}
+                     */
+                    action?: "read" | "write" | "delete";
+                    /** @description e.g. pm10 */
+                    attribute: string;
+                    /** @description Endpoint name, e.g. air-public */
+                    name: string;
+                    /** @description e.g. AirQualityObserved */
+                    type: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        action: string;
+                        attribute: string;
+                        decision?: boolean | null;
+                        /** @description The deciding Policy, where you may read it */
+                        policy?: string | null;
+                        policyTitle?: string | null;
+                        reason?: string | null;
+                        type: string;
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     jc_catalog_search: {
         parameters: {
             query?: never;
@@ -23510,6 +24096,96 @@ export interface operations {
                         items?: Record<string, never>[];
                         q?: string;
                         unavailable?: string[];
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_catalogue_draft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "endpoint": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /** @description Endpoint name, e.g. air-public */
+                    endpoint: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        attributes?: Record<string, never>[];
+                        /** @description The drafted spec.catalog */
+                        catalog: Record<string, never>;
+                        endpoint: string;
+                        /** @description Publishing makes the Endpoint public (red lane) */
+                        makesPublic: boolean;
+                        missing: string[];
+                        /** @description The drafted spec.publish */
+                        publish: Record<string, never>;
                     };
                 };
             };
@@ -23790,6 +24466,97 @@ export interface operations {
                         summary?: Record<string, never>;
                         /** @description The Portal page where a person decides it */
                         url?: string;
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_change_history: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /** @example {} */
+                "application/json": {
+                    /** @description Author name or e-mail contains, e.g. jana */
+                    author?: string;
+                    /** @description Only changes to this kind, e.g. Endpoint */
+                    kind?: string;
+                    /** @description Resource name contains, e.g. air */
+                    name?: string;
+                    /** @description From 1; the previous answer's next */
+                    page?: number;
+                    /** @description Decided on or after, YYYY-MM-DD */
+                    since?: string;
+                    /** @description Decided on or before, YYYY-MM-DD */
+                    until?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Merged or rejected changes, most recently closed first, each naming who decided it */
+                        items: Record<string, never>[];
+                        /** @description Present when older changes follow: send it as page */
+                        next?: number;
                     };
                 };
             };
@@ -24465,6 +25232,101 @@ export interface operations {
             };
         };
     };
+    jc_data_write: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "action": "create",
+                 *       "endpoint": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /**
+                     * @description create: new entities; upsert: create or replace attributes; merge: patch existing ones; delete: ids
+                     * @enum {string}
+                     */
+                    action: "create" | "upsert" | "merge" | "delete";
+                    /** @description Endpoint name of the project, e.g. bike-stations */
+                    endpoint: string;
+                    /** @description create, upsert, merge: NGSI-LD entities with id and type, e.g. {id: urn:ngsi-ld:BikeHireDockingStation:s1, type: BikeHireDockingStation, name: {type: Property, value: Main}} */
+                    entities?: Record<string, never>[];
+                    /** @description delete: entity ids */
+                    ids?: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Entities the Endpoint refused, each with its id and why */
+                        errors: Record<string, never>[];
+                        /** @description Ids the Endpoint took */
+                        written: string[];
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     jc_datasource_check: {
         parameters: {
             query?: never;
@@ -25024,6 +25886,122 @@ export interface operations {
                             };
                             spec?: Record<string, never>;
                         }[];
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_endpoint_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "example",
+                 *       "type": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /** @description Draft hidden attributes */
+                    hiddenAttributes?: string[];
+                    /** @description Only these entity ids */
+                    id?: string[];
+                    /** @description default 50 */
+                    limit?: number;
+                    /** @description Endpoint name, e.g. air-public */
+                    name: string;
+                    /** @description Entities skipped */
+                    offset?: number;
+                    /** @description Draft spec.projection */
+                    projection?: {
+                        /** @description Classes served */
+                        classes: {
+                            /** @description Class */
+                            name: string;
+                            /** @description e.g. [pm10] */
+                            slots?: string[];
+                        }[];
+                        /** @description NGSI-LD query parts */
+                        filter?: {
+                            /** @description e.g. near;maxDistance==500;Point;[19.1,48.7] */
+                            geoQ?: string;
+                            /** @description e.g. pm10>40 */
+                            q?: string;
+                            /** @description e.g. /city/# */
+                            scopeQ?: string;
+                            /** @description e.g. after;2026-10-01T00:00:00Z */
+                            temporalQ?: string;
+                        };
+                    };
+                    /** @description e.g. AirQualityObserved */
+                    type: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        count: number;
+                        /** @description One page under the draft */
+                        entities: Record<string, never>[];
                     };
                 };
             };
@@ -25886,6 +26864,88 @@ export interface operations {
             };
         };
     };
+    jc_model_generate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "source": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /** @description LinkML YAML */
+                    source: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        errors: string[];
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     jc_model_infer: {
         parameters: {
             query?: never;
@@ -25924,6 +26984,182 @@ export interface operations {
                 };
                 content: {
                     "application/json": Record<string, never>;
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_model_sdm_import: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "model": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /** @description subject/model as search lists it, e.g. dataModel.Parking/OnStreetParking */
+                    model: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Each class with its slots */
+                        classes: Record<string, never>[];
+                        errors: string[];
+                        model: string;
+                        /** @description The LinkML: jc_change_plan's DataModel source */
+                        source: string | null;
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_model_sdm_search: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "q": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /** @description A model, subject or attribute name, e.g. parking */
+                    q: string;
+                    /** @description e.g. dataModel.Parking: search its attribute names too */
+                    subject?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Matching catalogue models, each with id (the import's model), name and description */
+                        models: Record<string, never>[];
+                        /** @description More models matched than listed: narrow q */
+                        more: boolean;
+                        /** @description The index is the older cached one */
+                        stale: boolean;
+                    };
                 };
             };
             /** @description The change the operation opened, waiting for a person's approval */
@@ -26267,6 +27503,175 @@ export interface operations {
                         window?: string;
                         /** @description Each personal field left out, as DataSource/{name}.{field}; a payload that is no JSON object is left out whole */
                         withheld?: string[];
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_mqtt_test_publish: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "account": "example",
+                 *       "name": "example",
+                 *       "payload": "example",
+                 *       "topic": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /** @description A ServiceAccount the broker's roles name, e.g. cam-west */
+                    account: string;
+                    /** @description MqttBroker name, e.g. sensors */
+                    name: string;
+                    /** @description The message as the device sends it, e.g. {"temperature": 21.5} */
+                    payload: string;
+                    /** @description No wildcard, e.g. cameras/cam-west/frame */
+                    topic: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_permissions_me: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /** @example {} */
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        bootstrap: boolean;
+                        /** @description Verbs on kinds and the bindings they come from */
+                        grants: Record<string, never>[];
+                        project: string;
+                        /** @description Whether you may open projects */
+                        projects?: Record<string, never>;
                     };
                 };
             };
@@ -26853,6 +28258,96 @@ export interface operations {
                         id: string;
                         signedOut: boolean;
                     };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_pipeline_inspect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "example",
+                 *       "view": "samples"
+                 *     }
+                 */
+                "application/json": {
+                    /** @description rejected: the previous answer's next */
+                    cursor?: number;
+                    /** @description rejected per page (default 20) */
+                    limit?: number;
+                    /** @description The Pipeline's name, e.g. counters-hourly */
+                    name: string;
+                    /**
+                     * @description samples: last message per node; stats: per-node rates over 1/5/15 min; rejected: records validation refused, with the rule; sourceDeletes: a snapshot pipeline's source ledger and delete dry run
+                     * @enum {string}
+                     */
+                    view: "samples" | "stats" | "rejected" | "sourceDeletes";
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description The change the operation opened, waiting for a person's approval */
@@ -29457,6 +30952,94 @@ export interface operations {
                         proposeReady: boolean;
                         space: string;
                     };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_space_governance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "aspect": "quality",
+                 *       "space": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /**
+                     * @description quality: daily report; qualityChecks: checks on write, 24 h and 7 d; usage: entity count; temporalAudit: how pipelines create history; surfaceFit: standard surfaces the model serves; drift: live differences from the repository
+                     * @enum {string}
+                     */
+                    aspect: "quality" | "qualityChecks" | "usage" | "temporalAudit" | "surfaceFit" | "drift";
+                    /** @description temporalAudit: only this pipeline */
+                    pipeline?: string;
+                    /** @description Context Space name, e.g. air */
+                    space: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
                 };
             };
             /** @description The change the operation opened, waiting for a person's approval */

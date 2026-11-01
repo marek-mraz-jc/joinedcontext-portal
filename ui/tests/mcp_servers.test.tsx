@@ -248,6 +248,27 @@ describe("the MCP servers page (T-3156)", () => {
     expect(again.spec.knowledgeSources).toBeUndefined();
   });
 
+  it("keeps a select through the form: select only, members only and both round-trip (JC2-27)", () => {
+    const select = { audience: ["public"], domains: ["mobility"] };
+    const selectOnly = { ...SERVER, spec: { audience: "public", select } } as unknown as Manifest;
+    const form = fromManifest("helsinki", selectOnly);
+    expect(form.members).toEqual([]);
+    expect(form.select).toEqual(select);
+    expect(formProblems(form, [])).toEqual({});
+    const saved = toManifest("helsinki", form) as unknown as { spec: Record<string, unknown> };
+    expect(saved.spec).toEqual({ members: [], audience: "public", select });
+
+    const both = fromManifest("helsinki", { ...SERVER, spec: { ...SERVER.spec, select } } as unknown as Manifest);
+    expect((toManifest("helsinki", both) as unknown as { spec: Record<string, unknown> }).spec.select).toEqual(select);
+    expect(both.members).toHaveLength(2);
+
+    const membersOnly = fromManifest("helsinki", SERVER as unknown as Manifest);
+    expect(membersOnly.select).toBeUndefined();
+    expect((toManifest("helsinki", membersOnly) as unknown as { spec: Record<string, unknown> }).spec).not.toHaveProperty("select");
+    // Neither members nor a select is still refused.
+    expect(formProblems({ ...form, select: undefined }, []).members).toBe("mcp.problem.members");
+  });
+
   it("refuses to propose without a member and says why, and an Endpoint without MCP cannot be picked", async () => {
     const { writes } = renderAt("/projects/helsinki/mcp", { servers: [] });
     await userEvent.click(await screen.findByRole("button", { name: "New MCP server" }));

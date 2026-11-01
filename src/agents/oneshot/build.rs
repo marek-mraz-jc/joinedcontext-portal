@@ -130,7 +130,11 @@ impl Driver {
     ) -> Result<Option<Taken>, String> {
         match step {
             ENDPOINTS_STEP => {
-                if endpoints_of(answers.get("answer")).is_empty() {
+                if self
+                    .chosen_endpoints(answers.get("answer"))
+                    .await
+                    .is_empty()
+                {
                     return Ok(None);
                 }
                 self.ask_build(question(
@@ -202,6 +206,25 @@ impl Driver {
         self.ready_to_build(text, &events).await.map(Some)
     }
 
+    /// The chosen endpoints the person may read in the project, in the order chosen (JC1-14):
+    /// words typed where nothing was there to pick name no endpoint, and leave the turn to the
+    /// model. A listing that fails reads as nothing readable.
+    async fn chosen_endpoints(&self, answer: Option<&Value>) -> Vec<String> {
+        let chosen = endpoints_of(answer);
+        if chosen.is_empty() {
+            return chosen;
+        }
+        let readable = self.readable("endpoints").await.unwrap_or_default();
+        chosen
+            .into_iter()
+            .filter(|name| {
+                readable
+                    .iter()
+                    .any(|item| item.get("name").and_then(Value::as_str) == Some(name.as_str()))
+            })
+            .collect()
+    }
+
     async fn ask_build(&self, call: tools_registry::AskCall) -> Result<Option<Taken>, String> {
         let asked = call.question.clone();
         self.ask_person(&call, Some(self.elapsed_ms())).await?;
@@ -223,7 +246,9 @@ impl Driver {
                 return Ok(Taken::Done(reason));
             }
         };
-        let endpoints = endpoints_of(answer_of(events, ENDPOINTS_STEP).as_ref());
+        let endpoints = self
+            .chosen_endpoints(answer_of(events, ENDPOINTS_STEP).as_ref())
+            .await;
         let chosen = |step: &str, known: &[(&str, &str)]| {
             answer_of(events, step).and_then(|answer| one_of(&json!({ "answer": answer }), known))
         };
@@ -287,6 +312,27 @@ mod tests {
             None
         );
         assert_eq!(one_of(&json!({ "answer": ["read"] }), &ACCESS), None);
+    }
+
+    /// JC1-14: words typed where the project had no Endpoint to pick name none, so the path
+    /// asks nothing further and the model takes the words.
+    #[tokio::test]
+    async fn words_for_an_endpoint_the_project_lacks_choose_none() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let driver = Driver::for_tests(state, "helsinki");
+        let taken = driver
+            .build_answer(
+                ENDPOINTS_STEP,
+                &json!({ "answer": "bike counters please" }),
+                &[],
+            )
+            .await
+            .expect("no failure");
+        assert!(taken.is_none(), "the words went on as an endpoint name");
+        assert!(driver
+            .chosen_endpoints(Some(&json!(["bike counters please"])))
+            .await
+            .is_empty());
     }
 
     #[test]

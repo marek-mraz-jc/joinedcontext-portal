@@ -1254,12 +1254,21 @@ async fn propose_drafts(
     let mut created = Vec::new();
 
     for d in drafts {
-        let committed = committed(&d.manifest);
+        let mut committed = committed(&d.manifest);
         let info = resource::by_kind(&d.kind).ok_or_else(|| {
             OpError::Api(ApiError::BadRequest(format!("unknown kind '{}'", d.kind)))
         })?;
         let path = resource::repository_path(info, project, Some(space_name), &d.name)
             .map_err(ApiError::BadRequest)?;
+        if let (true, Some(source)) = (d.kind == "DataModel", model_linkml_text.as_deref()) {
+            let folder = path.rsplit_once('/').map(|(f, _)| f).unwrap_or_default();
+            bundle_files.extend(
+                compiled_model(caller, state, project, &d.name, &mut committed, source)
+                    .await?
+                    .into_iter()
+                    .map(|(file, content)| (format!("{folder}/{file}"), content)),
+            );
+        }
         let yaml_text =
             serde_norway::to_string(&committed).map_err(|e| ApiError::Internal(e.to_string()))?;
         bundle_files.push((path, yaml_text));
@@ -1297,6 +1306,38 @@ async fn propose_drafts(
         Some(("ContextSpace", space_name)),
     )
     .await?)
+}
+
+/// The drafted model checked and compiled the way the model editor's save does it, with
+/// `spec.version` and `spec.artifacts` set on `manifest`, and its artifact files (DM-02, JC1-06):
+/// a source Model Tools refuses is refused here too, so no model lands without its artifacts.
+async fn compiled_model(
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+    name: &str,
+    manifest: &mut Value,
+    source: &str,
+) -> Result<Vec<(String, String)>, OpError> {
+    let version = manifest["spec"]["version"].as_str().map(str::to_owned);
+    let (checked, _, _) = crate::api::datamodels::check_source(
+        state,
+        &caller.identity,
+        project,
+        name,
+        &manifest["spec"],
+        source,
+        version.as_deref(),
+    )
+    .await?;
+    let version = jc_core::kinds::SemVer::new(&checked.version)
+        .map_err(|e| ApiError::BadRequest(format!("invalid version: {e}")))?;
+    Ok(crate::api::datamodels::place_artifacts(
+        &mut manifest["spec"],
+        name,
+        &version,
+        &checked.artifacts,
+    )?)
 }
 
 /// A source described by its address, read the way a `GET` of JSON is.

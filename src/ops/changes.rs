@@ -224,8 +224,68 @@ fn approved_change_schema() -> Value {
 }
 
 /// This module's operations in the registry (`super::init_registry`).
+/// `jc_change_history`: the closed changes, as the Approvals history pages them (JC2-28).
+pub const HISTORY: &str = "jc_change_history";
+
+fn change_history_input_schema() -> Value {
+    use bounds::*;
+    json!({
+        "type": "object",
+        "properties": {
+            "page": { "type": "integer", "minimum": 1, "description": "From 1; the previous answer's next" },
+            "kind": text("Only changes to this kind, e.g. Endpoint", TERM),
+            "name": text("Resource name contains, e.g. air", NAME),
+            "author": text("Author name or e-mail contains, e.g. jana", TITLE),
+            "since": text("Decided on or after, YYYY-MM-DD", 10),
+            "until": text("Decided on or before, YYYY-MM-DD", 10)
+        },
+        "additionalProperties": false
+    })
+}
+
+fn change_history_output_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "items": {
+                "type": "array",
+                "description": "Merged or rejected changes, most recently closed first, each naming who decided it",
+                "items": { "type": "object" }
+            },
+            "next": { "type": "integer", "description": "Present when older changes follow: send it as page" }
+        },
+        "required": ["items"]
+    })
+}
+
 pub fn operations() -> Vec<Operation> {
     vec![
+        Operation {
+            name: HISTORY,
+            title: "List Closed Changes",
+            description: "One page of the merged and rejected changes, most recently closed first, each naming who decided it; `next` is the page that continues it",
+            input: change_history_input_schema,
+            output: change_history_output_schema,
+            annotations: OperationAnnotations {
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: true,
+            },
+            // As jc_change_list: no manifest kind, and the function checks the project read.
+            kind: "*",
+            verb: None,
+            lane: Lane::Green,
+            validate: |val| parse_input::<changes::HistoryQuery>(val.clone()).map(|_| ()),
+            run: |caller, state, project, val| {
+                Box::pin(async move {
+                    let query: changes::HistoryQuery = parse_input(val)?;
+                    let list =
+                        changes::change_history_readable(state, &caller.identity, project, &query)
+                            .await?;
+                    Ok(serde_json::to_value(list)?)
+                })
+            },
+        },
         Operation {
             name: "jc_change_list",
             title: "List Changes",

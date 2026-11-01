@@ -57,6 +57,7 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_kpi_compute",
             "jc_data_query",
             "jc_catalog_search",
+            "jc_attribute_explain",
         ],
         &["Endpoint", "ContextSpace", "DataModel"],
     ),
@@ -69,6 +70,11 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_resource_list",
             "jc_resource_get",
             "jc_model_source_get",
+            "jc_model_sdm_search",
+            "jc_model_sdm_import",
+            "jc_model_generate",
+            "jc_endpoint_preview",
+            "jc_space_governance",
         ],
         &[
             "ContextSpace",
@@ -94,6 +100,9 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_pipeline_test",
             "jc_syncsource_status",
             "jc_mqtt_captured",
+            "jc_mqtt_test_publish",
+            "jc_pipeline_inspect",
+            "jc_space_governance",
         ],
         &[
             "Pipeline",
@@ -115,6 +124,8 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_resource_list",
             "jc_resource_get",
             "jc_member_list",
+            "jc_access_simulate",
+            "jc_access_explore",
         ],
         &["Role", "RoleBinding", "ServiceAccount", "Policy", "Group"],
     ),
@@ -129,6 +140,8 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_ckan_status",
             "jc_model_source_get",
             "jc_kpi_compute",
+            "jc_catalogue_draft",
+            "jc_endpoint_preview",
         ],
         &["Endpoint", "CkanInstance", "DataModel"],
     ),
@@ -156,6 +169,8 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_syncsource_status",
             "jc_change_list",
             "jc_change_get",
+            "jc_change_history",
+            "jc_pipeline_inspect",
         ],
         &["Pipeline", "SyncSource"],
     ),
@@ -185,6 +200,8 @@ pub const ADMIN: &str = "admin";
 /// Runs an approved Pipeline now: it writes data, so like [`APPLY`] it comes with the `writes`
 /// switch alone, to a connector whose segments reach Pipeline (T-6028).
 pub const RUN: &str = "jc_pipeline_run";
+/// Writes entities through one Endpoint: like [`APPLY`], it comes with the `writes` switch alone.
+pub const DATA_WRITE: &str = crate::ops::data_write::NAME;
 
 /// Whether `segment` is one a connector may name.
 pub fn is_segment(segment: &str) -> bool {
@@ -537,9 +554,11 @@ impl Ceiling {
     ) -> Result<(), String> {
         let kind = resource_kind(op, args);
         let named = args.get("name").and_then(Value::as_str);
+        let by_endpoint = args.get("endpoint").and_then(Value::as_str);
         let endpoint = match kind {
-            Some("Endpoint") => named,
-            _ => args.get("endpoint").and_then(Value::as_str),
+            // An Endpoint tool names it as `name`, or as `endpoint` (jc_data_write, T-6389).
+            Some("Endpoint") => named.or(by_endpoint),
+            _ => by_endpoint,
         };
         let fits = |p: &DelegationPolicySpec| {
             let (tools, kinds) = reach_under(p, connector);
@@ -1138,6 +1157,12 @@ impl Connector {
             let space = space_of("Pipeline", name);
             return self.may_change(project, "Pipeline", name, space.as_deref(), true);
         }
+        // An entity write is a write on its Endpoint: `writes` and `write` on an item reaching it.
+        if op.name == DATA_WRITE {
+            let name = text("endpoint").ok_or("jc_data_write names the endpoint: name it")?;
+            let space = space_of("Endpoint", name);
+            return self.may_change(project, "Endpoint", name, space.as_deref(), true);
+        }
         // A plan or an apply names its objects per change; the operation holds each one to
         // the scope with `may_change` (T-5956).
         if self.whole(project) || matches!(op.name, "jc_schema_get" | PLAN | APPLY | REVERT) {
@@ -1228,10 +1253,13 @@ pub(crate) fn change_space(now: Option<&Value>, next: Option<&Value>) -> Option<
     }
 }
 
-/// The writing tools a `writes` connector adds to its segments' tools, by the kinds they reach.
+/// The writing tools a `writes` connector adds to its segments' tools, by the kinds they reach:
+/// a run to one reaching Pipeline, and the entity write to one reaching Endpoint, whose Policy
+/// then decides each entity (T-6389).
 fn written(kinds: &[&str]) -> Vec<&'static str> {
     let run = kinds.contains(&"Pipeline").then_some(RUN);
-    [APPLY].into_iter().chain(run).collect()
+    let data = kinds.contains(&"Endpoint").then_some(DATA_WRITE);
+    [APPLY].into_iter().chain(run).chain(data).collect()
 }
 
 /// The tools and kinds of the segments `carries` picks.
@@ -2504,6 +2532,83 @@ pub(crate) mod tests {
             .is_err());
     }
 
+    /// JC2-28..34, T-6271, T-6389: each segment reaches the page reads its jobs need, and the
+    /// entity write comes with `writes` alone, to a connector reaching Endpoint, held to the
+    /// Endpoints its scope names.
+    #[test]
+    fn the_parity_reads_reach_their_segments_and_the_entity_write_needs_writes() {
+        let reached = |segments: &[&str], writes: bool| {
+            let mut c = connector(segments, vec![item("doprava", None)]);
+            c.writes = writes;
+            c.reach().0
+        };
+        for (segment, tools) in [
+            ("data-read", &["jc_attribute_explain"][..]),
+            (
+                "context",
+                &[
+                    "jc_model_sdm_search",
+                    "jc_model_sdm_import",
+                    "jc_model_generate",
+                    "jc_endpoint_preview",
+                    "jc_space_governance",
+                ][..],
+            ),
+            (
+                "pipeline",
+                &[
+                    "jc_pipeline_inspect",
+                    "jc_mqtt_test_publish",
+                    "jc_space_governance",
+                ][..],
+            ),
+            ("access", &["jc_access_simulate", "jc_access_explore"][..]),
+            (
+                "publish",
+                &["jc_catalogue_draft", "jc_endpoint_preview"][..],
+            ),
+            ("operate", &["jc_change_history", "jc_pipeline_inspect"][..]),
+        ] {
+            let listed = reached(&[segment], false);
+            for tool in tools {
+                assert!(listed.contains(tool), "{segment} lists {tool}");
+                assert!(crate::ops::find(tool).is_some(), "{tool} is an operation");
+            }
+        }
+        assert!(!reached(&["data-read"], false).contains(&DATA_WRITE));
+        assert!(reached(&["data-read"], true).contains(&DATA_WRITE));
+        assert!(
+            !reached(&["operate"], true).contains(&DATA_WRITE),
+            "operate reaches no Endpoint"
+        );
+
+        let write = op(DATA_WRITE);
+        let entity = json!({ "endpoint": "bikes", "action": "delete", "ids": ["urn:ngsi-ld:T:1"] });
+        let mut open = connector(&["data-read"], vec![item("doprava", None)]);
+        assert!(
+            open.admits(write, "doprava", &entity, &|_, _| None)
+                .is_err(),
+            "no writes switch"
+        );
+        open.writes = true;
+        assert!(open
+            .admits(write, "doprava", &entity, &|_, _| None)
+            .expect_err("a read item")
+            .contains("only reads"),);
+        open.scope[0].access = ItemAccess::Write;
+        assert_eq!(open.admits(write, "doprava", &entity, &|_, _| None), Ok(()));
+        let mut one = item("doprava", Some("counters"));
+        one.access = ItemAccess::Write;
+        let mut narrow = connector(&["data-read"], vec![one]);
+        narrow.writes = true;
+        assert!(
+            narrow
+                .admits(write, "doprava", &entity, &|_, _| None)
+                .is_err(),
+            "another Endpoint"
+        );
+    }
+
     /// T-6360: a space item reaches every object whose `contextSpaceRef` names the space, for
     /// reads and plans, and no object of another space, of no space or moved across spaces.
     #[test]
@@ -2751,6 +2856,7 @@ pub(crate) mod tests {
         assert_eq!(
             data_read,
             [
+                "jc_attribute_explain",
                 "jc_catalog_search",
                 "jc_data_query",
                 "jc_kpi_compute",

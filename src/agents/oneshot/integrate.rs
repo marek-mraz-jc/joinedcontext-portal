@@ -304,6 +304,9 @@ impl Driver {
             return Err("the feed question follows a file, and no file was handed over".to_owned());
         };
         let Some(feed) = feed else {
+            // The person loads the file's rows themselves, and every write goes through an
+            // Endpoint and its Policy: the space gets both drafted with it (DM-81, JC1-17).
+            source["upload"] = json!(true);
             let prose = self.space_complete(source, "").await?;
             // A pipeline reads a feed; a file with none is data once (T-2695). Said, not guessed
             // around.

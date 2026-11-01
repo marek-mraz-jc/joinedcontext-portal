@@ -3752,3 +3752,55 @@ async fn a_create_only_connector_is_refused_an_edit_with_the_verb_named() {
     .expect("scenario");
     assert_eq!(harness.run(&scenario, &own).await, Ok(()));
 }
+
+/// T-6271, T-6389: the context segment reaches the Smart Data Models import, which refuses a bare
+/// type name at `model` before it reads the catalogue; and an entity write is no tool of a
+/// connector with writes off.
+#[tokio::test]
+async fn the_sdm_import_is_the_context_segments_and_a_read_connector_writes_no_entity() {
+    let harness = Harness::start(1).await;
+    let own = project_of(1);
+    let context: Scenario = serde_json::from_value(json!({
+        "id": "S-00", "segment": "context", "as": "steward", "says": "selftest",
+        "expect": "selftest", "deny": "selftest", "script": [
+            { "proves": "expect", "call": "jc_model_sdm_import", "refused": true,
+              "args": { "model": "OnStreetParking" }, "contains": ["\"path\":\"model\""] },
+            { "proves": "deny", "call": "jc_model_sdm_search", "refused": true,
+              "args": { "q": "p" }, "contains": ["q"] }
+        ]
+    }))
+    .expect("scenario");
+    assert_eq!(harness.run(&context, &own).await, Ok(()));
+    let write = json!({ "endpoint": "{project}-counters", "action": "delete",
+                        "ids": ["urn:ngsi-ld:BikeCounter:1"] });
+    let read: Scenario = serde_json::from_value(json!({
+        "id": "S-00", "segment": "data-read", "as": "steward", "says": "selftest",
+        "expect": "selftest", "deny": "selftest", "script": [
+            { "proves": "expect", "manifest": { "kind": "Group", "name": "writers",
+                  "spec": { "members": [{ "user": "scn.steward@hel.fi" }] } } },
+            { "proves": "expect", "manifest": { "kind": "DelegationPolicy", "name": "writers-doprava",
+                  "spec": { "subjects": [{ "kind": "Group", "name": "writers" }], "projects": ["{project}"],
+                            "segments": ["data-read"], "writes": true, "maxExpiry": "P90D" } } },
+            { "proves": "expect", "rest": { "method": "POST", "path": "/connectors",
+                  "body": { "name": "s00-reader", "segments": ["data-read"], "writes": false,
+                            "scope": [{ "project": "{project}", "endpoint": "{project}-counters", "access": "read" }],
+                            "expiresAt": "{in7days}" } },
+              "contains": ["\"state\":\"active\""] },
+            { "proves": "expect", "via": "connector", "contains": ["jc_data_query"],
+              "absent": ["jc_data_write"] },
+            { "proves": "deny", "via": "connector", "call": "jc_data_write", "args": write,
+              "refused": true, "contains": ["\"status\":403", "writes off"] },
+            { "proves": "expect", "rest": { "method": "POST", "path": "/connectors",
+                  "body": { "name": "s00-writer", "segments": ["data-read"], "writes": true,
+                            "scope": [{ "project": "{project}", "endpoint": "{project}-counters", "access": "write" }],
+                            "expiresAt": "{in7days}" } },
+              "contains": ["\"state\":\"active\""] },
+            { "proves": "expect", "via": "connector", "contains": ["jc_data_write"] },
+            { "proves": "deny", "via": "connector", "call": "jc_data_write", "refused": true,
+              "args": { "endpoint": "{project}-other", "action": "delete", "ids": ["urn:ngsi-ld:BikeCounter:1"] },
+              "contains": ["{project}-other"] }
+        ]
+    }))
+    .expect("scenario");
+    assert_eq!(harness.run(&read, &own).await, Ok(()));
+}
