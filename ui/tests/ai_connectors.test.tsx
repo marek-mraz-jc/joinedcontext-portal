@@ -18,7 +18,7 @@ const NOW = new Date("2026-10-28T12:00:00Z");
 const OPTIONS: ConnectorOptions = {
   segments: ["data-read", "context", "pipeline", "access", "publish", "apps", "operate", "knowledge", "admin"],
   ceiling: { segments: ["data-read"], writes: false, maxDays: 30 },
-  projects: [{ project: "doprava", spaces: ["parking"], endpoints: ["bike-counters"], pipelines: ["load-counters"] }],
+  projects: [{ project: "doprava", spaces: ["parking"], endpoints: ["bike-counters"], pipelines: ["load-counters"], allowed: true }],
   clients: [
     { id: "mcp-local", isBoundary: false },
     { id: "https://claude.ai/oauth/mcp-client-metadata", isBoundary: true },
@@ -343,6 +343,36 @@ describe("the scope tree", () => {
     expect(child).toHaveAttribute("aria-disabled", "true");
     await user.click(child);
     expect(picks).not.toHaveBeenCalled();
+  });
+
+  it("greys a project and the objects the ceiling refuses, with the reason (T-6307)", async () => {
+    const user = userEvent.setup();
+    const picks = vi.fn();
+    const options: ConnectorOptions = {
+      ...OPTIONS,
+      projects: [
+        { project: "sharing", spaces: ["bikes"], endpoints: ["bike-share"], pipelines: [], allowed: false },
+        { project: "doprava", spaces: ["parking"], endpoints: ["bike-counters", "noise"], pipelines: ["load-counters"], allowed: true, allowedEndpoints: ["bike-counters"] },
+      ],
+    };
+    const form = { ...emptyForm(options, NOW), picks: [{ project: "doprava", kind: "endpoint" as const, name: "noise", access: "read" as const }] };
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ScopeTree options={options} form={form} onChange={picks} />
+      </I18nextProvider>,
+    );
+    for (const name of [/sharing: the whole project/, /^bikes/, /bike-share/, /doprava: the whole project/, /^parking/, /load-counters/]) {
+      expect(screen.getByRole("checkbox", { name })).toHaveAttribute("aria-disabled", "true");
+    }
+    expect(screen.getAllByText(/Your organization does not let a connector reach this project yet/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Your organization lets a connector reach only some Endpoints of this project/).length).toBeGreaterThan(0);
+    await user.click(screen.getByRole("checkbox", { name: /sharing: the whole project/ }));
+    expect(picks).not.toHaveBeenCalled();
+    // The allowed Endpoint ticks; a refused one an edit still holds can be unticked.
+    await user.click(screen.getByRole("checkbox", { name: /bike-counters/ }));
+    expect(picks).toHaveBeenLastCalledWith(expect.arrayContaining([expect.objectContaining({ name: "bike-counters" })]));
+    await user.click(screen.getByRole("checkbox", { name: /^noise/ }));
+    expect(picks).toHaveBeenLastCalledWith([]);
   });
 
   it("says what to do when the person reads no project", () => {
