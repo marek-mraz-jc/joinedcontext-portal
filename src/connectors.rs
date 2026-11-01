@@ -472,6 +472,18 @@ impl Ceiling {
         self.each().iter().any(|p| p.allows_client(client))
     }
 
+    /// Every client id a binding policy lists, sorted, e.g. claude.ai's CIMD URL (T-6309).
+    pub fn listed_clients(&self) -> Vec<String> {
+        let mut all: Vec<String> = self
+            .each()
+            .iter()
+            .flat_map(|p| p.allowed_clients.iter().flatten().cloned())
+            .collect();
+        all.sort();
+        all.dedup();
+        all
+    }
+
     /// Whether a connector naming no client fits: no policy lists clients it must name.
     pub fn any_client(&self) -> bool {
         self.each().iter().any(|p| p.allowed_clients.is_none())

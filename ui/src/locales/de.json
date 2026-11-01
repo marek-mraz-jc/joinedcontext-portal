@@ -10842,6 +10842,7 @@
     "verbsGreyed": "Graue Verben muss Ihre Organisation erst freigeben; bitten Sie eine Administratorin oder einen Administrator darum.",
     "verb": {"read": "lesen", "create": "anlegen", "edit": "bearbeiten", "delete": "löschen", "run": "ausführen", "propose": "anlegen, bearbeiten, löschen"},
     "binds": "nur dieser Client kann ihn nutzen",
+    "clientRefused": "die Richtlinie Ihrer Organisation lässt ihn nicht zu",
     "intendedFor": "sagt, für wen er ist; auch andere lokale Programme können ihn nennen",
     "state": {
       "active": "Aktiv",
@@ -10920,6 +10921,7 @@
       "scope": "Kreuzen Sie ein ganzes Projekt oder einzelne Räume, Endpoints oder Pipelines an, z. B. helsinki / Endpoint bike-counters.",
       "expires": "Der letzte gültige Tag, höchstens {days} Tage ab heute, z. B. das Monatsende.",
       "clients": "Leer lassen für jeden Client, oder z. B. Claude Code ankreuzen, für wen er ist.",
+      "clientsListed": "Kreuzen Sie den Client an, den Sie nutzen, z. B. claude.ai: Ihre Organisation lässt einen Connector nur den Clients antworten, die ihre Richtlinie nennt.",
       "nameStays": "Der Name bleibt; unter ihm listet Ihr KI-Client den Konnektor.",
       "kinds": "Z. B. neue Endpoints anlegen, aber keine bearbeiten. Zeilen fügen nur Vorlagen hinzu, die Änderungen vorschlagen; jede Änderung genehmigt weiterhin ein Mensch."
     },

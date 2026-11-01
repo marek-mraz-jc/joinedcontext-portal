@@ -91,6 +91,10 @@ pub struct ClientChoice {
     /// Whether naming it binds the connector (a published client id) or only says whom it is
     /// meant for (a loopback client anyone can name, AG-153).
     pub is_boundary: bool,
+    /// Why the caller's ceiling refuses it, e.g. `DelegationPolicy p does not allow the client
+    /// mcp-hub`; absent when it may be named. Create checks it again (T-6309).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub refused: Option<String>,
 }
 
 /// One preset and the kinds it reaches, e.g. `pipeline`: `Pipeline`, `DataSource`, ...
@@ -364,16 +368,26 @@ pub async fn connector_options(
             kinds: ceiling.kind_verbs(&every_kind),
         },
         projects,
-        clients: state
-            .config
-            .connector_clients
-            .iter()
-            .map(|id| ClientChoice {
-                id: id.clone(),
-                is_boundary: connectors::binds(id),
-            })
-            .collect(),
+        clients: client_choices(&state.config.connector_clients, &ceiling),
     }))
+}
+
+/// The realm's connector clients, each marked when the ceiling refuses it, then every other
+/// client a binding policy lists (a CIMD URL such as claude.ai's): offering one grants nothing,
+/// create checks each again (T-6309).
+fn client_choices(configured: &[String], ceiling: &Ceiling) -> Vec<ClientChoice> {
+    let listed = ceiling.listed_clients();
+    let extra = listed.iter().filter(|id| !configured.contains(id));
+    configured
+        .iter()
+        .chain(extra)
+        .map(|id| ClientChoice {
+            id: id.clone(),
+            is_boundary: connectors::binds(id),
+            refused: (!ceiling.allows_client(id))
+                .then(|| format!("{} does not allow the client {id}", ceiling.named())),
+        })
+        .collect()
 }
 
 #[utoipa::path(
@@ -1449,6 +1463,74 @@ mod tests {
 
     fn patch(body: Value) -> Result<Json<ConnectorPatch>, JsonRejection> {
         Ok(Json(serde_json::from_value(body).expect("patch")))
+    }
+
+    #[tokio::test]
+    async fn the_options_offer_the_clients_a_policy_lists_and_mark_the_ones_it_refuses() {
+        const CLAUDE_AI: &str = "https://claude.ai/oauth/mcp-oauth-client-metadata";
+        const CLAUDE_CODE: &str = "https://claude.ai/oauth/claude-code-client-metadata";
+        let state = reader_world();
+        let options = |state: AppState| async move {
+            let Json(options) = connector_options(user("reader@hel.fi"), State(state))
+                .await
+                .expect("options");
+            options.clients
+        };
+        // Under the default every realm client may be named and nothing else is offered.
+        let open = options(state.clone()).await;
+        assert_eq!(
+            open.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
+            state.config.connector_clients
+        );
+        assert!(open.iter().all(|c| c.refused.is_none()), "{open:?}");
+        state.mirror.upsert(envelope(
+            "DelegationPolicy",
+            "claude-only",
+            ORG_NAMESPACE,
+            json!({ "subjects": [{ "kind": "Group", "name": "readers" }], "projects": ["helsinki"],
+                    "allowedClients": [CLAUDE_CODE, CLAUDE_AI] }),
+        ));
+        state.mirror.upsert(envelope(
+            "Group",
+            "readers",
+            ORG_NAMESPACE,
+            json!({ "members": [{ "user": "reader@hel.fi" }] }),
+        ));
+        let only = options(state.clone()).await;
+        for id in &state.config.connector_clients {
+            let choice = only
+                .iter()
+                .find(|c| &c.id == id)
+                .expect("realm client kept");
+            assert_eq!(
+                choice.refused.as_deref(),
+                Some(
+                    format!("DelegationPolicy claude-only does not allow the client {id}").as_str()
+                )
+            );
+        }
+        let offered: Vec<(&str, bool)> = only
+            .iter()
+            .filter(|c| c.refused.is_none())
+            .map(|c| (c.id.as_str(), c.is_boundary))
+            .collect();
+        assert_eq!(offered, vec![(CLAUDE_CODE, false), (CLAUDE_AI, true)]);
+        // Offering a client grants nothing: create still refuses a realm client the policy omits.
+        let days = (chrono::Utc::now() + chrono::Duration::days(5)).to_rfc3339();
+        let ask = |client: &str| {
+            let new: NewConnector = serde_json::from_value(json!({
+                "name": "air", "segments": ["data-read"], "expiresAt": days,
+                "scope": [{ "project": "helsinki", "access": "read" }], "allowedClients": [client]
+            }))
+            .expect("new");
+            let ceiling = Ceiling::of(&state.mirror, &user("reader@hel.fi").0.identity);
+            connectors::validate(&new, &ceiling, chrono::Utc::now()).map(|above| above.len())
+        };
+        assert_eq!(ask(CLAUDE_AI).ok(), Some(0));
+        assert!(
+            !matches!(ask("mcp-hub"), Ok(0)),
+            "mcp-hub passed the ceiling"
+        );
     }
 
     #[tokio::test]

@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
 import { AiConnectorsPage, KindVerbsPicker, ScopeTree, SetupPanel } from "../src/pages/mcp/AiConnectorsPage";
-import { emptyForm, formProblems, kindRows, refusedSection, scopeLines, setup, toForm, toRequest } from "../src/pages/mcp/aiConnectors";
+import { clientLabel, emptyForm, formProblems, kindRows, namedClients, refusedSection, scopeLines, setup, toForm, toRequest } from "../src/pages/mcp/aiConnectors";
 import type { AiConnector, ConnectorOptions } from "../src/pages/mcp/aiConnectors";
 
 const IDENTITY = { subject: "b7c1e0f4", username: "eva.steward", name: "Eva Steward", roles: [] };
@@ -99,6 +99,18 @@ describe("AI connector helpers", () => {
     expect(formProblems({ ...emptyForm(OPTIONS, NOW), name: "ok", picks: [{ project: "doprava", kind: "project", access: "read" }] }, OPTIONS, NOW)).toEqual({});
   });
 
+  it("names clients from a fixed map, never from the id's own text (T-6309)", () => {
+    const t = i18n.getFixedT("en");
+    expect(clientLabel("https://claude.ai/oauth/mcp-oauth-client-metadata", t)).toBe("claude.ai");
+    expect(clientLabel("https://claude.ai/oauth/claude-code-client-metadata", t)).toBe("Claude Code");
+    expect(clientLabel("https://claude.ai.evil.example/x", t)).toBe("https://claude.ai.evil.example/x");
+    expect(clientLabel("toString", t)).toBe("toString");
+    const clients = [{ id: "https://claude.ai/oauth/claude-code-client-metadata" }, { id: "mcp-hub" }];
+    expect(namedClients("allowedClients[0]: p does not allow the client https://claude.ai/oauth/claude-code-client-metadata", clients, t)).toBe(
+      "p does not allow the client Claude Code",
+    );
+  });
+
   it("finds the section a refusal names, from errors or a 403's detail", () => {
     expect(refusedSection(["scope[0].endpoint"], "x")).toBe("scope");
     expect(refusedSection(undefined, "segments[1]: your organization lets a connector carry only data-read (AG-150)")).toBe("segments");
@@ -123,6 +135,7 @@ interface Stub {
   refuse?: { status: number; detail: string; errors?: string[] };
   listFails?: boolean;
   activity?: unknown[];
+  options?: ConnectorOptions;
 }
 
 function renderAt(path: string, stub: Stub = {}, page?: JSX.Element) {
@@ -142,7 +155,7 @@ function renderAt(path: string, stub: Stub = {}, page?: JSX.Element) {
       if (url.pathname.startsWith("/api/v1/connectors")) {
         const body = request.method === "POST" || request.method === "PATCH" ? await request.json() : undefined;
         requests.push({ method: request.method, path: url.pathname, body });
-        if (url.pathname === "/api/v1/connectors/options") return json(OPTIONS);
+        if (url.pathname === "/api/v1/connectors/options") return json(stub.options ?? OPTIONS);
         if (url.pathname === "/api/v1/connectors" && request.method === "GET") {
           return stub.listFails ? json({ title: "Server error", status: 500, detail: "the store did not answer" }, 500) : json({ items });
         }
@@ -219,6 +232,38 @@ describe("the AI connectors page (T-5951)", () => {
     await user.click(screen.getByRole("button", { name: "Revoke now" }));
     await waitFor(() => expect(requests.some((one) => one.method === "DELETE")).toBe(true));
     expect(await screen.findByText("Revoked")).toBeInTheDocument();
+  });
+
+  it("offers the clients the ceiling lists by name and greys a realm client it refuses (T-6309)", async () => {
+    const user = userEvent.setup();
+    const refused = "DelegationPolicy claude-only does not allow the client mcp-hub";
+    const options: ConnectorOptions = {
+      ...OPTIONS,
+      clients: [
+        { id: "mcp-hub", isBoundary: false, refused },
+        { id: "https://claude.ai/oauth/claude-code-client-metadata", isBoundary: false },
+        { id: "https://claude.ai/oauth/mcp-oauth-client-metadata", isBoundary: true },
+        { id: "https://other.example/client.json", isBoundary: false },
+      ],
+    };
+    const { requests } = renderAt("/ai-connectors", { options }, <AiConnectorsPage />);
+    await user.click((await screen.findAllByRole("button", { name: "New AI connector" }))[0]);
+    const dialog = await screen.findByRole("dialog");
+    const hub = within(dialog).getByRole("checkbox", { name: /The organization's MCP hub/ });
+    expect(hub).toHaveAttribute("aria-disabled", "true");
+    expect(within(dialog).getByText(refused)).toBeInTheDocument();
+    expect(within(dialog).getByText(/only the clients its policy lists/)).toBeInTheDocument();
+    await user.click(hub);
+    expect(hub).not.toBeChecked();
+    expect(within(dialog).getByRole("checkbox", { name: /^Claude Code/ })).not.toHaveAttribute("aria-disabled");
+    expect(within(dialog).getByRole("checkbox", { name: /https:\/\/other\.example\/client\.json/ })).toBeInTheDocument();
+    await user.type(within(dialog).getByRole("textbox", { name: /Name/ }), "air-in-claude");
+    await user.click(within(dialog).getByRole("checkbox", { name: "bike-counters" }));
+    await user.click(within(dialog).getByRole("checkbox", { name: /^claude\.ai/ }));
+    await user.click(within(dialog).getByRole("button", { name: "Create" }));
+    await waitFor(() => expect(requests.some((one) => one.method === "POST")).toBe(true));
+    const sent = requests.find((one) => one.method === "POST")?.body as { allowedClients: string[] };
+    expect(sent.allowedClients).toEqual(["https://claude.ai/oauth/mcp-oauth-client-metadata"]);
   });
 
   it("shows the server's refusal beside the field it names", async () => {

@@ -7874,6 +7874,11 @@ export interface components {
              *     meant for (a loopback client anyone can name, AG-153).
              */
             isBoundary: boolean;
+            /**
+             * @description Why the caller's ceiling refuses it, e.g. `DelegationPolicy p does not allow the client
+             *     mcp-hub`; absent when it may be named. Create checks it again (T-6309).
+             */
+            refused?: string | null;
         };
         ColourRule: {
             /** @description One of `neutral`, `info`, `success`, `warning`, `danger`. */
