@@ -115,8 +115,9 @@ describe("the attribute capability matrix (DM-153)", () => {
     form(PUBLIC_READER, () => {});
     const table = await screen.findByRole("table", { name: /Attribute capabilities/ });
     await waitFor(() => expect(within(table).getByRole("rowheader", { name: "pm10" })).toBeTruthy());
-    // No write operation on a public grant: the edit column is the reason, not a control.
-    expect(within(table).getAllByText("A public grant never writes.").length).toBeGreaterThan(0);
+    // No write operation on a public grant: the edit column is left out and the note says why.
+    expect(screen.getByText("A public grant never writes.")).toBeTruthy();
+    expect(within(table).queryByRole("columnheader", { name: "Edit" })).toBeNull();
     expect(within(table).queryByRole("checkbox", { name: /Edit update/ })).toBeNull();
     // versions: read needs readVersions, keep is never public.
     const read = within(table).getByRole("checkbox", { name: "All attributes (*): Versions read" });

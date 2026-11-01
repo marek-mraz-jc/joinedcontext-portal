@@ -85,6 +85,12 @@ export function AttributeCapabilitiesField(props: FieldProps): JSX.Element {
   const { types, caps, rows, limits } = useEntryMatrix(props.fieldPathId.path, props.formData);
   const frozen = Boolean(props.disabled || props.readonly);
   const hints = `${id}-hints`;
+  // Edit on a public grant, which can never give it, is left out unless a row sets it; the note says why.
+  const columns = COLUMNS.filter(
+    (column) =>
+      columnBlocked(column, limits) !== "policies.capabilities.neverPublicWrite" ||
+      rows.some((row) => caps?.[row]?.[column] !== undefined),
+  );
   return (
     <fieldset className="flex min-w-0 flex-col gap-3">
       <legend className="text-body font-medium text-fg">{t("policies.capabilities.title")}</legend>
@@ -97,7 +103,7 @@ export function AttributeCapabilitiesField(props: FieldProps): JSX.Element {
       <Table stack caption={t("policies.capabilities.caption", { types: types.join(", ") || "—" })} zebra={false}>
         <TableHead>
           <TableHeaderCell>{t("policies.capabilities.column.attribute")}</TableHeaderCell>
-          {COLUMNS.map((column) => (
+          {columns.map((column) => (
             <TableHeaderCell key={column}>{t(`policies.capabilities.column.${column}`)}</TableHeaderCell>
           ))}
         </TableHead>
@@ -107,7 +113,7 @@ export function AttributeCapabilitiesField(props: FieldProps): JSX.Element {
               <TableRowHeaderCell className="font-mono">
                 {attribute === "*" ? t("policies.capabilities.every") : attribute}
               </TableRowHeaderCell>
-              {COLUMNS.map((column) => (
+              {columns.map((column) => (
                 <TableCell key={column} data-label={t(`policies.capabilities.column.${column}`)}>
                   <CapabilityCell
                     attribute={attribute}
