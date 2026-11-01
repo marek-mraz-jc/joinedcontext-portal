@@ -24,6 +24,14 @@ vi.mock("../src/components/dashboards/MapLibreView", () => ({
   },
 }));
 
+// The data grid is the SDK EntityGrid behind EndpointDataView, tested on its own (T-6376); here only
+// that the dataset page mounts it for its Endpoint.
+vi.mock("../src/components/entities/EndpointDataView", () => ({
+  EndpointDataView: ({ slug, project, csv }: { slug: string; project: string; csv?: boolean }) => (
+    <div data-testid="endpoint-data" data-slug={slug} data-project={project} data-csv={String(Boolean(csv))} />
+  ),
+}));
+
 const MAP = {
   type: "AirQualityObserved",
   total: 14,
@@ -118,12 +126,6 @@ const DETAIL = {
   },
 };
 
-const SAMPLE = {
-  type: "KeyPerformanceIndicator",
-  columns: ["id", "type", "value"],
-  rows: [["urn:ngsi-ld:KeyPerformanceIndicator:bbsk:kpi:1", "KeyPerformanceIndicator", "12"]],
-};
-
 type Answer = { status: number; body: unknown };
 
 describe("the catalogue (EP-81, EP-82)", () => {
@@ -138,7 +140,6 @@ describe("the catalogue (EP-81, EP-82)", () => {
       "/api/v1/projects": { status: 200, body: { apiVersion: LIST, kind: "List", items: [{ name: "helsinki" }] } },
       "/api/v1/catalogue": { status: 200, body: PAGE },
       "/api/v1/catalogue/datasets/bbsk-kpi": { status: 200, body: DETAIL },
-      "/api/v1/catalogue/datasets/bbsk-kpi/sample": { status: 200, body: SAMPLE },
       "/api/v1/catalogue/datasets/bbsk-kpi/map": { status: 200, body: { ...MAP, total: 0, features: [] } },
     };
   });
@@ -286,7 +287,7 @@ describe("the catalogue (EP-81, EP-82)", () => {
     expect(paths).not.toContain("/api/v1/projects");
   });
 
-  it("shows a dataset with its facts, resources, model, sample and the ways to use it", async () => {
+  it("shows a dataset with its facts, resources, model, data and the ways to use it", async () => {
     renderAt("/catalogue/bbsk-kpi");
     expect(await screen.findByRole("heading", { level: 1, name: "Ukazovatele kraja" })).toBeInTheDocument();
     expect(screen.getByText("monthly")).toBeInTheDocument();
@@ -307,8 +308,11 @@ describe("the catalogue (EP-81, EP-82)", () => {
     expect(within(hostile).queryByRole("link")).toBeNull();
 
     expect(screen.getByText("A measured indicator of the region.")).toBeInTheDocument();
-    const sample = await screen.findByRole("table", { name: /Up to ten KeyPerformanceIndicator/ });
-    expect(within(sample).getByText("12")).toBeInTheDocument();
+    // The entities are the one data grid, read through the Endpoint with the visitor's own session (T-6376).
+    expect(screen.getByRole("heading", { level: 2, name: "Data" })).toBeInTheDocument();
+    const grid = await screen.findByTestId("endpoint-data");
+    expect(grid).toHaveAttribute("data-project", "catalogue");
+    expect(grid.getAttribute("data-slug")).toMatch(/^[a-z0-9]{16,64}$/);
 
     expect(screen.getByRole("heading", { name: "From a shell (NGSI-LD)" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Download as CSV" })).toBeInTheDocument();
@@ -329,16 +333,6 @@ describe("the catalogue (EP-81, EP-82)", () => {
     renderAt("/catalogue/gone");
     expect(await screen.findByText("No public dataset has this name")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "All datasets" })).toHaveAttribute("href", "/catalogue");
-  });
-
-  it("keeps the dataset page when its endpoint does not answer the sample, and says why", async () => {
-    answers["/api/v1/catalogue/datasets/bbsk-kpi/sample"] = {
-      status: 503,
-      body: { title: "Service Unavailable", status: 503, detail: "the endpoint of dataset 'bbsk-kpi' did not answer; try again in a minute" },
-    };
-    renderAt("/catalogue/bbsk-kpi");
-    expect(await screen.findByRole("alert")).toHaveTextContent("did not answer");
-    expect(screen.getByRole("table", { name: "Resources" })).toBeInTheDocument();
   });
 
   it("draws a dataset's places on a map with labelled popups and the same places as a list (T-5628)", async () => {
@@ -379,7 +373,7 @@ describe("the catalogue (EP-81, EP-82)", () => {
 
   it("shows no map and no empty box for a dataset without places", async () => {
     renderAt("/catalogue/bbsk-kpi");
-    expect(await screen.findByRole("table", { name: "Up to ten KeyPerformanceIndicator read through the endpoint" })).toBeInTheDocument();
+    expect(await screen.findByTestId("endpoint-data")).toBeInTheDocument();
     await waitFor(() =>
       expect(fetchMock.mock.calls.map((call) => new URL((call[0] as Request).url).pathname)).toContain(
         "/api/v1/catalogue/datasets/bbsk-kpi/map",
@@ -394,7 +388,6 @@ describe("the catalogue (EP-81, EP-82)", () => {
       status: 503,
       body: { title: "Service Unavailable", status: 503, detail: "The endpoint of dataset 'bbsk-kpi' did not answer; try again in a minute." },
     };
-    answers["/api/v1/catalogue/datasets/bbsk-kpi/sample"] = { status: 404, body: { title: "Not Found", status: 404 } };
     renderAt("/catalogue/bbsk-kpi");
     expect(await screen.findByRole("heading", { level: 2, name: "Places on the map" })).toBeInTheDocument();
     expect(await screen.findByRole("alert")).toHaveTextContent(/The endpoint of dataset 'bbsk-kpi' did not answer; try again in a minute\.Retry$/);
@@ -403,14 +396,15 @@ describe("the catalogue (EP-81, EP-82)", () => {
     expect(await screen.findByRole("application", { name: "Map of AirQualityObserved" })).toBeInTheDocument();
   });
 
-  it("shows no sample and no snippets for a dataset of no endpoint here", async () => {
+  it("shows no data grid and no snippets for a dataset of no endpoint here", async () => {
     answers["/api/v1/catalogue/datasets/bbsk-kpi"] = {
       status: 200,
       body: { ...DETAIL, endpoint: undefined, model: undefined },
     };
     renderAt("/catalogue/bbsk-kpi");
     expect(await screen.findByRole("heading", { level: 1, name: "Ukazovatele kraja" })).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Sample" })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Data" })).toBeNull();
+    expect(screen.queryByTestId("endpoint-data")).toBeNull();
     expect(screen.queryByRole("heading", { name: "Use this data" })).toBeNull();
     const paths = fetchMock.mock.calls.map((call) => new URL((call[0] as Request).url).pathname);
     expect(paths).not.toContain("/api/v1/catalogue/datasets/bbsk-kpi/sample");

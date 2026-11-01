@@ -12,7 +12,7 @@ import type { Geometry, GeometryType, Position } from "../geo/validate";
 import type { RichCell, RichRow } from "./model";
 
 /** The first cell of an attribute, which is the one the map draws for a multi-instance attribute. */
-function firstCell(row: RichRow, attr: string): RichCell | undefined {
+export function firstCell(row: RichRow, attr: string): RichCell | undefined {
   const cell = row.cells[attr];
   return Array.isArray(cell) ? cell[0] : cell;
 }

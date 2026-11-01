@@ -13,6 +13,7 @@
  */
 
 import type { Geometry, Position } from "../geo/validate";
+import { metresBetween } from "./mapRows";
 
 /** The shape a person drew, and which attribute of the type it is asked about. */
 export interface GeoArea {
@@ -90,6 +91,18 @@ export function areaQuery(area: GeoArea | null | undefined, maxChars = MAX_COORD
   if (!ring) {
     return null;
   }
+  // A drawn circle is asked as what it is, a centre and a radius (`near;maxDistance`, owner
+  // 2026-11-01): exact, and a few characters where its 64-vertex outline would be simplified.
+  const circle = circleOf(ring);
+  if (circle) {
+    return {
+      georel: `near;maxDistance==${circle.metres}`,
+      geometry: "Point",
+      coordinates: JSON.stringify(circle.centre),
+      geoproperty: area.geoproperty,
+      simplified: false,
+    };
+  }
   const { ring: sent, simplified } = decimate(ring, maxChars);
   return {
     georel: "within",
@@ -98,6 +111,27 @@ export function areaQuery(area: GeoArea | null | undefined, maxChars = MAX_COORD
     geoproperty: area.geoproperty,
     simplified,
   };
+}
+
+/** Fewer vertices than this is a drawn polygon, not a circle's outline (terra-draw draws 64). */
+const CIRCLE_MIN_VERTICES = 16;
+/** How far a vertex may sit from the mean radius and still be on the circle. */
+const CIRCLE_TOLERANCE = 0.02;
+
+/**
+ * The centre and radius (whole metres) of a ring that is a circle's outline: many vertices, each
+ * the same distance from their mean. Any other ring, rectangles and hand-drawn polygons, is `null`.
+ */
+export function circleOf(ring: Position[]): { centre: Position; metres: number } | null {
+  const open = ring.slice(0, -1);
+  if (open.length < CIRCLE_MIN_VERTICES) return null;
+  const lon = open.reduce((sum, p) => sum + p[0], 0) / open.length;
+  const lat = open.reduce((sum, p) => sum + p[1], 0) / open.length;
+  const centre = round([lon, lat] as Position);
+  const radii = open.map((p) => metresBetween(centre, p));
+  const mean = radii.reduce((sum, r) => sum + r, 0) / radii.length;
+  if (mean <= 0 || radii.some((r) => Math.abs(r - mean) / mean > CIRCLE_TOLERANCE)) return null;
+  return { centre, metres: Math.max(1, Math.round(mean)) };
 }
 
 /** The bounding box of a drawn rectangle as a closed ring, counter-clockwise (RFC 7946 §3.1.6). */

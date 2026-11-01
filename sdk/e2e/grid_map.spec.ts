@@ -25,7 +25,7 @@ const ENTRY = `
 import { createRoot } from "react-dom/client";
 import { createElement as h, useState } from "react";
 import { EntityGrid } from "../../src/grid/EntityGrid";
-import { fixtureSource } from "../../src/grid/source";
+import { fixtureSource, SourceError } from "../../src/grid/source";
 import { applyChanges } from "../../src/grid/apply";
 
 const STATIONS = [
@@ -58,7 +58,11 @@ const CONFIG = {
 // what travels to the Endpoint, which is the only place a geometry's own type can be wrong.
 const sent = [];
 const base = fixtureSource(STATIONS);
-const source = { ...base, patch: async (id, body) => { sent.push({ id, body }); } };
+// ?refuse=401 or 403: the private-dataset states (T-6376), with no row ever read.
+const refuse = Number(new URLSearchParams(location.search).get("refuse") ?? 0);
+const source = refuse
+  ? { ...base, query: async () => { throw new SourceError(refuse, refuse === 403 ? "no policy grants you Station on this endpoint" : "sign in"); } }
+  : { ...base, patch: async (id, body) => { sent.push({ id, body }); } };
 
 function Harness() {
   const [applied, setApplied] = useState(null);
@@ -66,7 +70,7 @@ function Harness() {
     h(EntityGrid, {
       config: CONFIG,
       source,
-      mapBounds: () => [24.9, 60.15, 25.0, 60.2],
+      onSignIn: () => { window.kitSignIn = true; },
     }),
     h("button", {
       "data-testid": "apply-through-source",
@@ -85,7 +89,6 @@ createRoot(document.getElementById("root")).render(h(Harness));
 `;
 
 const HTML = `<!doctype html><html><head><meta charset="utf-8">
-<style>.jc-grid-map .maplibregl-map { width: 600px; height: 420px; }</style>
 </head><body><div id="root"></div><script type="module" src="./entry.jsx"></script></body></html>`;
 
 let files: Record<string, string> = {};
@@ -117,6 +120,13 @@ test.beforeAll(async () => {
   }
 });
 
+async function shot(page: import("@playwright/test").Page, name: string): Promise<void> {
+  const dir = process.env.SHOTS_DIR;
+  if (!dir) return;
+  mkdirSync(dir, { recursive: true });
+  await page.screenshot({ path: join(dir, `${name}-${page.viewportSize()?.width ?? 0}.png`), fullPage: true });
+}
+
 async function serve(page: import("@playwright/test").Page, problems: string[]): Promise<void> {
   page.on("pageerror", (error) => problems.push(error.message));
   await page.route(`${PAGE}**`, (route) => {
@@ -132,9 +142,11 @@ async function serve(page: import("@playwright/test").Page, problems: string[]):
   });
 }
 
-test("the panel mounts a real map beside the rows, with the page's shapes on it", async ({
+for (const width of [1440, 400])
+test(`the panel mounts a real map beside the rows, with the page's shapes on it, at ${width} px`, async ({
   page,
 }) => {
+  await page.setViewportSize({ width, height: 900 });
   const problems: string[] = [];
   await serve(page, problems);
   await page.goto(PAGE);
@@ -150,12 +162,53 @@ test("the panel mounts a real map beside the rows, with the page's shapes on it"
   await expect(page.getByText("2 shapes")).toBeVisible();
   await page.waitForFunction(() => (window as unknown as { kitGeoMap?: { loaded(): boolean } }).kitGeoMap?.loaded() === true);
 
-  // The drawn area, by a real click, and the page still answers afterwards (T-2276).
+  await shot(page, "map-closed");
+
+  // The drawn area, by real clicks on the canvas (T-2276, T-6345): Draw area opens the tools, a
+  // rectangle is two clicks, and the rows narrow to it; the page still answers afterwards.
   await page.getByRole("button", { name: "Draw area" }).click();
+  // The style is up and Terra Draw wired when it holds more than the kit's background layer.
+  await page.waitForFunction(() => ((window as never as { kitGeoMap?: { getStyle(): { layers: unknown[] } } }).kitGeoMap?.getStyle?.()?.layers?.length ?? 0) > 1);
+  await page.getByRole("button", { name: "Area", exact: true }).click();
+  await expect(page.getByText(/click the map/)).toBeVisible();
+  await shot(page, "drawing");
+  const map = (await page.getByTestId("geo-editor-map").boundingBox())!;
+  // Draw inside what the viewport shows, however wide the panel is.
+  const box = { ...map, width: Math.min(map.width, (page.viewportSize()?.width ?? 0) - map.x - 8) };
+  const corners = [
+    [0.15, 0.15],
+    [0.85, 0.15],
+    [0.85, 0.85],
+    [0.15, 0.85],
+  ].map(([x, y]) => ({ x: box.x + box.width * x, y: box.y + box.height * y }));
+  for (const corner of corners) await page.mouse.click(corner.x, corner.y);
+  // Terra Draw closes a polygon on a second click at the last corner.
+  await page.mouse.click(corners[3].x, corners[3].y);
   await expect(page.getByText("Filtered to the drawn area")).toBeVisible();
-  await page.getByRole("button", { name: "Clear area" }).click();
+  await expect(page.getByRole("button", { name: "Clear area" }).first()).toBeVisible();
+  await shot(page, "area-set");
+  await page.getByRole("button", { name: "Clear area" }).first().click();
   await expect(page.getByText("Filtered to the drawn area")).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: /name/ }).first()).toHaveValue("Kamppi");
 
   expect(problems).toEqual([]);
 });
+
+for (const width of [1440, 400]) {
+  test(`a private dataset says sign in or no access, never an empty grid, at ${width} px (T-6376)`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const problems: string[] = [];
+    await serve(page, problems);
+    await page.goto(`${PAGE}?refuse=401`);
+    await expect(page.getByRole("heading", { name: "Sign in to see this dataset" })).toBeVisible();
+    await expect(page.getByRole("grid")).toHaveCount(0);
+    await shot(page, "signed-out");
+    await page.getByRole("button", { name: "Sign in" }).click();
+    expect(await page.evaluate(() => (window as unknown as { kitSignIn?: boolean }).kitSignIn)).toBe(true);
+    await page.goto(`${PAGE}?refuse=403`);
+    await expect(page.getByRole("heading", { name: "You have no access to this dataset" })).toBeVisible();
+    await expect(page.getByText("no policy grants you Station on this endpoint")).toBeVisible();
+    await shot(page, "no-access");
+    expect(problems).toEqual([]);
+  });
+}

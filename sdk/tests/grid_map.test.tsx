@@ -257,10 +257,19 @@ describe("the drawn area as a filter", () => {
     expect(onArea).toHaveBeenLastCalledWith(null);
   });
 
+  it("names its header button for what it does now: draw, stop drawing, clear the area", () => {
+    const area = { geoproperty: "location", geometry: { type: "Polygon" as const, coordinates: [[[24.8, 60], [25.1, 60], [25.1, 60.3], [24.8, 60]]] } };
+    const { rerender } = render(<GridMap rows={rows} attr="location" activeId={null} onActivate={() => {}} onArea={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: DEFAULT_GRID_MAP_LABELS.drawArea }));
+    expect(screen.getByRole("button", { name: DEFAULT_GRID_MAP_LABELS.stopDrawing })).toHaveAttribute("aria-pressed", "true");
+    rerender(<GridMap rows={rows} attr="location" activeId={null} onActivate={() => {}} onArea={vi.fn()} area={area} />);
+    expect(screen.getByRole("button", { name: DEFAULT_GRID_MAP_LABELS.clearArea })).toBeTruthy();
+  });
+
   it("opens straight on the drawing tools when the location filter asks for it", () => {
     render(<GridMap rows={rows} attr="location" activeId={null} onActivate={() => {}} onArea={vi.fn()} startDrawing />);
     expect(screen.getByTestId("geo-editor")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: DEFAULT_GRID_MAP_LABELS.clearArea })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: DEFAULT_GRID_MAP_LABELS.stopDrawing })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("stays visible while it filters, and is removed by the same control", async () => {
@@ -301,5 +310,51 @@ describe("the drawn area as a filter", () => {
   it("offers no area control where the host cannot take one", () => {
     render(<GridMap rows={rows} attr="location" activeId={null} onActivate={() => {}} />);
     expect(screen.queryByRole("button", { name: DEFAULT_GRID_MAP_LABELS.drawArea })).toBeNull();
+  });
+});
+
+describe("every entity as a point (T-6345)", () => {
+  const rows = [station("a", [24.9, 60.1])];
+  const points = [
+    { type: "Feature" as const, id: "a", geometry: { type: "Point", coordinates: [24.9, 60.1] } as Geometry, properties: { name: "a", point: true } },
+    { type: "Feature" as const, id: "far", geometry: { type: "Point", coordinates: [25.5, 60.5] } as Geometry, properties: { name: "Far station", point: true } },
+  ];
+
+  it("draws the answer's points beside the page's shapes, a row on the page once", () => {
+    render(<GridMap rows={rows} attr="location" activeId={null} onActivate={() => {}} points={points} />);
+    expect(screen.getAllByRole("button", { name: "shape a" })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "shape far" })).toBeTruthy();
+  });
+
+  it("names a clicked point and opens its row", () => {
+    const onActivate = vi.fn();
+    render(<GridMap rows={rows} attr="location" activeId={null} onActivate={onActivate} points={points} />);
+    fireEvent.click(screen.getByRole("button", { name: "shape far" }));
+    expect(onActivate).toHaveBeenCalledWith("far");
+    expect(screen.getByText(`${DEFAULT_GRID_MAP_LABELS.selected}: Far station (far)`)).toBeTruthy();
+  });
+
+  it("says how far the read got, then how many are drawn, then why it failed", () => {
+    const state = { points: [{ id: "a" }], total: 2310, done: false, capped: false, error: null };
+    const { rerender } = render(<GridMap rows={rows} attr="location" activeId={null} onActivate={() => {}} pointsState={state} />);
+    expect(screen.getByText(new RegExp(`^${DEFAULT_GRID_MAP_LABELS.pointsLoading}: 1 / 2[,.  ]?310$`))).toBeTruthy();
+    rerender(<GridMap rows={rows} attr="location" activeId={null} onActivate={() => {}} pointsState={{ ...state, done: true, capped: true }} />);
+    expect(screen.getByText(`1 ${DEFAULT_GRID_MAP_LABELS.pointsShown}, ${DEFAULT_GRID_MAP_LABELS.pointsCapped}`)).toBeTruthy();
+    rerender(<GridMap rows={rows} attr="location" activeId={null} onActivate={() => {}} pointsState={{ ...state, done: true, error: "no grant" }} />);
+    expect(screen.getByText(`${DEFAULT_GRID_MAP_LABELS.pointsFailed}: no grant`)).toBeTruthy();
+  });
+
+  it("leaves the drawing tools on Escape while nothing is drawn, and keeps a drawn area", () => {
+    const { unmount } = render(<GridMap rows={rows} attr="location" activeId={null} onActivate={() => {}} onArea={vi.fn()} startDrawing />);
+    fireEvent.keyDown(screen.getByTestId("geo-editor"), { key: "Escape" });
+    expect(screen.queryByTestId("geo-editor")).toBeNull();
+    expect(screen.getByRole("button", { name: DEFAULT_GRID_MAP_LABELS.drawArea })).toBeTruthy();
+    unmount();
+  });
+
+  it("draws the points behind the drawing tools, so a person sees what an area will catch", () => {
+    render(<GridMap rows={rows} attr="location" activeId={null} onActivate={() => {}} onArea={vi.fn()} startDrawing points={points} />);
+    const editor = geoEditorCalls[geoEditorCalls.length - 1];
+    expect((editor.snapTo as { id: string }[]).map((f) => f.id).sort()).toEqual(["a", "far"]);
   });
 });

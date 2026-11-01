@@ -592,8 +592,11 @@ export function diagnose(
   }
 
   const declared = new Set(model.slots.map((slot) => slot.name));
+  // A value structure (a Smart Data Model's L1..L3 parts) is the shape of a JsonProperty's value,
+  // never an entity type, so it needs no IRI of its own (owner 2026-11-01, T-6353).
+  const structures = valueClasses(model);
   for (const klass of model.classes) {
-    if (!klass.class_uri) {
+    if (!klass.class_uri && !structures.has(klass.name)) {
       found.push({
         ...at(["classes", klass.name]),
         severity: "warning",

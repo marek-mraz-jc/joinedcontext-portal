@@ -31,6 +31,8 @@ export interface GridMapLabels {
   offTheMap: string;
   drawArea: string;
   clearArea: string;
+  /** The header button while the drawing tools are open and nothing is drawn yet. */
+  stopDrawing: string;
   areaAsked: string;
   areaSimplified: string;
   editGeometry: string;
@@ -39,6 +41,17 @@ export interface GridMapLabels {
   replaced: string;
   noGeometry: string;
   viewerCannotEdit: string;
+  /** "Loading points: 400 / 2 310" while the map's own read pages (T-6345). */
+  pointsLoading: string;
+  /** "2 310 on the map" once it ended. */
+  pointsShown: string;
+  /** Said when the read stopped at its cap before the answer ended. */
+  pointsCapped: string;
+  pointsFailed: string;
+  /** "Selected: Hlavná 1 (urn:…)" after a click on a point. */
+  selected: string;
+  /** What to do once the drawing tools are open. */
+  drawHint: string;
 }
 
 export const DEFAULT_GRID_MAP_LABELS: GridMapLabels = {
@@ -46,6 +59,7 @@ export const DEFAULT_GRID_MAP_LABELS: GridMapLabels = {
   offTheMap: "not on the map",
   drawArea: "Draw area",
   clearArea: "Clear area",
+  stopDrawing: "Stop drawing",
   areaAsked: "Filtered to the drawn area",
   areaSimplified: "The filter is a simplified outline of what you drew",
   editGeometry: "Edit geometry",
@@ -54,7 +68,30 @@ export const DEFAULT_GRID_MAP_LABELS: GridMapLabels = {
   replaced: "replaced",
   noGeometry: "This row has no geometry yet",
   viewerCannotEdit: "You may look at this map, not change it",
+  pointsLoading: "Loading points",
+  pointsShown: "on the map",
+  pointsCapped: "only the first ones are drawn",
+  pointsFailed: "The points could not be read; the rows are still listed, try again by reopening the map",
+  selected: "Selected",
+  drawHint: "Pick a shape and click the map; click an area's last corner twice to finish. Escape leaves.",
 };
+
+/** What the point read says: progress while it pages, the count once it ended, or why it failed. */
+export function pointsLine(state: GridMapPoints, labels: GridMapLabels): string {
+  if (state.error) return `${labels.pointsFailed}: ${state.error}`;
+  const count = state.points.length.toLocaleString();
+  if (!state.done) return `${labels.pointsLoading}: ${count}${state.total !== undefined ? ` / ${state.total.toLocaleString()}` : ""}`;
+  return `${count} ${labels.pointsShown}${state.capped ? `, ${labels.pointsCapped}` : ""}`;
+}
+
+/** The map's own read of every entity's point, as `useMapPoints` keeps it. */
+export interface GridMapPoints {
+  points: readonly { id: string; name?: string }[];
+  total?: number;
+  done: boolean;
+  capped: boolean;
+  error: string | null;
+}
 
 /** "Point moved 38 m", "Polygon: 2 vertices added, area +4 %", in the host's own words. */
 export function summaryOf(before: Geometry | null, after: Geometry | null, labels: GridMapLabels): string {
@@ -115,6 +152,9 @@ export interface GridMapProps {
   position?: "right" | "bottom";
   /** Every entity of the type from the Endpoint's vector tiles, under the page's shapes (T-5195). */
   tiles?: TileSource | null;
+  /** Every entity of the question as a point, read lean beside the page (T-6345), and how far it got. */
+  points?: GeoFeature[];
+  pointsState?: GridMapPoints | null;
 }
 
 const AREA_TYPES: readonly GeometryType[] = ["Polygon"];
@@ -138,11 +178,21 @@ export function GridMap({
   geoLabels,
   position = "right",
   tiles,
+  points,
+  pointsState,
 }: GridMapProps): React.JSX.Element {
   const labels = { ...DEFAULT_GRID_MAP_LABELS, ...labelsPartial };
   const [editing, setEditing] = useState(false);
 
   const features = useMemo(() => featuresOfRows(rows, attr, edits), [rows, attr, edits]);
+  // The page's own shapes over the whole answer's points: a row on the page is drawn once, as itself.
+  const drawn = useMemo(() => {
+    if (!points || points.length === 0) return features;
+    const onPage = new Set(features.map((feature) => feature.id));
+    return [...points.filter((point) => !onPage.has(point.id)), ...features];
+  }, [features, points]);
+  const [picked, setPicked] = useState<string | null>(null);
+  const pickedName = picked ? (points?.find((point) => point.id === picked)?.properties?.name as string | undefined) : undefined;
   const offTheMap = useMemo(() => rowsOffTheMap(rows, attr, edits), [rows, attr, edits]);
   const activeRow = useMemo(() => rows.find((row) => row.id === activeId) ?? null, [rows, activeId]);
 
@@ -177,7 +227,7 @@ export function GridMap({
             aria-pressed={areaOpen}
             onClick={() => (area || drawingArea ? (onArea(null), setDrawingArea(false)) : setDrawingArea(true))}
           >
-            {area || drawingArea ? labels.clearArea : labels.drawArea}
+            {area ? labels.clearArea : drawingArea ? labels.stopDrawing : labels.drawArea}
           </button>
         ) : null}
         {mode === "edit" && activeRow ? (
@@ -214,20 +264,40 @@ export function GridMap({
         ) : null}
       </header>
 
-      {asked ? (
-        <p className="jc-grid-map__area" role="status">
-          {labels.areaAsked}
-          {asked.simplified ? ` — ${labels.areaSimplified}` : ""}
-        </p>
+      {asked || pointsState ? (
+        <div className="jc-grid-map__status">
+          {asked ? (
+            <p className="jc-grid-map__area" role="status">
+              {labels.areaAsked}
+              {asked.simplified ? ` — ${labels.areaSimplified}` : ""}
+            </p>
+          ) : null}
+          {pointsState ? (
+            <p className="jc-grid-map__points" role="status" aria-live="polite">
+              {pointsLine(pointsState, labels)}
+            </p>
+          ) : null}
+        </div>
       ) : null}
 
       {areaOpen ? (
-        <div className="jc-grid-map__draw">
+        // Escape leaves the drawing tools when nothing was drawn yet; inside a shape terra-draw's
+        // own Escape cancels that shape first.
+        <div
+          className="jc-grid-map__draw"
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && !area) {
+              event.stopPropagation();
+              setDrawingArea(false);
+            }
+          }}
+        >
+        {area ? null : <p className="jc-grid-map__hint">{labels.drawHint}</p>}
         <GeoEditor
           value={area?.geometry ?? null}
           onChange={(geometry) => onArea?.(geometry && geometry.type === "Polygon" ? { geoproperty: attr, geometry } : null)}
           allowed={AREA_TYPES}
-          snapTo={features}
+          snapTo={drawn}
           basemap={basemap}
           engine={engine}
           labels={geoLabels}
@@ -255,14 +325,23 @@ export function GridMap({
         </>
       ) : (
         <GeoView
-          value={features}
-          selectedId={activeId}
-          onSelect={onActivate}
+          value={drawn}
+          selectedId={activeId ?? picked}
+          onSelect={(id) => {
+            setPicked(id);
+            onActivate(id);
+          }}
           basemap={basemap}
           label={labels.panel}
           tiles={tiles}
         />
       )}
+
+      {picked && !areaOpen && !editorOpen ? (
+        <p className="jc-grid-map__picked" role="status">
+          {labels.selected}: {pickedName ? `${pickedName} (${picked})` : picked}
+        </p>
+      ) : null}
 
       {/* With no row active there is no control to hang the reason on, so the panel says it
           once, here; with one active the button above carries it and this would be a second

@@ -15,7 +15,9 @@ import type { ColumnFilter, FilterColumn, FilterGroup, FilterKind, GridColumn, G
 import { fetchJson, publishedTypes } from "../../pages/endpoints/SchemaProjectionPanel";
 import { classSlots, parseModel } from "../../pages/models/linkml";
 import type { ClassView, LinkmlModel, LinkmlSlot } from "../../pages/models/linkml";
-import { Button, PageFailed, safeHref } from "../ui";
+import { Button, EmptyState, PageFailed, safeHref } from "../ui";
+import { ApiError } from "../../api/client";
+import { useSignIn } from "../../auth/AuthProvider";
 import { DataToolbar, sortKeysOf, useDataToolbarState } from "./DataToolbar";
 import { conditionCount, EMPTY_GROUP, FilterChips } from "./FilterPanel";
 import { GroupCount } from "./GridToolbar";
@@ -698,15 +700,54 @@ function filterTitleOf(column: FilterColumn, labels: Record<string, string>, t: 
   return column.meta ? `${title} · ${t(`entityGrid.${column.meta}`)}` : title;
 }
 
+/** A private dataset refused for who is asking: sign in (401) or no access (403), in the grid's words. */
+export function DatasetRefused({
+  signedOut,
+  detail,
+  onSignIn,
+  t,
+}: {
+  signedOut: boolean;
+  detail?: string;
+  onSignIn?: () => void;
+  t: (key: string) => string;
+}): JSX.Element {
+  return (
+    <EmptyState
+      icon="lock"
+      title={t(signedOut ? "entityGrid.signedOutTitle" : "entityGrid.noAccessTitle")}
+      description={
+        <>
+          {t(signedOut ? "entityGrid.signedOutBody" : "entityGrid.noAccessBody")}
+          {detail ? <span className="mt-1 block text-caption">{detail}</span> : null}
+        </>
+      }
+      action={
+        signedOut && onSignIn ? (
+          <Button size="sm" onClick={onSignIn}>
+            {t("entityGrid.signIn")}
+          </Button>
+        ) : undefined
+      }
+    />
+  );
+}
+
 export function schemaState(
   reads: Record<"index" | "schema" | "widget", { error: Error | null; isPending: boolean; refetch?: () => unknown }>,
   ready: boolean,
   t: (key: string) => string,
+  signIn?: () => void,
 ): JSX.Element | null {
   // The widget's defaults are optional: its error leaves the model's, so only its wait shows.
   // A failed read says the surface's sentence, its reference and, where asking again can help,
   // Retry, as every page's failure does (T-6313).
   const failed = reads.index.error ?? reads.schema.error;
+  // A private Endpoint refuses its schema before any row (T-6376): the same two states the grid
+  // shows for its rows, never a failure to retry.
+  if (failed instanceof ApiError && (failed.status === 401 || failed.status === 403)) {
+    return <DatasetRefused signedOut={failed.status === 401} detail={failed.status === 403 ? failed.message : undefined} onSignIn={signIn} t={t} />;
+  }
   if (failed) return <PageFailed error={failed} onRetry={() => void Promise.all([reads.index.refetch?.(), reads.schema.refetch?.()])} />;
   if (Object.values(reads).some((read) => read.isPending)) return <p role="status">{t("endpoints.projection.loading")}</p>;
   if (!ready) return <p className="text-caption text-fg-muted">{t("endpoints.data.noSchema")}</p>;
@@ -731,6 +772,9 @@ export function EndpointDataView({
   // The query the grid last asked, for the link and the download of exactly these rows.
   const [asked, setAsked] = useState<string | undefined>(link?.q);
   const [comparing, setComparing] = useState(false);
+  // Refused (401/403, T-6376): the grid shows sign-in or no access, and no tool or CSV offers
+  // rows the person cannot read.
+  const [refused, setRefused] = useState(false);
   const root = origin ?? window.location.origin;
   const base = `${root}/api/endpoint/${slug}/schema`;
   // Another origin is read anonymously: a cross-origin fetch with `same-origin` credentials sends no cookie.
@@ -806,13 +850,16 @@ export function EndpointDataView({
   const panelFields = useMemo(() => shape.order.map((attr) => ({ value: attr, label: shape.labels[attr] ?? attr })), [shape]);
   const filterTitle = (column: FilterColumn) => filterTitleOf(column, shape.labels, t);
 
-  const notReady = schemaState({ index, schema, widget }, Boolean(type && config), t);
+  const signIn = useSignIn();
+  const notReady = schemaState({ index, schema, widget }, Boolean(type && config), t, signIn ? () => signIn() : undefined);
   if (notReady || !type || !config) {
     return notReady ?? <></>;
   }
 
   return (
     <div {...windowProps(full, t("endpoints.data.title"))}>
+      {refused ? null : (
+      <>
       <div className="flex flex-wrap items-center gap-1 border-b border-border pb-2" data-testid="grid-toolbar">
         <DataToolbar
           {...tools.props}
@@ -865,6 +912,8 @@ export function EndpointDataView({
           }}
         />
       </div>
+      </>
+      )}
 
       {comparing && space ? (
         <EntityCompare
@@ -900,6 +949,7 @@ export function EndpointDataView({
           view={gridView}
           onGridState={onGridState}
           onQuery={onQuery}
+          onRefused={setRefused}
           hidden={hiddenNow}
           onHide={onHide}
           thenBy={tools.thenBy}

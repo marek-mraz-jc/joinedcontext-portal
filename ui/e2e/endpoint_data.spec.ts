@@ -58,7 +58,7 @@ function ordered(orderBy: string | null) {
   });
 }
 
-async function stub(page: Page, entities: "rows" | "empty" | "refused" | "values-fail", asked: URL[]): Promise<void> {
+async function stub(page: Page, entities: "rows" | "empty" | "refused" | "values-fail" | "signed-out", asked: URL[]): Promise<void> {
   const list = (items: unknown[]) => ({ apiVersion: API, kind: "List", items });
   await page.route("**/api/v1/**", (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -84,6 +84,9 @@ async function stub(page: Page, entities: "rows" | "empty" | "refused" | "values
       // The header filter's value list reads pages of a thousand; this broker is too busy for them.
       if (entities === "values-fail" && url.searchParams.get("limit") === "1000") {
         return json({ title: "Service Unavailable", detail: "the broker is busy" }, {}, 503);
+      }
+      if (entities === "signed-out") {
+        return json({ title: "Authentication Required", detail: "sign in" }, {}, 401);
       }
       if (entities === "refused") {
         return json({ title: "Forbidden", detail: "no policy grants you this type on this endpoint" }, {}, 403);
@@ -232,5 +235,34 @@ for (const width of [1440, 400]) {
     await expect(section.getByText("no policy grants you this type on this endpoint")).toBeVisible();
     await section.scrollIntoViewIfNeeded();
     await section.screenshot({ path: join(dir, `data-refused-${width}.png`) });
+  });
+
+  // T-6376: a private Endpoint read without a session asks to sign in; a refused one says no access.
+  // Neither shows an empty grid.
+  test(`a private Endpoint says sign in, and a refused one no access, at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const evidence = join("test-results", "T-6376");
+    mkdirSync(evidence, { recursive: true });
+    await stub(page, "signed-out", []);
+    await page.goto("/projects/helsinki/endpoints/air?lang=en");
+    const section = page.locator("section", { has: page.getByRole("heading", { name: "Data", exact: true }) });
+    await expect(section.getByText("Sign in to see this dataset")).toBeVisible();
+    await expect(section.getByRole("button", { name: "Sign in" })).toBeVisible();
+    await expect(section.getByRole("grid")).toHaveCount(0);
+    // No tool and no CSV link over rows the person cannot read.
+    await expect(section.getByTestId("grid-toolbar")).toHaveCount(0);
+    await expect(section.getByRole("link", { name: "Download these rows as CSV" })).toHaveCount(0);
+    await section.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: join(evidence, `endpoint-signed-out-${width}.png`) });
+
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+    await stub(page, "refused", []);
+    await page.reload();
+    await expect(section.getByText("You have no access to this dataset")).toBeVisible();
+    await expect(section.getByText("no policy grants you this type on this endpoint")).toBeVisible();
+    await expect(section.getByRole("grid")).toHaveCount(0);
+    await expect(section.getByTestId("grid-toolbar")).toHaveCount(0);
+    await section.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: join(evidence, `endpoint-no-access-${width}.png`) });
   });
 }

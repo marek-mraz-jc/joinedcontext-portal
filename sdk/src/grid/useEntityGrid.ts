@@ -50,6 +50,13 @@ export interface GridLabels {
   page: string;
   showMetadata: string;
   error: string;
+  /** A private dataset read without a session (401), T-6376. */
+  signedOutTitle: string;
+  signedOutBody: string;
+  signIn: string;
+  /** A session whose grants do not reach this dataset (403). */
+  noAccessTitle: string;
+  noAccessBody: string;
   /** The filter row: the operators, by name, and what the query under the grid is called. */
   filter: string;
   ops: Record<FilterOp, string>;
@@ -290,6 +297,11 @@ export const DEFAULT_LABELS: GridLabels = {
   page: "Page",
   showMetadata: "Show metadata for",
   error: "Error",
+  signedOutTitle: "Sign in to see this dataset",
+  signedOutBody: "This dataset is not public. Sign in with an account that has access to it.",
+  signIn: "Sign in",
+  noAccessTitle: "You have no access to this dataset",
+  noAccessBody: "Your account has no grant that covers this dataset. Ask its publisher for access.",
   filter: "Filter",
   ops: {
     contains: "contains",
@@ -548,6 +560,13 @@ export interface EntityGrid {
   total?: number;
   loading: boolean;
   error: string | null;
+  /**
+   * The source refused the person, not the question (T-6376): `signedOut` for a 401, `noAccess`
+   * for a 403. No row is kept then, so nothing read before the refusal stays on the screen.
+   */
+  refusal: GridRefusal | null;
+  /** The Endpoint's own sentence about a `noAccess` refusal, shown under the state's words. */
+  refusalDetail: string | null;
   /** The broker's own sentence about the refusal in `error`, for a disclosure under it. */
   errorDetail: string | null;
   /** A sort is asked for that the source refused to apply to the whole answer: the page is sorted. */
@@ -590,6 +609,17 @@ export interface EntityGrid {
   getRowProps(row: RichRow, index: number): Record<string, unknown>;
   getCellProps(row: RichRow, rowIndex: number, column: VisibleColumn, colIndex: number): Record<string, unknown>;
   reload(): void;
+}
+
+/** Why a grid shows no rows because of who is asking, never because of what was asked. */
+export type GridRefusal = "signedOut" | "noAccess";
+
+/** The refusal a source error stands for: 401 asks for a session, 403 for a grant. */
+export function refusalOf(err: unknown): GridRefusal | null {
+  if (!(err instanceof SourceError)) return null;
+  if (err.status === 401) return "signedOut";
+  if (err.status === 403) return "noAccess";
+  return null;
 }
 
 function mergeLabels(base: GridLabels, partial?: GridLabelsInput): GridLabels {
@@ -867,6 +897,8 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
+  const [refusal, setRefusal] = useState<GridRefusal | null>(null);
+  const [refusalDetail, setRefusalDetail] = useState<string | null>(null);
   // Bumped when the source refuses an order, so the question is asked again without it.
   const [, setOrderRefusals] = useState(0);
   const cancelledRef = useRef(false);
@@ -1030,6 +1062,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     setLoadingMore(false);
     setError(null);
     setErrorDetail(null);
+    setRefusal(null);
 
     const gridQuery = JSON.parse(gridQueryKey) as GridQuery;
 
@@ -1049,6 +1082,18 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
           // The same question without the order: the rows come back and the page is sorted here.
           refusesOrder.add(source);
           setOrderRefusals((n) => n + 1);
+          return;
+        }
+        const refused = refusalOf(err);
+        if (refused) {
+          // Who asks, not what: the rows of an earlier answer go too, and nothing is asked again
+          // until the question or the session changes.
+          setRows([]);
+          setTotal(undefined);
+          setMore(false);
+          setRefusal(refused);
+          setRefusalDetail(refused === "noAccess" && err instanceof Error ? err.message : null);
+          setLoading(false);
           return;
         }
         if (err instanceof SourceError && err.status === 400 && err.problem) {
@@ -1087,6 +1132,14 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
       })
       .catch((err) => {
         if (nonceRef.current !== nonce) return;
+        const refused = refusalOf(err);
+        if (refused) {
+          setRows([]);
+          setMore(false);
+          setRefusal(refused);
+          setRefusalDetail(refused === "noAccess" && err instanceof Error ? err.message : null);
+          return;
+        }
         setError(err instanceof Error ? err.message : String(err));
       })
       .finally(() => {
@@ -1454,6 +1507,8 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     total,
     loading,
     error,
+    refusal,
+    refusalDetail,
     errorDetail,
     sortedLoadedOnly,
     state: { offset, activeCell, selected, shown, sort, filters, filterText, edits },
