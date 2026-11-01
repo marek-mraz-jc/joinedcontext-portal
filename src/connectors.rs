@@ -554,9 +554,11 @@ impl Ceiling {
     ) -> Result<(), String> {
         let kind = resource_kind(op, args);
         let named = args.get("name").and_then(Value::as_str);
+        let by_endpoint = args.get("endpoint").and_then(Value::as_str);
         let endpoint = match kind {
-            Some("Endpoint") => named,
-            _ => args.get("endpoint").and_then(Value::as_str),
+            // An Endpoint tool names it as `name`, or as `endpoint` (jc_data_write, T-6389).
+            Some("Endpoint") => named.or(by_endpoint),
+            _ => by_endpoint,
         };
         let fits = |p: &DelegationPolicySpec| {
             let (tools, kinds) = reach_under(p, connector);
@@ -1154,6 +1156,12 @@ impl Connector {
             self.may_verb("Pipeline", name, ConnectorVerb::Run)?;
             let space = space_of("Pipeline", name);
             return self.may_change(project, "Pipeline", name, space.as_deref(), true);
+        }
+        // An entity write is a write on its Endpoint: `writes` and `write` on an item reaching it.
+        if op.name == DATA_WRITE {
+            let name = text("endpoint").ok_or("jc_data_write names the endpoint: name it")?;
+            let space = space_of("Endpoint", name);
+            return self.may_change(project, "Endpoint", name, space.as_deref(), true);
         }
         // A plan or an apply names its objects per change; the operation holds each one to
         // the scope with `may_change` (T-5956).
@@ -2522,6 +2530,83 @@ pub(crate) mod tests {
                 &|_, _| None
             )
             .is_err());
+    }
+
+    /// JC2-28..34, T-6271, T-6389: each segment reaches the page reads its jobs need, and the
+    /// entity write comes with `writes` alone, to a connector reaching Endpoint, held to the
+    /// Endpoints its scope names.
+    #[test]
+    fn the_parity_reads_reach_their_segments_and_the_entity_write_needs_writes() {
+        let reached = |segments: &[&str], writes: bool| {
+            let mut c = connector(segments, vec![item("doprava", None)]);
+            c.writes = writes;
+            c.reach().0
+        };
+        for (segment, tools) in [
+            ("data-read", &["jc_attribute_explain"][..]),
+            (
+                "context",
+                &[
+                    "jc_model_sdm_search",
+                    "jc_model_sdm_import",
+                    "jc_model_generate",
+                    "jc_endpoint_preview",
+                    "jc_space_governance",
+                ][..],
+            ),
+            (
+                "pipeline",
+                &[
+                    "jc_pipeline_inspect",
+                    "jc_mqtt_test_publish",
+                    "jc_space_governance",
+                ][..],
+            ),
+            ("access", &["jc_access_simulate", "jc_access_explore"][..]),
+            (
+                "publish",
+                &["jc_catalogue_draft", "jc_endpoint_preview"][..],
+            ),
+            ("operate", &["jc_change_history", "jc_pipeline_inspect"][..]),
+        ] {
+            let listed = reached(&[segment], false);
+            for tool in tools {
+                assert!(listed.contains(tool), "{segment} lists {tool}");
+                assert!(crate::ops::find(tool).is_some(), "{tool} is an operation");
+            }
+        }
+        assert!(!reached(&["data-read"], false).contains(&DATA_WRITE));
+        assert!(reached(&["data-read"], true).contains(&DATA_WRITE));
+        assert!(
+            !reached(&["operate"], true).contains(&DATA_WRITE),
+            "operate reaches no Endpoint"
+        );
+
+        let write = op(DATA_WRITE);
+        let entity = json!({ "endpoint": "bikes", "action": "delete", "ids": ["urn:ngsi-ld:T:1"] });
+        let mut open = connector(&["data-read"], vec![item("doprava", None)]);
+        assert!(
+            open.admits(write, "doprava", &entity, &|_, _| None)
+                .is_err(),
+            "no writes switch"
+        );
+        open.writes = true;
+        assert!(open
+            .admits(write, "doprava", &entity, &|_, _| None)
+            .expect_err("a read item")
+            .contains("only reads"),);
+        open.scope[0].access = ItemAccess::Write;
+        assert_eq!(open.admits(write, "doprava", &entity, &|_, _| None), Ok(()));
+        let mut one = item("doprava", Some("counters"));
+        one.access = ItemAccess::Write;
+        let mut narrow = connector(&["data-read"], vec![one]);
+        narrow.writes = true;
+        assert!(
+            narrow
+                .admits(write, "doprava", &entity, &|_, _| None)
+                .is_err(),
+            "another Endpoint"
+        );
     }
 
     /// T-6360: a space item reaches every object whose `contextSpaceRef` names the space, for

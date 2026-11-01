@@ -1031,13 +1031,10 @@ async fn read_resource(
             )
             .is_some() =>
         {
-            let source = crate::api::datamodels::read_source(
-                state,
-                crate::permissions::ORG_NAMESPACE,
-                name,
-            )
-            .await
-            .ok()?;
+            let source =
+                crate::api::datamodels::read_source(state, crate::permissions::ORG_NAMESPACE, name)
+                    .await
+                    .ok()?;
             Some(("application/yaml", source))
         }
         // AG-81: `jc://-/{plural}/{name}` is a resource of the organization itself.

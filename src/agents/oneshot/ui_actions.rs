@@ -558,7 +558,9 @@ impl Asker<'_> {
         // published source there (JC2-11); every other kind's form takes the planned manifest.
         match (&item.source, &item.manifest) {
             (Some(source), _) => payload["prefill"] = json!({ "source": source }),
-            (None, Some(manifest)) => payload["prefill"] = form_prefill(info.kind, manifest.clone()),
+            (None, Some(manifest)) => {
+                payload["prefill"] = form_prefill(info.kind, manifest.clone())
+            }
             (None, None) => {}
         }
         Ok(("navigate", payload))

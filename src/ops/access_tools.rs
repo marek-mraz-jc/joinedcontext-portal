@@ -65,7 +65,7 @@ fn subject_schema() -> Value {
         "type": "object",
         "description": "Who: {kind: person, id}, {kind: group|role|serviceAccount, name} or {kind: public}",
         "properties": {
-            "kind": { "type": "string", "enum": ["person", "group", "role", "serviceAccount", "public"] },
+            "kind": { "type": "string", "enum": ["person", "group", "role", "serviceAccount", "public"], "description": "Which subject" },
             "id": text("Keycloak user id of a person", ID),
             "name": text("e.g. city-stewards", NAME)
         },
@@ -127,16 +127,29 @@ fn preview_input_schema() -> Value {
             "type": text("Entity type of the page, e.g. AirQualityObserved", TERM),
             "projection": {
                 "type": "object",
-                "description": "Draft ModelProjection: classes [{name, slots}] and filter {q, scopeQ, geoQ, temporalQ}",
+                "description": "Draft ModelProjection: classes and filter",
                 "properties": {
-                    "classes": { "type": "array", "maxItems": 64, "items": { "type": "object" } },
+                    "classes": {
+                        "type": "array",
+                        "maxItems": 64,
+                        "description": "The classes served, each with its slots",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "name": text("e.g. AirQualityObserved", TERM),
+                                "slots": texts("e.g. [pm10]", TERM)
+                            },
+                            "required": ["name"],
+                            "additionalProperties": false
+                        }
+                    },
                     "filter": {
                         "type": "object",
                         "properties": {
                             "q": text("e.g. pm10>40", QUERY),
                             "scopeQ": text("e.g. /city/#", QUERY),
-                            "geoQ": { "type": "object" },
-                            "temporalQ": { "type": "object" }
+                            "geoQ": text("georel;geometry;coordinates, e.g. near;maxDistance==500;Point;[19.1,48.7]", QUERY),
+                            "temporalQ": text("timerel;timeAt, e.g. after;2026-10-01T00:00:00Z", QUERY)
                         },
                         "additionalProperties": false
                     }
@@ -147,7 +160,7 @@ fn preview_input_schema() -> Value {
             "hiddenAttributes": texts("Draft spec.projection.hiddenAttributes", TERM),
             "id": { "type": "array", "maxItems": 100, "items": { "type": "string", "maxLength": ID }, "description": "Only these entity ids" },
             "limit": { "type": "integer", "minimum": 1, "maximum": 100, "description": "default 50" },
-            "offset": { "type": "integer", "minimum": 0 }
+            "offset": { "type": "integer", "minimum": 0, "description": "Entities skipped" }
         },
         "required": ["name", "type"],
         "additionalProperties": false

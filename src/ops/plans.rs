@@ -1915,9 +1915,15 @@ mod tests {
             now,
         );
         let peeked = store.peek("p1", "ana", "helsinki", now).expect("the plan");
-        assert_eq!(peeked[0].source.as_deref(), Some("id: https://hel.fi/air\nname: air\n"));
+        assert_eq!(
+            peeked[0].source.as_deref(),
+            Some("id: https://hel.fi/air\nname: air\n")
+        );
         assert_eq!(peeked[1].source, None);
-        assert!(store.peek("p1", "eva", "helsinki", now).is_none(), "another person's plan");
+        assert!(
+            store.peek("p1", "eva", "helsinki", now).is_none(),
+            "another person's plan"
+        );
     }
 
     /// S-10: a breaking change counts the stored entities of the class it touches, also for a

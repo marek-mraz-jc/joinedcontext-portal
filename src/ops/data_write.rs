@@ -218,15 +218,15 @@ async fn run(
             ))))
         }
     };
-    let base = state.config.gateway_url.as_deref().ok_or_else(|| {
-        ApiError::Unavailable("this Portal has no gateway address (JC_PORTAL_GATEWAY_URL)".into())
-    })?;
     let bearer = caller.bearer.as_ref().ok_or_else(|| {
         ApiError::Denied(
             "jc_data_write writes as you with the token your MCP client presented: call it \
              through /api/v1/mcp or a connector"
                 .into(),
         )
+    })?;
+    let base = state.config.gateway_url.as_deref().ok_or_else(|| {
+        ApiError::Unavailable("this Portal has no gateway address (JC_PORTAL_GATEWAY_URL)".into())
     })?;
     let oidc = state.oidc.as_ref().ok_or_else(|| {
         ApiError::Unavailable("this Portal has no Keycloak client to write data with".into())

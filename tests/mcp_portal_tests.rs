@@ -2623,7 +2623,9 @@ async fn an_organization_models_source_is_listed_beside_its_manifest_to_its_read
         "the organization model is offered: {listed:?}"
     );
     assert!(
-        listed.iter().any(|u| u == "jc://-/datamodels/city-air/linkml"),
+        listed
+            .iter()
+            .any(|u| u == "jc://-/datamodels/city-air/linkml"),
         "its source beside it: {listed:?}"
     );
     let stranger = sign_token(
