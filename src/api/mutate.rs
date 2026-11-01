@@ -454,6 +454,20 @@ pub enum ProposeOutcome {
     /// Committed to a workspace's branch; no Change exists until the workspace is brought back
     /// (CC-76, CC-79).
     Workspace(WorkspaceCommit),
+    /// Committed to the shared branch of a plan of several changes, which opens one Change once
+    /// every change of it is written (T-6282).
+    Bundled(BundledCommit),
+}
+
+/// What one change of a bundled plan wrote on the plan's branch (T-6282).
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct BundledCommit {
+    /// The manifest's path in the repository.
+    pub path: String,
+    pub lane: crate::change::Lane,
+    /// The `Waits-On:` lines of the open changes outside the plan this one waits on (MF-48).
+    pub waits_on: Vec<String>,
 }
 
 /// What a proposal into a workspace wrote (CC-76).
@@ -478,6 +492,9 @@ impl ProposeOutcome {
                 "change": chg,
             }),
             Self::Workspace(commit) => {
+                serde_json::to_value(commit).unwrap_or(serde_json::Value::Null)
+            }
+            Self::Bundled(commit) => {
                 serde_json::to_value(commit).unwrap_or(serde_json::Value::Null)
             }
         }
@@ -511,6 +528,7 @@ pub async fn propose(
         ProposeOutcome::DryRun(res) => Ok((StatusCode::OK, Json(res)).into_response()),
         ProposeOutcome::Change(change) => Ok((StatusCode::ACCEPTED, Json(change)).into_response()),
         ProposeOutcome::Workspace(commit) => Ok((StatusCode::OK, Json(commit)).into_response()),
+        ProposeOutcome::Bundled(commit) => Ok((StatusCode::OK, Json(commit)).into_response()),
     }
 }
 
@@ -664,6 +682,7 @@ async fn propose_checked(
         }
         ProposeOutcome::Change(change) => Ok((StatusCode::ACCEPTED, Json(change)).into_response()),
         ProposeOutcome::Workspace(commit) => Ok((StatusCode::OK, Json(commit)).into_response()),
+        ProposeOutcome::Bundled(commit) => Ok((StatusCode::OK, Json(commit)).into_response()),
     }
 }
 
@@ -685,6 +704,7 @@ pub async fn propose_with_identity(
 ) -> Result<ProposeOutcome, ApiError> {
     propose_engine(
         identity, state, project, plural, path_name, operation, dry_run, body_val, false, None,
+        None,
     )
     .await
 }
@@ -714,6 +734,7 @@ pub async fn propose_into_workspace(
         body_val,
         false,
         Some(workspace),
+        None,
     )
     .await
 }
@@ -752,8 +773,46 @@ pub async fn propose_gated_in(
 ) -> Result<ProposeOutcome, ApiError> {
     propose_engine(
         identity, state, project, plural, path_name, operation, false, body_val, true, workspace,
+        None,
     )
     .await
+}
+
+/// [`propose_gated`] onto `branch`, the shared branch of a plan of several changes (T-6282): the
+/// same checks and the same verdict, a commit and no pull request; the plan's apply opens one
+/// for the branch once every change of it is written. Call it inside
+/// [`crate::references::BUNDLE`] holding the plan's manifests, so references to siblings resolve.
+#[allow(clippy::too_many_arguments)]
+pub async fn propose_gated_onto(
+    identity: &crate::auth::session::Identity,
+    state: &AppState,
+    project: &str,
+    plural: &str,
+    path_name: Option<&str>,
+    operation: Operation,
+    body_val: Value,
+    branch: &str,
+) -> Result<BundledCommit, ApiError> {
+    match propose_engine(
+        identity,
+        state,
+        project,
+        plural,
+        path_name,
+        operation,
+        false,
+        body_val,
+        true,
+        None,
+        Some(branch),
+    )
+    .await?
+    {
+        ProposeOutcome::Bundled(commit) => Ok(commit),
+        _ => Err(ApiError::Internal(
+            "a bundled proposal answered something else than its commit".into(),
+        )),
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -768,6 +827,7 @@ async fn propose_engine(
     mut body_val: Value,
     gated: bool,
     workspace: Option<&str>,
+    bundle: Option<&str>,
 ) -> Result<ProposeOutcome, ApiError> {
     // The manifest as it was sent, which is what its check judged and what the verdict is fresh for.
     let received = gated.then(|| body_val.clone());
@@ -834,6 +894,13 @@ async fn propose_engine(
     // door: the build lane writes `status.build` back in the commit that publishes the artifact
     // an App runs (AP-13a, AP-73). That write keeps its status; every other one is refused.
     let build_write = if body_val.get("status").is_some() || envelope.status.is_some() {
+        if bundle.is_some() {
+            return Err(ApiError::BadRequest(
+                "a manifest carrying status is the build lane's write, proposed on its own and \
+                 never in a plan of several changes (MF-04, AP-73)"
+                    .into(),
+            ));
+        }
         build_lane_write(state, identity, project, kind_info.kind, &body_val)?;
         true
     } else {
@@ -1119,10 +1186,10 @@ async fn propose_engine(
         Operation::Delete => "delete",
     };
 
-    let (branch, _turn) = match workspace {
+    let (branch, _turn) = match (workspace, bundle) {
         // A workspace is one branch for everything it holds (CC-76): no per-resource branch,
         // no pull request, and a change open on `main` does not stop an edit here.
-        Some(name) => {
+        (Some(name), _) => {
             let open = state
                 .workspaces
                 .live(name)
@@ -1142,7 +1209,23 @@ async fn propose_engine(
             }
             (branch, None)
         }
-        None => {
+        // A plan of several changes is one branch for all of them (T-6282); a change already
+        // open on one of its resources still refuses it, as a proposal of its own would be (CC-34).
+        (None, Some(shared)) => {
+            let own = branch_name(project, kind_info.kind, &envelope.metadata.name, operation);
+            if let Some(pending) = open_change_on(state, gitea, &own, project).await? {
+                return Err(ApiError::Conflict(format!(
+                    "a change for {} '{}' is already open: {}; approve or reject it first",
+                    kind_info.kind, envelope.metadata.name, pending.name
+                )));
+            }
+            match gitea.create_branch(shared, &default_branch).await {
+                Ok(()) | Err(GitError::Conflict(_)) => {}
+                Err(err) => return Err(err.into()),
+            }
+            (shared.to_owned(), None)
+        }
+        (None, None) => {
             let branch = branch_name(project, kind_info.kind, &envelope.metadata.name, operation);
             let held = turn(gitea, &branch).await;
             // One open change per resource (CC-34): the branch is one per resource and
@@ -1241,6 +1324,16 @@ async fn propose_engine(
             branch,
             path: repo_path,
             lane,
+        }));
+    }
+    if bundle.is_some() {
+        return Ok(ProposeOutcome::Bundled(BundledCommit {
+            path: repo_path,
+            lane,
+            waits_on: awaited
+                .iter()
+                .map(crate::references::waits_on_line)
+                .collect(),
         }));
     }
 

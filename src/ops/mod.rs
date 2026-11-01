@@ -20,6 +20,7 @@ pub mod data_views;
 pub mod drafts;
 pub mod endpoint_reach;
 pub mod feed_shape;
+pub mod knowledge;
 pub mod people;
 pub mod pipeline_runs;
 pub mod pipeline_steps;
@@ -864,6 +865,7 @@ fn init_registry() -> Vec<Operation> {
     operations.extend(pipeline_runs::operations());
     operations.extend(admin::operations());
     operations.extend(sync_sources::operations());
+    operations.extend(knowledge::operations());
     operations.extend(workspaces::operations());
     operations.extend(people::operations());
     operations.extend(schemas::operations());
@@ -1086,6 +1088,8 @@ mod tests {
             "jc_syncsource_sync",
             "jc_syncsource_pause",
             "jc_syncsource_detach",
+            "jc_knowledge_status",
+            "jc_knowledge_search",
         ] {
             assert!(find(name).is_some(), "missing operation {name}");
         }

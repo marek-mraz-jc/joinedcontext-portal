@@ -3934,6 +3934,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/ops/jc_knowledge_search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Search Knowledge
+         * @description Passages of one KnowledgeSource, best first, each with its page url and title
+         */
+        post: operations["jc_knowledge_search"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/ops/jc_knowledge_status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read Knowledge State
+         * @description Each KnowledgeSource's crawl state and counts; with source, its last failed reads
+         */
+        post: operations["jc_knowledge_status"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/ops/jc_kpi_compute": {
         parameters: {
             query?: never;
@@ -25224,6 +25264,175 @@ export interface operations {
                         url?: string;
                         /** @description Present when the draft was proposed without a fresh green verdict */
                         warning?: string;
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_knowledge_search: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "q": "example",
+                 *       "source": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /** @description default 5 */
+                    limit?: number;
+                    /** @description e.g. parking permit */
+                    q: string;
+                    /** @description e.g. city-web */
+                    source: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Passages best first, each with its page url and title */
+                        hits: Record<string, never>[];
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_knowledge_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /** @example {} */
+                "application/json": {
+                    /** @description e.g. city-web; absent: every source */
+                    source?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The named source's last failed reads, for a caller who may propose a KnowledgeSource */
+                        errors?: Record<string, never>[];
+                        /** @description Each source with its crawl state; state not-crawled before the first crawl */
+                        items: Record<string, never>[];
                     };
                 };
             };
