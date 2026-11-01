@@ -813,6 +813,9 @@ async fn plan(
             ),
         ));
     }
+    // Changes applied as one Change are checked as one (T-6282): a reference to a sibling
+    // resolves and a write a sibling Endpoint binds is made, as in `jc_space_complete`.
+    let bundle = together(state, project, &input);
     for (n, change) in input.changes.iter().enumerate() {
         let at = format!("/changes/{n}");
         if !seen.insert((change.kind.clone(), change.name.clone())) {
@@ -821,15 +824,22 @@ async fn plan(
                 format!("{} '{}' is in this plan twice", change.kind, change.name),
             ));
         }
-        let (diff, planned) = checked(
+        let check = checked(
             caller,
             state,
             project,
             &at,
             change,
             input.workspace.as_deref(),
-        )
-        .await?;
+        );
+        let (diff, planned) = match &bundle {
+            Some(manifests) => {
+                crate::references::BUNDLE
+                    .scope(manifests.clone(), check)
+                    .await?
+            }
+            None => check.await?,
+        };
         if diff.pointer("/verdict/ok") != Some(&json!(true)) {
             errors.extend(findings_of(&at, &diff));
         } else if let Some(refusal) = gate_refusal(state, &planned).await? {
@@ -908,6 +918,145 @@ async fn plan(
     }))
 }
 
+/// The manifests of a plan applied as one Change, `None` for a plan opened change by change.
+/// One Change holds two or more creates, replaces or patches of the project's own objects
+/// outside a workspace (T-6282); a removal, a model with its LinkML file and an object kept in
+/// another namespace each open a change request of their own, so their siblings are checked
+/// against the project as it is.
+fn together(state: &AppState, project: &str, input: &PlanInput) -> Option<Vec<Value>> {
+    if input.workspace.is_some() || input.changes.len() < 2 {
+        return None;
+    }
+    input
+        .changes
+        .iter()
+        .enumerate()
+        .map(|(n, change)| {
+            if change.op == Op::Delete || change.source.is_some() {
+                return None;
+            }
+            let info = super::resources::kind_named(&change.kind).ok()?;
+            let home = super::resources::home_holding(state, info, project, &change.name);
+            if home != project {
+                return None;
+            }
+            manifest_of(state, &format!("/changes/{n}"), &home, change)
+                .ok()
+                .flatten()
+        })
+        .collect()
+}
+
+/// Whether a kept plan opens one Change: the plan [`together`] checked as one.
+fn bundled(plan: &Plan) -> bool {
+    plan.workspace.is_none()
+        && plan.items.len() > 1
+        && plan.items.iter().all(|item| {
+            item.manifest.is_some() && item.model.is_none() && item.home == plan.project
+        })
+}
+
+/// Opens a [`bundled`] plan as one Change (T-6282): every change through the propose engine's
+/// checks onto one branch, then one merge request a person approves whole. A change refused on
+/// the way removes the branch, so nothing of the plan is left open.
+async fn open_together(
+    caller: &Caller,
+    state: &AppState,
+    plan_id: &str,
+    plan: &Plan,
+) -> Result<Vec<Value>, OpError> {
+    let project = plan.project.as_str();
+    let gitea = state
+        .forge_for(project)
+        .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let branch = format!("portal/import-plan-{plan_id}");
+    let mut lanes = Vec::new();
+    let mut waits_on = std::collections::BTreeSet::new();
+    let mut lines = Vec::new();
+    let mut summary = crate::change::PlanSummary::default();
+    for item in &plan.items {
+        let Some(manifest) = &item.manifest else {
+            continue;
+        };
+        let (op, word) = if item.base == "absent" {
+            summary.create += 1;
+            (ChangeOp::Create, "create")
+        } else {
+            summary.update += 1;
+            (ChangeOp::Update, "update")
+        };
+        let written = mutate::propose_gated_onto(
+            &caller.identity,
+            state,
+            &item.home,
+            item.plural,
+            Some(&item.name),
+            op,
+            manifest.clone(),
+            &branch,
+        )
+        .await;
+        super::forget_check(state, &item.home, manifest).await;
+        match written {
+            Ok(commit) => {
+                lanes.push(commit.lane);
+                waits_on.extend(commit.waits_on);
+                lines.push(format!("- {word} {} `{}`", item.kind, item.name));
+            }
+            Err(err) => {
+                if !lanes.is_empty() {
+                    if let Err(gone) = gitea.delete_branch(&branch).await {
+                        tracing::warn!(%branch, error = %gone, "a refused plan left its branch");
+                    }
+                }
+                return Err(OpError::Api(ApiError::Conflict(format!(
+                    "{} {} was refused ({err}); nothing of the plan was opened",
+                    item.kind, item.name
+                ))));
+            }
+        }
+    }
+    let lane = lanes
+        .into_iter()
+        .reduce(crate::api::import::riskiest)
+        .unwrap_or(Lane::Green);
+    let mut body = format!(
+        "Proposed through plan {plan_id} (AG-149) in project `{project}`, approved as one \
+         change:\n\n{}",
+        lines.join("\n")
+    );
+    for line in &waits_on {
+        body.push_str("\n\n");
+        body.push_str(line);
+    }
+    let title = format!("apply {} changes in {project}", plan.items.len());
+    let pull = gitea
+        .create_pull_request(
+            &branch,
+            &gitea.default_branch().await.map_err(ApiError::from)?,
+            &title,
+            &body,
+        )
+        .await
+        .map_err(ApiError::from)?;
+    let change = crate::change::Change::new(
+        crate::api::changes::change_meta(state, &gitea, pull.number, project),
+        crate::change::ChangeStatus::new(
+            lane,
+            crate::change::ChangePhase::PendingApproval,
+            summary,
+        )
+        .in_repository(&pull.repository)
+        .proposed_through(&pull.body)
+        .with_merge_request(pull.url),
+    );
+    Ok(vec![opened_row(
+        state,
+        project,
+        ProposeOutcome::Change(change),
+    )])
+}
+
 /// Every `secretRef` the plan's manifests name that the repository's encrypted files do not hold,
 /// with the Portal form a person enters it in (MF-24, T-5971). A forge that cannot be read counts
 /// every reference as missing: the form replaces a secret whole, so entering it again is safe.
@@ -981,6 +1130,19 @@ async fn apply(
     unchanged_and_gated(state, &plan.items).await?;
     let workspace = plan.workspace.as_deref();
     let opening = async {
+        if bundled(&plan) {
+            let manifests = plan
+                .items
+                .iter()
+                .filter_map(|i| i.manifest.clone())
+                .collect();
+            return crate::references::BUNDLE
+                .scope(
+                    manifests,
+                    open_together(caller, state, &input.plan_id, &plan),
+                )
+                .await;
+        }
         let mut opened = Vec::new();
         for item in &plan.items {
             match open_one(caller, state, item, workspace).await {
@@ -1444,6 +1606,7 @@ fn opened_row(state: &AppState, project: &str, outcome: ProposeOutcome) -> Value
             "lane": commit.lane,
         }),
         ProposeOutcome::DryRun(result) => serde_json::to_value(result).unwrap_or_default(),
+        ProposeOutcome::Bundled(commit) => serde_json::to_value(commit).unwrap_or_default(),
     }
 }
 
@@ -1638,6 +1801,53 @@ mod tests {
             access,
             bearer: None,
         }
+    }
+
+    fn create(kind: &str, name: &str) -> ChangeInput {
+        ChangeInput {
+            op: Op::Create,
+            kind: kind.into(),
+            name: name.into(),
+            manifest: Some(json!({
+                "apiVersion": crate::resource::API_VERSION,
+                "kind": kind,
+                "metadata": { "name": name, "namespace": "doprava" },
+                "spec": {}
+            })),
+            patch: None,
+            source: None,
+        }
+    }
+
+    /// T-6282: two or more creates of the project's own objects are checked and opened as one
+    /// Change; a single change, a workspace, a removal or a model with its file is not.
+    #[test]
+    fn a_plan_of_several_changes_is_checked_as_one_bundle() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let plan = |changes: Vec<ChangeInput>, workspace: Option<&str>| PlanInput {
+            changes,
+            workspace: workspace.map(str::to_owned),
+        };
+        let space = || create("ContextSpace", "parking");
+        let endpoint = || create("Endpoint", "doprava-parking");
+        let bundle = together(&state, "doprava", &plan(vec![space(), endpoint()], None))
+            .expect("two creates are one bundle");
+        assert_eq!(bundle.len(), 2);
+        assert_eq!(bundle[1]["metadata"]["name"], "doprava-parking");
+        assert!(together(&state, "doprava", &plan(vec![space()], None)).is_none());
+        assert!(together(
+            &state,
+            "doprava",
+            &plan(vec![space(), endpoint()], Some("w"))
+        )
+        .is_none());
+        let mut removal = endpoint();
+        removal.op = Op::Delete;
+        removal.manifest = None;
+        assert!(together(&state, "doprava", &plan(vec![space(), removal], None)).is_none());
+        let mut model = create("DataModel", "parking");
+        model.source = Some("id: x".into());
+        assert!(together(&state, "doprava", &plan(vec![space(), model], None)).is_none());
     }
 
     /// EP-75 (T-6285): a connector planning an Endpoint with a slug it wrote is refused at the

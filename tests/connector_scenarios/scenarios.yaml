@@ -319,6 +319,27 @@
       call: jc_change_apply
       args: { planId: '{planId}' }
       contains: ['changeRequests']
+    # A space, its Endpoint and its write Policy plan together, each check seeing its siblings,
+    # and apply as one change request (T-6282).
+    - proves: expect
+      as: project-admin
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: ContextSpace, name: parking, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: ContextSpace, metadata: { name: parking, namespace: '{project}' }, spec: { isSandbox: true } } }, { op: create, kind: Endpoint, name: '{project}-parking', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-parking', namespace: '{project}' }, spec: { contextSpaceRef: parking, audience: public, enabledRepresentations: [ngsi-ld] } } }, { op: create, kind: Policy, name: parking-writers, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Policy, metadata: { name: parking-writers, namespace: '{project}' }, spec: { contextSpaceRef: parking, assigner: 'did:web:hel.fi', assignee: { kind: group, id: scn-writers }, operations: [createEntity, updateAttrs], information: [{ entities: [{ type: BikeCounter }] }] } } }] }
+      keep: planId
+      contains: ['"planId"', '"ok":true']
+    - proves: expect
+      as: project-admin
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['"changeRequests":[{', 'pulls/77']
+      absent: ['},{"url"']
+    # A space neither in the plan nor in the project is still refused at the field naming it.
+    - proves: deny
+      as: project-admin
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: ContextSpace, name: parking-two, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: ContextSpace, metadata: { name: parking-two, namespace: '{project}' }, spec: { isSandbox: true } } }, { op: create, kind: Endpoint, name: '{project}-nowhere', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-nowhere', namespace: '{project}' }, spec: { contextSpaceRef: nowhere, audience: public, enabledRepresentations: [ngsi-ld] } } }] }
+      refused: true
+      contains: ['/changes/1/manifest/spec/contextSpaceRef', 'nowhere']
     - proves: deny
       call: jc_change_plan
       project: other
