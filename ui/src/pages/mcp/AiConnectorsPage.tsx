@@ -89,7 +89,7 @@ export function AiConnectorsPage(): JSX.Element {
   );
 }
 
-const STATE_TONE = { active: "success", expired: "warning", revoked: "neutral" } as const;
+const STATE_TONE = { active: "success", pending: "warning", expired: "warning", revoked: "neutral" } as const;
 
 export function AiConnectorCard({ connector, justCreated }: { connector: AiConnector; justCreated?: boolean }): JSX.Element {
   const { t, i18n } = useTranslation();
@@ -149,7 +149,7 @@ export function AiConnectorCard({ connector, justCreated }: { connector: AiConne
             <Button variant="secondary" size="sm" aria-expanded={showActivity} onClick={() => setShowActivity(!showActivity)}>
               {t("aiConnectors.activity")}
             </Button>
-            {active ? (
+            {connector.state !== "revoked" ? (
               <Button variant="danger" size="sm" aria-label={t("aiConnectors.revokeOf", { name: connector.name })} onClick={() => setConfirming(true)}>
                 {t("aiConnectors.revoke")}
               </Button>
