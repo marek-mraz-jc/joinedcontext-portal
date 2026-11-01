@@ -389,7 +389,8 @@ describe("the row detail of the explorer (T-5619)", () => {
     const technical = within(dialog).getByTestId("explore-technical");
     expect(technical).not.toHaveAttribute("open");
     // The raw entity is read through the endpoint only when someone opens the disclosure.
-    const single = () => calls.filter((call) => call.url.includes("/entities/") && call.method === "GET").length;
+    // The row's Changes read is a temporal read (T-6333), not the raw entity.
+    const single = () => calls.filter((call) => call.url.includes("/entities/") && !call.url.includes("/temporal/") && call.method === "GET").length;
     expect(single()).toBe(0);
     await userEvent.click(within(technical).getByText(en.explore.technical));
     expect(await within(technical).findByRole("group", { name: en.codeBlock.entity })).toHaveTextContent(ROW.id);

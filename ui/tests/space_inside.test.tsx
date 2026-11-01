@@ -820,6 +820,8 @@ describe("the space's own data", () => {
       en.entityGrid.rowFields,
       en.entityGrid.history,
       en.entityGrid.metadata,
+      // The space surface answers the Changes read, so the tab shows while it loads (T-6333).
+      en.entityGrid.changes.tab,
       en.spaces.comments.title,
     ]);
     await userEvent.click(within(dialog).getByRole("button", { name: en.entityGrid.close }));
@@ -1147,6 +1149,8 @@ describe("the space's own data", () => {
       // Written through the endpoint that granted it, never the read-only space surface.
       expect(String(path)).toBe(`/api/endpoint/${SLUG}/ngsi-ld/v1/entities/${encodeURIComponent(rows[0].id)}/attrs`);
       expect((init!.headers as Record<string, string>)["JC-Reason"]).toBe(encodeURIComponent(en.entityGrid.reasonDefault));
+      // A grid edit keeps the replaced value as a version for the row's Changes (T-6333).
+      expect((init!.headers as Record<string, string>)["JC-Record"]).toBe("version");
       expect(JSON.parse(String(init!.body))).toEqual({ pm10: { type: "Property", value: 14, unitCode: "GQ" } });
       expect(await screen.findByRole("button", { name: en.entityGrid.undo })).toBeInTheDocument();
     });

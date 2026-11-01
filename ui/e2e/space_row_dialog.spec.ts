@@ -118,7 +118,7 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
 
     const dialog = page.getByRole("dialog", { name: "Details: District 3" });
     await expect(dialog).toBeVisible();
-    await expect(dialog.getByRole("tab")).toHaveText(["Fields", "History", "Metadata", "Comments"]);
+    await expect(dialog.getByRole("tab")).toHaveText(["Fields", "History", "Metadata", "Changes", "Comments"]);
     await expect(dialog.getByText("30", { exact: true })).toBeVisible();
     // T-5599: no URN on screen (Copy identifier holds it), the enum's label, and "not set".
     await expect(dialog).not.toContainText("urn:");
@@ -167,7 +167,10 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await stubApi(page);
     let failed = false;
     await page.route("**/cs/**/temporal/entities/**", async (route) => {
-      const attrs = new URL(route.request().url()).searchParams.get("attrs");
+      const asked = new URL(route.request().url()).searchParams;
+      // The Changes tab's own read (T-6333) is answered by stubApi; this route judges History.
+      if (asked.get("versions") === "all" && asked.get("attrs")?.includes(",")) return route.fallback();
+      const attrs = asked.get("attrs");
       const answer = (status: number, body: unknown) =>
         route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
       if (attrs === "name") return answer(404, { type: "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound", title: "Not Found" });
@@ -250,4 +253,98 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await expect(page.getByRole("searchbox", { name: "Search the rows" })).toHaveValue("District");
     await shot(page, `row-search-kept-${label}`);
   });
+}
+
+// T-6333: the Changes tab, from the versions the broker keeps. A rename kept by `JC-Record: version`
+// and a corrected reading show newest first with who, organization, channel and reason; a field's
+// "changed" mark opens the tab on it; a 403 (no readVersions) hides tab and marks; a 404 says nothing
+// is kept yet; a 503 offers Try again. The plain grid read never asks for versions.
+const RENAMES = {
+  id: URN,
+  type: TYPE,
+  name: [
+    { type: "Property", value: "District three", instanceId: "n1", provenance: { channel: "pipeline", operation: "create", actor: "serviceAccount:kpi-import", actorKind: "pipeline", organization: "hel", writtenAt: "2026-10-01T08:00:00Z", audit: true } },
+    { type: "Property", value: "District 3", instanceId: "n2", provenance: { channel: "ui", operation: "update", actor: "user:jana.kovacova", actorKind: "person", organization: "hel", reason: "Name as in the city register", writtenAt: "2026-10-21T09:15:00Z", audit: true } },
+  ],
+  kpiValue: VERSIONS.kpiValue.map((one) => ({ ...one, provenance: { ...one.provenance, organization: "hel", actorKind: one.provenance.channel === "ui" ? "person" : "pipeline" } })),
+};
+
+for (const lang of ["en", "sk"] as const) {
+  for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400", 400, 860]] as const) {
+    test(`the Changes tab: filled, empty, refused and failed (${lang}, ${label})`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await stubApi(page);
+      let mode: "filled" | "empty" | "refused" | "failed" = "filled";
+      const plainReads: string[] = [];
+      await page.route("**/cs/**/entities**", async (route) => {
+        const url = new URL(route.request().url());
+        if (!url.pathname.includes("/temporal/")) {
+          plainReads.push(url.search);
+          return route.fallback();
+        }
+        if (url.searchParams.get("versions") !== "all") return route.fallback();
+        const answer = (status: number, body: unknown) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
+        if (mode === "refused") return answer(403, { type: "https://uri.etsi.org/ngsi-ld/errors/PermissionDenied", title: "Forbidden", detail: "readVersions is not granted" });
+        if (mode === "empty") return answer(404, { type: "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound", title: "Not Found" });
+        if (mode === "failed") return answer(503, { title: "Service Unavailable" });
+        return answer(200, RENAMES);
+      });
+      const t = lang === "en"
+        ? { tab: "Changes", details: "Details", show: "Show the changes of Name", attr: "Attribute", person: "Changed by", all: "All", empty: "No change of this row is kept yet", error: "The changes could not be read.", retry: "Try again" }
+        : { tab: "Zmeny", details: "Podrobnosti", show: "Zobraziť zmeny atribútu Name", attr: "Atribút", person: "Zmenil(a)", all: "Všetko", empty: "Zatiaľ nie je uchovaná žiadna zmena", error: "Zmeny sa nepodarilo načítať.", retry: "Skúsiť znova" };
+      const open = async () => {
+        await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=${lang}&row=${encodeURIComponent(URN)}`);
+        const dialog = page.getByRole("dialog").first();
+        await expect(dialog).toBeVisible();
+        return dialog;
+      };
+
+      let dialog = await open();
+      const mark = dialog.getByRole("button", { name: t.show });
+      await expect(mark).toBeVisible();
+      await shot(page, `changes-mark-${lang}-${label}`);
+      await mark.click();
+      await expect(dialog.getByRole("tab", { name: t.tab })).toHaveAttribute("aria-selected", "true");
+      await expect(dialog.getByRole("combobox", { name: t.attr })).toHaveValue("name");
+      await expect(dialog.getByRole("listitem")).toHaveCount(1);
+      await expect(dialog.getByRole("listitem").first()).toContainText("Name as in the city register");
+      await expect(dialog.getByRole("listitem").first()).toContainText("District three");
+      await dialog.getByRole("combobox", { name: t.attr }).selectOption("");
+      await expect(dialog.getByRole("listitem")).toHaveCount(2);
+      expect(await axeViolations(page)).toEqual([]);
+      await shot(page, `changes-filled-${lang}-${label}`);
+      // The correction's writer changed no name: both filters together match nothing.
+      await dialog.getByRole("combobox", { name: t.attr }).selectOption("name");
+      await dialog.getByRole("combobox", { name: t.person }).selectOption({ value: "jana.kovacova" });
+      await expect(dialog.getByRole("listitem")).toHaveCount(0);
+      await shot(page, `changes-filtered-empty-${lang}-${label}`);
+      // The grid's own reads never ask for versions; only the Changes read does.
+      expect(plainReads.filter((query) => query.includes("versions"))).toEqual([]);
+
+      mode = "empty";
+      dialog = await open();
+      await dialog.getByRole("tab", { name: t.tab }).click();
+      await expect(dialog.getByText(new RegExp(t.empty))).toBeVisible();
+      await expect(dialog.getByRole("button", { name: t.show })).toHaveCount(0);
+      await shot(page, `changes-empty-${lang}-${label}`);
+
+      mode = "failed";
+      dialog = await open();
+      await dialog.getByRole("tab", { name: t.tab }).click();
+      await expect(dialog.getByRole("alert")).toContainText(t.error);
+      await shot(page, `changes-error-${lang}-${label}`);
+      mode = "filled";
+      await dialog.getByRole("button", { name: t.retry }).click();
+      await expect(dialog.getByRole("listitem")).toHaveCount(2);
+
+      mode = "refused";
+      const refused = page.waitForResponse((response) => response.status() === 403 && response.url().includes("versions=all"));
+      dialog = await open();
+      await refused;
+      await expect(dialog.getByRole("tab", { name: t.tab })).toHaveCount(0);
+      await expect(dialog.getByRole("button", { name: t.show })).toHaveCount(0);
+      await expect(dialog).not.toContainText("readVersions");
+      await shot(page, `changes-refused-${lang}-${label}`);
+    });
+  }
 }

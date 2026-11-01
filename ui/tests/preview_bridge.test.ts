@@ -131,6 +131,8 @@ describe("handleBridgeMessage", () => {
     expect(reasonOf(0)).toBe(encodeURIComponent("Dock closed\r\nX-Evil: 1"));
     await send(request(), { fetchImpl });
     expect(reasonOf(1)).toBe(encodeURIComponent(PREVIEW_REASON));
+    const recordOf = (call: number) => ((fetchImpl.mock.calls[call] as unknown as [string, RequestInit])[1].headers as Record<string, string>)["JC-Record"];
+    expect([0, 1].map(recordOf)).toEqual(["version", "version"]);
     for (const bad of ["  ", "x".repeat(501), 42]) {
       await send(request({ reason: bad }), { fetchImpl });
     }

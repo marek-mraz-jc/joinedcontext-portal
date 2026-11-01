@@ -2,6 +2,9 @@ import React, { useEffect, useId, useRef, useState } from "react";
 import { targetName } from "./cells";
 import type { RichRow } from "./model";
 import type { VisibleColumn } from "./useEntityGrid";
+import { changesShown, EntityChanges, useEntityChanges } from "./EntityChanges";
+import type { ChangesLabels } from "./EntityChanges";
+import type { EntityChange } from "./changes";
 
 export interface RowDetailLabels {
   /** The dialog's own name, before the row's: "Details". */
@@ -40,6 +43,16 @@ export interface RowDetailProps {
   history?: (attr: string, label: string) => React.ReactNode;
   /** One attribute's created and changed times and its last writer, with the History tab's picker. */
   metadata?: (attr: string) => React.ReactNode;
+  /**
+   * Who changed what and when (T-6333), where the source reads kept versions: one read per row,
+   * a 403 (no `readVersions`) hides the tab and the marks beside changed fields.
+   */
+  changes?: {
+    load: (attrs: string[]) => Promise<EntityChange[]>;
+    renderValue: (attr: string, instance: Record<string, unknown>) => React.ReactNode;
+    locale: string;
+    labels?: Partial<ChangesLabels>;
+  };
   /** The host's own tabs after Fields and History. */
   tabs?: RowDetailTab[];
   /** What the host adds under the attributes, in the Fields tab. */
@@ -71,7 +84,7 @@ export function measuredAttr(row: RichRow, attrs: string[]): string {
  * browser's modal dialog keeps focus inside and the page behind inert; the heading takes focus when
  * it opens and Escape outside a text box closes it.
  */
-export function RowDetail({ row, name, columns, renderValue, labels, onClose, history, metadata, tabs = [], children, place, onPlace }: RowDetailProps): React.JSX.Element {
+export function RowDetail({ row, name, columns, renderValue, labels, onClose, history, metadata, changes, tabs = [], children, place, onPlace }: RowDetailProps): React.JSX.Element {
   const headingId = useId();
   const tabsId = useId();
   const heading = useRef<HTMLHeadingElement>(null);
@@ -119,9 +132,14 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
     setOwnAttr(next);
     onPlace?.({ tab, attr: next });
   };
+  const changesState = useEntityChanges(changes?.load, row.id, attrs.filter((one) => one !== ""));
+  const changesOn = changesShown(changesState);
+  const changedAttrs = new Set(changesState?.status === "ready" ? changesState.changes.map((change) => change.attr) : []);
+  const [changeAttr, setChangeAttr] = useState<string | null>(null);
+  const changesLabel = changes?.labels?.tab ?? "Changes";
   const historyTab = history && all.length > 0 ? [{ id: "history", label: labels.rowHistory }] : [];
   const metadataTab = metadata && all.length > 0 ? [{ id: "metadata", label: labels.rowMetadata ?? "Metadata" }] : [];
-  const list = [{ id: "fields", label: labels.rowFields }, ...historyTab, ...metadataTab, ...tabs.map(({ id, label }) => ({ id, label }))];
+  const list = [{ id: "fields", label: labels.rowFields }, ...historyTab, ...metadataTab, ...(changesOn ? [{ id: "changes", label: changesLabel }] : []), ...tabs.map(({ id, label }) => ({ id, label }))];
   const current = list.some((one) => one.id === tab) ? tab : "fields";
   const tabId = (id: string) => `${tabsId}-tab-${id}`;
   const panelId = (id: string) => `${tabsId}-panel-${id}`;
@@ -203,7 +221,23 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
             <dl className="jc-grid-detail-list">
               {all.map((column) => (
                 <div key={column.key} className="jc-grid-detail-item">
-                  <dt>{column.label}</dt>
+                  <dt>
+                    {column.label}
+                    {column.attr && changedAttrs.has(column.attr) ? (
+                      <button
+                        type="button"
+                        className="jc-grid-changed-mark"
+                        aria-label={(changes?.labels?.showChanges ?? "Show the changes of {attr}").replace("{attr}", column.label)}
+                        onClick={() => {
+                          setChangeAttr(column.attr);
+                          setTab("changes");
+                        }}
+                      >
+                        {changes?.labels?.changed ?? "changed"}
+                        <span aria-hidden="true"> ›</span>
+                      </button>
+                    ) : null}
+                  </dt>
                   <dd>{renderValue(row, column)}</dd>
                 </div>
               ))}
@@ -226,6 +260,17 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
             {/* A new attribute is a new read: nothing of the last one's window or answer carries over. */}
             <React.Fragment key={attr}>{current === "history" ? history?.(attr, label) : metadata?.(attr)}</React.Fragment>
           </>
+        ) : null}
+        {current === "changes" && changes && changesState ? (
+          <EntityChanges
+            state={changesState}
+            attr={changeAttr}
+            onAttr={setChangeAttr}
+            attrs={all.map((column) => ({ attr: column.attr ?? "", label: column.label }))}
+            renderValue={changes.renderValue}
+            locale={changes.locale}
+            labels={changes.labels}
+          />
         ) : null}
         {tabs.find((one) => one.id === current)?.content}
       </div>
