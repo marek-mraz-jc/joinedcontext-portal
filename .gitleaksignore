@@ -12,3 +12,4 @@ a0a246a132a0b82a4e847b0a0609b7b67003c30b:tests/connector_scenarios/scenarios.yam
 655115138f0cce99fe42fa4727a6cc94ba5e0f62:tests/connector_scenarios/scenarios.yaml:generic-api-key:1444
 fe96699883dce78bc387cfdedc695d344ac96efb:ui/tests/knowledge_pages.test.tsx:generic-api-key:593
 56827840f474792a273ecdcba6c7ebc28637b9c9:sdk/tests/grid_cells.test.tsx:generic-api-key:53
+e3c263dd94419d37a0c82b6a37eb92b2c3a3357d:sdk/tests/grid_cells.test.tsx:generic-api-key:55
