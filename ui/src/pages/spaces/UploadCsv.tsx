@@ -46,7 +46,7 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
   const [problem, setProblem] = useState<string | null>(null);
   const [proposed, setProposed] = useState<Proposed | null>(null);
   const [progress, setProgress] = useState<{ sent: number; total: number } | null>(null);
-  const [done, setDone] = useState<{ written: number; rejected: Rejected[] } | null>(null);
+  const [done, setDone] = useState<{ written: number; rejected: Rejected[]; denied?: string } | null>(null);
 
   // The rows go in once the Change is live: a write before that is refused row by row (T-5109).
   const changeId = proposed?.change?.metadata.name ?? "";
@@ -140,7 +140,8 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
     // Upsert: the same file uploaded again writes the same entities, not a second copy.
     const answer = await createInBatches(originTransport(), proposed.space, checked.entities, (sent) => setProgress({ sent, total }), "upsert");
     setProgress(null);
-    setDone({ written: answer.created, rejected: [...checked.rejected, ...answer.rejected].sort((a, b) => a.row - b.row) });
+    // A 401 or 403 stops the write: the person reads who can change it, not "none refused" (JC1-41).
+    setDone({ written: answer.created, rejected: [...checked.rejected, ...answer.rejected].sort((a, b) => a.row - b.row), denied: answer.denied });
   };
 
   // A role that may not propose a space reads why, not a form whose every step ends in a 403 (T-4263).
@@ -245,6 +246,11 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
           )}
           {done ? (
             <>
+              {done.denied !== undefined ? (
+                <Alert role="alert" tone="danger">
+                  {t("spaces.import.denied", { type: proposed.type, space: proposed.space, reason: done.denied })}
+                </Alert>
+              ) : null}
               <Alert role="status" tone={done.rejected.length === 0 ? "success" : done.written > 0 ? "warning" : "danger"}>
                 {t("spaces.upload.done", { written: done.written, refused: done.rejected.length })}
               </Alert>

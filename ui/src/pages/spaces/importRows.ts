@@ -369,8 +369,10 @@ async function unzip(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
   let at = view.getUint32(end + 16, true);
   const entries = new Map<string, Uint8Array>();
   const names = new TextDecoder();
+  // An offset past the file's end is a damaged workbook, said as one, not a RangeError (JC1-45).
+  const damaged = () => new Error("the workbook's directory is damaged");
   for (let n = 0; n < count; n += 1) {
-    if (view.getUint32(at, true) !== 0x02014b50) throw new Error("the workbook's directory is damaged");
+    if (at + 46 > bytes.length || view.getUint32(at, true) !== 0x02014b50) throw damaged();
     const method = view.getUint16(at + 10, true);
     const compressed = view.getUint32(at + 20, true);
     const nameLength = view.getUint16(at + 28, true);
@@ -378,7 +380,9 @@ async function unzip(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
     const commentLength = view.getUint16(at + 32, true);
     const local = view.getUint32(at + 42, true);
     const name = names.decode(bytes.subarray(at + 46, at + 46 + nameLength));
+    if (local + 30 > bytes.length) throw damaged();
     const dataAt = local + 30 + view.getUint16(local + 26, true) + view.getUint16(local + 28, true);
+    if (dataAt + compressed > bytes.length) throw damaged();
     const data = bytes.subarray(dataAt, dataAt + compressed);
     // Only what the first sheet is read from: a workbook's pictures and styles stay packed.
     if (WORKBOOK_PARTS.test(name)) {

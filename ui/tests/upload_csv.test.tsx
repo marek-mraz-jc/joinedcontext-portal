@@ -117,6 +117,25 @@ describe("Upload CSV", () => {
     expectNoRawKeys(container);
   });
 
+  it("says who can change it when the space refuses the write (JC1-41)", async () => {
+    server({
+      write: () =>
+        new Response(JSON.stringify({ type: "about:blank", title: "Forbidden", status: 403, detail: "no grant" }), {
+          status: 403,
+          headers: { "Content-Type": "application/problem+json" },
+        }),
+    });
+    const user = userEvent.setup();
+    page("parking");
+    await user.upload(screen.getByLabelText("Choose a CSV file"), new File([CSV], "garages.csv", { type: "text/csv" }));
+    await screen.findByRole("radio", { name: /OffStreetParking/ });
+    await user.click(screen.getByRole("button", { name: "Propose the change" }));
+    await user.click(await screen.findByRole("button", { name: "Write 1 row" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Nothing was written: the space parking does not let your role create OffStreetParking entities",
+    );
+  });
+
   it("holds the write until the proposed change is live", async () => {
     let phase = "PendingApproval";
     const change = () => ({ kind: "Change", metadata: { name: "chg-1" }, spec: {}, status: { phase, lane: "yellow" } });

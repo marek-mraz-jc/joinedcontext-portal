@@ -1100,7 +1100,9 @@ fn unauthorized_response(state: &AppState) -> Response {
         state.config.public_base_url.as_str().trim_end_matches('/')
     );
     let mut resp = ApiError::Unauthorized.into_response();
-    if let Ok(header_val) = format!("Bearer resource_metadata=\"{resource_metadata}\"").parse() {
+    if let Ok(header_val) =
+        format!("Bearer resource_metadata=\"{resource_metadata}\", scope=\"mcp:portal\"").parse()
+    {
         resp.headers_mut()
             .insert(header::WWW_AUTHENTICATE, header_val);
     }
@@ -1455,6 +1457,18 @@ fn rate_limited() -> Response {
 mod tests {
     use super::*;
 
+    /// JC2-24: the challenge names the scope a Keycloak client asks for (MCP authorization,
+    /// scope selection), as the connector door's challenge does.
+    #[test]
+    fn the_challenge_names_the_portal_scope() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let response = unauthorized_response(&state);
+        let challenge = response.headers()[header::WWW_AUTHENTICATE]
+            .to_str()
+            .expect("text");
+        assert!(challenge.contains("scope=\"mcp:portal\""), "{challenge}");
+    }
+
     /// F-R2POR4-016: an answer past the cap is still the answer to its request: the error
     /// carries the request's id, and a request too large to read carries `null`.
     #[tokio::test]
@@ -1471,6 +1485,28 @@ mod tests {
         let answer: Value = serde_json::from_slice(&bytes).expect("json");
         assert_eq!(answer["id"], 7);
         assert_eq!(answer["error"]["code"], -32001);
+    }
+
+    /// A change resource is read only behind `read` on Change: a caller without it gets nothing.
+    #[tokio::test]
+    async fn a_change_is_not_read_without_read_on_change() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let caller = crate::ops::Caller::new(
+            crate::auth::session::Identity {
+                subject: "f:1:ana".to_owned(),
+                username: "ana".to_owned(),
+                email: None,
+                name: None,
+                roles: Vec::new(),
+                groups: Vec::new(),
+                client: None,
+                second_factor: false,
+            },
+            crate::ops::Via::Mcp,
+        );
+        assert!(read_change(&state, &caller, "ovzdusie", "42")
+            .await
+            .is_none());
     }
 
     /// F-R2POR4-012: the project of a call is a project name before any question is asked,

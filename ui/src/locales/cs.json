@@ -10971,6 +10971,7 @@
     "intendedFor": "říká, pro koho je; uvést ho mohou i jiné lokální programy",
     "state": {
       "active": "Aktivní",
+      "pending": "Čeká na schválení",
       "expired": "Vypršel",
       "revoked": "Zrušen"
     },

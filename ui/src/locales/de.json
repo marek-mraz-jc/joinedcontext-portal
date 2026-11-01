@@ -10971,6 +10971,7 @@
     "intendedFor": "sagt, für wen er ist; auch andere lokale Programme können ihn nennen",
     "state": {
       "active": "Aktiv",
+      "pending": "Wartet auf Freigabe",
       "expired": "Abgelaufen",
       "revoked": "Widerrufen"
     },

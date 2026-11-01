@@ -106,6 +106,7 @@ fn cookie(config: &Config, identity: Identity) -> String {
         identity,
         expires_at: now + 3600,
         issued_at: now,
+        signed_in_at: None,
         id_token: "id".into(),
         access_expires_at: now + 3600,
         refresh_token: None,
@@ -1710,9 +1711,13 @@ async fn an_upstream_that_echoes_the_bearer_puts_it_in_no_event_and_no_prompt() 
         .iter()
         .find(|e| e.kind == "tool" && e.payload["status"] == "failed")
         .expect("the refused call is a step");
-    assert!(failed.payload["error"]
-        .as_str()
-        .is_some_and(|e| e.contains("[redacted]")));
+    // The run's own redaction or the credential mask of JC1-25, whichever reaches it first.
+    assert!(
+        failed.payload["error"]
+            .as_str()
+            .is_some_and(|e| e.contains("[redacted]") || e.contains("[MASKED]")),
+        "{failed:?}"
+    );
     for event in &events {
         assert!(!event.payload.to_string().contains(ticket), "{event:?}");
     }

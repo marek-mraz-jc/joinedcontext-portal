@@ -30,6 +30,7 @@ fn make_session_cookie(config: &Config) -> String {
         access_expires_at: now + 3600,
         refresh_token: None,
         issued_at: now,
+        signed_in_at: None,
         id_token: "id-token-placeholder".into(),
     };
     let jar = PrivateCookieJar::new(config.cookie_key.clone());
@@ -138,6 +139,7 @@ async fn a_caller_with_no_grant_is_shown_no_project() {
         access_expires_at: now + 3600,
         refresh_token: None,
         issued_at: now,
+        signed_in_at: None,
         id_token: "id-token-placeholder".into(),
     };
     use axum::response::IntoResponse;
@@ -995,6 +997,7 @@ async fn the_labelled_project_is_listed_as_the_sample_to_those_who_may_read_it()
         access_expires_at: now + 3600,
         refresh_token: None,
         issued_at: now,
+        signed_in_at: None,
         id_token: "id-token-placeholder".into(),
     };
     let jar = session::store(PrivateCookieJar::new(config.cookie_key.clone()), &outsider)

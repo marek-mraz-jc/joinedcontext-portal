@@ -65,6 +65,9 @@ struct Claims {
     exp: i64,
     #[serde(default)]
     iat: i64,
+    /// When the person signed in to the SSO session: the same on every refreshed token, so it
+    /// names the session where `iat` names one token (JC2-19).
+    auth_time: Option<i64>,
     preferred_username: Option<String>,
     azp: Option<String>,
     email: Option<String>,
@@ -341,6 +344,7 @@ fn session_of(c: Claims) -> (Session, Option<String>) {
         },
         expires_at: c.exp,
         issued_at: c.iat,
+        signed_in_at: c.auth_time,
         id_token: String::new(),
         access_expires_at: c.exp,
         refresh_token: None,
@@ -356,6 +360,28 @@ pub struct TokenClient(pub String);
 
 #[cfg(test)]
 mod tests {
+    /// JC2-19: a bearer session carries its sign-in (`auth_time`), the same on every refreshed
+    /// token, beside the token's own `iat`.
+    #[test]
+    fn a_refreshed_token_keeps_its_sessions_start() {
+        let claims = |extra: serde_json::Value| {
+            let mut c = serde_json::json!({ "sub": "ana", "exp": 400, "iat": 300 });
+            if let (Some(c), Some(extra)) = (c.as_object_mut(), extra.as_object()) {
+                c.extend(extra.clone());
+            }
+            serde_json::from_value::<super::Claims>(c).expect("claims")
+        };
+        let (session, _) = super::session_of(claims(serde_json::json!({ "auth_time": 100 })));
+        // Revocation keeps reading the token's own `iat` (a refreshed token after a logout
+        // mark answers again); the paired tab reads the sign-in.
+        assert_eq!(
+            (session.issued_at, session.signed_in_at, session.expires_at),
+            (300, Some(100), 400)
+        );
+        let (session, _) = super::session_of(claims(serde_json::json!({})));
+        assert_eq!((session.issued_at, session.signed_in_at), (300, None));
+    }
+
     #[test]
     fn a_scoped_token_names_its_one_connector_and_no_other() {
         let a = "connector:abcdefghijklmnopqrstuvwxyz";

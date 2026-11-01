@@ -71,9 +71,8 @@ pub fn superseded_audit(manifest: &Value) -> Option<Finding> {
 async fn space_model(state: &AppState, project: &str, spec: &Value) -> Option<(String, String)> {
     let space = crate::resource::reference_name(&spec["contextSpaceRef"])?;
     let space = state.mirror.get(project, "ContextSpace", space)?;
-    let reference = &space.spec["dataModelRef"];
-    let namespace = reference["namespace"].as_str().unwrap_or(project);
-    let model = crate::resource::reference_name(reference)?;
+    let (namespace, model) =
+        crate::resource::model_reference(&space.spec["dataModelRef"], project)?;
     let linkml = crate::api::datamodels::read_source(state, namespace, model)
         .await
         .ok()?;

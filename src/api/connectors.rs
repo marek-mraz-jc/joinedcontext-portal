@@ -644,24 +644,37 @@ fn administrator(state: &AppState, identity: &Identity) -> Result<(), ApiError> 
 }
 
 /// The approver holds every right the connector asks for, project by project (PF-51,
-/// `within_own_rights`): `read` on each kind its segments reach, `propose` where an item writes.
+/// `within_own_rights`): `read` on each kind its segments reach, `propose` where an item writes,
+/// and `delete` where an item writes a kind the connector may delete (JC2-17). Each kind is
+/// judged in its home namespace for the item's project (`resource::home`), so an organization
+/// kind needs the organization's grant, never the project's.
 fn within_own_rights(
     state: &AppState,
     identity: &Identity,
     connector: &Connector,
 ) -> Result<(), ApiError> {
+    use jc_core::kinds::{ConnectorVerb, Verb};
     let (_, kinds) = connector.reach();
     for (i, item) in connector.scope.iter().enumerate() {
-        let rights = crate::permissions::for_request(state, identity, &item.project);
-        let verb = match item.access {
-            connectors::ItemAccess::Read => jc_core::kinds::Verb::Read,
-            connectors::ItemAccess::Write => jc_core::kinds::Verb::Propose,
-        };
-        if let Some(kind) = kinds.iter().find(|k| !rights.may(k, verb)) {
-            return Err(ApiError::Denied(format!(
-                "scope[{i}]: the connector asks {verb:?} on {kind} in project {}, which you do not hold; nobody approves above their own rights (PF-51)",
-                item.project
-            )));
+        for kind in &kinds {
+            let namespace = jc_core::registry::by_kind(kind).map_or_else(
+                || item.project.clone(),
+                |info| crate::resource::home(info, &item.project),
+            );
+            let rights = crate::permissions::for_request(state, identity, &namespace);
+            let mut verbs = vec![Verb::Read];
+            if item.access == connectors::ItemAccess::Write {
+                verbs.push(Verb::Propose);
+                if connector.may_verb(kind, "", ConnectorVerb::Delete).is_ok() {
+                    verbs.push(Verb::Delete);
+                }
+            }
+            if let Some(verb) = verbs.into_iter().find(|v| !rights.may(kind, *v)) {
+                return Err(ApiError::Denied(format!(
+                    "scope[{i}]: the connector asks {verb:?} on {kind} in {namespace} (project {}), which you do not hold; nobody approves above their own rights (PF-51)",
+                    item.project
+                )));
+            }
         }
     }
     Ok(())
@@ -987,7 +1000,7 @@ pub async fn pair_tab(
     let tab = state.paired_tabs.pair(
         &connector.id,
         &session.identity.subject,
-        session.issued_at,
+        session.started_at(),
         session.expires_at,
     );
     audit_tab(&state, &session.identity, &connector.id, "tab/connect").await;
@@ -1066,7 +1079,8 @@ pub async fn tab_events(
             &connector.id,
             &tab,
             &session.identity.subject,
-            session.issued_at,
+            session.started_at(),
+            session.expires_at,
             now,
         )
         .ok_or_else(|| {
@@ -1232,6 +1246,82 @@ mod tests {
         assert!(within_own_rights(&state, &nobody, &reads).is_err());
     }
 
+    /// JC2-17: a write item whose connector may delete a kind needs `delete` from the approver;
+    /// `propose` covers create and edit only.
+    #[tokio::test]
+    async fn an_approver_without_delete_does_not_approve_a_deleting_connector() {
+        let state = world();
+        state.mirror.upsert(manifest(
+            "Role",
+            "editor",
+            json!({ "rules": [{ "kinds": ["Endpoint", "ContextSpace", "DataModel"], "verbs": ["read", "propose"] }] }),
+        ));
+        state.mirror.upsert(manifest(
+            "RoleBinding",
+            "petra-edits-doprava",
+            json!({ "subjects": [{ "user": "petra@hel.fi" }], "role": "editor",
+                    "scope": { "project": "doprava" } }),
+        ));
+        let petra = person("petra@hel.fi");
+        let with = |name: &str, kinds: Value| {
+            let state = state.clone();
+            let name = name.to_owned();
+            async move {
+                let new: NewConnector = serde_json::from_value(json!({
+                    "name": name, "segments": ["data-read"], "kinds": kinds,
+                    "scope": [{ "project": "doprava", "access": "write" }], "writes": true,
+                    "expiresAt": (chrono::Utc::now() + chrono::Duration::days(1)).to_rfc3339(),
+                }))
+                .expect("request");
+                state
+                    .connectors
+                    .create(
+                        "sub-jana@hel.fi",
+                        new,
+                        vec!["writes: above".into()],
+                        "https://portal.test",
+                    )
+                    .await
+                    .expect("kept")
+            }
+        };
+        // Create and edit only: `propose` covers it.
+        let edits = with(
+            "edits",
+            json!([{ "kind": "Endpoint", "verbs": ["read", "create", "edit"] }]),
+        )
+        .await;
+        let ok = within_own_rights(&state, &petra, &edits);
+        assert!(ok.is_ok(), "{ok:?}");
+        // Delete on Endpoint, ticked or carried by `propose`: Petra holds no delete.
+        for (name, verbs) in [
+            ("ticks-delete", json!(["read", "delete"])),
+            ("ticks-propose", json!(["propose"])),
+        ] {
+            let deletes = with(name, json!([{ "kind": "Endpoint", "verbs": verbs }])).await;
+            match within_own_rights(&state, &petra, &deletes) {
+                Err(ApiError::Denied(why)) => {
+                    assert!(why.contains("Delete on Endpoint"), "{why}")
+                }
+                other => panic!("approved a delete she does not hold: {other:?}"),
+            }
+        }
+        // Without a kinds list the connector changes everything its segments reach, delete too.
+        let every = with("every", Value::Null).await;
+        assert!(matches!(
+            within_own_rights(&state, &petra, &every),
+            Err(ApiError::Denied(_))
+        ));
+        // Granted delete, Petra approves it.
+        state.mirror.upsert(manifest(
+            "Role",
+            "editor",
+            json!({ "rules": [{ "kinds": ["Endpoint", "ContextSpace", "DataModel"], "verbs": ["read", "propose", "delete"] }] }),
+        ));
+        let ok = within_own_rights(&state, &petra, &every);
+        assert!(ok.is_ok(), "{ok:?}");
+    }
+
     #[test]
     fn only_a_person_who_approves_delegation_policies_decides_requests() {
         let state = world();
@@ -1275,6 +1365,7 @@ mod tests {
             },
             expires_at: 0,
             issued_at: 0,
+            signed_in_at: None,
             id_token: String::new(),
             access_expires_at: 0,
             refresh_token: None,

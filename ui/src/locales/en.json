@@ -10971,6 +10971,7 @@
     "intendedFor": "says whom it is for; other local programs can name it too",
     "state": {
       "active": "Active",
+      "pending": "Waiting for approval",
       "expired": "Expired",
       "revoked": "Revoked"
     },

@@ -109,10 +109,7 @@ pub fn with_problem_members(
     let known = jc_core::error::problem_type(slug)
         .or_else(|| PORTAL_PROBLEM_TYPES.iter().find(|known| known.slug == slug));
     let defaults = [
-        (
-            "type",
-            serde_json::json!(format!("https://joinedcontext.com/errors/{slug}")),
-        ),
+        ("type", serde_json::json!(type_uri(slug))),
         (
             "title",
             serde_json::json!(known.map_or("Error", |known| known.title)),
@@ -370,7 +367,7 @@ impl ApiError {
                 .collect()
         });
         let problem = ProblemDetails {
-            r#type: format!("https://joinedcontext.com/errors/{slug}"),
+            r#type: type_uri(slug),
             title: title.to_string(),
             status: status.as_u16(),
             detail,
@@ -383,6 +380,12 @@ impl ApiError {
         });
         (status, body)
     }
+}
+
+/// The `type` of a problem named `slug`, the one place it is spelled (an MCP tool error at the
+/// connector door names the same type as the route's answer).
+pub fn type_uri(slug: &str) -> String {
+    format!("https://joinedcontext.com/errors/{slug}")
 }
 
 #[cfg(test)]

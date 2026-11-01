@@ -1786,18 +1786,18 @@ async fn model_source(
 ) -> Option<(String, Vec<String>, Option<String>)> {
     let space = crate::resource::reference_name(&endpoint["contextSpaceRef"])?;
     let space = state.mirror.get(project, "ContextSpace", space)?;
-    let name = crate::resource::reference_name(&space.spec["dataModelRef"])?.to_owned();
-    let model = state.mirror.get(project, "DataModel", &name)?;
+    let (namespace, name) = crate::resource::model_reference(&space.spec["dataModelRef"], project)?;
+    let model = state.mirror.get(namespace, "DataModel", name)?;
     let classes: Vec<String> = model.spec["classes"]
         .as_array()
         .into_iter()
         .flatten()
         .filter_map(|c| c.as_str().map(str::to_owned))
         .collect();
-    let linkml = crate::api::datamodels::read_source(state, project, &name)
+    let linkml = crate::api::datamodels::read_source(state, namespace, name)
         .await
         .ok();
-    Some((name, classes, linkml))
+    Some((name.to_owned(), classes, linkml))
 }
 
 pub fn router() -> axum::Router<AppState> {
@@ -1982,6 +1982,40 @@ mod tests {
 
     /// T-6272: a hit names its Endpoint's slug only when it is a public Endpoint here; a
     /// project-only Endpoint or another host's address names none.
+    /// JC1-53: a space whose dataModelRef names an organization model finds that model and
+    /// its classes, as the policy check and the assistant context already did.
+    #[tokio::test]
+    async fn an_organization_model_of_a_space_is_found() {
+        let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
+        let put = |kind: &str, name: &str, namespace: &str, spec: Value| {
+            state.mirror.upsert(crate::resource::ResourceEnvelope {
+                api_version: crate::resource::API_VERSION.to_owned(),
+                kind: kind.to_owned(),
+                metadata: crate::resource::ObjectMeta::new(name, namespace),
+                spec,
+                status: None,
+            });
+        };
+        put(
+            "ContextSpace",
+            "air",
+            "helsinki",
+            json!({ "dataModelRef": { "name": "air-quality", "namespace": "org" } }),
+        );
+        put(
+            "DataModel",
+            "air-quality",
+            "org",
+            json!({ "classes": ["AirQualityObserved"] }),
+        );
+        let found = model_source(&state, "helsinki", &json!({ "contextSpaceRef": "air" })).await;
+        let (name, classes, _) = found.expect("the organization's model");
+        assert_eq!(
+            (name.as_str(), classes),
+            ("air-quality", vec!["AirQualityObserved".to_owned()])
+        );
+    }
+
     #[test]
     fn a_hit_names_the_slug_of_a_public_endpoint_alone() {
         let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);

@@ -234,6 +234,15 @@ describe("the AI connectors page (T-5951)", () => {
     expect(await screen.findByText("Revoked")).toBeInTheDocument();
   });
 
+  it.each([
+    ["pending", "Waiting for approval"],
+    ["expired", "Expired"],
+  ])("names a connector in state %s and lets its owner revoke it (JC2-25)", async (state, word) => {
+    renderAt("/ai-connectors", { items: [connector({ state })] }, <AiConnectorsPage />);
+    expect(await screen.findByRole("button", { name: "Revoke AI connector doprava-in-claude" })).toBeInTheDocument();
+    expect(screen.getByText(word)).toBeInTheDocument();
+  });
+
   it("offers the clients the ceiling lists by name and greys a realm client it refuses (T-6309)", async () => {
     const user = userEvent.setup();
     const refused = "DelegationPolicy claude-only does not allow the client mcp-hub";
