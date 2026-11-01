@@ -11192,6 +11192,7 @@
   "settingsPage": {
     "title": "Nastavení",
     "description": "Vaše vlastní nastavení, nastavení projektu a pro administrátora i nastavení platformy.",
+    "descriptionMember": "Vaše vlastní nastavení a nastavení projektu.",
     "projectSettings": "Nastavení projektu {project}",
     "scope": {
       "personal": "Osobní",

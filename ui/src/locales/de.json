@@ -11192,6 +11192,7 @@
   "settingsPage": {
     "title": "Einstellungen",
     "description": "Ihre eigenen Einstellungen, die des Projekts und für Administratoren die der Plattform.",
+    "descriptionMember": "Ihre eigenen Einstellungen und die des Projekts.",
     "projectSettings": "Einstellungen von {project}",
     "scope": {
       "personal": "Persönlich",

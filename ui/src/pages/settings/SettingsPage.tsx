@@ -58,7 +58,7 @@ export function SettingsPage({ project }: { project: string }): JSX.Element {
   ];
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={t("settingsPage.title")} description={t("settingsPage.description")} />
+      <PageHeader title={t("settingsPage.title")} description={t(opensAdministration ? "settingsPage.description" : "settingsPage.descriptionMember")} />
       {/* Side by side on a wide screen: one link per card stretched across 1440 px read as empty. */}
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {groups.map((group) => (

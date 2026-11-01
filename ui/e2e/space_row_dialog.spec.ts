@@ -373,6 +373,9 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     const popover = page.locator(".jc-grid-autofilter");
     const box = await popover.boundingBox();
     expect(box).not.toBeNull();
+    // A gutter from the screen edges, as the page keeps.
+    expect(box!.x).toBeGreaterThanOrEqual(8);
+    expect(box!.x + box!.width).toBeLessThanOrEqual(width - 8);
     expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest(".jc-grid-autofilter") !== null, [box!.x + 12, box!.y + 14])).toBe(true);
     await page.keyboard.press("Escape");
 
