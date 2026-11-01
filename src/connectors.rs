@@ -1021,7 +1021,67 @@ impl Connector {
     /// items, only a tool that names its object can be held to them.
     pub fn lists(&self, op: &Operation, project: &str) -> bool {
         self.scope.iter().any(|i| i.project == project)
-            && (self.whole(project) || names_its_object(op))
+            && (self.whole(project)
+                || names_its_object(op)
+                || (STEPS.contains(&op.name) && self.holds_pipeline(project)))
+    }
+
+    /// Whether an item of `project` narrows the scope to a Pipeline, or to a space that holds
+    /// Pipelines (T-6360): what the authoring steps (`STEPS`) work on.
+    fn holds_pipeline(&self, project: &str) -> bool {
+        self.scope.iter().any(|i| {
+            i.project == project && matches!(i.narrowing(), Some(("Pipeline" | "ContextSpace", _)))
+        })
+    }
+
+    /// The scope's half of an authoring step (T-6363): each object the call names (the
+    /// candidate `pipeline` manifest, its `draft`, the `dataSource` it samples) is an item of
+    /// the scope. A sample sent as text names none: a scope holding a Pipeline may try one.
+    fn admits_step(
+        &self,
+        project: &str,
+        args: &Value,
+        space_of: &dyn Fn(&str, &str) -> Option<String>,
+    ) -> Result<(), String> {
+        let mut named = Vec::new();
+        if let Some(pipeline) = args.get("pipeline") {
+            let name = pipeline
+                .pointer("/metadata/name")
+                .and_then(Value::as_str)
+                .ok_or("this connector reaches only named objects: name the candidate in pipeline.metadata.name")?;
+            let kind = pipeline
+                .get("kind")
+                .and_then(Value::as_str)
+                .unwrap_or("Pipeline");
+            named.push((kind, name));
+        }
+        if let Some(draft) = args.get("draft") {
+            let text = |key: &str| draft.get(key).and_then(Value::as_str);
+            match (text("kind"), text("name")) {
+                (Some(kind), Some(name)) => named.push((kind, name)),
+                _ => return Err("the draft names its kind and name: give both".to_owned()),
+            }
+        }
+        if let Some(source) = args.get("dataSource").and_then(Value::as_str) {
+            named.push(("DataSource", source));
+        }
+        if named.is_empty() && !self.holds_pipeline(project) {
+            return Err(format!(
+                "this connector reaches only {} of project {project}: name one",
+                self.named(project)
+            ));
+        }
+        for (kind, name) in named {
+            if !self.scope.iter().any(|i| {
+                i.project == project && i.names(kind, name, space_of(kind, name).as_deref())
+            }) {
+                return Err(format!(
+                    "this connector does not reach {kind} {name} of project {project}; it names {}",
+                    self.named(project)
+                ));
+            }
+        }
+        Ok(())
     }
 
     /// The scope's half of one call (AG-144): the project, the kind and the object the call
@@ -1073,6 +1133,9 @@ impl Connector {
         // the scope with `may_change` (T-5956).
         if self.whole(project) || matches!(op.name, "jc_schema_get" | PLAN | APPLY | REVERT) {
             return Ok(());
+        }
+        if STEPS.contains(&op.name) {
+            return self.admits_step(project, args, space_of);
         }
         let name = names_its_object(op)
             .then(|| text("name").or_else(|| text("endpoint")))
@@ -1189,6 +1252,14 @@ fn proposing_reach(carries: impl Fn(&str) -> bool) -> (Vec<&'static str>, Vec<&'
                 .any(|(name, tools, _)| *name == segment && tools.contains(&PLAN))
     })
 }
+
+/// The pipeline authoring steps: their calls name the candidate by `pipeline` or `draft`, or the
+/// DataSource by `dataSource`, never by `name`, so a narrowed scope holds them in `admits_step`.
+const STEPS: &[&str] = &[
+    "jc_pipeline_sample_source",
+    "jc_pipeline_try_mapping",
+    "jc_pipeline_test",
+];
 
 /// A tool whose call names one object by `name`: what a narrowed scope can hold it to.
 fn names_its_object(op: &Operation) -> bool {
@@ -2274,15 +2345,109 @@ pub(crate) mod tests {
                 .expect_err("outside the scope")
                 .contains("other"));
         }
-        // Sampling, trying and testing name no pipeline, so a narrowed scope cannot hold them.
-        for tool in [
-            "jc_pipeline_sample_source",
-            "jc_pipeline_try_mapping",
-            "jc_pipeline_test",
-        ] {
-            assert!(!narrow.lists(op(tool), "doprava"), "{tool}");
+        // T-6363: sampling, trying and testing name their pipeline by `pipeline` or `draft`, so a
+        // scope narrowed to one Pipeline offers them and holds each call to that Pipeline.
+        let named = |name: &str| json!({ "kind": "Pipeline", "metadata": { "name": name } });
+        let text = json!({ "text": "id\nc1\n", "format": "csv" });
+        for tool in ["jc_pipeline_try_mapping", "jc_pipeline_test"] {
+            assert!(narrow.lists(op(tool), "doprava"), "{tool}");
+            for args in [
+                json!({ "pipeline": named("counters"), "sample": text }),
+                json!({ "draft": { "kind": "Pipeline", "name": "counters" }, "sample": text }),
+            ] {
+                assert_eq!(
+                    narrow.admits(op(tool), "doprava", &args, &|_, _| None),
+                    Ok(()),
+                    "{tool} {args}"
+                );
+            }
+            for args in [
+                json!({ "pipeline": named("other"), "sample": text }),
+                json!({ "draft": { "kind": "Pipeline", "name": "other" }, "sample": text }),
+                json!({ "pipeline": named("counters"), "draft": { "kind": "Pipeline", "name": "other" }, "sample": text }),
+                json!({ "draft": { "kind": "DataModel", "name": "counters" }, "sample": text }),
+            ] {
+                assert!(
+                    narrow
+                        .admits(op(tool), "doprava", &args, &|_, _| None)
+                        .expect_err("outside the scope")
+                        .contains("does not reach"),
+                    "{tool} {args}"
+                );
+            }
+            let unnamed = json!({ "pipeline": { "kind": "Pipeline" }, "sample": text });
+            assert!(
+                narrow
+                    .admits(op(tool), "doprava", &unnamed, &|_, _| None)
+                    .is_err(),
+                "{tool}"
+            );
             assert!(narrow
-                .admits(op(tool), "doprava", &json!({}), &|_, _| None)
+                .admits(
+                    op(tool),
+                    "other",
+                    &json!({ "pipeline": named("counters") }),
+                    &|_, _| None
+                )
+                .is_err());
+        }
+        let sample = op("jc_pipeline_sample_source");
+        assert!(narrow.lists(sample, "doprava"));
+        assert_eq!(
+            narrow.admits(sample, "doprava", &json!({ "sample": text }), &|_, _| None),
+            Ok(())
+        );
+        assert!(narrow
+            .admits(
+                sample,
+                "doprava",
+                &json!({ "dataSource": "counters-csv" }),
+                &|_, _| None
+            )
+            .expect_err("a DataSource the scope does not name")
+            .contains("DataSource counters-csv"));
+        // A space item (T-6360) holds the Pipelines that sit in its space, and no other.
+        let mut room = item("doprava", None);
+        room.space = Some("counting".into());
+        let spaced = connector(&["pipeline"], vec![room]);
+        let in_space = |_: &str, name: &str| (name == "counters").then(|| "counting".to_owned());
+        assert!(spaced.lists(op("jc_pipeline_test"), "doprava"));
+        assert_eq!(
+            spaced.admits(
+                op("jc_pipeline_test"),
+                "doprava",
+                &json!({ "pipeline": named("counters") }),
+                &in_space
+            ),
+            Ok(())
+        );
+        assert!(spaced
+            .admits(
+                op("jc_pipeline_test"),
+                "doprava",
+                &json!({ "pipeline": named("other") }),
+                &in_space
+            )
+            .is_err());
+        // A scope narrowed to an Endpoint offers no authoring step and admits none.
+        let other = connector(
+            &["pipeline"],
+            vec![item("doprava", Some("doprava-counters"))],
+        );
+        for tool in STEPS {
+            assert!(!other.lists(op(tool), "doprava"), "{tool}");
+            assert!(other
+                .admits(op(tool), "doprava", &json!({ "sample": text }), &|_, _| {
+                    None
+                })
+                .is_err());
+            assert!(other
+                .admits(
+                    op(tool),
+                    "doprava",
+                    &json!({ "pipeline": named("counters") }),
+                    &|_, _| None
+                )
                 .is_err());
         }
     }
