@@ -90,7 +90,9 @@ for (const width of [1440, 400]) {
     await expect(page.getByText("+2")).toBeVisible();
     const wrong = page.locator(".jc-cell--invalid", { hasText: "n/a" });
     await expect(wrong).toHaveText("n/a (The model expects: Number)");
-    await expect(wrong).toBeVisible();
+    // Drawn, not only in a hover title or a screen reader's text: the reason takes room of its own.
+    expect((await wrong.boundingBox())?.width ?? 0).toBeGreaterThan(120);
+    await expect(wrong).toHaveCSS("border-bottom-style", "dotted");
     await page.screenshot({ path: `${SHOTS}/drill-rows-${width}.png`, fullPage: true });
     if (width === 400) {
       // The cells right of the frozen id, as a person scrolls the table to them.

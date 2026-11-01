@@ -1036,12 +1036,12 @@ button.jc-cell-chip {
   font-size: var(--jc-font-size-sm, 12px);
 }
 
-/* A value the model does not allow there: as stored, marked. */
+/* A value the model does not allow there: as stored, marked. A border inside its own box, since the
+   cell's line clamp (overflow: hidden) cut an underline drawn below the line (T-6304 review). */
 .jc-cell--invalid {
+  display: inline-block;
   white-space: nowrap;
-  text-decoration: underline dotted var(--jc-color-warning, #9a6700);
-  text-decoration-thickness: 2px;
-  text-underline-offset: 3px;
+  border-bottom: 2px dotted var(--jc-color-warning, #9a6700);
 }
 
 .jc-grid-instances {
