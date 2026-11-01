@@ -7,7 +7,7 @@
 //! `joinedcontext` policy engine denies a caller without subject headers on every query clause,
 //! so on dev it answered 403 for every space (T-3983). A count is a scan on the broker's side,
 //! so each answer is kept: these are dashboard numbers, not per-request work. A small space is
-//! measured again on a read after [`FRESH`]; a large one once an hour ([`KEPT`]), by the health
+//! measured again on a read after `FRESH`; a large one once an hour (`KEPT`), by the health
 //! probes' sweep over every space (T-6208), or when a reader asks for a recalculation.
 //! The storage size in bytes comes in the same answer, measured by the broker (`bytes`, T-2890).
 
@@ -137,7 +137,7 @@ impl Counter {
     }
 
     /// Measures the space again for a reader who asked (T-6208). An answer younger than
-    /// [`RECALCULATED`] stands: concurrent clicks share one broker read, and repeated ones within
+    /// `RECALCULATED` stands: concurrent clicks share one broker read, and repeated ones within
     /// half a minute ask nothing.
     pub async fn recalculate(&self, broker_name: &str, tenant: &str) -> Result<SpaceUsage, String> {
         self.measured(
