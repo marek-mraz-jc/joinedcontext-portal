@@ -10831,8 +10831,8 @@
     "loadingOptions": "Wird geladen, was Sie weitergeben dürfen",
     "needsApproval": "braucht die Freigabe Ihrer Organisation",
     "aboveCeiling": "Ihre Organisation erlaubt einem Konnektor diese Vorgabe noch nicht.",
-    "projectAboveCeiling": "Ihre Organisation lässt einen Konnektor dieses Projekt noch nicht erreichen.",
-    "endpointsOnly": "Ihre Organisation lässt einen Konnektor nur einige Endpoints dieses Projekts erreichen.",
+    "projectAboveCeiling": "Ihre Organisation lässt einen Konnektor dieses Projekt noch nicht erreichen: Bitten Sie eine Administratorin oder einen Administrator, es der Konnektor-Richtlinie Ihrer Organisation hinzuzufügen.",
+    "endpointsOnly": "Ihre Organisation lässt einen Konnektor nur einige Endpoints dieses Projekts erreichen: Bitten Sie eine Administratorin oder einen Administrator, weitere der Konnektor-Richtlinie Ihrer Organisation hinzuzufügen.",
     "binds": "nur dieser Client kann ihn nutzen",
     "intendedFor": "sagt, für wen er ist; auch andere lokale Programme können ihn nennen",
     "state": {

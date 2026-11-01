@@ -10831,8 +10831,8 @@
     "loadingOptions": "Načítava sa, čo smiete odovzdať",
     "needsApproval": "vyžaduje schválenie vašou organizáciou",
     "aboveCeiling": "Vaša organizácia zatiaľ nedovoľuje konektoru niesť túto predvoľbu.",
-    "projectAboveCeiling": "Vaša organizácia zatiaľ nedovoľuje konektoru siahnuť na tento projekt.",
-    "endpointsOnly": "Vaša organizácia dovoľuje konektoru siahnuť len na niektoré Endpointy tohto projektu.",
+    "projectAboveCeiling": "Vaša organizácia zatiaľ nedovoľuje konektoru siahnuť na tento projekt: požiadajte administrátora, aby ho pridal do pravidiel vašej organizácie pre konektory.",
+    "endpointsOnly": "Vaša organizácia dovoľuje konektoru siahnuť len na niektoré Endpointy tohto projektu: požiadajte administrátora, aby pridal ďalšie do pravidiel vašej organizácie pre konektory.",
     "binds": "použiť ho môže len tento klient",
     "intendedFor": "hovorí, pre koho je; uviesť ho môžu aj iné lokálne programy",
     "state": {

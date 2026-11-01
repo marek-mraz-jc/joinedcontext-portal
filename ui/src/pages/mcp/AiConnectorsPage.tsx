@@ -349,7 +349,7 @@ export function ScopeTree({
               {row(project.project, "project", undefined, t("aiConnectors.wholeProject", { project: project.project }), refused)}
             </ul>
             {refused ? (
-              <p className="ml-6 text-caption text-fg-muted" aria-hidden>
+              <p className="ml-6 text-caption text-fg" aria-hidden>
                 {refused}
               </p>
             ) : null}

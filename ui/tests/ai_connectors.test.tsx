@@ -319,8 +319,8 @@ describe("the scope tree", () => {
     for (const name of [/sharing: the whole project/, /^bikes/, /bike-share/, /doprava: the whole project/, /^parking/, /load-counters/]) {
       expect(screen.getByRole("checkbox", { name })).toHaveAttribute("aria-disabled", "true");
     }
-    expect(screen.getAllByText("Your organization does not let a connector reach this project yet.").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Your organization lets a connector reach only some Endpoints of this project.").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Your organization does not let a connector reach this project yet/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Your organization lets a connector reach only some Endpoints of this project/).length).toBeGreaterThan(0);
     await user.click(screen.getByRole("checkbox", { name: /sharing: the whole project/ }));
     expect(picks).not.toHaveBeenCalled();
     // The allowed Endpoint ticks; a refused one an edit still holds can be unticked.
