@@ -101,9 +101,9 @@
   box-shadow: inset 0 0 0 2px var(--jc-color-accent, #0066cc);
 }
 
-/* Chromium paints a plain cell's outline after the sticky cells: positioned (no z-index, so no new
-   stacking context), the active and the refused cells pass under the frozen columns (T-6210). */
-.jc-grid :is(td[data-active], tr[data-refused] > td):not(.jc-grid-pinned, .jc-grid-rownum) {
+/* Positioned (no z-index, so no new stacking context): the active cell's mark passes under the
+   frozen columns (T-6210). */
+.jc-grid td[data-active]:not(.jc-grid-pinned, .jc-grid-rownum) {
   position: relative;
 }
 
@@ -321,9 +321,28 @@
   border: 1px dashed currentColor;
 }
 
+/* One dashed frame round the refused row (T-6210), drawn as each cell's background image: it
+   paints with the cell, so a frozen cell carries its part and nothing draws over the frozen columns
+   (an outline did; a collapsed dashed border loses to the solid line of the row above). */
 .jc-grid-tbody tr[data-refused] td {
-  outline: 1px dashed currentColor;
-  outline-offset: -1px;
+  --jc-dash-x: linear-gradient(90deg, currentColor 50%, transparent 0);
+  --jc-dash-y: linear-gradient(180deg, currentColor 50%, transparent 0);
+  background-image: var(--jc-dash-x), var(--jc-dash-x);
+  background-size: 6px 1px;
+  background-position: 0 0, 0 100%;
+  background-repeat: repeat-x;
+}
+.jc-grid-tbody tr[data-refused] td:first-child,
+.jc-grid-tbody tr[data-refused] td:last-child {
+  background-image: var(--jc-dash-x), var(--jc-dash-x), var(--jc-dash-y);
+  background-size: 6px 1px, 6px 1px, 1px 6px;
+  background-repeat: repeat-x, repeat-x, repeat-y;
+}
+.jc-grid-tbody tr[data-refused] td:first-child {
+  background-position: 0 0, 0 100%, 0 0;
+}
+.jc-grid-tbody tr[data-refused] td:last-child {
+  background-position: 0 0, 0 100%, 100% 0;
 }
 
 .jc-grid-pending,
@@ -669,7 +688,7 @@
   text-decoration: underline;
   cursor: pointer;
   text-align: start;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   /* The row's name wraps inside the pinned column rather than being cut off at a phone's width:
      the column keeps its 40% and the whole name stays readable (T-2782). */
   white-space: normal;
@@ -1406,9 +1425,15 @@ a.jc-cell--link:focus-visible {
 .jc-grid-inspector-ask { color: var(--jc-color-accent, #0066cc); }
 
 /* The small "i" beside a cell's value: seen on hover and on the active cell, always clickable. */
+/* The button floats in a padding of its own (T-6210): a float inside the cell narrowed the text
+   below the width the table had sized the column for, so a phone split a word under it. */
+.jc-grid-td:has(> .jc-grid-info) {
+  padding-inline-end: calc(var(--jc-space-3, 12px) + 1.5rem);
+}
 .jc-grid-info {
   float: right;
   margin-inline-start: 0.25rem;
+  margin-inline-end: -1.5rem;
   width: 1.25rem;
   height: 1.25rem;
   padding: 0;
