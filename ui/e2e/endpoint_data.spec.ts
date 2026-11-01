@@ -169,15 +169,15 @@ for (const width of [1440, 400]) {
       await page.goto(`/projects/helsinki/endpoints/air?lang=${lang}`);
       const grid = page.getByRole("grid");
       await expect(grid).toBeVisible();
-      const words = lang === "sk" ? { open: "Filtrovať stĺpec", filter: "Filter", only: "Iba toto", menu: "Možnosti stĺpca", chips: "Aktívne filtre", remove: "Odstrániť filter" } : { open: "Filter column", filter: "Filter", only: "Only", menu: "Column options", chips: "Active filters", remove: "Remove filter" };
+      const words = lang === "sk" ? { open: "Filtrovať stĺpec", name: "Názov", only: "Iba toto", menu: "Možnosti stĺpca", chips: "Aktívne filtre", remove: "Odstrániť filter" } : { open: "Filter column", name: "Name", only: "Only", menu: "Column options", chips: "Active filters", remove: "Remove filter" };
       const tag = `${lang}-${width}`;
 
-      await grid.getByRole("button", { name: `${words.menu}: Name` }).click();
+      await grid.getByRole("button", { name: `${words.menu}: ${words.name}` }).click();
       await page.screenshot({ path: join(dir, `../T-6328/menu-open-${tag}.png`) });
       await page.keyboard.press("Escape");
 
-      await grid.getByRole("button", { name: new RegExp(`^${words.open}: Name`) }).click();
-      const filter = page.getByRole("dialog", { name: /: Name$/ });
+      await grid.getByRole("button", { name: new RegExp(`^${words.open}: ${words.name}`) }).click();
+      const filter = page.getByRole("dialog", { name: new RegExp(`: ${words.name}$`) });
       await expect(filter.getByRole("list")).toBeVisible();
       // Every one of the 42 rows, not the page of 25, read with only the one attribute.
       await expect(filter.getByRole("listitem")).toHaveCount(42);
@@ -188,7 +188,7 @@ for (const width of [1440, 400]) {
       await expect.poll(() => asked.at(-1)?.searchParams.get("q")).toBe('name=="Kallio 0"');
       const chips = page.getByRole("list", { name: words.chips });
       await expect(chips).toBeVisible();
-      await expect(grid.getByRole("button", { name: new RegExp(`^${words.open}: Name \\(`) })).toHaveAttribute("data-active", "");
+      await expect(grid.getByRole("button", { name: new RegExp(`^${words.open}: ${words.name} \\(`) })).toHaveAttribute("data-active", "");
       await page.screenshot({ path: join(dir, `../T-6328/filtered-${tag}.png`) });
 
       await chips.getByRole("button", { name: new RegExp(`^${words.remove}`) }).click();

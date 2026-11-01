@@ -5,6 +5,9 @@ import { parseGridConfig } from "../src/grid/config";
 import { fixtureSource } from "../src/grid/source";
 import type { EntitySource, GridQuery } from "../src/grid/source";
 import { columnValues, VALUE_PAGE } from "../src/grid/columnValues";
+import { AutoFilter, chipText, FilterChips, HeaderFilter, valueText } from "../src/grid/AutoFilter";
+import { DEFAULT_LABELS } from "../src/grid/useEntityGrid";
+import type { FilterColumn } from "../src/grid/filters";
 
 // Five KPI rows over two pages: the value list reads the whole answer, not the page (T-6328).
 const kpi = (n: number, period: string, value: number) => ({
@@ -126,6 +129,19 @@ describe("the header filter (T-6328)", () => {
     await waitFor(() => expect(asked.at(-1)?.q).toBe('name~="a\\"b\\.\\("'));
   });
 
+  it("Escape and a click outside close it, Escape back to its funnel", async () => {
+    const { source } = recording(entities);
+    render(<EntityGrid config={config} source={source} filterRow={false} />);
+    await screen.findByText("Nehody 1");
+    openFilter("Period");
+    fireEvent.keyDown(screen.getByRole("dialog", { name: "Filter: Period" }), { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Filter column: Period" }));
+    openFilter("Period");
+    fireEvent.mouseDown(document.body);
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
   it("clears every filter at once from the chips", async () => {
     const { asked, source } = recording(entities);
     render(<EntityGrid config={config} source={source} filterRow={false} />);
@@ -142,13 +158,66 @@ describe("the header filter (T-6328)", () => {
   });
 });
 
+describe("the header filter's parts", () => {
+  const period: FilterColumn = { key: "refPeriod", attr: "refPeriod", kind: "text" };
+  const status: FilterColumn = { key: "status", attr: "status", kind: "enum", options: [{ value: "open", title: "Open" }] };
+
+  it("Only filters to one value at once: the second of two clicks", async () => {
+    let applied: unknown;
+    const load = async () => ({ values: [{ value: "2012", count: 2 }, { value: "2013", count: 1 }], scanned: 3, total: 3, capped: false });
+    render(<AutoFilter column={period} label="Period" labels={DEFAULT_LABELS} filter={undefined} load={load} formatValue={(v) => v} onApply={(f) => (applied = f)} onClose={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Only: 2013" }));
+    expect(applied).toEqual({ op: "anyOf", value: "", values: ["2013"] });
+  });
+
+  it("says when the list is a sample of the answer", async () => {
+    const load = async () => ({ values: [{ value: "2012", count: 5000 }], scanned: 5000, total: 12000, capped: true });
+    render(<AutoFilter column={period} label="Period" labels={DEFAULT_LABELS} filter={undefined} load={load} formatValue={(v) => v} onApply={() => {}} onClose={() => {}} />);
+    expect(await screen.findByText("Values of the first 5000 of 12000 entities; a condition asks all of them.")).toBeInTheDocument();
+  });
+
+  it("the funnel opens and closes, and names a filtered column so", () => {
+    const calls: string[] = [];
+    const { rerender } = render(
+      <HeaderFilter column={period} label="Period" labels={DEFAULT_LABELS} locale="en" filter={undefined} open={false} onOpen={() => calls.push("open")} onClose={() => calls.push("close")} load={async () => ({ values: [], scanned: 0, capped: false })} onApply={() => {}} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Filter column: Period" }));
+    rerender(
+      <HeaderFilter column={period} label="Period" labels={DEFAULT_LABELS} locale="en" filter={{ op: "present", value: "" }} open onOpen={() => calls.push("open")} onClose={() => calls.push("close")} load={async () => ({ values: [], scanned: 0, capped: false })} onApply={() => {}} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Filter column: Period (filtered)" }));
+    expect(calls).toEqual(["open", "close"]);
+  });
+
+  it("chips read each filter in the column's own words and remove one or all", () => {
+    expect(valueText(status, "open", "en")).toBe("Open");
+    expect(valueText({ key: "n", attr: "n", kind: "number" }, "1234.5", "sk")).toBe(new Intl.NumberFormat("sk").format(1234.5));
+    expect(chipText(period, "Period", { op: "anyOf", value: "", values: ["1", "2", "3", "4", "5"] }, DEFAULT_LABELS, "en")).toBe("Period: 1, 2, 3 +2");
+    expect(chipText(period, "Period", { op: "empty", value: "" }, DEFAULT_LABELS, "en")).toBe("Period is empty");
+    const removed: unknown[] = [];
+    render(
+      <FilterChips
+        columns={[{ key: "refPeriod", label: "Period" }, { key: "status", label: "Status" }]}
+        filterable={new Map([["refPeriod", period], ["status", status]])}
+        filters={{ refPeriod: { op: "contains", value: "20" }, status: { op: "anyOf", value: "", values: ["open"] } }}
+        labels={DEFAULT_LABELS}
+        locale="en"
+        onRemove={(keys) => removed.push(keys)}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Remove filter Status: Open" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear all filters" }));
+    expect(removed).toEqual(["status", ["refPeriod", "status"]]);
+  });
+});
+
 describe("columnValues", () => {
   it("says when it read less than the answer holds", async () => {
     const pages: number[] = [];
     const source: EntitySource = {
       query: async (_q, page) => {
         pages.push(page.offset);
-        const rows = Array.from({ length: VALUE_PAGE }, (_, i) => ({ id: `u${page.offset + i}`, type: "T", cells: { a: { kind: "property" as const, value: (page.offset + i) % 3 } } }));
+        const rows = Array.from({ length: VALUE_PAGE }, (_, i) => ({ id: `u${page.offset + i}`, type: "T", cells: { a: { kind: "property" as const, value: (page.offset + i) % 3 } }, raw: {} }));
         return { rows, total: 12_000 };
       },
       get: async () => null,

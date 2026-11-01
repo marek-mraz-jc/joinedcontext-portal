@@ -1675,6 +1675,11 @@ a.jc-cell--link:focus-visible {
   font-size: var(--jc-font-size-md, 14px);
 }
 
+/* The popup sits inside its header cell, whose label does not wrap: its own text does. */
+.jc-grid-col-menu {
+  white-space: normal;
+}
+
 .jc-grid-autofilter {
   width: min(20rem, calc(100vw - 16px));
   padding: var(--jc-space-2, 8px);

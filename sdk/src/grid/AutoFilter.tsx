@@ -4,12 +4,15 @@
  * condition by what the column holds (contains, equals, a range, empty or not). Apply narrows the
  * endpoint's answer; nothing is filtered in the browser.
  */
-import React, { useEffect, useId, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { GridLabels } from "./useEntityGrid";
 import { listsValues, opsForKind, valuesNeeded } from "./filters";
 import type { ColumnFilter, FilterColumn, FilterOp } from "./filters";
 import type { ColumnValues } from "./columnValues";
 import { usePlaceAtCell } from "./ColumnMenu";
+import { formatDate, formatNumber, targetName } from "./cells";
+import { optionLabel } from "../enums";
+import { complete } from "./filters";
 
 export interface AutoFilterProps {
   column: FilterColumn;
@@ -223,4 +226,155 @@ export function AutoFilter({ column, label, labels, filter, load, formatValue, o
       </div>
     </div>
   );
+}
+
+/** A listed or chipped value as the column's cells show it: an enum's title, a target's name, a local number or date. */
+export function valueText(column: FilterColumn, value: string, locale: string): string {
+  const option = column.options?.find((each) => each.value === value);
+  if (option) return optionLabel(option);
+  if (column.kind === "relationship") return targetName(value).name;
+  if (column.kind === "number" && value.trim() !== "" && Number.isFinite(Number(value))) return formatNumber(Number(value), locale);
+  if (column.kind === "date") return formatDate(value, locale);
+  return value;
+}
+
+/** A filter as its chip reads: the column, the test and the value(s), at most three values named. */
+export function chipText(column: FilterColumn, label: string, filter: ColumnFilter, labels: Pick<GridLabels, "ops">, locale: string): string {
+  const text = (value: string) => valueText(column, value, locale);
+  if (filter.op === "anyOf") {
+    const values = (filter.values ?? []).map(text);
+    return `${label}: ${values.slice(0, 3).join(", ")}${values.length > 3 ? ` +${values.length - 3}` : ""}`;
+  }
+  const op = labels.ops[filter.op] ?? filter.op;
+  const needed = valuesNeeded(filter.op);
+  if (needed === 0) return `${label} ${op}`;
+  if (needed === 2) return `${label}: ${text(filter.value)} – ${text(filter.value2 ?? "")}`;
+  return `${label} ${op} ${text(filter.value)}`;
+}
+
+/** The funnel in a header, and the column's filter under it while open; filled where the column is filtered. */
+export function HeaderFilter({
+  column,
+  label,
+  labels,
+  locale,
+  filter,
+  open,
+  onOpen,
+  onClose,
+  load,
+  onApply,
+}: {
+  column: FilterColumn;
+  label: string;
+  labels: GridLabels;
+  locale: string;
+  filter: ColumnFilter | undefined;
+  open: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+  load: () => Promise<ColumnValues>;
+  onApply: (filter: ColumnFilter | undefined) => void;
+}): React.JSX.Element {
+  const filtered = complete(filter);
+  return (
+    <>
+      <button
+        type="button"
+        className="jc-grid-filter-btn"
+        data-filter-btn={column.key}
+        data-active={filtered ? "" : undefined}
+        aria-label={`${labels.openFilter}: ${label}${filtered ? ` (${labels.filtered})` : ""}`}
+        title={`${labels.openFilter}: ${label}`}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={open ? onClose : onOpen}
+      >
+        <span className="jc-grid-funnel" aria-hidden="true" />
+      </button>
+      {open && (
+        <AutoFilter
+          column={column}
+          label={label}
+          labels={labels}
+          filter={filter}
+          load={column.attr && listsValues(column.kind) ? load : undefined}
+          formatValue={(value) => valueText(column, value, locale)}
+          onApply={onApply}
+          onClose={onClose}
+        />
+      )}
+    </>
+  );
+}
+
+/**
+ * The filters a person set, as chips above the grid (T-6328): each says what it asks and one
+ * click removes it; with two or more, one more clears them all.
+ */
+export function FilterChips({
+  columns,
+  filterable,
+  filters,
+  labels,
+  locale,
+  onRemove,
+}: {
+  columns: readonly { key: string; label: string }[];
+  filterable: ReadonlyMap<string, FilterColumn>;
+  filters: Readonly<Record<string, ColumnFilter>>;
+  labels: Pick<GridLabels, "activeFilters" | "removeFilter" | "clearFilters" | "ops">;
+  locale: string;
+  onRemove: (keys: string | string[]) => void;
+}): React.JSX.Element | null {
+  const items = columns.flatMap((col) => {
+    const column = filterable.get(col.key);
+    const filter = filters[col.key];
+    return column && filter && complete(filter) ? [{ key: col.key, text: chipText(column, col.label, filter, labels, locale) }] : [];
+  });
+  if (items.length === 0) return null;
+  return (
+    <ul className="jc-grid-chips" aria-label={labels.activeFilters}>
+      {items.map((item) => (
+        <li key={item.key} className="jc-grid-chip">
+          <span className="jc-grid-funnel" aria-hidden="true" />
+          <span className="jc-grid-chip-text" title={item.text}>{item.text}</span>
+          <button type="button" aria-label={labels.removeFilter.replace("{name}", item.text)} onClick={() => onRemove(item.key)}>
+            ✕
+          </button>
+        </li>
+      ))}
+      {items.length > 1 && (
+        <li>
+          <button type="button" className="jc-grid-chips-clear" onClick={() => onRemove(items.map((item) => item.key))}>
+            {labels.clearFilters}
+          </button>
+        </li>
+      )}
+    </ul>
+  );
+}
+
+/**
+ * Which column's header filter is open: one at a time; a click outside it closes it, and closing
+ * puts the focus back on the funnel that opened it.
+ */
+export function useHeaderFilter(table: React.RefObject<HTMLElement | null>): { openFilter: string | null; open: (key: string) => void; close: () => void } {
+  const [openFilter, setOpenFilter] = useState<string | null>(null);
+  const close = useCallback(() => {
+    setOpenFilter(null);
+    for (const button of table.current?.querySelectorAll<HTMLElement>("[data-filter-btn]") ?? []) {
+      if (button.dataset.filterBtn === openFilter) button.focus();
+    }
+  }, [openFilter, table]);
+  useEffect(() => {
+    if (!openFilter) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Element | null;
+      if (!target?.closest?.(".jc-grid-autofilter, [data-filter-btn]")) setOpenFilter(null);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [openFilter]);
+  return { openFilter, open: setOpenFilter, close };
 }
