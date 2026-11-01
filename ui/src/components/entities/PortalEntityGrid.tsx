@@ -294,6 +294,11 @@ export function gridLabels(t: (key: string, values?: Record<string, string>) => 
     kindList: t("entityGrid.kindList"),
     points: t("entityGrid.points"),
     openTarget: t("entityGrid.openTarget"),
+    moreInstances: t("entityGrid.moreInstances"),
+    wrongKind: t("entityGrid.wrongKind"),
+    drillTrail: t("entityGrid.drillTrail"),
+    drillBack: t("entityGrid.drillBack"),
+    defaultInstance: t("entityGrid.defaultInstance"),
   };
 }
 
@@ -444,6 +449,8 @@ export function PortalEntityGrid({ project, config, source, view, onGridState, e
 
   return (
     <EntityGrid
+      // An enum value links to the model term it stands for, where that is a web address (G-R2GRID2-019).
+      termHref={(meaning) => meaning}
       {...rest}
       config={config}
       source={watched}

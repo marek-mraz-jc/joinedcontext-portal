@@ -15,7 +15,7 @@ export interface PickerLabels {
 }
 
 /** The NGSI-LD null: what a cleared end is written as, so the attribute goes (CIM 009 §4.5.0). */
-export const NGSI_LD_NULL = "urn:ngsi-ld:null";
+export { NGSI_LD_NULL } from "./model";
 
 /**
  * One stored end of a relationship, edited by picking entities of its target class (UI-84).
