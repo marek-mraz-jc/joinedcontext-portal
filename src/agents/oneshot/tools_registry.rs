@@ -78,7 +78,39 @@ pub(super) fn offered(
         .filter(|op| op.name != crate::ops::people::MEMBERS)
         // T-6290: a capture reaches pipeline connectors; a person reads it on the broker's page.
         .filter(|op| op.name != crate::ops::mqtt::CAPTURED)
+        // JC2-28..34, T-6271, T-6389: the MCP parity reads and the entity write reach MCP clients
+        // and connectors; this prompt keeps its 4k-token turn (AG-72), a person reads them on
+        // their pages and writes entities on the Endpoint's own.
+        .filter(|op| !MCP_ONLY.contains(&op.name.as_str()))
         .collect()
+}
+
+/// The operations offered to MCP clients and connectors and not on this prompt.
+const MCP_ONLY: &[&str] = &[
+    crate::ops::model_catalog::SEARCH,
+    crate::ops::model_catalog::IMPORT,
+    crate::ops::model_catalog::GENERATE,
+    crate::ops::changes::HISTORY,
+    crate::ops::access_tools::PERMISSIONS,
+    crate::ops::access_tools::SIMULATE,
+    crate::ops::access_tools::EXPLORE,
+    crate::ops::access_tools::EXPLAIN,
+    crate::ops::access_tools::PREVIEW,
+    crate::ops::access_tools::CATALOGUE_DRAFT,
+    crate::ops::pipeline_runs::INSPECT,
+    crate::ops::space_reads::GOVERNANCE,
+    crate::ops::mqtt::TEST_PUBLISH,
+    crate::ops::data_write::NAME,
+];
+
+#[cfg(test)]
+mod mcp_only_tests {
+    #[test]
+    fn every_mcp_only_name_is_an_operation() {
+        for name in super::MCP_ONLY {
+            assert!(crate::ops::find(name).is_some(), "{name}");
+        }
+    }
 }
 
 /// The prompt section: what the platform can do, and how to ask for the detail of one.

@@ -97,7 +97,7 @@ pub const MAX_SUBJECTS: usize = 8;
 
 /// The subjects a catalogue request names, each a `dataModel.<Name>` of the catalogue's own
 /// spelling; anything else is the caller's mistake and never reaches Model Tools (DM-10).
-fn subjects_of(raw: Option<&str>) -> Result<Vec<&str>, ApiError> {
+pub(crate) fn subjects_of(raw: Option<&str>) -> Result<Vec<&str>, ApiError> {
     let subjects: Vec<&str> = raw
         .unwrap_or_default()
         .split(',')
@@ -182,7 +182,7 @@ pub struct Artifacts {
 /// A catalogue identifier is `dataModel.<Subject>/<Model>`: two segments of the characters the
 /// catalogue itself uses. Anything else — a URL, a scheme, a traversal, a query — is refused
 /// before a request is built, so no caller can point the fetch at a host of their choosing.
-fn is_catalogue_id(model: &str) -> bool {
+pub(crate) fn is_catalogue_id(model: &str) -> bool {
     let Some((subject, name)) = model.split_once('/') else {
         return false;
     };

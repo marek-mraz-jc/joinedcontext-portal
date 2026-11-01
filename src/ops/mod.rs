@@ -12,15 +12,18 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::OnceLock;
 
+pub mod access_tools;
 pub mod admin;
 pub mod changes;
 pub mod compute;
 pub mod data_query;
 pub mod data_views;
+pub mod data_write;
 pub mod drafts;
 pub mod endpoint_reach;
 pub mod feed_shape;
 pub mod knowledge;
+pub mod model_catalog;
 pub mod mqtt;
 pub mod people;
 pub mod pipeline_runs;
@@ -35,6 +38,7 @@ pub mod resources;
 pub mod runs;
 pub mod schemas;
 pub mod space_complete;
+pub mod space_reads;
 pub mod sync_sources;
 pub mod verdict;
 pub mod views;
@@ -896,6 +900,7 @@ pub(super) fn empty_input_schema() -> Value {
 fn init_registry() -> Vec<Operation> {
     let mut operations = compute::operations();
     operations.extend(data_query::operations());
+    operations.extend(data_write::operations());
     operations.extend(proposals::operations());
     operations.extend(changes::operations());
     operations.extend(drafts::operations());
@@ -913,6 +918,9 @@ fn init_registry() -> Vec<Operation> {
     operations.extend(people::operations());
     operations.extend(schemas::operations());
     operations.extend(plans::operations());
+    operations.extend(model_catalog::operations());
+    operations.extend(access_tools::operations());
+    operations.extend(space_reads::operations());
     operations
 }
 

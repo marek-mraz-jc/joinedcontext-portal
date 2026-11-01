@@ -57,6 +57,7 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_kpi_compute",
             "jc_data_query",
             "jc_catalog_search",
+            "jc_attribute_explain",
         ],
         &["Endpoint", "ContextSpace", "DataModel"],
     ),
@@ -69,6 +70,11 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_resource_list",
             "jc_resource_get",
             "jc_model_source_get",
+            "jc_model_sdm_search",
+            "jc_model_sdm_import",
+            "jc_model_generate",
+            "jc_endpoint_preview",
+            "jc_space_governance",
         ],
         &[
             "ContextSpace",
@@ -94,6 +100,9 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_pipeline_test",
             "jc_syncsource_status",
             "jc_mqtt_captured",
+            "jc_mqtt_test_publish",
+            "jc_pipeline_inspect",
+            "jc_space_governance",
         ],
         &[
             "Pipeline",
@@ -115,6 +124,8 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_resource_list",
             "jc_resource_get",
             "jc_member_list",
+            "jc_access_simulate",
+            "jc_access_explore",
         ],
         &["Role", "RoleBinding", "ServiceAccount", "Policy", "Group"],
     ),
@@ -129,6 +140,8 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_ckan_status",
             "jc_model_source_get",
             "jc_kpi_compute",
+            "jc_catalogue_draft",
+            "jc_endpoint_preview",
         ],
         &["Endpoint", "CkanInstance", "DataModel"],
     ),
@@ -156,6 +169,8 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_syncsource_status",
             "jc_change_list",
             "jc_change_get",
+            "jc_change_history",
+            "jc_pipeline_inspect",
         ],
         &["Pipeline", "SyncSource"],
     ),
@@ -185,6 +200,8 @@ pub const ADMIN: &str = "admin";
 /// Runs an approved Pipeline now: it writes data, so like [`APPLY`] it comes with the `writes`
 /// switch alone, to a connector whose segments reach Pipeline (T-6028).
 pub const RUN: &str = "jc_pipeline_run";
+/// Writes entities through one Endpoint: like [`APPLY`], it comes with the `writes` switch alone.
+pub const DATA_WRITE: &str = crate::ops::data_write::NAME;
 
 /// Whether `segment` is one a connector may name.
 pub fn is_segment(segment: &str) -> bool {
@@ -1228,10 +1245,13 @@ pub(crate) fn change_space(now: Option<&Value>, next: Option<&Value>) -> Option<
     }
 }
 
-/// The writing tools a `writes` connector adds to its segments' tools, by the kinds they reach.
+/// The writing tools a `writes` connector adds to its segments' tools, by the kinds they reach:
+/// a run to one reaching Pipeline, and the entity write to one reaching Endpoint, whose Policy
+/// then decides each entity (T-6389).
 fn written(kinds: &[&str]) -> Vec<&'static str> {
     let run = kinds.contains(&"Pipeline").then_some(RUN);
-    [APPLY].into_iter().chain(run).collect()
+    let data = kinds.contains(&"Endpoint").then_some(DATA_WRITE);
+    [APPLY].into_iter().chain(run).chain(data).collect()
 }
 
 /// The tools and kinds of the segments `carries` picks.
