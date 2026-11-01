@@ -71,6 +71,34 @@ async function stub(page: Page, state: State) {
   await page.route("**/api/endpoint/**", (route) => route.fulfill({ status: 404, contentType: "application/json", body: "{}" }));
 }
 
+// The Usage card's Period, Month and Download CSV (T-6310): from 640 px the two labels share a top
+// line and the select, the month input and the button share one control line; at a phone they stack.
+async function controlsAligned(page: Page, width: number) {
+  mkdirSync(join("test-results", "T-6310"), { recursive: true });
+  const box = async (selector: string) => {
+    const found = await page.locator(selector).boundingBox();
+    if (!found) throw new Error(`${selector} has no box`);
+    return found;
+  };
+  const [periodLabel, monthLabel] = [await box('label[for="project-usage-window"]'), await box('label[for="project-usage-month"]')];
+  const [period, month] = [await box("#project-usage-window"), await box("#project-usage-month")];
+  const button = await page.getByRole("button", { name: /Download CSV|Preparing/ }).boundingBox();
+  if (!button) throw new Error("the Download CSV button has no box");
+  const centre = (b: { y: number; height: number }) => b.y + b.height / 2;
+  if (width >= 640) {
+    expect(Math.abs(periodLabel.y - monthLabel.y)).toBeLessThan(1);
+    expect(Math.abs(centre(period) - centre(month))).toBeLessThan(1);
+    expect(Math.abs(centre(period) - centre(button))).toBeLessThan(1);
+    expect(Math.abs(period.height - button.height)).toBeLessThan(1);
+    // Left to right: Period, Month, then the button that downloads the month.
+    expect(period.x).toBeLessThan(month.x);
+    expect(month.x).toBeLessThan(button.x);
+  } else {
+    expect(month.y).toBeGreaterThan(period.y + period.height);
+    expect(button.y).toBeGreaterThan(month.y + month.height);
+  }
+}
+
 for (const width of [1440, 400]) {
   for (const state of ["calls", "empty", "refused"] as const) {
     test(`an Endpoint's usage reads at ${width} px: ${state} (T-5118)`, async ({ page }) => {
@@ -99,12 +127,24 @@ for (const width of [1440, 400]) {
       await page.goto("/projects/helsinki/health?lang=en");
       const project = page.locator("section", { has: page.getByRole("heading", { name: "Usage", exact: true }) });
       await expect(project.getByLabel("Month to download")).toBeVisible();
+      if (state === "refused") await expect(project.getByRole("alert")).toContainText("the usage database did not answer");
+      await controlsAligned(page, width);
       if (state === "calls") {
         await expect(project.getByRole("link", { name: "air" })).toBeVisible();
         await expect(project.getByText("No calls")).toBeVisible();
         await project.getByLabel("Month to download").fill("2026-10");
+        // The export is held until the running state is on the picture (T-6310).
+        let release = () => {};
+        const held = new Promise<void>((resolve) => (release = resolve));
+        await page.route("**/usage/endpoints/export**", async (route) => {
+          await held;
+          await route.fulfill({ contentType: "text/csv; charset=utf-8", body: CSV });
+        });
         const saved = page.waitForEvent("download");
         await project.getByRole("button", { name: "Download CSV" }).click();
+        await expect(project.getByRole("button", { name: "Preparing" })).toBeVisible();
+        await project.screenshot({ path: join("test-results", "T-6310", `project-exporting-${width}.png`) });
+        release();
         const file = await saved;
         expect(file.suggestedFilename()).toBe("helsinki-usage-2026-10.csv");
         const path = join(dir, `usage-${width}.csv`);
@@ -113,6 +153,7 @@ for (const width of [1440, 400]) {
       }
       await project.scrollIntoViewIfNeeded();
       await project.screenshot({ path: join(dir, `project-${state}-${width}.png`) });
+      await project.screenshot({ path: join("test-results", "T-6310", `project-${state}-${width}.png`) });
       // Nothing on the page is wider than a phone.
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     });
