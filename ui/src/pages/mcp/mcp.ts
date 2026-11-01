@@ -51,6 +51,8 @@ export interface McpServerForm {
   members: string[];
   /** Attached knowledge sources, `{source}` of this project or `{project}/{source}` (MF-57). */
   knowledgeSources: string[];
+  /** `spec.select` as stored (MF-55): the Endpoints a server selects beside its members, kept as is. */
+  select?: Record<string, unknown>;
 }
 
 /** The most knowledge sources one server attaches (MF-57). */
@@ -70,9 +72,10 @@ export function widestAllowed(members: MemberChoice[]): Audience {
 export function formProblems(form: McpServerForm, picked: MemberChoice[]): Record<string, string> {
   const problems: Record<string, string> = {};
   if (!/^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$/.test(form.name)) problems.name = "mcp.problem.name";
-  if (form.members.length === 0 || form.members.length > MAX_MEMBERS) problems.members = "mcp.problem.members";
+  // A server names members, a `select`, or both; the server judges a select against the audience (MF-55).
+  if ((form.members.length === 0 && !form.select) || form.members.length > MAX_MEMBERS) problems.members = "mcp.problem.members";
   else if (picked.some((member) => !member.servesMcp)) problems.members = "mcp.problem.noMcp";
-  if (breadth(form.audience) > breadth(widestAllowed(picked))) problems.audience = "mcp.problem.audience";
+  if (picked.length > 0 && breadth(form.audience) > breadth(widestAllowed(picked))) problems.audience = "mcp.problem.audience";
   if (form.knowledgeSources.length > MAX_KNOWLEDGE_SOURCES) problems.knowledgeSources = "mcp.problem.knowledgeSources";
   if (form.audience === "project-list" && form.allowedProjects.some((p) => !/^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$/.test(p))) {
     problems.allowedProjects = "mcp.problem.projects";
@@ -96,6 +99,7 @@ export function toManifest(project: string, form: McpServerForm, stored?: Manife
     }),
     audience: form.audience,
   };
+  if (form.select) spec.select = form.select;
   if (form.audience === "project-list" && form.allowedProjects.length > 0) spec.allowedProjects = form.allowedProjects;
   if (form.knowledgeSources.length > 0) spec.knowledgeSources = form.knowledgeSources;
   return { apiVersion: "joinedcontext.com/v1alpha1", kind: "McpServer", metadata, spec } as ResourceProposal;
@@ -112,7 +116,13 @@ function english(value: unknown): string {
 
 /** A stored server as the form shows it; a member without `namespace` is in the server's project. */
 export function fromManifest(project: string, manifest: Manifest): McpServerForm {
-  const spec = (manifest.spec ?? {}) as { members?: unknown; audience?: unknown; allowedProjects?: unknown; knowledgeSources?: unknown };
+  const spec = (manifest.spec ?? {}) as {
+    members?: unknown;
+    audience?: unknown;
+    allowedProjects?: unknown;
+    knowledgeSources?: unknown;
+    select?: unknown;
+  };
   const members = (Array.isArray(spec.members) ? spec.members : [])
     .map((member) => member as { name?: unknown; namespace?: unknown })
     .filter((member) => typeof member.name === "string")
@@ -127,6 +137,9 @@ export function fromManifest(project: string, manifest: Manifest): McpServerForm
     knowledgeSources: Array.isArray(spec.knowledgeSources)
       ? spec.knowledgeSources.filter((s): s is string => typeof s === "string")
       : [],
+    ...(spec.select && typeof spec.select === "object" && !Array.isArray(spec.select)
+      ? { select: spec.select as Record<string, unknown> }
+      : {}),
   };
 }
 

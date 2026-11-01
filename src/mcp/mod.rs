@@ -408,6 +408,16 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
                     .into_iter()
                     .filter(|item| org.may_read_envelope(info.kind, item))
                 {
+                    // An organization model's source beside its manifest, as a project's
+                    // (JC2-47): the same read decides both.
+                    if info.kind == "DataModel" {
+                        resources.push(json!({
+                            "uri": format!("jc://-/datamodels/{}/linkml", item.metadata.name),
+                            "name": item.metadata.name,
+                            "title": format!("LinkML source of {}", item.metadata.name),
+                            "mimeType": "application/yaml"
+                        }));
+                    }
                     resources.push(json!({
                         "uri": format!("jc://-/{}/{}", info.plural, item.metadata.name),
                         "name": item.metadata.name,
@@ -967,7 +977,8 @@ async fn read_change(
 }
 
 /// `jc://schemas/{Kind}`, `jc://{project}/drafts/{Kind}/{name}`,
-/// `jc://{project}/changes/{changeId}`, `jc://{project}/datamodels/{name}/linkml` or
+/// `jc://{project}/changes/{changeId}`, `jc://{project}/datamodels/{name}/linkml`,
+/// `jc://-/datamodels/{name}/linkml`, `jc://-/{plural}/{name}` or
 /// `jc://{project}/{plural}/{name}`.
 async fn read_resource(
     state: &AppState,
@@ -1008,6 +1019,26 @@ async fn read_resource(
                 .flatten()
                 .filter(|draft| effective.may_read_manifest(&draft.kind, &draft.manifest))?;
             Some(("application/json", serde_json::to_string(&draft).ok()?))
+        }
+        // JC2-47: an organization model's source, read behind the read of its manifest.
+        ["-", "datamodels", name, "linkml"]
+            if readable_item(
+                state,
+                caller,
+                crate::permissions::ORG_NAMESPACE,
+                "DataModel",
+                name,
+            )
+            .is_some() =>
+        {
+            let source = crate::api::datamodels::read_source(
+                state,
+                crate::permissions::ORG_NAMESPACE,
+                name,
+            )
+            .await
+            .ok()?;
+            Some(("application/yaml", source))
         }
         // AG-81: `jc://-/{plural}/{name}` is a resource of the organization itself.
         ["-", plural, name] => {
