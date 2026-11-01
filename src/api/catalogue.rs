@@ -1131,15 +1131,7 @@ pub(crate) async fn datasets_matching(
                 found
                     .iter()
                     .filter(|dataset| dataset["private"] != Value::Bool(true))
-                    .map(|dataset| {
-                        let summary = summary(dataset);
-                        serde_json::json!({
-                            "title": summary.title,
-                            "url": format!("{base}/dataset/{}", summary.name),
-                            "publisher": summary.publisher.map(|p| p.title),
-                            "formats": summary.formats,
-                        })
-                    }),
+                    .map(|dataset| hit(&base, dataset)),
             ),
             Err(reason) => {
                 tracing::warn!(catalogue = %base, %reason, "catalogue search failed");
@@ -1149,6 +1141,34 @@ pub(crate) async fn datasets_matching(
     }
     hits.truncate(limit);
     (hits, unavailable)
+}
+
+/// The most resources one search hit lists.
+const HIT_RESOURCES: usize = 10;
+
+/// One search hit: the dataset page and each resource's `{format, url}`, the download a
+/// DataSource reads; the page is HTML, which no pipeline maps (T-6269).
+fn hit(base: &str, dataset: &Value) -> Value {
+    let summary = summary(dataset);
+    let resources: Vec<Value> = dataset
+        .get("resources")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|r| {
+            let url = text(r, "url")
+                .filter(|u| Url::parse(u).is_ok_and(|u| matches!(u.scheme(), "http" | "https")))?;
+            Some(serde_json::json!({ "format": text(r, "format"), "url": url }))
+        })
+        .take(HIT_RESOURCES)
+        .collect();
+    serde_json::json!({
+        "title": summary.title,
+        "url": format!("{base}/dataset/{}", summary.name),
+        "publisher": summary.publisher.map(|p| p.title),
+        "formats": summary.formats,
+        "resources": resources,
+    })
 }
 
 /// The public dataset `name` and the catalogue that holds it.
@@ -1795,6 +1815,37 @@ mod tests {
             value.parse().expect("a header value"),
         );
         headers
+    }
+
+    #[test]
+    fn a_search_hit_lists_each_resource_with_its_format_and_download_url() {
+        let dataset = json!({
+            "name": "parkoviska", "title": "Parkoviská",
+            "resources": [
+                { "format": "CSV", "url": "https://data.example/parkoviska.csv" },
+                { "format": "GeoJSON", "url": "https://data.example/parkoviska.geojson" },
+                { "format": "HTML", "url": "javascript:alert(1)" },
+                { "format": "XLS" }
+            ]
+        });
+        let hit = hit("https://ckan.example", &dataset);
+        assert_eq!(hit["url"], "https://ckan.example/dataset/parkoviska");
+        assert_eq!(
+            hit["resources"],
+            json!([
+                { "format": "CSV", "url": "https://data.example/parkoviska.csv" },
+                { "format": "GeoJSON", "url": "https://data.example/parkoviska.geojson" }
+            ])
+        );
+        let many =
+            json!({ "name": "n", "resources": vec![json!({ "url": "https://d.example/a" }); 30] });
+        assert_eq!(hit_resources(&many), HIT_RESOURCES);
+    }
+
+    fn hit_resources(dataset: &Value) -> usize {
+        hit("https://ckan.example", dataset)["resources"]
+            .as_array()
+            .map_or(0, Vec::len)
     }
 
     #[test]

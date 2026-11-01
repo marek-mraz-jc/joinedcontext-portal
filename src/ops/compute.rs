@@ -107,7 +107,7 @@ fn catalog_output_schema() -> Value {
             "items": { "type": "array", "items": { "type": "object" } },
             "datasets": {
                 "type": "array",
-                "description": "Open-data catalogue datasets: title, url of the dataset page, publisher, formats",
+                "description": "Open-data datasets: title, page url, publisher, formats, resources (format, url)",
                 "items": { "type": "object" }
             },
             "unavailable": { "type": "array", "items": { "type": "string" } }
