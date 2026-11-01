@@ -107,20 +107,22 @@ typecheck() {
     touched "$(dirname "$app")" || { skip "$(dirname "$app")"; continue; }
     (cd "$app" && if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; else
       npm pkg set "dependencies.@joinedcontext/sdk=link:$ROOT/sdk" \
-      && pnpm install --no-frozen-lockfile; fi && pnpm typecheck)
+      && pnpm install --no-frozen-lockfile --config.lockfile=false; fi && pnpm typecheck)
   done
   git checkout -- apps && git clean -fq -- apps
 }
 
 ui() {
   # The reference apps of AP-34 carry their own bundle and no lockfile: the SDK name is pointed at
-  # this checkout, and the manifests and lockfiles are put back after (the lane test reads them).
+  # this checkout, and the manifests are put back after (the lane test reads them). An App without
+  # a lockfile installs with none written, so a failed run leaves no stray lockfile the next run
+  # would take as the App's own (T-6341 review).
   for app in apps/*/ui; do
     [ -f "$app/package.json" ] || continue
     ours "$(dirname "$app")" || continue
     (cd "$app" && if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; else
       npm pkg set "dependencies.@joinedcontext/sdk=link:$ROOT/sdk" \
-      && pnpm install --no-frozen-lockfile; fi && pnpm typecheck \
+      && pnpm install --no-frozen-lockfile --config.lockfile=false; fi && pnpm typecheck \
       && sh "$RUN" "$(basename "$(dirname "$app")")" && pnpm build)
   done
   git checkout -- apps && git clean -fq -- apps
