@@ -184,14 +184,15 @@ fn names(body: &Value) -> Vec<String> {
 }
 
 #[tokio::test]
-async fn anonymous_search_is_401_and_an_empty_question_is_400() {
+async fn anonymous_search_is_401_and_an_empty_question_is_refused() {
     let config = Config::for_tests();
     let (status, _) = search(config.clone(), None, json!({ "q": "bike" })).await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 
     let cookie = session_cookie(&config);
+    // The schema's pattern refuses a blank q before the search runs (T-6274).
     let (status, _) = search(config.clone(), Some(&cookie), json!({ "q": " " })).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
     let (status, _) = search(
         config,
         Some(&cookie),
@@ -221,8 +222,12 @@ async fn the_schema_requires_q_and_a_scope_alone_is_refused_naming_it() {
     let config = Config::for_tests();
     let cookie = session_cookie(&config);
     let (status, body) = search(config, Some(&cookie), json!({ "scope": "Endpoint" })).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST);
-    assert!(body.to_string().contains("`q`"), "{body}");
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert_eq!(
+        body["errors"][0]["message"],
+        json!("\"q\" is a required property"),
+        "{body}"
+    );
 }
 
 #[tokio::test]
