@@ -23344,12 +23344,14 @@ export interface operations {
         };
         requestBody: {
             content: {
-                /** @example {} */
+                /**
+                 * @example {
+                 *       "q": "example"
+                 *     }
+                 */
                 "application/json": {
-                    /** @description Keywords in names, titles and descriptions */
-                    q?: string;
-                    /** @description Alias of q; q wins */
-                    query?: string;
+                    /** @description Required keywords in names, titles and descriptions, e.g. bike */
+                    q: string;
                     /** @description One kind only; Dataset is the open-data catalogue */
                     scope?: string;
                 };

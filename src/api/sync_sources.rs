@@ -393,7 +393,11 @@ fn driver(state: &AppState) -> Result<&Driver, ApiError> {
 /// Read from the Portal's mirror of the repository rather than from the forge: it is the same
 /// view every other resource route answers from, so a source that is not in it is a source the
 /// Portal does not have (MF-04).
-fn named(state: &AppState, project: &str, name: &str) -> Result<(String, String), ApiError> {
+pub(crate) fn named(
+    state: &AppState,
+    project: &str,
+    name: &str,
+) -> Result<(String, String), ApiError> {
     if !resource::is_dns1123(project) || !resource::is_dns1123(name) {
         return Err(ApiError::NotFound(format!(
             "sync source '{name}' not found in project '{project}'"

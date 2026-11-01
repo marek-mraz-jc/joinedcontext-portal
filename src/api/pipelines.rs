@@ -640,12 +640,23 @@ pub(crate) fn readable_pipeline(
     project: &str,
     name: &str,
 ) -> Result<crate::resource::ResourceEnvelope, ApiError> {
+    readable_pipeline_for(state, &user.0.identity, project, name)
+}
+
+/// [`readable_pipeline`] for a caller known by its identity, as the operation registry asks it
+/// before a run is turned into a question (AG-63, T-6280).
+pub(crate) fn readable_pipeline_for(
+    state: &AppState,
+    identity: &crate::auth::session::Identity,
+    project: &str,
+    name: &str,
+) -> Result<crate::resource::ResourceEnvelope, ApiError> {
     let not_found = || {
         ApiError::NotFound(format!(
             "pipeline '{name}' not found in project '{project}'"
         ))
     };
-    let effective = crate::permissions::for_request(state, &user.0.identity, project);
+    let effective = crate::permissions::for_request(state, identity, project);
     if !effective.may_read_project() || !is_dns1123(project) || !is_dns1123(name) {
         return Err(not_found());
     }
