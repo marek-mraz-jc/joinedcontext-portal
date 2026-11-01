@@ -193,6 +193,30 @@ const KPI_LINKML = [
   "",
 ].join("\n");
 
+/** New data model is one window for the name (owner 2026-11-01, T-6344); the empty editor follows. */
+async function nameNewModel(page: Page, name: string): Promise<void> {
+  const dialog = page.getByRole("dialog", { name: "New data model" });
+  await dialog.getByRole("textbox", { name: "Name", exact: true }).fill(name);
+  await dialog.getByRole("button", { name: "Create model" }).click();
+  await expect(dialog).toBeHidden();
+}
+
+/** Add type opens one dialog: a Smart Data Model, a spreadsheet, or an empty type by name. */
+async function addType(page: Page, name: string): Promise<void> {
+  await page.getByRole("button", { name: "Add type", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Add type" });
+  await dialog.getByRole("textbox", { name: "New type" }).fill(name);
+  await dialog.getByRole("button", { name: "Add", exact: true }).click();
+}
+
+/** Add field opens one form: what the field holds, then its name; the new field opens after. */
+async function addField(page: Page, name: string): Promise<void> {
+  await page.getByRole("button", { name: "Add field", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Add field" });
+  await dialog.getByRole("textbox", { name: "Name", exact: true }).fill(name);
+  await dialog.getByRole("button", { name: "Add", exact: true }).click();
+}
+
 async function stubKpi(page: Page, verbs: string[], linkml = KPI_LINKML): Promise<void> {
   await page.route("**/api/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -285,13 +309,10 @@ test.describe("one plain model editor (T-4829)", () => {
       await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
       await stubKpi(page, ["read", "propose"]);
       await page.goto("/projects/helsinki/models?new=blank&lang=en");
-      const types = page.getByRole("region", { name: "Types" });
-      await types.getByRole("textbox", { name: "New type" }).fill("WeatherObserved");
-      await types.getByRole("button", { name: "Add type" }).click();
-      await page.getByLabel("New field").fill("temperature");
-      await page.getByRole("button", { name: "Add field", exact: true }).click();
-      await page.getByRole("button", { name: "temperature", exact: true }).click();
-      await page.getByRole("combobox", { name: "Unit" }).fill("CEL");
+      await nameNewModel(page, "Weather");
+      await addType(page, "WeatherObserved");
+      await addField(page, "temperature");
+      await page.getByRole("dialog", { name: "temperature" }).getByRole("combobox", { name: "Unit" }).fill("CEL");
       await page.keyboard.press("Enter");
       const notice = page.getByRole("status").filter({ hasText: "A unit measures a number" });
       await expect(notice).toBeVisible();
@@ -318,7 +339,9 @@ test.describe("one plain model editor (T-4829)", () => {
         await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
       });
       await page.goto("/projects/helsinki/models?new=blank&lang=en");
-      await page.getByRole("region", { name: "Types" }).getByRole("button", { name: "Import a Smart Data Model" }).click();
+      await nameNewModel(page, "Events");
+      await page.getByRole("button", { name: "Add type", exact: true }).click();
+      await page.getByRole("dialog", { name: "Add type" }).getByRole("button", { name: /Import from Smart Data Models/ }).click();
       await page.getByRole("button", { name: /Event/ }).click();
       const alert = page.getByRole("alert").filter({ hasText: "garden: duplicate key" });
       await expect(alert).toContainText("The catalogue's Event schema cannot be turned into a model.");
@@ -433,11 +456,16 @@ test.describe("the model editor's name line (T-6162)", () => {
       await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
       await stubKpi(page, ["read", "propose"]);
       await page.goto("/projects/helsinki/models?new=blank&lang=en");
-      await expect(page.getByRole("heading", { level: 1, name: "New data model" })).toBeVisible();
-      await expect(page.getByText("no id until the model has a name")).toBeVisible();
-      await page.getByRole("textbox", { name: "Name", exact: true }).fill("Street trees");
-      await expect(page.getByText("street-trees.linkml.yaml")).toBeVisible();
-      await expect(page.getByRole("combobox", { name: /space/i })).toHaveCount(0);
+      // Named in the New data model window (owner 2026-11-01, T-6344), never placed in a space.
+      const window_ = page.getByRole("dialog", { name: "New data model" });
+      await expect(window_.getByRole("button", { name: "Create model" })).toHaveAttribute("aria-disabled", "true");
+      await expect(window_.getByRole("combobox", { name: /space/i })).toHaveCount(0);
+      await shot(page, `new-model-window-${width}`, false);
+      await window_.getByRole("textbox", { name: "Name", exact: true }).fill("helsinki-kpi");
+      await expect(window_.getByRole("alert")).toContainText("helsinki-kpi");
+      await shot(page, `new-model-window-taken-${width}`, false);
+      await nameNewModel(page, "Street trees");
+      await expect(page.getByRole("heading", { level: 1, name: "Street trees" })).toBeVisible();
       await expect(page.getByRole("main").getByText(/context space/i)).toHaveCount(0);
       await shot(page, `new-model-named-${width}`);
 
@@ -509,7 +537,7 @@ const INHERITING_LINKML = KPI_LINKML.replace(
 
 test.describe("the model editor's import dialog, inherited fields and read-only source (T-6106)", () => {
   for (const width of [1440, 400]) {
-    test(`a new model opens on the import dialog, and an open one reads its source first at ${width} px`, async ({ page }) => {
+    test(`a new model is named, Add type brings the import, and an open one reads its source first at ${width} px`, async ({ page }) => {
       await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
       await stubKpi(page, ["read", "propose"], INHERITING_LINKML);
       // Registered after stubKpi, so it answers first: the editor reads the committed source.
@@ -517,14 +545,17 @@ test.describe("the model editor's import dialog, inherited fields and read-only 
         route.fulfill({ status: 200, contentType: "text/yaml", body: INHERITING_LINKML }),
       );
       await page.goto("/projects/helsinki/models?new=sdm&lang=en");
-      const dialog = page.getByRole("dialog", { name: "Import a data model" });
-      await expect(dialog).toBeVisible();
-      await expect(page.getByRole("tab", { name: "Import", exact: true })).toHaveCount(0);
-      await shot(page, `import-dialog-${width}`, false);
-      await dialog.getByRole("button", { name: "Close import" }).click();
-      await expect(dialog).toBeHidden();
+      await nameNewModel(page, "Indicators");
       await expect(page.getByRole("tab", { name: "Structure", selected: true })).toBeVisible();
       await shot(page, `blank-editor-${width}`);
+      await page.getByRole("button", { name: "Add type", exact: true }).click();
+      await shot(page, `add-type-dialog-${width}`, false);
+      await page.getByRole("dialog", { name: "Add type" }).getByRole("button", { name: /Import from Smart Data Models/ }).click();
+      const dialog = page.getByRole("dialog", { name: "Import a data model" });
+      await expect(dialog).toBeVisible();
+      await shot(page, `import-dialog-${width}`, false);
+      await page.keyboard.press("Escape");
+      await expect(dialog).toBeHidden();
 
       await page.goto("/projects/helsinki/models?edit=helsinki-kpi&lang=en");
       await page.getByRole("button", { name: "KeyPerformanceIndicator", exact: true }).click();
@@ -536,14 +567,15 @@ test.describe("the model editor's import dialog, inherited fields and read-only 
       await shot(page, `inherited-fields-${width}`);
       // An inherited field opens read-only: editing it would change the parent for every type.
       await inherited.filter({ hasText: "location" }).getByRole("button", { name: "location", exact: true }).click();
-      const detail = page.getByRole("region", { name: "location" });
+      const detail = page.getByRole("dialog", { name: "location" });
       await expect(detail).toContainText("Defined on Indicator");
       await expect(detail.getByRole("checkbox")).toHaveCount(0);
       await detail.scrollIntoViewIfNeeded();
       await shot(page, `inherited-field-read-only-${width}`);
       await detail.getByRole("button", { name: "Open Indicator" }).click();
+      await expect(page.getByRole("dialog", { name: "location" }).getByRole("checkbox").first()).toBeVisible();
+      await page.keyboard.press("Escape");
       await expect(page.getByRole("button", { name: "Indicator", exact: true })).toHaveAttribute("aria-current", "true");
-      await expect(page.getByRole("region", { name: "location" }).getByRole("checkbox").first()).toBeVisible();
       await page.getByRole("button", { name: "KeyPerformanceIndicator", exact: true }).click();
 
       await page.getByRole("tab", { name: "Source" }).click();
