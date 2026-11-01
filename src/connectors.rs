@@ -239,6 +239,17 @@ fn default_policy() -> DelegationPolicySpec {
     }
 }
 
+/// The resource kind a call works on: the operation's own, or for a `kind: "*"` operation the
+/// `kind` its arguments name. `jc_activity_list`'s `kind` filters event kinds
+/// (`pipeline.error`), which no policy or segment lists: its ceiling is the project (T-6281).
+fn resource_kind<'a>(op: &Operation, args: &'a Value) -> Option<&'a str> {
+    match op.kind {
+        "*" if op.name == "jc_activity_list" => None,
+        "*" => args.get("kind").and_then(Value::as_str),
+        kind => Some(kind),
+    }
+}
+
 /// The tools and kinds `connector` reaches under one policy: the segments both allow, and
 /// `jc_change_apply` when both let it write.
 fn reach_under(
@@ -414,11 +425,7 @@ impl Ceiling {
         project: &str,
         args: &Value,
     ) -> Result<(), String> {
-        let kind = if op.kind == "*" {
-            args.get("kind").and_then(Value::as_str)
-        } else {
-            Some(op.kind)
-        };
+        let kind = resource_kind(op, args);
         let named = args.get("name").and_then(Value::as_str);
         let endpoint = match kind {
             Some("Endpoint") => named,
@@ -842,11 +849,7 @@ impl Connector {
             ));
         }
         let text = |key: &str| args.get(key).and_then(Value::as_str);
-        let kind = if op.kind == "*" {
-            text("kind")
-        } else {
-            Some(op.kind)
-        };
+        let kind = resource_kind(op, args);
         if matches!(op.name, "jc_resource_list" | "jc_resource_get") {
             let (_, kinds) = self.reach();
             match kind {
@@ -2519,6 +2522,36 @@ pub(crate) mod tests {
             validate(&bad, &ceiling, Utc::now()),
             Err(ApiError::Invalid { .. })
         ));
+    }
+
+    /// T-6281: an event-kind filter on the activity list is no resource kind, so the operate
+    /// segment reads `pipeline.error` events; a resource kind outside the segments stays refused.
+    #[test]
+    fn an_activity_kind_filter_is_held_to_the_project_alone() {
+        let ceiling = Ceiling::of_policies(vec![(
+            "operators-doprava".into(),
+            serde_json::from_value(json!({
+                "subjects": [{ "kind": "Group", "name": "operators" }],
+                "projects": ["doprava"],
+                "segments": ["operate", "data-read"],
+            }))
+            .expect("policy"),
+        )]);
+        let live = connector(&["operate", "data-read"], vec![item("doprava", None)]);
+        let events = json!({ "kind": "pipeline.error,pipeline.run", "severity": "error" });
+        let activity = op("jc_activity_list");
+        assert_eq!(ceiling.admits(&live, activity, "doprava", &events), Ok(()));
+        assert_eq!(live.admits(activity, "doprava", &events), Ok(()));
+        assert!(ceiling
+            .admits(&live, activity, "skolstvo", &events)
+            .is_err());
+        let secret = json!({ "kind": "Secret" });
+        let list = op("jc_resource_list");
+        let why = ceiling
+            .admits(&live, list, "doprava", &secret)
+            .expect_err("Secret is in no segment");
+        assert!(why.contains("on Secret"), "{why}");
+        assert!(live.admits(list, "doprava", &secret).is_err());
     }
 
     #[test]
