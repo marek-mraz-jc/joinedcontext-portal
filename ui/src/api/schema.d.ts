@@ -3745,7 +3745,7 @@ export interface paths {
         put?: never;
         /**
          * Query Data
-         * @description Reads one Endpoint's entities as you, current or history (temporal), with type, id, q, attrs, a geo-query, count and paging
+         * @description Reads one Endpoint's entities, current or history (temporal), by type, id, q, attrs, geo-query, count and paging
          */
         post: operations["jc_data_query"];
         delete?: never;
@@ -23384,12 +23384,14 @@ export interface operations {
         };
         requestBody: {
             content: {
-                /** @example {} */
+                /**
+                 * @example {
+                 *       "q": "example"
+                 *     }
+                 */
                 "application/json": {
-                    /** @description Keywords in names, titles and descriptions */
-                    q?: string;
-                    /** @description Alias of q; q wins */
-                    query?: string;
+                    /** @description Required keywords in names, titles and descriptions, e.g. bike */
+                    q: string;
                     /** @description One kind only; Dataset is the open-data catalogue */
                     scope?: string;
                 };
@@ -23403,7 +23405,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        /** @description Open-data catalogue datasets: title, url of the dataset page, publisher, formats */
+                        /** @description Open datasets: title, url, publisher, formats, endpoint slug */
                         datasets?: Record<string, never>[];
                         items?: Record<string, never>[];
                         q?: string;
@@ -24257,7 +24259,7 @@ export interface operations {
                     count?: boolean;
                     /** @description The nextCursor of the previous page */
                     cursor?: string;
-                    /** @description Endpoint name, e.g. doprava-counters */
+                    /** @description Endpoint name or public slug, e.g. city-counters */
                     endpoint: string;
                     /**
                      * @description keyValues answers plain values
@@ -27023,6 +27025,8 @@ export interface operations {
                         streamed?: boolean;
                         /** @description Whether the source answered more than the records shown */
                         truncated?: boolean;
+                        /** @description Each personal field of the source left out, as DataSource/{name}.{field} */
+                        withheld?: string[];
                     };
                 };
             };
@@ -27236,6 +27240,8 @@ export interface operations {
                         input?: Record<string, never>;
                         /** @description Each record as the pipeline would write it */
                         records?: unknown[];
+                        /** @description Each personal field of the source left out, as DataSource/{name}.{field} */
+                        withheld?: string[];
                     };
                 };
             };

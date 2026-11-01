@@ -10974,7 +10974,7 @@
     },
     "segmentHint": {
       "data-read": "čte Endpointy, prostory a modely, např. pro otázky o datech",
-      "context": "čte modely, prostory, Endpointy a politiky",
+      "context": "čte modely, prostory, Endpointy, politiky, projekce modelů a odběry",
       "pipeline": "čte pipelines, zdroje a jejich metriky",
       "access": "čte role, vazby, skupiny a servisní účty",
       "publish": "čte katalog a stav CKAN",

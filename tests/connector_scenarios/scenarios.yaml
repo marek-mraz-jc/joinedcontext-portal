@@ -1742,6 +1742,52 @@
       contains: ['does not reach project']
       absent: ['"steps"']
 - id: S-87
+  segment: pipeline
+  as: steward
+  says: "Show me 5 sample rows of the bike trips source and try a mapping over it."
+  given: 'The source is DataSource trips-csv of the project; its rider column holds names, listed in spec.personalFields.'
+  expect: 'sample_source and a source-shaped try_mapping answer the rows without the rider values and name DataSource/trips-csv.rider as withheld (AG-158, T-6265)'
+  deny: 'the source in a project outside the connector scope -> refused, no rows'
+  script:
+    # The administrator's ceiling, as the reconciler loads it from Git once merged: the pipeline
+    # segment, with writes, for the project's pipeline people.
+    - proves: expect
+      manifest: { kind: Group, name: pipeliners, spec: { members: [{ user: scn.steward@hel.fi }, { user: scn.project-admin@hel.fi }] } }
+    - proves: expect
+      manifest: { kind: DelegationPolicy, name: pipeliners-doprava, spec: { subjects: [{ kind: Group, name: pipeliners }], projects: ['{project}'], segments: [pipeline], writes: true, maxExpiry: P90D } }
+    - proves: expect
+      manifest: { kind: DataSource, name: trips-csv, namespace: '{project}', spec: { type: http, http: { url: 'https://data.example.sk/trips.csv', format: csv }, personalFields: [rider] } }
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s87-pipeline, segments: [pipeline], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      via: connector
+      call: jc_pipeline_sample_source
+      args: { dataSource: trips-csv }
+      runner: [{ input: 'Jana Novakova,Most SNP,2026-10-27T10:00:00Z', output: { rider: Jana Novakova, station: Most SNP, startedAt: '2026-10-27T10:00:00Z' }, error: null }]
+      contains: ['"count":1', 'Most SNP', 'joinedcontext.com/withheld', 'DataSource/trips-csv.rider']
+      absent: ['Jana Novakova']
+    # A mapping that passes the row through answers the source's shape: the same field leaves.
+    - proves: expect
+      via: connector
+      call: jc_pipeline_try_mapping
+      args: { pipeline: { apiVersion: joinedcontext.com/v1alpha2, kind: Pipeline, metadata: { name: trips-try, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', sources: [{ dataSourceRef: { kind: DataSource, name: trips-csv } }], steps: [{ processor: { mapping: 'root = this' } }], outputs: [{ targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-intake' }] } }, sample: { text: "rider,station\nJana Novakova,Most SNP\n", format: csv }, steps: true }
+      runner: [{ input: '{"rider":"Jana Novakova","station":"Most SNP"}', output: { rider: Jana Novakova, station: Most SNP }, error: null, steps: ['{"rider":"Jana Novakova","station":"Most SNP"}'] }]
+      contains: ['Most SNP', 'DataSource/trips-csv.rider']
+      absent: ['Jana Novakova']
+    # The rows come only where the connector reaches.
+    - proves: deny
+      via: connector
+      call: jc_pipeline_sample_source
+      project: other
+      args: { dataSource: trips-csv }
+      refused: true
+      contains: ['does not reach project']
+      absent: ['Jana Novakova', 'Most SNP']
+- id: S-88
   segment: knowledge
   # project-admin: the steward's MCP minute (120 calls, shared by every scenario) is nearly full.
   as: project-admin

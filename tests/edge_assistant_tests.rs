@@ -236,8 +236,8 @@ async fn search(
 // T-1986 `jc_catalog_search` (the route `get_catalog` until T-4453)
 // -------------------------------------------------------------------------------------------------
 
-/// AG-58, PF-59: a question with no words is a 400 to a reader of the project and the plain 404 to
-/// a stranger, the answer a stranger gets for any question, so an empty `q` is not a way to ask
+/// AG-58, PF-59: a question with no words is a 422 (the schema requires a non-blank `q`, T-6274) to
+/// a reader of the project and the plain 404 to a stranger, the answer a stranger gets for any question, so an empty `q` is not a way to ask
 /// which projects exist (the registry checks the project before the input, T-4453).
 #[tokio::test]
 async fn a_question_with_no_words_tells_a_stranger_nothing_a_real_question_does_not() {
@@ -247,7 +247,7 @@ async fn a_question_with_no_words_tells_a_stranger_nothing_a_real_question_does_
     for query in ["", "q=", "q=%20%20", "q=%09", "scope=Endpoint", "q=&scope="] {
         let (mine, my_body) = search(&app, &member, PROJECT, query).await;
         let (theirs, their_body) = search(&app, &stranger, PROJECT, query).await;
-        assert_eq!(mine, StatusCode::BAD_REQUEST, "{query}: {my_body}");
+        assert_eq!(mine, StatusCode::UNPROCESSABLE_ENTITY, "{query}: {my_body}");
         assert_eq!(theirs, StatusCode::NOT_FOUND, "{query}: {their_body}");
         assert_eq!(
             their_body, real,

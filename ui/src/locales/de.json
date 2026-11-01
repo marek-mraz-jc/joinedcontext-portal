@@ -10974,7 +10974,7 @@
     },
     "segmentHint": {
       "data-read": "liest Endpoints, Räume und Modelle, z. B. für Fragen zu Daten",
-      "context": "liest Modelle, Räume, Endpoints und Policies",
+      "context": "liest Modelle, Räume, Endpoints, Policies, Modellprojektionen und Abonnements",
       "pipeline": "liest Pipelines, Quellen und ihre Metriken",
       "access": "liest Rollen, Bindungen, Gruppen und Dienstkonten",
       "publish": "liest den Katalog und den CKAN-Status",

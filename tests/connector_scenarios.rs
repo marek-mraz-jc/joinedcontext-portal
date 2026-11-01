@@ -357,7 +357,7 @@ fn seed_project(mirror: &Mirror, project: &str, catalogue: &str) {
             "conflictPolicy": "replace"
         }),
     ));
-    // The city's website the knowledge assistant crawls (S-87); its store answers on the mock.
+    // The city's website the knowledge assistant crawls (S-88); its store answers on the mock.
     mirror.upsert(envelope(
         "KnowledgeSource",
         "city-web",
@@ -1220,7 +1220,7 @@ fn forge_views(
 /// The open-data catalogue's search, holding one public school dataset whose description carries
 /// an injected instruction and one private dataset (S-08), and the gateway's `access/simulate`,
 /// which grants group `scn-writers` writes on BikeCounter and everybody else reads (S-30).
-/// jc-assistant's store of every project's sources (S-87): the crawl state, the failed reads and
+/// jc-assistant's store of every project's sources (S-88): the crawl state, the failed reads and
 /// one search, as the assistant answers them. The Portal never reaches a crawled page itself.
 async fn knowledge_assistant(server: &MockServer) {
     use wiremock::matchers::path_regex;
@@ -2044,8 +2044,8 @@ fn the_catalogue_holds_the_connector_scenarios_well_formed() {
     let scenarios = catalogue();
     // S-01..S-50 of the owner's order and S-51..S-55 added with T-5971..T-5976; the UI
     // scenarios S-56..S-85 are browser journeys of the user agent (T-5981), not MCP calls, and
-    // S-86 (T-6082) and S-87 (T-6284) follow them.
-    assert_eq!(scenarios.len(), 57);
+    // S-86 (T-6082), S-87 (T-6265) and S-88 (T-6284) follow them.
+    assert_eq!(scenarios.len(), 58);
     for (n, s) in scenarios.iter().enumerate() {
         // The MCP ids skip S-56..S-85, the UI journeys' ids (T-6082).
         let number = if n < 55 { n + 1 } else { n + 31 };

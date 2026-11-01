@@ -10974,7 +10974,7 @@
     },
     "segmentHint": {
       "data-read": "reads Endpoints, spaces and models, e.g. to answer questions about data",
-      "context": "reads models, spaces, Endpoints and Policies",
+      "context": "reads models, spaces, Endpoints, Policies, model projections and subscriptions",
       "pipeline": "reads pipelines, sources and their metrics",
       "access": "reads roles, bindings, groups and service accounts",
       "publish": "reads the catalogue and CKAN status",
