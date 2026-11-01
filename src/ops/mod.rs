@@ -1422,6 +1422,16 @@ mod tests {
         assert!(space.contains("propose on ContextSpace"), "{space}");
         let stranger = named(&editor, "Endpoint", "doprava").expect_err("refused");
         assert!(stranger.contains("doprava"), "{stranger}");
+        // JC2-15: a kind named only by the draft is checked by name too.
+        let op = find("jc_resource_propose").expect("registered");
+        let by_draft = |kind: &str| {
+            let input = json!({ "draft": { "kind": kind, "name": "air" } });
+            may_try(op, &editor.identity, &state, "ovzdusie", Some(&input))
+                .map_err(|e| e.to_string())
+        };
+        assert_eq!(by_draft("Endpoint"), Ok(()));
+        let space = by_draft("ContextSpace").expect_err("refused");
+        assert!(space.contains("propose on ContextSpace"), "{space}");
         // The call itself leaves the answer to the route (T-5608 keeps PF-50's own sentences).
         let op = find("jc_draft_put").expect("registered");
         assert!(permitted(op, &viewer.identity, &state, "ovzdusie").is_ok());
