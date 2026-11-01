@@ -5662,6 +5662,11 @@
     "kindList": "List",
     "points": "points",
     "openTarget": "Open",
+    "moreInstances": "{count} more instances",
+    "wrongKind": "The model expects: {kind}",
+    "drillTrail": "Opened links",
+    "drillBack": "Back",
+    "defaultInstance": "default",
     "hint": {
       "filterText": "Choose a test, then type the words, e.g. contains Espoo.",
       "filterNumber": "Choose a test, then type a number, e.g. greater than 40.",

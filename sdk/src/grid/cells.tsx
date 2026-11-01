@@ -20,7 +20,16 @@ export interface CellLabels {
   points: string;
   /** Said before a relationship chip's target: "Open". */
   openTarget: string;
+  /** The hover of a "+N" mark on an attribute with several instances: "{count} more instances". */
+  moreInstances?: string;
 }
+
+/**
+ * The targets of a page's relationships the person may read, by URN: the name each is shown by
+ * (or `undefined` where it has none) and its type, which is what a drill-down opens. A URN that is
+ * not here was deleted or is not readable, and reads as its id alone, with no link (EP-59).
+ */
+export type ResolvedTargets = ReadonlyMap<string, { name?: string; type: string }>;
 
 /** A stored timestamp or date: what NGSI-LD writes as an ISO 8601 string. */
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
@@ -247,40 +256,89 @@ export interface CellViewProps {
   labels: CellLabels;
   /** Opens a relationship's target; without it a chip is a label, not a button. */
   onOpen?: (urn: string) => void;
+  /**
+   * The page's readable targets (G-R2GRID2-017). When given, only a target listed here is a link,
+   * named by its name; any other is its id's last part as plain text. Without it every chip opens.
+   */
+  targets?: ResolvedTargets;
+}
+
+/** The instance a cell shows of several (datasetId): the default one, else the first. */
+export function shownInstance(cells: readonly RichCell[]): RichCell | undefined {
+  return cells.find((one) => one.datasetId === undefined) ?? cells[0];
+}
+
+/** The language tag a LanguageProperty's shown text came from, when it is not the reader's own. */
+function fallbackTag(cell: RichCell, locale: string): string | undefined {
+  if (cell.kind !== "language" || !cell.languageMap) return undefined;
+  const tag = Object.entries(cell.languageMap).find(([, text]) => text === cell.value)?.[0];
+  if (!tag) return undefined;
+  const base = (lang: string) => lang.toLowerCase().split("-")[0];
+  return base(tag) === base(locale) ? undefined : tag;
+}
+
+function Chips({ urns, labels, onOpen, targets }: { urns: string[]; labels: CellLabels; onOpen?: (urn: string) => void; targets?: ResolvedTargets }): React.JSX.Element {
+  return (
+    <span className="jc-cell-chips">
+      {urns.map((urn, at) => {
+        const target = targetName(urn);
+        const resolved = targets?.get(urn);
+        // A target the page could not read is its id alone: no link, none of its values (EP-59).
+        if (targets && !resolved) {
+          return (
+            <span key={`${urn}-${at}`} className="jc-cell-chip jc-cell-chip--plain" title={urn}>
+              {target.name}
+            </span>
+          );
+        }
+        const name = resolved?.name ?? target.name;
+        const kind = resolved?.type ?? target.type;
+        const text = kind ? `${kind} · ${name}` : name;
+        return onOpen ? (
+          <button
+            key={`${urn}-${at}`}
+            type="button"
+            className="jc-cell-chip"
+            title={urn}
+            aria-label={`${labels.openTarget}: ${text}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpen(urn);
+            }}
+          >
+            {name}
+          </button>
+        ) : (
+          <span key={`${urn}-${at}`} className="jc-cell-chip" title={urn}>
+            {name}
+          </span>
+        );
+      })}
+    </span>
+  );
 }
 
 /** One cell as the grid draws it in a reader's view. */
-export function CellView({ cell, locale, labels, onOpen }: CellViewProps): React.JSX.Element {
+export function CellView({ cell, locale, labels, onOpen, targets }: CellViewProps): React.JSX.Element {
   if (cell === undefined) return <></>;
   const all = Array.isArray(cell) ? cell : [cell];
   const relationships = all.filter((one) => one.kind === "relationship");
   if (relationships.length > 0 && relationships.length === all.length) {
     const urns = relationships.flatMap((one) => (Array.isArray(one.object) ? one.object : one.object ? [one.object] : []));
+    return <Chips urns={urns} labels={labels} onOpen={onOpen} targets={targets} />;
+  }
+  // Several instances (datasetId): the default one with "+N"; the row detail lists every one.
+  if (all.length > 1) {
+    const shown = shownInstance(all)!;
+    const more = all.length - 1;
+    const others = all
+      .filter((each) => each !== shown)
+      .map((each) => `${cellDisplayText(each, locale, labels)}${each.datasetId ? ` (${targetName(each.datasetId).name})` : ""}`);
+    const hint = `${(labels.moreInstances ?? "{count} more instances").replace("{count}", String(more))}: ${others.join(", ")}`;
     return (
-      <span className="jc-cell-chips">
-        {urns.map((urn, at) => {
-          const target = targetName(urn);
-          const text = target.type ? `${target.type} · ${target.name}` : target.name;
-          return onOpen ? (
-            <button
-              key={`${urn}-${at}`}
-              type="button"
-              className="jc-cell-chip"
-              title={urn}
-              aria-label={`${labels.openTarget}: ${text}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onOpen(urn);
-              }}
-            >
-              {target.name}
-            </button>
-          ) : (
-            <span key={`${urn}-${at}`} className="jc-cell-chip" title={urn}>
-              {target.name}
-            </span>
-          );
-        })}
+      <span className="jc-cell-instances">
+        <CellView cell={shown} locale={locale} labels={labels} onOpen={onOpen} targets={targets} />
+        <span className="jc-cell-more" title={hint} aria-label={hint}>{`+${more}`}</span>
       </span>
     );
   }
@@ -301,6 +359,15 @@ export function CellView({ cell, locale, labels, onOpen }: CellViewProps): React
       >
         {link.text}
       </a>
+    );
+  }
+  // A text in another language than the reader's says which (G-R2GRID2-018).
+  const tag = one ? fallbackTag(one, locale) : undefined;
+  if (tag) {
+    return (
+      <span className="jc-cell jc-cell--language">
+        <span lang={tag}>{text}</span> <span className="jc-cell-lang">{tag}</span>
+      </span>
     );
   }
   return (

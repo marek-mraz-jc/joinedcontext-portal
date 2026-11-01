@@ -46,7 +46,8 @@ beforeEach(() => {
   calls.length = 0;
   vi.stubGlobal("fetch", vi.fn(async (url: string) => {
     calls.push(url);
-    return { ok: true, status: 200, json: async () => STATIONS };
+    // A real Response: a write goes through the SDK's origin transport, which reads the headers (T-6230).
+    return new Response(JSON.stringify(STATIONS), { status: 200, headers: { "content-type": "application/json" } });
   }));
 });
 afterEach(() => {

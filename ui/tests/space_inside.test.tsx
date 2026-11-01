@@ -998,7 +998,10 @@ describe("the space's own data", () => {
     expect(cells.join(" ")).not.toMatch(/[{}]|urn:|ngsi-ld:/);
     expect(cells.join(" ")).toContain("start: Oct 1, 2026 · end: Oct 31, 2026");
     expect(cells.join(" ")).toContain("12.5 µg/m³");
-    expect(screen.getByRole("button", { name: "Open: Station · 7" })).toHaveAttribute("title", "urn:ngsi-ld:Station:banskabystrica.sk:ovzdusie:7");
+    // The stub answers no Station, so the target reads as its id's end, with no link (G-R2GRID2-020).
+    const target = await within(grid).findByTitle("urn:ngsi-ld:Station:banskabystrica.sk:ovzdusie:7");
+    expect(target.tagName).toBe("SPAN");
+    expect(target).toHaveTextContent("7");
   });
 
   it("opens with the layout kept in this browser, even though the type arrives after the first render", async () => {

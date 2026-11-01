@@ -32,6 +32,7 @@ jobs:
       ui: ${{ steps.paths.outputs.ui }}
       apps: ${{ steps.paths.outputs.apps }}
       ui_scope: ${{ steps.paths.outputs.ui_scope }}
+      sdk: ${{ steps.paths.outputs.sdk }}
       base: ${{ steps.paths.outputs.base }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -231,6 +232,22 @@ jobs:
           sh scripts/ci/ui-related.sh "$BASE"
       - if: steps.has.outputs.ui == 'no'
         run: echo "no ui/package.json yet"
+  # The SDK's own suite (T-6311): it reads only sdk/, and no other lane ran it, so three reds of
+  # T-6210 and T-6230 merged green. The whole suite, about 70 s.
+  sdk:
+    needs: changes
+    if: needs.changes.outputs.sdk == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v4.4.0
+        with: { version: 10 }
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with: { node-version: 22, cache: pnpm, cache-dependency-path: sdk/pnpm-lock.yaml }
+      - run: cd sdk && pnpm install --frozen-lockfile
+      - name: the SDK suite
+        run: cd sdk && pnpm vitest run
   # The component-gallery baselines, the WebAssembly example and the Apps' screens left the
   # per-push lane for ci-full (T-6153: 65-454 s a push, no failure in 7 days); the jobs there are
   # sdk-screens, ui-gallery and apps-all.

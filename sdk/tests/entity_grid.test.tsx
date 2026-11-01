@@ -128,23 +128,21 @@ describe("EntityGrid", () => {
     });
   });
 
-  it("renders relationship URN as button when onOpenRelationship given", async () => {
+  it("names a readable relationship target and opens it; an unreadable one is its id alone", async () => {
     const onOpen = vi.fn();
+    const counter = { id: "urn:ngsi-ld:Device:hel:001", type: "Device", name: { type: "Property", value: "Counter 1" } };
     render(
       <EntityGrid
         config={config}
-        source={fixtureSource(bikeEntities)}
+        source={fixtureSource([...bikeEntities, counter])}
         onOpenRelationship={onOpen}
       />,
     );
-    await waitFor(() => {
-      const buttons = screen.getAllByRole("button");
-      // A chip names its target by the end of its id, the URN is its title (T-4827).
-      const relBtn = buttons.find((b) => b.textContent === "001" && b.title === "urn:ngsi-ld:Device:hel:001");
-      expect(relBtn).toBeInTheDocument();
-      fireEvent.click(relBtn!);
-      expect(onOpen).toHaveBeenCalledWith("urn:ngsi-ld:Device:hel:001");
-    });
+    // The page's targets are read once, and the chip then says the target's name (G-R2GRID2-017).
+    const relBtn = await screen.findByRole("button", { name: `${DEFAULT_LABELS.openTarget}: Device · Counter 1` });
+    expect(relBtn).toHaveAttribute("title", "urn:ngsi-ld:Device:hel:001");
+    fireEvent.click(relBtn);
+    expect(onOpen).toHaveBeenCalledWith("urn:ngsi-ld:Device:hel:001");
   });
 
   it("shows empty label when source has no rows", async () => {
@@ -389,7 +387,7 @@ describe("EntityGrid", () => {
       pageSize: 50,
     }).config!;
     const fixture = fixtureSource(many);
-    const asked: { offset: number; limit: number }[] = [];
+    const asked: { offset: number; limit: number; count?: boolean }[] = [];
     const logged = { ...fixture, query: (q: Parameters<typeof fixture.query>[0], page: Parameters<typeof fixture.query>[1]) => {
       asked.push(page);
       return fixture.query(q, page);
@@ -399,7 +397,8 @@ describe("EntityGrid", () => {
     // The first page is the config's size; the window of the first rows is past 60 % of 50, so
     // the next, larger page is asked for at once, with no scroll.
     await screen.findByText("250 of 1000 loaded");
-    expect(asked).toEqual([{ offset: 0, limit: 50 }, { offset: 50, limit: VIRTUAL_PAGE_SIZE }]);
+    // A later page leaves the count out: the first page already has the total (T-6161).
+    expect(asked).toEqual([{ offset: 0, limit: 50 }, { offset: 50, limit: VIRTUAL_PAGE_SIZE, count: false }]);
     expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
     const drawn = () => container.querySelectorAll("tbody tr:not(.jc-grid-spacer)");
     expect(drawn().length).toBeLessThanOrEqual(50);
@@ -410,7 +409,7 @@ describe("EntityGrid", () => {
     box.scrollTop = 140 * 36;
     fireEvent.scroll(box);
     await screen.findByText("450 of 1000 loaded");
-    expect(asked[2]).toEqual({ offset: 250, limit: VIRTUAL_PAGE_SIZE });
+    expect(asked[2]).toEqual({ offset: 250, limit: VIRTUAL_PAGE_SIZE, count: false });
     // The window moved: the first drawn row is 130 rows in, and says so to a screen reader.
     expect(screen.queryByText("Station 0")).toBeNull();
     expect(drawn()[0]).toHaveAttribute("aria-rowindex", "132");
@@ -457,7 +456,8 @@ describe("EntityGrid", () => {
     const fixture = fixtureSource(bikeEntities);
     const asked: (string | undefined)[] = [];
     const nothingMatches = { ...fixture, query: (q: Parameters<typeof fixture.query>[0], page: Parameters<typeof fixture.query>[1]) => {
-      asked.push(q.q);
+      // The page's relationship targets are their own read, by id (G-R2GRID2-017).
+      if (!q.ids) asked.push(q.q);
       return q.q ? Promise.resolve({ rows: [], total: 0 }) : fixture.query(q, page);
     } };
     render(<EntityGrid config={columnless} source={nothingMatches} virtual />);
