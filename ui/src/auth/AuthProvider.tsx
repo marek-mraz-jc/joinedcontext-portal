@@ -122,6 +122,11 @@ export function useAuthStatus(): AuthStatus | undefined {
   return useContext(AuthContext)?.status;
 }
 
+/** The session's sign-in, or `undefined` outside an AuthProvider (the CKAN explorer bundle). */
+export function useSignIn(): AuthState["signIn"] | undefined {
+  return useContext(AuthContext)?.signIn;
+}
+
 export function useAuth(): AuthState {
   const value = useContext(AuthContext);
   if (!value) {

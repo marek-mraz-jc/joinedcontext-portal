@@ -180,12 +180,18 @@
   color: var(--jc-color-muted, #666);
 }
 
+.jc-grid-refusal__detail {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--jc-color-muted, #666);
+}
+
 .jc-grid-refusal__action {
   min-height: 2.25rem;
   padding: 0 var(--jc-space-4, 16px);
   border-radius: var(--jc-radius-md, 6px);
-  border: 1px solid var(--jc-color-primary, #1f5fbf);
-  background: var(--jc-color-primary, #1f5fbf);
+  border: 1px solid var(--jc-color-accent, #0066cc);
+  background: var(--jc-color-accent, #0066cc);
   color: var(--jc-color-on-primary, #fff);
   cursor: pointer;
 }

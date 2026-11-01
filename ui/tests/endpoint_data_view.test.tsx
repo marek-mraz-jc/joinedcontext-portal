@@ -14,7 +14,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { useCallback, useState } from "react";
-import { EndpointDataView, fieldsOf, heldView, sortOfLink } from "../src/components/entities/EndpointDataView";
+import { DatasetRefused, EndpointDataView, fieldsOf, heldView, sortOfLink } from "../src/components/entities/EndpointDataView";
+import { render } from "@testing-library/react";
 import type { DataLink } from "../src/components/entities/EndpointDataView";
 import { filtersFromQ } from "../src/components/entities/presetFilters";
 import type { FilterColumn } from "@joinedcontext/sdk";
@@ -183,8 +184,24 @@ describe("what an endpoint answers", () => {
         ? new Response(JSON.stringify({ detail: "no grant on this endpoint" }), { status: 403, headers: { "Content-Type": "application/problem+json" } })
         : answer(url),
     );
-    expect(await screen.findByRole("alert")).toHaveTextContent("no grant on this endpoint");
+    // A refusal of who asks is the designed no-access state with the Endpoint's own sentence (T-6376).
+    expect(await screen.findByText(en.entityGrid.noAccessTitle)).toBeInTheDocument();
+    expect(screen.getByText("no grant on this endpoint")).toBeInTheDocument();
     expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: en.entityGrid.signIn })).toBeNull();
+  });
+
+  it("asks an anonymous visitor of a private Endpoint to sign in, with no row and no retry (T-6376)", async () => {
+    show({}, (url) =>
+      url.pathname.endsWith("/schema/index.json") || url.pathname.includes("/ngsi-ld/")
+        ? new Response(JSON.stringify({ title: "Unauthorized", status: 401, detail: "sign in" }), { status: 401, headers: { "Content-Type": "application/problem+json" } })
+        : answer(url),
+    );
+    expect(await screen.findByText(en.entityGrid.signedOutTitle)).toBeInTheDocument();
+    expect(screen.getByText(en.entityGrid.signedOutBody)).toBeInTheDocument();
+    expect(screen.queryByRole("grid")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: en.app.error.retry })).toBeNull();
+    expect(entityReads()).toHaveLength(0);
   });
 
   it("has no axe violation", async () => {
@@ -731,5 +748,19 @@ describe("a failed schema read (T-6313)", () => {
     );
     expect(await screen.findByText("no policy grants anonymous reads")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: en.app.error.retry })).toBeNull();
+  });
+});
+
+describe("the refused states of a private dataset (T-6376)", () => {
+  it("offers the Portal's sign-in when signed out, and none for a missing grant", async () => {
+    const t = (key: string) => i18n.t(key);
+    const onSignIn = vi.fn();
+    const { rerender } = render(<DatasetRefused signedOut onSignIn={onSignIn} t={t} />);
+    await userEvent.click(screen.getByRole("button", { name: en.entityGrid.signIn }));
+    expect(onSignIn).toHaveBeenCalledOnce();
+    rerender(<DatasetRefused signedOut={false} detail="no policy grants you this type" onSignIn={onSignIn} t={t} />);
+    expect(screen.getByText(en.entityGrid.noAccessTitle)).toBeInTheDocument();
+    expect(screen.getByText("no policy grants you this type")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).toBeNull();
   });
 });

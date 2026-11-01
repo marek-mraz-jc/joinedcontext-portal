@@ -565,6 +565,8 @@ export interface EntityGrid {
    * for a 403. No row is kept then, so nothing read before the refusal stays on the screen.
    */
   refusal: GridRefusal | null;
+  /** The Endpoint's own sentence about a `noAccess` refusal, shown under the state's words. */
+  refusalDetail: string | null;
   /** The broker's own sentence about the refusal in `error`, for a disclosure under it. */
   errorDetail: string | null;
   /** A sort is asked for that the source refused to apply to the whole answer: the page is sorted. */
@@ -896,6 +898,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   const [error, setError] = useState<string | null>(null);
   const [errorDetail, setErrorDetail] = useState<string | null>(null);
   const [refusal, setRefusal] = useState<GridRefusal | null>(null);
+  const [refusalDetail, setRefusalDetail] = useState<string | null>(null);
   // Bumped when the source refuses an order, so the question is asked again without it.
   const [, setOrderRefusals] = useState(0);
   const cancelledRef = useRef(false);
@@ -1089,6 +1092,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
           setTotal(undefined);
           setMore(false);
           setRefusal(refused);
+          setRefusalDetail(refused === "noAccess" && err instanceof Error ? err.message : null);
           setLoading(false);
           return;
         }
@@ -1133,6 +1137,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
           setRows([]);
           setMore(false);
           setRefusal(refused);
+          setRefusalDetail(refused === "noAccess" && err instanceof Error ? err.message : null);
           return;
         }
         setError(err instanceof Error ? err.message : String(err));
@@ -1503,6 +1508,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     loading,
     error,
     refusal,
+    refusalDetail,
     errorDetail,
     sortedLoadedOnly,
     state: { offset, activeCell, selected, shown, sort, filters, filterText, edits },

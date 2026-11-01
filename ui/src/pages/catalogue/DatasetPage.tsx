@@ -3,10 +3,9 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, unwrap } from "../../api/client";
+import { ApiError } from "../../api/client";
 import type { components } from "../../api/schema";
 import { CodeBlock,
-  Alert,
   Badge,
   Button,
   Card,
@@ -23,18 +22,22 @@ import { CodeBlock,
   TableHeaderCell,
   TableRow,
 } from "../../components/ui";
-import { problemOf, useThemeLabel } from "./labels";
+import { useThemeLabel } from "./labels";
 import { snippets } from "./snippets";
 import type { Snippet } from "./snippets";
 import { areaLabel } from "./nuts";
 import { QualityScore } from "../../components/quality/QualityScore";
-import { datasetKey, datasetQuery } from "./queries";
+import { datasetQuery } from "./queries";
 import { subscriptionsOf } from "./subscriptions";
 
 // The menu's dropdown (Radix, about 30 KB gz) loads beside the page, not in its first chunk, and only
 // for a dataset with something to subscribe to (T-5165).
 // The map loads beside the page, and MapLibre only for a dataset with places (T-5628).
 const DatasetMap = lazy(() => import("./DatasetMap").then((module) => ({ default: module.DatasetMap })));
+// The data grid (SDK EntityGrid, T-6376) loads beside the page, as on the CKAN explorer.
+const EndpointDataView = lazy(() =>
+  import("../../components/entities/EndpointDataView").then((module) => ({ default: module.EndpointDataView })),
+);
 const SubscribeMenu = lazy(() => import("./SubscribeMenu").then((module) => ({ default: module.SubscribeMenu })));
 
 type DatasetDetail = components["schemas"]["CatalogueDatasetDetail"];
@@ -211,7 +214,7 @@ function Dataset({ detail, back }: { detail: DatasetDetail; back: JSX.Element })
       ) : null}
       <Resources detail={detail} />
       {detail.model ? <Model model={detail.model} /> : null}
-      {detail.endpoint ? <Sample name={detail.name} /> : null}
+      {detail.endpoint ? <DatasetData endpoint={detail.endpoint} /> : null}
       {developer ? (
         <a className="w-fit text-body text-primary-soft-fg underline" href={`/d/${developer}`}>
           {t("catalogue.dataset.developerPage")}
@@ -386,62 +389,23 @@ function Model({ model }: { model: NonNullable<DatasetDetail["model"]> }): JSX.E
   );
 }
 
-function Sample({ name }: { name: string }): JSX.Element {
+/**
+ * The dataset's entities in the one data grid every page uses (T-6376): read from the browser
+ * through the Endpoint with the visitor's own session, so the Endpoint's Policy decides what each
+ * person sees, and a private dataset says sign in or no access rather than drawing an empty grid.
+ */
+function DatasetData({ endpoint }: { endpoint: NonNullable<DatasetDetail["endpoint"]> }): JSX.Element | null {
   const { t } = useTranslation();
-  const sample = useQuery({
-    queryKey: [...datasetKey(name), "sample"],
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/catalogue/datasets/{name}/sample", { params: { path: { name } } }),
-      ),
-  });
+  const slug = developerSlug(endpoint.url);
+  if (!slug) return null;
   return (
-    <section aria-labelledby="catalogue-sample" className="flex flex-col gap-3">
-      <h2 id="catalogue-sample" className="font-heading text-title font-semibold">
-        {t("catalogue.dataset.sample")}
+    <section aria-labelledby="catalogue-data" className="flex flex-col gap-3">
+      <h2 id="catalogue-data" className="font-heading text-title font-semibold">
+        {t("catalogue.dataset.data")}
       </h2>
-      {sample.isPending ? (
-        <p role="status" className="text-body text-fg-muted">
-          {t("catalogue.dataset.sampleLoading")}
-        </p>
-      ) : sample.isError ? (
-        sample.error instanceof ApiError && sample.error.status === 404 ? (
-          <p className="text-body text-fg-muted">{t("catalogue.dataset.noSample")}</p>
-        ) : (
-          <Alert
-            tone="danger"
-            role="alert"
-            actions={
-              <Button size="sm" onClick={() => void sample.refetch()}>
-                {t("app.error.retry")}
-              </Button>
-            }
-          >
-            {problemOf(sample.error, t("app.error.generic"))}
-          </Alert>
-        )
-      ) : sample.data.rows.length === 0 ? (
-        <p className="text-body text-fg-muted">{t("catalogue.dataset.sampleEmpty", { type: sample.data.type })}</p>
-      ) : (
-        <Table caption={t("catalogue.dataset.sampleCaption", { type: sample.data.type })} maxHeight="24rem">
-          <TableHead>
-            {sample.data.columns.map((column) => (
-              <TableHeaderCell key={column}>{column}</TableHeaderCell>
-            ))}
-          </TableHead>
-          <TableBody>
-            {sample.data.rows.map((row, index) => (
-              <TableRow key={row[0] || index}>
-                {row.map((cell, column) => (
-                  <TableCell key={sample.data.columns[column]} className="max-w-64 truncate font-mono text-caption" title={cell}>
-                    {cell}
-                  </TableCell>
-                ))}
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
+      <Suspense fallback={<p role="status">{t("app.loading")}</p>}>
+        <EndpointDataView project="catalogue" slug={slug} csv={endpoint.representations.includes("csv")} />
+      </Suspense>
     </section>
   );
 }

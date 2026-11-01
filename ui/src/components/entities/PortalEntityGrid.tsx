@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
+import { useSignIn } from "../../auth/AuthProvider";
 import { EntityGrid, originTransport, SourceError, sourceFor } from "@joinedcontext/sdk/grid";
 import type { ColumnLayout, EntityGridProps, GeoLabels, GridLabels, GridMapLabels, GridSource, GridState, ResolvedGridConfig } from "@joinedcontext/sdk/grid";
 
@@ -159,6 +160,11 @@ export function gridLabels(t: (key: string, values?: Record<string, string>) => 
     noTotal: t("entityGrid.noTotal"),
     history: t("entityGrid.history"),
     areaPick: t("entityGrid.areaPick"),
+    signedOutTitle: t("entityGrid.signedOutTitle"),
+    signedOutBody: t("entityGrid.signedOutBody"),
+    signIn: t("entityGrid.signIn"),
+    noAccessTitle: t("entityGrid.noAccessTitle"),
+    noAccessBody: t("entityGrid.noAccessBody"),
     rowsPerPage: t("entityGrid.rowsPerPage"),
     areaClear: t("entityGrid.areaClear"),
     historyLabels: {
@@ -419,13 +425,13 @@ export interface PortalEntityGridProps extends Omit<EntityGridProps, "labels" | 
  */
 export function PortalEntityGrid({ project, config, source, view, onGridState, emptyText, onRefused, ...rest }: PortalEntityGridProps): JSX.Element {
   const { t, i18n } = useTranslation();
-  // A refused read is no failure to retry: it says so, not "try again" (T-6107).
-  const [refused, setRefused] = useState(false);
+  const signIn = useSignIn();
   // `t` changes identity on a language change, which is what rebuilds the labels; the language
   // itself is read below, for the source's own locale.
   const labels = useMemo(
-    () => ({ ...gridLabels(t), ...(emptyText ? { empty: emptyText } : {}), ...(refused ? { error: t("entityGrid.refused") } : {}) }),
-    [t, emptyText, refused],
+    // A refused read (401/403) is the grid's own signed-out or no-access state, never a failure to retry (T-6107, T-6376).
+    () => ({ ...gridLabels(t), ...(emptyText ? { empty: emptyText } : {}) }),
+    [t, emptyText],
   );
   const mapLabels = useMemo(() => gridMapLabels(t), [t]);
   const geoLabels = useMemo(() => geoEditorLabels(t), [t]);
@@ -451,10 +457,7 @@ export function PortalEntityGrid({ project, config, source, view, onGridState, e
     refusedTo.current = onRefused;
   }, [onRefused]);
   const watched = useMemo(() => {
-    const seen = (now: boolean) => {
-      setRefused(now);
-      refusedTo.current?.(now);
-    };
+    const seen = (now: boolean) => refusedTo.current?.(now);
     const wrapped: typeof built = Object.create(built);
     wrapped.query = (query, options) =>
       built.query(query, options).then(
@@ -508,6 +511,8 @@ export function PortalEntityGrid({ project, config, source, view, onGridState, e
       // map loads, so a page whose config asks for no map never downloads the library at all.
       mapLabels={mapLabels}
       geoLabels={geoLabels}
+      // A private dataset read without a session offers the Portal's sign-in, back to this page (T-6376).
+      onSignIn={rest.onSignIn ?? (signIn ? () => signIn() : undefined)}
       // Only the layout is controlled from here: the offset, the filters and the edits stay the
       // grid's own, so nothing a person is in the middle of survives a reload it should not.
       state={state}

@@ -795,7 +795,7 @@ it("words a refused read as a refusal and hides Your access", async () => {
     </QueryClientProvider>,
   );
   await userEvent.selectOptions(await screen.findByLabelText(/Entity type/i), "BikeHireDockingStation");
-  expect(await screen.findByText(new RegExp(`^${en.entityGrid.refused}`))).toBeInTheDocument();
+  expect(await screen.findByRole("heading", { name: en.entityGrid.noAccessTitle })).toBeInTheDocument();
   expect(screen.queryByText(new RegExp(en.entityGrid.error))).toBeNull();
   expect(screen.queryByText(en.explore.yourAccess)).toBeNull();
   expect(screen.queryByRole("button", { name: en.explore.useData.open })).toBeNull();

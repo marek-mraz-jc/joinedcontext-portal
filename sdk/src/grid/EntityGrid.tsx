@@ -1449,7 +1449,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
   if (grid.refusal) {
     return (
       <div className={rootClass} data-jc-sdk="grid">
-        <GridRefusalState refusal={grid.refusal} labels={labels} onSignIn={onSignIn} />
+        <GridRefusalState refusal={grid.refusal} labels={labels} onSignIn={onSignIn} detail={grid.refusalDetail} />
       </div>
     );
   }
@@ -2239,8 +2239,11 @@ export function GridRefusalState({
   refusal,
   labels,
   onSignIn,
+  detail,
 }: {
   refusal: GridRefusal;
+  /** The Endpoint's own sentence, for a refusal the person can act on with its publisher. */
+  detail?: string | null;
   labels: Pick<GridLabels, "signedOutTitle" | "signedOutBody" | "signIn" | "noAccessTitle" | "noAccessBody">;
   onSignIn?: () => void;
 }): React.JSX.Element {
@@ -2252,6 +2255,7 @@ export function GridRefusalState({
         {signedOut ? labels.signedOutTitle : labels.noAccessTitle}
       </h3>
       <p className="jc-grid-refusal__body">{signedOut ? labels.signedOutBody : labels.noAccessBody}</p>
+      {detail && !signedOut ? <p className="jc-grid-refusal__detail">{detail}</p> : null}
       {signedOut && onSignIn ? (
         <button type="button" className="jc-grid-refusal__action" onClick={onSignIn}>
           {labels.signIn}
