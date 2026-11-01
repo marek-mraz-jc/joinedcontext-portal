@@ -160,6 +160,14 @@ describe("reading a file", () => {
     await expect(parseXlsx(new TextEncoder().encode("not a zip"))).rejects.toThrow("not a ZIP");
   });
 
+  it("says a workbook whose directory points past its end is damaged (JC1-45)", async () => {
+    const bad = zip({ "xl/worksheets/sheet1.xml": "<worksheet/>" });
+    const view = new DataView(bad.buffer);
+    const directory = view.getUint32(bad.length - 22 + 16, true);
+    view.setUint32(directory + 42, bad.length - 4, true);
+    await expect(parseXlsx(bad)).rejects.toThrow("the workbook's directory is damaged");
+  });
+
   it("stops a sheet that unpacks past the file limit, a few kilobytes of ZIP or not (F-R2UI4-008)", async () => {
     const bomb = await deflated(" ".repeat(MAX_BYTES + 1));
     expect(bomb.length).toBeLessThan(MAX_BYTES / 100);

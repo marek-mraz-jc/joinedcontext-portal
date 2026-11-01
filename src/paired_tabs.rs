@@ -21,6 +21,11 @@ use tokio::sync::broadcast;
 /// Actions a tab may fall behind before it misses some.
 const BUFFER: usize = 32;
 
+/// Seconds past its end a pairing still takes the same session's reconnect: an edge token
+/// lives minutes, the tab's stream ends with it and comes back on the refreshed token, which
+/// renews the pairing (JC2-19).
+const RENEW_GRACE: i64 = 120;
+
 /// One paired tab of one connector.
 struct Pairing {
     tab: String,
@@ -93,23 +98,29 @@ impl PairedTabs {
     }
 
     /// The actions of `tab`, when it is the connector's paired tab of this person's session.
-    /// The stream ends when the pairing does (disconnect, a newer tab, the session's end).
+    /// The stream ends when the pairing does (disconnect, a newer tab, the session's end). A
+    /// listen of the same session on a refreshed token (`expires_at` later) renews the pairing,
+    /// within `RENEW_GRACE` seconds of its end.
     pub fn listen(
         &self,
         connector: &str,
         tab: &str,
         owner: &str,
         issued_at: i64,
+        expires_at: i64,
         now: i64,
     ) -> Option<(broadcast::Receiver<Arc<Value>>, i64)> {
         let mut pairings = self.pairings();
-        let pairing = pairings.get(connector)?;
-        if pairing.expires_at <= now {
+        let pairing = pairings.get_mut(connector)?;
+        if pairing.expires_at.saturating_add(RENEW_GRACE) <= now {
             pairings.remove(connector);
             return None;
         }
-        (pairing.tab == tab && pairing.owner == owner && pairing.issued_at == issued_at)
-            .then(|| (pairing.sender.subscribe(), pairing.expires_at))
+        if pairing.tab != tab || pairing.owner != owner || pairing.issued_at != issued_at {
+            return None;
+        }
+        pairing.expires_at = pairing.expires_at.max(expires_at);
+        (pairing.expires_at > now).then(|| (pairing.sender.subscribe(), pairing.expires_at))
     }
 
     /// Ends the person's pairing of `connector`; `false` when they had none.
@@ -137,15 +148,15 @@ impl PairedTabs {
         action: Value,
         now: i64,
     ) -> Result<(), Undelivered> {
-        let mut pairings = self.pairings();
+        let pairings = self.pairings();
         let Some(pairing) = pairings.get(connector) else {
             return Err(Undelivered::NotPaired);
         };
         if pairing.owner != owner {
             return Err(Undelivered::NotPaired);
         }
+        // Kept for the same session's reconnect (`listen`), which may still renew it.
         if pairing.expires_at <= now {
-            pairings.remove(connector);
             return Err(Undelivered::NotPaired);
         }
         pairing
@@ -178,12 +189,12 @@ mod tests {
             Err(Undelivered::NotListening)
         );
         // Another person, another session of the same person, another tab id: no stream.
-        assert!(tabs.listen("c1", &tab, "ben", 5, 10).is_none());
-        assert!(tabs.listen("c1", &tab, "ana", 6, 10).is_none());
+        assert!(tabs.listen("c1", &tab, "ben", 5, 100, 10).is_none());
+        assert!(tabs.listen("c1", &tab, "ana", 6, 100, 10).is_none());
         assert!(tabs
-            .listen("c1", "0".repeat(32).as_str(), "ana", 5, 10)
+            .listen("c1", "0".repeat(32).as_str(), "ana", 5, 100, 10)
             .is_none());
-        let (mut rx, until) = tabs.listen("c1", &tab, "ana", 5, 10).expect("paired");
+        let (mut rx, until) = tabs.listen("c1", &tab, "ana", 5, 100, 10).expect("paired");
         assert_eq!(until, 100);
         // Another person's connector id never reaches ana's tab.
         assert_eq!(
@@ -199,18 +210,43 @@ mod tests {
     fn a_pairing_ends_with_a_disconnect_a_newer_tab_or_the_session() {
         let tabs = PairedTabs::default();
         let first = tabs.pair("c1", "ana", 5, 100);
-        let (mut old, _) = tabs.listen("c1", &first, "ana", 5, 10).expect("paired");
+        let (mut old, _) = tabs
+            .listen("c1", &first, "ana", 5, 100, 10)
+            .expect("paired");
         let second = tabs.pair("c1", "ana", 5, 100);
-        assert!(tabs.listen("c1", &first, "ana", 5, 10).is_none());
+        assert!(tabs.listen("c1", &first, "ana", 5, 100, 10).is_none());
         assert_eq!(old.try_recv(), Err(broadcast::error::TryRecvError::Closed));
         assert!(!tabs.unpair("c1", "ben"));
         assert!(tabs.unpair("c1", "ana"));
-        assert!(tabs.listen("c1", &second, "ana", 5, 10).is_none());
+        assert!(tabs.listen("c1", &second, "ana", 5, 100, 10).is_none());
         tabs.pair("c1", "ana", 5, 100);
         assert_eq!(
             tabs.deliver("c1", "ana", json!({}), 100),
             Err(Undelivered::NotPaired)
         );
         assert!(!tabs.is_paired("c1", "ana", 100));
+    }
+
+    /// JC2-19: an edge token lives minutes; the tab comes back on the refreshed token of the
+    /// same session and keeps its pairing, while another session or a late return does not.
+    #[test]
+    fn the_same_session_on_a_refreshed_token_keeps_its_pairing() {
+        let tabs = PairedTabs::default();
+        let tab = tabs.pair("c1", "ana", 5, 100);
+        assert!(!tabs.is_paired("c1", "ana", 105));
+        assert_eq!(
+            tabs.deliver("c1", "ana", json!({}), 105),
+            Err(Undelivered::NotPaired)
+        );
+        assert!(tabs.listen("c1", &tab, "ana", 6, 400, 105).is_none());
+        let (_, until) = tabs
+            .listen("c1", &tab, "ana", 5, 400, 105)
+            .expect("renewed");
+        assert_eq!(until, 400);
+        assert!(tabs.is_paired("c1", "ana", 200));
+        let late = tabs.pair("c2", "ana", 5, 100);
+        assert!(tabs
+            .listen("c2", &late, "ana", 5, 600, 100 + RENEW_GRACE)
+            .is_none());
     }
 }

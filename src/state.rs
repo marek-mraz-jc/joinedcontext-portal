@@ -1398,6 +1398,7 @@ mod tests {
             },
             expires_at: issued_at + 600,
             issued_at,
+            signed_in_at: None,
             id_token: String::new(),
             access_expires_at: issued_at + 600,
             refresh_token: None,
@@ -1481,6 +1482,19 @@ mod tests {
             !state.is_revoked(&session("sub-2", now - 10)),
             "other users are untouched"
         );
+    }
+
+    /// JC2-19 review: a token refreshed after a logout mark keeps its SSO sign-in
+    /// (`signed_in_at`) from before the mark, and still answers: revocation reads its `iat`.
+    #[tokio::test]
+    async fn a_refreshed_token_after_a_logout_mark_at_its_sign_in_still_answers() {
+        let state = AppState::new(Config::for_tests(), None);
+        let now = now_unix();
+        state.revoke_subject("sub-1", now - 100).await;
+        let mut refreshed = session("sub-1", now);
+        refreshed.signed_in_at = Some(now - 100);
+        assert!(!state.is_revoked(&refreshed));
+        assert_eq!(refreshed.started_at(), now - 100);
     }
 
     /// T-0980: without a database the mark is this process's alone, and saying so is the point

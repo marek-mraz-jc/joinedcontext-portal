@@ -557,6 +557,11 @@ impl Driver {
                     .or_insert_with(|| json!(self.elapsed_ms()));
             }
         }
+        // A tool's arguments and answer and the model's own words can quote what a source or
+        // the person typed: credential-shaped text is masked before it is stored (JC1-25).
+        if matches!(kind, "tool" | "thought") {
+            payload = crate::secret_scan::masked(&payload);
+        }
         let text = payload.to_string();
         let payload = if self.redacted(&text) == text {
             payload
@@ -998,6 +1003,30 @@ fn urlencoding(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// JC1-25: a tool event quoting a credential (a source URL's key, a header a log line
+    /// repeats) is stored masked, not only the run's own ticket.
+    #[tokio::test]
+    async fn a_tool_event_quoting_a_credential_is_stored_masked() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let driver = Driver::for_tests(state.clone(), "helsinki");
+        let jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ4In0.c2lnbmF0dXJlc2lnbmF0dXJl";
+        driver
+            .event(
+                "tool",
+                json!({ "name": "jc_data_query", "output": format!("failed: Authorization: Bearer {jwt}") }),
+            )
+            .await
+            .expect("stored");
+        let stored = state
+            .agents
+            .events_since("test-run", 0)
+            .await
+            .expect("events");
+        let text = serde_json::to_string(&stored[0].payload).expect("json");
+        assert!(!text.contains(jwt), "{text}");
+        assert!(text.contains("jc_data_query"), "{text}");
+    }
 
     /// T-2419: a refused model call tells the person about their question, not about a proxy.
     #[test]
