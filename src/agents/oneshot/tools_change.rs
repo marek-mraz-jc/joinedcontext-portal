@@ -2131,6 +2131,12 @@ mod model_create_tests {
         let state = AppState::new(config, None);
         let mut driver = Driver::for_tests(state.clone(), "helsinki");
         driver.identity.roles = vec![state.config.bootstrap_admins.clone()];
+        // A profile granting the proposal, so the person's own rights decide (AG-70).
+        let operations: Vec<&str> = crate::ops::registry().iter().map(|op| op.name).collect();
+        driver.access = crate::agents::access::Access::from_spec(&json!({ "access": {
+            "operations": operations,
+            "kinds": [{ "kind": "DataModel", "verbs": ["read", "propose"] }],
+        } }));
         *driver.path.lock().unwrap_or_else(PoisonError::into_inner) = Some(Path::CreateDataModel);
         (driver, state, tools)
     }
@@ -2185,12 +2191,12 @@ mod model_create_tests {
         assert_eq!(model["name"], "bike-lanes");
         assert_eq!(model["classes"]["BikeLane"]["is_a"], "Entity");
         assert!(source.contains("widthMeters"), "{source}");
+        let opened = logged(&state, "navigate").await;
+        assert_eq!(opened.len(), 1, "{opened:?}");
+        assert_eq!(opened[0]["route"], "/projects/helsinki/models");
         assert_eq!(
-            logged(&state, "navigate").await,
-            vec![json!({
-                "route": "/projects/helsinki/models",
-                "draft": { "kind": "DataModel", "name": "bike-lanes" },
-            })]
+            opened[0]["draft"],
+            json!({ "kind": "DataModel", "name": "bike-lanes" })
         );
         let sent = tools.received_requests().await.unwrap_or_default();
         assert_eq!(
