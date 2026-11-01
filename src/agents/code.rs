@@ -272,6 +272,8 @@ application, then repairs; the section THIS CALL of the user message says what t
   least one chart in the look's palette and, when the data has a location, on a map coloured by a
   value with its legend (`EntityMap` with `color`). Never a screen of number tiles only, a plain
   list or unstyled text; replace a chart or the map with a better one, never remove the last.
+- Entities are listed in the SDK's `EntityGrid` (`@joinedcontext/sdk/grid`), never a hand-made
+  table; a ratio is a column `{{ attr, formula: "a / b * 100" }}` (names, numbers, + - * / %).
 - Unless THIS CALL asks for a first version without tests: a test beside every page, component
   and function you add or change (`*.test.tsx`,
   `*.test.ts`), written like the template's tests: vitest, @testing-library/react,
@@ -779,6 +781,9 @@ mod tests {
         let system = SYSTEM.as_str();
         assert!(system.contains("The template is scaffolding, not the design."));
         assert!(system.contains("`src/design-tokens.json`"));
+        // T-6384: a dashboard is composed of the SDK grid, its ratios computed by formula columns.
+        assert!(system.contains("`EntityGrid` (`@joinedcontext/sdk/grid`)"));
+        assert!(system.contains("formula: \""));
         assert!(system.contains("must not look alike"));
         assert!(system.contains("Colour and a picture of the data (AP-138)"));
         assert!(system.contains("never remove the last"));

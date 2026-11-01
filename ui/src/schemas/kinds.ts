@@ -1508,9 +1508,9 @@ function gridWidgetSchema(t: (key: string) => string): JsonSchema {
     additionalProperties?: boolean;
   };
   const kept = Object.fromEntries(
-    Object.entries(published.properties).filter(
-      ([name]) => !NOT_THE_MANIFESTS_TO_NAME.includes(name),
-    ),
+    Object.entries(published.properties)
+      .filter(([name]) => !NOT_THE_MANIFESTS_TO_NAME.includes(name))
+      .map(([name, schema]) => [name, name === "columns" ? withoutFormula(schema) : schema]),
   );
   return {
     type: "object",
@@ -1519,6 +1519,17 @@ function gridWidgetSchema(t: (key: string) => string): JsonSchema {
     // The SDK publishes its choices as values; the form offers them as words (T-2756).
     properties: Object.fromEntries(Object.entries(kept).map(([field, schema]) => [field, worded(schema, t, field)])),
   } as JsonSchema;
+}
+
+/**
+ * A column's `formula` (T-6384) is an App's computed column; `jc_core::kinds::grid::GridColumn`
+ * has no such field and refuses it, so the Dashboard form does not offer it.
+ */
+function withoutFormula(columns: unknown): unknown {
+  const items = (columns as { items?: { properties?: Record<string, unknown> } }).items;
+  if (!items?.properties) return columns;
+  const { formula: _formula, ...properties } = items.properties;
+  return { ...(columns as object), items: { ...items, properties } };
 }
 
 /** The grid configuration's own choices, by the property that holds them. */
