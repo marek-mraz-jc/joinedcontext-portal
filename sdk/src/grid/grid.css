@@ -973,9 +973,10 @@
 }
 
 /* A header cell whose metadata menu is open lies above the filter row below it, which is as
-   sticky and would otherwise paint over the menu and take its clicks (T-3170). */
+   sticky and would otherwise paint over the menu and take its clicks (T-3170), and above the
+   head's frozen checkbox cells (z-index 4), which cut a phone's filter popover (T-6344). */
 .jc-grid thead th:has(.jc-grid-meta-menu) {
-  z-index: 4;
+  z-index: 6;
 }
 
 .jc-grid-spacer td {
@@ -2042,10 +2043,6 @@ a.jc-cell--link:focus-visible {
   box-shadow: inset 0 -2px 0 var(--jc-color-accent, #0066cc);
 }
 
-.jc-grid thead th:has(.jc-grid-autofilter) {
-  z-index: 4;
-}
-
 .jc-grid-menu-icon {
   display: inline-flex;
   justify-content: center;
@@ -2423,6 +2420,8 @@ a.jc-cell--link:focus-visible {
    small labels over values, each part a card, the time window a segmented control. */
 .jc-grid-attr-view {
   display: grid;
+  /* minmax(0, …): a wide versions table scrolls inside its card, not the dialog off a phone. */
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--jc-space-3, 12px);
   margin-top: var(--jc-space-2, 8px);
 }
@@ -2436,6 +2435,7 @@ a.jc-cell--link:focus-visible {
 }
 
 .jc-grid-attr-view .jc-grid-detail-section {
+  overflow-x: auto;
   border: 1px solid var(--jc-color-line, #e0e0e0);
   border-radius: var(--jc-radius-lg, 8px);
   padding: var(--jc-space-3, 12px);

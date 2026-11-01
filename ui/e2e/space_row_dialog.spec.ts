@@ -350,3 +350,44 @@ for (const lang of ["en", "sk"] as const) {
     });
   }
 }
+
+// T-6344: the grid as the owner left it (no row numbers, filter row, Type picker in its filter cell)
+// and a cell click opening that attribute's view: its value, metadata and history in one dialog.
+for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400", 400, 860]] as const) {
+  test(`a cell opens its attribute's view with value, metadata and history (${label})`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await stubApi(page);
+    await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
+
+    const grid = page.getByRole("grid").first();
+    await expect(grid.getByText("District 3", { exact: true })).toBeVisible();
+    await shot(page, `grid-rows-${label}`);
+
+    // A phone keeps the filter row folded behind its toggle.
+    const toggle = page.getByRole("button", { name: /^Filters/ });
+    if (await toggle.isVisible()) await toggle.click();
+    await expect(grid.getByRole("row", { name: "Filters" })).toBeVisible();
+    await grid.getByRole("button", { name: "Filter column: Value" }).click();
+    await shot(page, `grid-filter-row-${label}`);
+    // The popover lies above the frozen checkbox column: its title is what a press there reaches.
+    const popover = page.locator(".jc-grid-autofilter");
+    const box = await popover.boundingBox();
+    expect(box).not.toBeNull();
+    expect(await page.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest(".jc-grid-autofilter") !== null, [box!.x + 12, box!.y + 14])).toBe(true);
+    await page.keyboard.press("Escape");
+
+    const row = grid.getByRole("row").filter({ hasText: "District 3" });
+    await row.getByRole("gridcell", { name: "30", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Details: District 3" });
+    await expect(dialog).toBeVisible();
+    await expect(dialog.locator(".jc-grid-attr-value")).toHaveText("30");
+    expect(await axeViolations(page)).toEqual([]);
+    // The versions table scrolls inside its card: the dialog itself never runs off a phone.
+    expect(await dialog.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+    await shot(page, `attribute-view-number-${label}`);
+
+    await dialog.locator(".jc-grid-detail-attr select").selectOption("category");
+    await expect(dialog.locator(".jc-grid-attr-value")).toHaveText("Quantitative");
+    await shot(page, `attribute-view-state-${label}`);
+  });
+}

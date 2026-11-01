@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { UploadCsv } from "../src/pages/spaces/UploadCsv";
 import { expectNoRawKeys } from "./checks";
+import { zip } from "./zip_fixture";
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
@@ -91,7 +92,7 @@ describe("Upload CSV", () => {
     const calls = server();
     const user = userEvent.setup();
     const { container } = page("parking");
-    await user.upload(screen.getByLabelText("Choose a CSV file"), new File([CSV], "garages.csv", { type: "text/csv" }));
+    await user.upload(screen.getByLabelText("Choose a CSV file or an Excel workbook (.xlsx)"), new File([CSV], "garages.csv", { type: "text/csv" }));
 
     const best = await screen.findByRole("radio", { name: /OffStreetParking/ });
     expect(best).toBeChecked();
@@ -117,6 +118,35 @@ describe("Upload CSV", () => {
     expectNoRawKeys(container);
   });
 
+  it("reads an Excel workbook, infers from its sheet as CSV and writes its rows (JC1-07)", async () => {
+    const cell = (ref: string, text: string) => `<c r="${ref}" t="inlineStr"><is><t>${text}</t></is></c>`;
+    const sheet =
+      "<worksheet><sheetData>" +
+      `<row r="1">${["name", "totalSpotNumber", "availableSpotNumber", "lat", "lon"].map((h, i) => cell(`${"ABCDE"[i]}1`, h)).join("")}</row>` +
+      `<row r="2">${["Kamppi", "500", "120", "60.17", "24.93"].map((v, i) => cell(`${"ABCDE"[i]}2`, v)).join("")}</row>` +
+      "</sheetData></worksheet>";
+    const calls = server();
+    const user = userEvent.setup();
+    page("parking");
+    const workbook = zip({ "xl/worksheets/sheet1.xml": sheet });
+    await user.upload(
+      screen.getByLabelText("Choose a CSV file or an Excel workbook (.xlsx)"),
+      new File([new Uint8Array(workbook)], "garages.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
+    );
+    await screen.findByText("garages.xlsx: 1 row, 5 columns.");
+    await screen.findByRole("radio", { name: /OffStreetParking/ });
+    await user.click(screen.getByRole("button", { name: "Propose the change" }));
+    await user.click(await screen.findByRole("button", { name: "Write 1 row" }));
+    await screen.findByText("1 row written, none refused.");
+    const op = calls.find((c) => c.url.pathname.endsWith("/ops/jc_space_complete"))?.body as { files: { name: string; content: string }[] };
+    expect(op.files[0]).toEqual({
+      name: "garages.csv",
+      content: "name,totalSpotNumber,availableSpotNumber,lat,lon\nKamppi,500,120,60.17,24.93\n",
+    });
+    const write = calls.find((c) => c.url.pathname.includes("/entityOperations/"));
+    expect((write?.body as Record<string, unknown>[])[0]).toMatchObject({ type: "OffStreetParking" });
+  });
+
   it("says who can change it when the space refuses the write (JC1-41)", async () => {
     server({
       write: () =>
@@ -127,7 +157,7 @@ describe("Upload CSV", () => {
     });
     const user = userEvent.setup();
     page("parking");
-    await user.upload(screen.getByLabelText("Choose a CSV file"), new File([CSV], "garages.csv", { type: "text/csv" }));
+    await user.upload(screen.getByLabelText("Choose a CSV file or an Excel workbook (.xlsx)"), new File([CSV], "garages.csv", { type: "text/csv" }));
     await screen.findByRole("radio", { name: /OffStreetParking/ });
     await user.click(screen.getByRole("button", { name: "Propose the change" }));
     await user.click(await screen.findByRole("button", { name: "Write 1 row" }));
@@ -145,7 +175,7 @@ describe("Upload CSV", () => {
     });
     const user = userEvent.setup();
     page("parking");
-    await user.upload(screen.getByLabelText("Choose a CSV file"), new File([CSV], "garages.csv", { type: "text/csv" }));
+    await user.upload(screen.getByLabelText("Choose a CSV file or an Excel workbook (.xlsx)"), new File([CSV], "garages.csv", { type: "text/csv" }));
     await screen.findByRole("radio", { name: /OffStreetParking/ });
     await user.click(screen.getByRole("button", { name: "Propose the change" }));
     const write = await screen.findByRole("button", { name: "Write 1 row" });
@@ -163,7 +193,7 @@ describe("Upload CSV", () => {
     const calls = server({ op: () => Response.json({ detail: "no right to propose" }, { status: 403 }) });
     const user = userEvent.setup();
     page("notes");
-    await user.upload(screen.getByLabelText("Choose a CSV file"), new File(["foo,bar\n1,2\n"], "notes.csv"));
+    await user.upload(screen.getByLabelText("Choose a CSV file or an Excel workbook (.xlsx)"), new File(["foo,bar\n1,2\n"], "notes.csv"));
     await screen.findByText(/No Smart Data Models type names enough/);
     const propose = screen.getByRole("button", { name: "Propose the change" });
     await user.type(screen.getByLabelText("Type name"), "lowercase");
@@ -186,7 +216,7 @@ describe("Upload CSV", () => {
     });
     const user = userEvent.setup();
     page("parking");
-    await user.upload(screen.getByLabelText("Choose a CSV file"), new File([CSV], "garages.csv", { type: "text/csv" }));
+    await user.upload(screen.getByLabelText("Choose a CSV file or an Excel workbook (.xlsx)"), new File([CSV], "garages.csv", { type: "text/csv" }));
     expect(await screen.findByRole("status")).toHaveTextContent("Reading garages.csv");
     answer(Response.json(CATALOGUE));
     await screen.findByRole("radio", { name: /OffStreetParking/ });
@@ -199,7 +229,7 @@ describe("Upload CSV", () => {
     const calls = server();
     const user = userEvent.setup();
     page();
-    await user.upload(screen.getByLabelText("Choose a CSV file"), new File(["name,lat\n"], "empty.csv"));
+    await user.upload(screen.getByLabelText("Choose a CSV file or an Excel workbook (.xlsx)"), new File(["name,lat\n"], "empty.csv"));
     expect(await screen.findByRole("alert")).toHaveTextContent("no rows");
     expect(calls.some((c) => c.url.pathname === "/api/v1/tools/sdm-catalog")).toBe(false);
   });
