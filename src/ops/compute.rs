@@ -107,7 +107,7 @@ fn catalog_output_schema() -> Value {
             "items": { "type": "array", "items": { "type": "object" } },
             "datasets": {
                 "type": "array",
-                "description": "Open datasets: title, url, publisher, formats, endpoint (a jc_data_query slug)",
+                "description": "Open datasets: title, url, publisher, formats, endpoint slug",
                 "items": { "type": "object" }
             },
             "unavailable": { "type": "array", "items": { "type": "string" } }

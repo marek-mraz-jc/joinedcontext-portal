@@ -81,7 +81,7 @@ fn input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "endpoint": text("Endpoint name or a public slug, e.g. doprava-counters", NAME),
+            "endpoint": text("Endpoint name or public slug, e.g. city-counters", NAME),
             "type": text("The entity type, e.g. BikeCounter", TERM),
             "id": text("One entity's id, e.g. urn:ngsi-ld:BikeCounter:c1", ID),
             "q": text("An NGSI-LD q, e.g. count>40;name~=\"Most\"", QUERY),
@@ -477,7 +477,7 @@ pub fn operations() -> Vec<Operation> {
     vec![Operation {
         name: NAME,
         title: "Query Data",
-        description: "Reads one Endpoint's entities as you, current or history (temporal), with type, id, q, attrs, a geo-query, count and paging",
+        description: "Reads one Endpoint's entities, current or history (temporal), by type, id, q, attrs, geo-query, count and paging",
         input: input_schema,
         output: output_schema,
         annotations: OperationAnnotations {

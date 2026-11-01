@@ -3745,7 +3745,7 @@ export interface paths {
         put?: never;
         /**
          * Query Data
-         * @description Reads one Endpoint's entities as you, current or history (temporal), with type, id, q, attrs, a geo-query, count and paging
+         * @description Reads one Endpoint's entities, current or history (temporal), by type, id, q, attrs, geo-query, count and paging
          */
         post: operations["jc_data_query"];
         delete?: never;
@@ -23363,7 +23363,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        /** @description Open datasets: title, url, publisher, formats, endpoint (a jc_data_query slug) */
+                        /** @description Open datasets: title, url, publisher, formats, endpoint slug */
                         datasets?: Record<string, never>[];
                         items?: Record<string, never>[];
                         q?: string;
@@ -24217,7 +24217,7 @@ export interface operations {
                     count?: boolean;
                     /** @description The nextCursor of the previous page */
                     cursor?: string;
-                    /** @description Endpoint name or a public slug, e.g. doprava-counters */
+                    /** @description Endpoint name or public slug, e.g. city-counters */
                     endpoint: string;
                     /**
                      * @description keyValues answers plain values
