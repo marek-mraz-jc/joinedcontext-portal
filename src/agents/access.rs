@@ -109,16 +109,12 @@ impl Access {
             .is_some_and(|verbs| verbs.contains(verb))
     }
 
-    /// The profile's half of one call of a kind-`*` operation (T-6366): each kind its input names
-    /// needs `read` for a read-only operation and `propose` for any other, as [`Access::names`]
-    /// asks it of an operation with a fixed kind. An input that names no manifest kind is left to
-    /// [`Access::names`]; without an access block the read-only default stands.
-    pub fn admits(&self, op: &Operation, input: &Value) -> bool {
-        self.refused_kind(op, input).is_none()
-    }
-
-    /// The first kind the input names that [`Access::admits`] refuses. Every kind is checked
-    /// (`kind`, `manifest.kind`, `draft.kind`), so a granted one beside it hides nothing.
+    /// The profile's half of one call of a kind-`*` operation (T-6366): the first kind its input
+    /// names that the profile refuses. Each named kind needs `read` for a read-only operation and
+    /// `propose` for any other, as [`Access::names`] asks it of an operation with a fixed kind.
+    /// Every kind is checked (`kind`, `manifest.kind`, `draft.kind`), so a granted one beside it
+    /// hides nothing. An input that names no manifest kind is left to [`Access::names`]; without
+    /// an access block the read-only default stands.
     pub fn refused_kind<'a>(&self, op: &Operation, input: &'a Value) -> Option<&'a str> {
         let declared = self.declared.as_ref().filter(|_| op.kind == "*")?;
         let verb = if op.annotations.read_only_hint {
@@ -352,6 +348,11 @@ mod tests {
         );
     }
 
+    /// Whether the profile admits this call of a kind-`*` operation.
+    fn admits(access: &Access, op: &Operation, input: &Value) -> bool {
+        access.refused_kind(op, input).is_none()
+    }
+
     /// A kind-`*` operation reaches only the kinds the profile grants, with the verb the call
     /// needs: read for a read-only one, propose otherwise (T-6366, AG-70). Naming the operation
     /// used to be enough, so a run that may read Pipelines read and proposed Policies too.
@@ -368,36 +369,41 @@ mod tests {
             ]
         }}));
         let named = |kind: &str| json!({ "kind": kind, "name": "x" });
-        assert!(access.admits(op("jc_resource_get"), &named("Pipeline")));
-        assert!(access.admits(op("jc_resource_list"), &named("Endpoint")));
-        assert!(!access.admits(op("jc_resource_get"), &named("Policy")));
-        assert!(!access.admits(op("jc_resource_list"), &named("Policy")));
-        assert!(access.admits(op("jc_draft_put"), &named("Pipeline")));
+        assert!(admits(&access, op("jc_resource_get"), &named("Pipeline")));
+        assert!(admits(&access, op("jc_resource_list"), &named("Endpoint")));
+        assert!(!admits(&access, op("jc_resource_get"), &named("Policy")));
+        assert!(!admits(&access, op("jc_resource_list"), &named("Policy")));
+        assert!(admits(&access, op("jc_draft_put"), &named("Pipeline")));
         assert!(
-            !access.admits(op("jc_draft_put"), &named("Endpoint")),
+            !admits(&access, op("jc_draft_put"), &named("Endpoint")),
             "read is no propose"
         );
-        assert!(!access.admits(op("jc_draft_get"), &named("Policy")));
-        assert!(!access.admits(op("jc_draft_drop"), &named("Endpoint")));
-        assert!(!access.admits(op("jc_resource_delete"), &named("Policy")));
+        assert!(!admits(&access, op("jc_draft_get"), &named("Policy")));
+        assert!(!admits(&access, op("jc_draft_drop"), &named("Endpoint")));
+        assert!(!admits(&access, op("jc_resource_delete"), &named("Policy")));
         let manifest = json!({ "manifest": { "kind": "Policy", "metadata": { "name": "x" } } });
-        assert!(!access.admits(op("jc_resource_propose"), &manifest));
-        assert!(!access.admits(op("jc_manifest_dry_run"), &manifest));
+        assert!(!admits(&access, op("jc_resource_propose"), &manifest));
+        assert!(!admits(&access, op("jc_manifest_dry_run"), &manifest));
         let draft = json!({ "draft": { "kind": "Policy", "name": "x" } });
-        assert!(!access.admits(op("jc_resource_propose"), &draft));
-        assert!(access.admits(
+        assert!(!admits(&access, op("jc_resource_propose"), &draft));
+        assert!(admits(
+            &access,
             op("jc_resource_propose"),
             &json!({ "draft": { "kind": "Pipeline", "name": "x" } })
         ));
         // Every kind the input names counts: a granted one beside it hides nothing.
         let mixed = json!({ "kind": "Pipeline", "manifest": { "kind": "Policy", "metadata": { "name": "x" } } });
-        assert!(!access.admits(op("jc_resource_propose"), &mixed));
+        assert!(!admits(&access, op("jc_resource_propose"), &mixed));
         let mixed = json!({ "kind": "Pipeline", "draft": { "kind": "Policy", "name": "x" } });
-        assert!(!access.admits(op("jc_draft_put"), &mixed));
+        assert!(!admits(&access, op("jc_draft_put"), &mixed));
         // A kind of no manifest is the input's 422, which the call answers.
-        assert!(access.admits(op("jc_resource_get"), &named("Nothing")));
+        assert!(admits(&access, op("jc_resource_get"), &named("Nothing")));
         // A profile without an access block keeps its read-only default, which `names` holds.
-        assert!(Access::default().admits(op("jc_resource_get"), &named("Policy")));
+        assert!(admits(
+            &Access::default(),
+            op("jc_resource_get"),
+            &named("Policy")
+        ));
         assert!(access.reads("Endpoint"));
         assert!(!access.reads("Policy"));
         assert!(Access::default().reads("Policy"));
