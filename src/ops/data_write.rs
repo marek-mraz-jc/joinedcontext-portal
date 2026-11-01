@@ -139,7 +139,7 @@ pub fn checked(input: &DataWriteInput) -> Result<(), OpError> {
     Ok(())
 }
 
-fn validate(val: &Value) -> Result<(), OpError> {
+fn validate_write(val: &Value) -> Result<(), OpError> {
     checked(&parse_input(val.clone())?)
 }
 
@@ -271,7 +271,7 @@ pub fn operations() -> Vec<Operation> {
         kind: "Endpoint",
         verb: Some(jc_core::kinds::Verb::Read),
         lane: Lane::Yellow,
-        validate,
+        validate: validate_write,
         run: |caller, state, project, val| {
             Box::pin(async move { run(caller, state, project, parse_input(val)?).await })
         },
@@ -287,7 +287,7 @@ mod tests {
     }
 
     fn refused_at(args: Value) -> String {
-        match validate(&args) {
+        match validate_write(&args) {
             Err(OpError::InvalidInput { path, .. }) => path,
             other => panic!("{args}: {other:?}"),
         }
@@ -296,11 +296,11 @@ mod tests {
     #[test]
     fn each_action_names_what_it_writes() {
         let station = json!({ "id": "urn:ngsi-ld:BikeHireDockingStation:s1", "type": "BikeHireDockingStation" });
-        assert!(validate(
+        assert!(validate_write(
             &json!({ "endpoint": "bikes", "action": "create", "entities": [station] })
         )
         .is_ok());
-        assert!(validate(
+        assert!(validate_write(
             &json!({ "endpoint": "bikes", "action": "delete", "ids": ["urn:ngsi-ld:T:1"] })
         )
         .is_ok());
@@ -330,7 +330,8 @@ mod tests {
             "/entities"
         );
         assert!(
-            validate(&json!({ "endpoint": "bikes", "action": "replace", "ids": ["a"] })).is_err()
+            validate_write(&json!({ "endpoint": "bikes", "action": "replace", "ids": ["a"] }))
+                .is_err()
         );
     }
 
