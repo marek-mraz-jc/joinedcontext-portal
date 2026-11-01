@@ -49,7 +49,8 @@
 .jc-grid thead {
   position: sticky;
   top: 0;
-  z-index: 2;
+  /* Above the body's sticky checkbox and id cells (z-index 1-2), which scroll under the head. */
+  z-index: 5;
   background: var(--jc-color-card, #f5f5f5);
 }
 
@@ -63,8 +64,6 @@
 }
 
 .jc-grid th.jc-grid-pinned {
-  position: sticky;
-  left: 0;
   z-index: 3;
   background: var(--jc-color-card, #f5f5f5);
 }
@@ -83,9 +82,9 @@
   min-width: min(8rem, 25vw);
 }
 
+/* The id column scrolls with the others (owner 2026-11-01: a frozen id covered the columns passing
+   under it); only the checkbox column stays at the left edge. */
 .jc-grid td.jc-grid-pinned {
-  position: sticky;
-  left: 0;
   z-index: 1;
   /* A URN is long: the pinned column keeps at most 30% of the grid, the rest scrolls (UI-70). */
   max-width: min(30vw, 16rem);
@@ -171,14 +170,35 @@
 }
 
 /* It wraps on a phone: centred and on one line it spilled past both edges of the grid. */
+/* The pager closes the table: no gap between the footer row and the count under it (owner 2026-11-01). */
+.jc-grid-scroll + .jc-grid-pager {
+  margin-top: calc(-1 * var(--jc-space-2, 8px));
+}
+
 .jc-grid-pager {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: var(--jc-space-2, 8px);
-  padding: var(--jc-space-2, 8px);
+  padding: var(--jc-space-1, 4px) var(--jc-space-2, 8px);
   border-top: 1px solid var(--jc-color-line, #e0e0e0);
+}
+
+.jc-grid-page-size {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--jc-space-1, 4px);
+  margin-inline-start: var(--jc-space-3, 12px);
+  color: var(--jc-color-muted, #666);
+}
+
+.jc-grid-page-size select {
+  font: inherit;
+  padding: 0.125rem 0.25rem;
+  border: 1px solid var(--jc-color-line, #cbd5e1);
+  border-radius: var(--jc-radius-md, 6px);
+  background: var(--jc-color-surface, #fff);
 }
 
 .jc-grid-pager button,
@@ -234,14 +254,16 @@
 .jc-grid-filter-cell select,
 .jc-grid-filter-cell input {
   font: inherit;
-  font-size: max(14px, 0.875rem);
+  font-size: 0.9375rem;
   font-weight: 400;
   line-height: 1.25;
   min-width: 0;
-  max-width: 100%;
-  min-height: 2.25rem;
+  /* Narrow: a select is as wide as its longest option, which pushed columns apart (owner 2026-11-01). */
+  width: 100%;
+  max-width: 8rem;
+  min-height: 1.75rem;
   box-sizing: border-box;
-  padding: 0.25rem 0.5rem;
+  padding: 0.125rem 0.375rem;
   color: var(--jc-color-ink, #1a1a1a);
   background-color: var(--jc-color-surface, #ffffff);
   border: 1px solid var(--jc-color-line, #cbd5e1);
@@ -250,15 +272,15 @@
 
 .jc-grid-filter-cell select:not([multiple]) {
   appearance: none;
-  padding-right: 2rem;
+  padding-right: 1.5rem;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2364748b' stroke-width='1.75' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 0.5rem center;
-  background-size: 1rem 1rem;
+  background-position: right 0.375rem center;
+  background-size: 0.875rem 0.875rem;
 }
 
 .jc-grid-filter-cell select option {
-  font-size: max(14px, 0.875rem);
+  font-size: 0.9375rem;
   font-weight: 400;
 }
 
@@ -585,6 +607,18 @@
   height: 40vh;
 }
 
+/* Beside the rows the map runs the table's full height, no empty column under it (owner 2026-11-01). */
+@media (width > 900px) {
+  .jc-grid--map-right > .jc-grid-map {
+    align-self: stretch;
+  }
+
+  .jc-grid--map-right > .jc-grid-map :is(.maplibregl-map, [data-jc-map]) {
+    flex: 1 1 auto;
+    height: auto;
+  }
+}
+
 @media (width <= 900px) {
   .jc-grid--map-right {
     grid-template-columns: minmax(0, 1fr);
@@ -795,6 +829,37 @@
 .jc-grid-detail-actions button {
   min-width: 2.75rem;
   min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 0.75rem;
+  font: inherit;
+  font-size: 0.875rem;
+  color: var(--jc-color-ink, #1a1a1a);
+  background: var(--jc-color-surface, #ffffff);
+  border: 1px solid var(--jc-color-line, #cbd5e1);
+  border-radius: var(--jc-radius-md, 6px);
+  cursor: pointer;
+}
+
+.jc-grid-detail-actions button:hover {
+  background: var(--jc-color-card, #f5f5f5);
+}
+
+/* Close is the dialog's corner cross, a 44 px target with its word as the accessible name. */
+.jc-grid-detail-actions .jc-grid-detail-close {
+  padding: 0;
+  border-color: transparent;
+  background: transparent;
+}
+
+.jc-grid-detail-head {
+  align-items: center;
+}
+
+.jc-grid-detail-head h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
 }
 
 /* An attribute with no value says so instead of showing nothing (T-5599). */
@@ -838,11 +903,23 @@
   max-height: 70vh;
 }
 
-.jc-grid--virtual thead th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
+/* The whole head sticks as one block (thead is sticky above): sticky cells each at top 0 laid the
+   filter row over the header row and left its empty cells transparent over the scrolled rows. */
+.jc-grid--virtual thead :is(th, td, th.jc-grid-pinned, td.jc-grid-rownum) {
   background: var(--jc-color-surface, #fff);
+}
+
+/* The filter row sits right under the names it filters, no empty line between (owner 2026-11-01). */
+.jc-grid thead .jc-grid-filter-row :is(th, td) {
+  padding-top: var(--jc-space-1, 4px);
+  padding-bottom: var(--jc-space-1, 4px);
+}
+
+/* A collapsed border stays where the row first lay while the sticky head scrolls, a see-through
+   strip under the header row: the head draws its line as a shadow inside its own cells. */
+.jc-grid--virtual thead th {
+  border-bottom: 0;
+  box-shadow: inset 0 -1px 0 var(--jc-color-line, #e0e0e0);
 }
 
 /* A header cell whose metadata menu is open lies above the filter row below it, which is as
@@ -1133,7 +1210,7 @@ a.jc-cell--link:focus-visible {
 /* The row number, its checkbox and the expand button (T-4883): frozen at the left edge, and the
    pinned name column frozen beside it, so both stay while the other columns scroll. */
 .jc-grid {
-  --jc-grid-rownum-width: 5.5rem;
+  --jc-grid-rownum-width: 2.75rem;
 }
 
 .jc-grid .jc-grid-rownum {
@@ -1148,6 +1225,8 @@ a.jc-cell--link:focus-visible {
   white-space: nowrap;
   color: var(--jc-color-muted, #666);
   font-variant-numeric: tabular-nums;
+  /* The frozen column's edge: rows scroll under it behind a line, not into it (owner 2026-11-01). */
+  box-shadow: inset -1px 0 0 var(--jc-color-line, #e0e0e0);
 }
 
 .jc-grid thead .jc-grid-rownum,
@@ -1156,10 +1235,7 @@ a.jc-cell--link:focus-visible {
   background: var(--jc-color-card, #f5f5f5);
 }
 
-.jc-grid[data-row-numbers] :is(td, th).jc-grid-pinned {
-  left: var(--jc-grid-rownum-width);
-  box-shadow: 1px 0 0 var(--jc-color-line, #e0e0e0);
-}
+
 
 .jc-grid[data-row-numbers] td.jc-grid-pinned[data-active] {
   box-shadow: inset 0 0 0 2px var(--jc-color-accent, #0066cc), 1px 0 0 var(--jc-color-line, #e0e0e0);
@@ -1233,32 +1309,49 @@ a.jc-cell--link:focus-visible {
   max-width: 100%;
 }
 
-.jc-grid[data-row-size="medium"] td .jc-grid-open,
-.jc-grid[data-row-size="large"] td .jc-grid-open {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  white-space: normal;
+
+
+
+/* Every row of a size is the same height whatever its text: a cell keeps one line and ends in an
+   ellipsis, the whole value in its tooltip and the detail. Small is tight, medium is the earlier
+   default height, large leaves room; Observed keeps its whole timestamp (owner 2026-11-01). */
+.jc-grid[data-row-size] tbody td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 14rem;
+}
+
+.jc-grid[data-row-size] tbody td[data-kind="datetime"] {
+  max-width: none;
+}
+
+.jc-grid[data-row-size="small"] tbody td {
+  height: 2rem;
+  padding-block: 2px;
+}
+
+.jc-grid[data-row-size="medium"] tbody td {
+  height: 3.75rem;
+}
+
+.jc-grid[data-row-size="large"] tbody td {
+  height: 5.5rem;
+}
+
+.jc-grid td[data-col="id"] {
+  max-width: 8rem;
   overflow-wrap: anywhere;
 }
 
-.jc-grid[data-row-size="medium"] td .jc-grid-open {
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+.jc-grid td[data-kind="language"] {
+  max-width: 11rem;
 }
 
-.jc-grid[data-row-size="large"] td .jc-grid-open {
-  -webkit-line-clamp: 4;
-  line-clamp: 4;
+.jc-grid td[data-kind="datetime"] {
+  white-space: nowrap;
 }
 
-.jc-grid[data-row-size="medium"] td {
-  height: 3.5rem;
-}
-
-.jc-grid[data-row-size="large"] td {
-  height: 6rem;
-  vertical-align: top;
-}
 
 .jc-grid-group th {
   text-align: start;
@@ -1280,9 +1373,15 @@ a.jc-cell--link:focus-visible {
 .jc-grid-tfoot td {
   position: sticky;
   bottom: 0;
+  padding-block: var(--jc-space-1, 4px);
+  vertical-align: middle;
   z-index: 2;
   background: var(--jc-color-card, #f5f5f5);
-  border-top: 2px solid var(--jc-color-line, #e0e0e0);
+  /* A collapsed border stays behind while the sticky footer moves, leaving rows visible under it:
+     the line is a shadow inside the cell (owner 2026-11-01). */
+  border-top: 0;
+  border-bottom: 0;
+  box-shadow: inset 0 2px 0 var(--jc-color-line, #e0e0e0);
   font-size: 0.85em;
 }
 
@@ -1345,6 +1444,15 @@ a.jc-cell--link:focus-visible {
 /* A web address clamps itself as the name's button does: the cell's clamp alone cuts the link's
    box off mid-line, out of reach of a pointer. The whole address stays in its title. */
 .jc-grid-cell a.jc-cell--link { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+/* A row size fixes the row's height (owner 2026-11-01): every cell is one line ending in "…",
+   so one long value never makes its row taller than the others. */
+.jc-grid[data-row-size] tbody :is(.jc-grid-cell, .jc-grid-cell > .jc-grid-open, .jc-grid-cell a.jc-cell--link) {
+  display: block;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* Numbered pages (T-5196): 24 px targets at least, 44 px on a touch screen (WCAG 2.5.8). */
 .jc-grid-pages { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; }
@@ -1470,6 +1578,36 @@ a.jc-cell--link:focus-visible {
 .jc-grid-info:focus-visible {
   outline: 2px solid var(--jc-color-accent, #0066cc);
   outline-offset: 2px;
+}
+
+.jc-grid-detail-section {
+  margin-top: var(--jc-space-3, 12px);
+  padding-top: var(--jc-space-3, 12px);
+  border-top: 1px solid var(--jc-color-line, #e0e0e0);
+}
+
+.jc-grid-area-button {
+  min-height: 1.75rem;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--jc-color-line, #cbd5e1);
+  border-radius: var(--jc-radius-md, 6px);
+  background: var(--jc-color-surface, #fff);
+  color: var(--jc-color-accent, #0066cc);
+  font: inherit;
+  font-size: 0.9375rem;
+  font-weight: 400;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.jc-grid-area-button[aria-pressed="true"] {
+  background: var(--jc-color-accent-soft, #e8f0fe);
+}
+
+/* A hovered row is one colour across, the frozen checkbox and id cells too: a white strip there
+   read as a gap in the row (owner 2026-11-01). */
+.jc-grid tr:hover td:is(.jc-grid-pinned, .jc-grid-rownum) {
+  background: var(--jc-color-card, #f5f5f5);
 }
 
 .jc-grid-inspector-close {
@@ -2143,8 +2281,219 @@ a.jc-cell--link:focus-visible {
 }
 
 /* The count follows the pager's page with a separator, not run into it. */
+.jc-grid-total:first-child::before {
+  content: none;
+}
+
 .jc-grid-total::before {
   content: "·";
   margin-inline-end: 0.5em;
+  color: var(--jc-color-muted, #666);
+}
+
+/* The frozen column's edge line also in the sticky head and footer, beside their own lines. */
+.jc-grid--virtual thead th.jc-grid-rownum {
+  box-shadow: inset -1px 0 0 var(--jc-color-line, #e0e0e0), inset 0 -1px 0 var(--jc-color-line, #e0e0e0);
+}
+
+.jc-grid-tfoot td.jc-grid-rownum {
+  box-shadow: inset -1px 0 0 var(--jc-color-line, #e0e0e0), inset 0 2px 0 var(--jc-color-line, #e0e0e0);
+}
+
+/* The area filter's drawing tools (owner 2026-11-01): a row of tool buttons over the map; the
+   coordinate table, paste box and file input are the shape editor's, not the area picker's. */
+.jc-grid-map__draw .geo-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jc-space-1, 4px);
+  padding-block: var(--jc-space-1, 4px);
+}
+
+.jc-grid-map__draw .geo-toolbar button {
+  font: inherit;
+  font-size: 0.875rem;
+  padding: 0.125rem 0.5rem;
+  border: 1px solid var(--jc-color-line, #cbd5e1);
+  border-radius: var(--jc-radius-md, 6px);
+  background: var(--jc-color-surface, #ffffff);
+  color: var(--jc-color-ink, #1a1a1a);
+  cursor: pointer;
+}
+
+.jc-grid-map__draw .geo-toolbar button[aria-pressed="true"] {
+  border-color: var(--jc-color-accent, #0066cc);
+  background: color-mix(in srgb, var(--jc-color-accent, #0066cc) 10%, var(--jc-color-surface, #ffffff));
+}
+
+.jc-grid-map__draw .map-wrap,
+.jc-grid-map__draw .map {
+  position: relative;
+  height: 22rem;
+}
+
+.jc-grid-map__draw .geo-editor > :not(.geo-toolbar, .map-wrap, .geo-findings) {
+  display: none;
+}
+
+/* An attribute's own view (owner 2026-11-01): the value large, its metadata as a compact grid of
+   small labels over values, each part a card, the time window a segmented control. */
+.jc-grid-attr-view {
+  display: grid;
+  gap: var(--jc-space-3, 12px);
+  margin-top: var(--jc-space-2, 8px);
+}
+
+.jc-grid-attr-value {
+  margin: 0;
+  font-size: 1.75rem;
+  font-weight: 600;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+.jc-grid-attr-view .jc-grid-detail-section {
+  border: 1px solid var(--jc-color-line, #e0e0e0);
+  border-radius: var(--jc-radius-lg, 8px);
+  padding: var(--jc-space-3, 12px);
+  margin: 0;
+}
+
+.jc-grid-attr-view .jc-grid-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+  gap: var(--jc-space-3, 12px);
+  margin: 0;
+}
+
+.jc-grid-attr-view .jc-grid-meta .jc-grid-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  border: 0;
+  padding: 0;
+}
+
+.jc-grid-attr-view .jc-grid-meta dt {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--jc-color-muted, #666);
+}
+
+.jc-grid-attr-view .jc-grid-meta dd {
+  margin: 0;
+}
+
+.jc-grid-attr-view .jc-grid-meta-absolute {
+  display: block;
+  font-size: 0.8125rem;
+  color: var(--jc-color-muted, #666);
+}
+
+.jc-grid-attr-view .jc-grid-history > header h3 {
+  margin: 0 0 var(--jc-space-2, 8px);
+  font-size: 1rem;
+}
+
+.jc-grid-attr-view .jc-grid-history > fieldset:first-of-type {
+  display: inline-flex;
+  border: 1px solid var(--jc-color-line, #cbd5e1);
+  border-radius: var(--jc-radius-md, 6px);
+  padding: 2px;
+  margin: 0 0 var(--jc-space-2, 8px);
+  gap: 2px;
+}
+
+.jc-grid-attr-view .jc-grid-history > fieldset:first-of-type label {
+  padding: 0.25rem 0.75rem;
+  border-radius: calc(var(--jc-radius-md, 6px) - 2px);
+  cursor: pointer;
+  font-size: 0.875rem;
+}
+
+.jc-grid-attr-view .jc-grid-history > fieldset:first-of-type input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.jc-grid-attr-view .jc-grid-history > fieldset:first-of-type label:has(input:checked) {
+  background: var(--jc-color-accent, #0066cc);
+  color: #ffffff;
+}
+
+.jc-grid-attr-view .jc-grid-history > fieldset:first-of-type label:has(input:focus-visible) {
+  outline: 2px solid var(--jc-color-accent, #0066cc);
+  outline-offset: 2px;
+}
+
+.jc-grid-attr-view .jc-grid-history-versions {
+  display: flex;
+  align-items: center;
+  gap: var(--jc-space-2, 8px);
+  font-size: 0.875rem;
+  color: var(--jc-color-muted, #555);
+  margin-bottom: var(--jc-space-2, 8px);
+}
+
+.jc-grid-history-note {
+  margin: 0 0 var(--jc-space-2, 8px);
+  font-size: 0.8125rem;
+  color: var(--jc-color-muted, #666);
+}
+
+.jc-grid-attr-view .jc-grid-history > fieldset:first-of-type {
+  width: fit-content;
+}
+
+/* A boolean or a state over time: a band of segments, the window's ends under it, a legend. */
+.jc-grid-history-states {
+  margin: 0 0 var(--jc-space-3, 12px);
+}
+
+.jc-grid-history-band {
+  position: relative;
+  height: 1.75rem;
+  border-radius: var(--jc-radius-md, 6px);
+  overflow: hidden;
+  background: var(--jc-color-card, #f5f5f5);
+}
+
+.jc-grid-history-band > span {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  min-width: 1px;
+}
+
+.jc-grid-history-band-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  color: var(--jc-color-muted, #666);
+  margin-top: 2px;
+}
+
+.jc-grid-history-states figcaption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jc-space-1, 4px) var(--jc-space-3, 12px);
+  margin-top: var(--jc-space-2, 8px);
+  font-size: 0.875rem;
+}
+
+.jc-grid-history-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+}
+
+.jc-grid-history-legend i {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 2px;
+}
+
+.jc-grid-history-legend small {
   color: var(--jc-color-muted, #666);
 }

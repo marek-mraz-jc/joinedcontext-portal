@@ -74,7 +74,8 @@ export function valueClasses(model: LinkmlModel): Set<string> {
     for (const slot of classSlots(model, klass)) {
       if (slot.range === undefined || !names.has(slot.range)) continue;
       if (isAnyClass(model.classes.find((one) => one.name === slot.range) ?? { name: "" })) continue;
-      (slot.inlined === true ? inline : referenced).add(slot.range);
+      // A JsonProperty's range is the shape of its value (a Smart Data Model's L1/L2/L3 parts), held inline.
+      (slot.inlined === true || slot.kind === "JsonProperty" ? inline : referenced).add(slot.range);
     }
     if (klass.is_a !== undefined) referenced.add(klass.is_a);
     for (const mixin of klass.mixins ?? []) referenced.add(mixin);

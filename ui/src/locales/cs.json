@@ -4094,6 +4094,25 @@
     "download": "Stáhnout"
   },
   "models": {
+    "newDialog": {
+      "title": "Nový datový model",
+      "description": "Pojmenujte model. Editor se otevře prázdný; typy do něj přidáte ručně, ze Smart Data Models nebo z tabulky.",
+      "create": "Vytvořit model"
+    },
+    "structures": "Struktury hodnot ({count})",
+    "structuresHint": "Tvar hodnoty strukturovaného pole, třeba jeho části L1, L2, L3; nejsou to typy entit.",
+    "inlinePart": "Část strukturované hodnoty, převzatá ze Smart Data Model.",
+    "addFrom": {
+      "sdm": "Importovat ze Smart Data Models",
+      "sdmHint": "Zkopíruje zveřejněný typ s jeho poli.",
+      "file": "Z tabulky",
+      "fileHint": "Excel, CSV nebo JSON: ze sloupců se stanou pole.",
+      "fileTitle": "Typy z tabulky"
+    },
+    "addClassNameHint": "Nebo začněte prázdný typ: název jako WeatherObserved, písmena a číslice, bez mezer.",
+    "addWhat": "Co pole obsahuje?",
+    "addKind": {"Property": "Hodnotu", "Relationship": "Odkaz na jiný typ", "GeoProperty": "Místo", "LanguageProperty": "Text ve více jazycích"},
+    "addKindHint": {"Property": "Číslo, text, datum, ano/ne nebo hodnotu ze seznamu, jako teplotu.", "Relationship": "Ukazuje na entitu jiného typu, jako stanici, ke které měření patří.", "GeoProperty": "Bod, čáru nebo plochu na mapě, jako polohu.", "LanguageProperty": "Jeden text pro každý jazyk, jako název finsky a anglicky."},
     "share": {
       "action": "Sdílet s organizací",
       "title": "Sdílet {name} s organizací?",
@@ -4696,7 +4715,14 @@
       "newHint": "Hodnota, kterou entity ukládají, po přidání pevná, například active.",
       "unused": "Tento číselník zatím nepoužívá žádné pole: vyberte ho jako typ hodnoty pole.",
       "usedBy": "Používá {fields}"
-    }
+    },
+    "rules": "Pravidla",
+    "optional": "nepovinné",
+    "deprecatedBadge": "Zastaralé",
+    "slotName": "Název",
+    "slotNameHint": "Jako temperature nebo openingHours: písmena a číslice, bez mezer.",
+    "slotNameFirst": "Pojmenujte pole a přidejte ho; typ, druh, jednotka a pravidla následují v tomto formuláři.",
+    "slotNameFixed": "Pole si ponechá svůj název: používá ho každá uložená hodnota i data partnerů."
   },
   "apps": {
     "title": "Aplikace",
@@ -5495,6 +5521,9 @@
     "matching": "Odpovídá: {n}",
     "noTotal": "endpoint u této odpovědi neuvádí celkový počet",
     "history": "Historie",
+    "areaPick": "Vybrat oblast na mapě",
+    "rowsPerPage": "Řádků na stránku",
+    "areaClear": "Zrušit oblast",
     "historyWindow": {
       "hour": "Poslední hodinu",
       "day": "Poslední den",
@@ -11144,6 +11173,26 @@
       "action": "Zobrazit YAML",
       "title": "{name} jako YAML",
       "lead": "Manifest tak, jak ho drží repozitář projektu, jen pro čtení. Tajemství jsou jen odkazem (secretRef); hodnota pod klíčem, který vypadá jako tajemství, je skrytá."
+    }
+  },
+  "settingsPage": {
+    "title": "Nastavení",
+    "description": "Vaše vlastní nastavení, nastavení projektu a pro administrátora i nastavení platformy.",
+    "projectSettings": "Nastavení projektu {project}",
+    "scope": {
+      "personal": "Osobní",
+      "project": "Projekt",
+      "platform": "Platforma"
+    },
+    "scopeHint": {
+      "personal": "Vidíte a používáte je jen vy.",
+      "project": "Společné pro všechny v projektu; změny jdou přes schválení.",
+      "platform": "Celá platforma: projekty, lidé a přihlášení."
+    },
+    "hint": {
+      "aiConnectors": "Claude a další asistenti, kteří čtou data vaším jménem",
+      "project": "prostory, členové, tajemství",
+      "administration": "pro administrátory platformy"
     }
   }
 }

@@ -40,6 +40,8 @@ export interface RelationshipEditorProps {
   run: (operation: Operation) => string | null;
   /** A class the range picker chose: the form opens on it, with a new key per pick. */
   prefill?: { target: string; key: number };
+  /** The add form under the list; the page adds a link through "Add field" and shows it only for a range pick. */
+  withAdd?: boolean;
 }
 
 /** The small figure beside each cardinality: the source on the left, the target on the right. */
@@ -66,7 +68,7 @@ export function sentence(t: TFunction, relationship: Relationship): string {
   });
 }
 
-export function RelationshipEditor({ source, model, klass, run, prefill }: RelationshipEditorProps): JSX.Element {
+export function RelationshipEditor({ source, model, klass, run, prefill, withAdd = true }: RelationshipEditorProps): JSX.Element {
   const { t } = useTranslation();
   const [refusal, setRefusal] = useState<string | null>(null);
   const [removing, setRemoving] = useState<Relationship | null>(null);
@@ -211,14 +213,14 @@ export function RelationshipEditor({ source, model, klass, run, prefill }: Relat
           setRemoving(null);
         }}
       />
-      <AddRelationshipForm
+      {withAdd ? <AddRelationshipForm
         key={`${klass}:${prefill?.key ?? 0}`}
         source={source}
         model={model}
         klass={klass}
         initialTarget={prefill?.target}
         run={run}
-      />
+      /> : null}
     </section>
   );
 }
@@ -229,9 +231,11 @@ export interface AddRelationshipFormProps {
   klass: string;
   initialTarget?: string;
   run: (operation: Operation) => string | null;
+  /** Inside a dialog: no frame or heading of its own, the dialog gives both. */
+  bare?: boolean;
 }
 
-export function AddRelationshipForm({ source, model, klass, initialTarget, run }: AddRelationshipFormProps): JSX.Element {
+export function AddRelationshipForm({ source, model, klass, initialTarget, run, bare = false }: AddRelationshipFormProps): JSX.Element {
   const { t } = useTranslation();
   const [cardinality, setCardinality] = useState<Cardinality>("one-to-many");
   const [target, setTarget] = useState(initialTarget ?? "");
@@ -300,13 +304,13 @@ export function AddRelationshipForm({ source, model, klass, initialTarget, run }
   return (
     <form
       aria-labelledby="models-relationship-add"
-      className="flex flex-col gap-3 rounded border border-border p-3"
+      className={bare ? "flex flex-col gap-4" : "flex flex-col gap-3 rounded border border-border p-3"}
       onSubmit={(event) => {
         event.preventDefault();
         if (ready && refusal === null) submit();
       }}
     >
-      <h3 id="models-relationship-add" className="text-sm font-semibold">
+      <h3 id="models-relationship-add" className={bare ? "sr-only" : "text-sm font-semibold"}>
         {t("models.relationships.add.title", { owner: klass })}
       </h3>
       <RadioGroup
@@ -315,6 +319,7 @@ export function AddRelationshipForm({ source, model, klass, initialTarget, run }
         description={t("models.relationships.add.cardinalityHint", { owner: klass })}
         value={cardinality}
         layout="row"
+        className="[&>div]:grid [&>div]:grid-cols-2 [&>div]:gap-x-6 [&>div]:gap-y-2"
         onChange={(value) => {
           setCardinality(value);
           if (storedEnd(value) === "source") setInverseRequired(false);
@@ -332,7 +337,7 @@ export function AddRelationshipForm({ source, model, klass, initialTarget, run }
           ),
         }))}
       />
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid items-start gap-x-4 gap-y-3 sm:grid-cols-2">
         <Field id="relationship-target" label={t("models.relationships.add.target")} help={t("models.relationships.add.targetHint")}>
           <Select id="relationship-target" value={target} onChange={(event) => setTarget(event.target.value)}>
             <option value="">{t("models.relationships.add.targetNone")}</option>
@@ -368,7 +373,6 @@ export function AddRelationshipForm({ source, model, klass, initialTarget, run }
           id="relationship-on-delete"
           label={t("models.relationships.onDelete")}
           help={t(`models.relationships.onDeleteHint.${onDelete}`)}
-          description={t("models.relationships.add.onDeleteHint")}
         >
           <Select
             id="relationship-on-delete"
@@ -383,7 +387,7 @@ export function AddRelationshipForm({ source, model, klass, initialTarget, run }
           </Select>
         </Field>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid items-start gap-x-4 gap-y-3 sm:grid-cols-2">
         <Field id="relationship-required" hideLabel help={requiredHint("source", klass)}>
           <Checkbox
             id="relationship-required"
@@ -410,7 +414,7 @@ export function AddRelationshipForm({ source, model, klass, initialTarget, run }
           {t("models.refused", { reason: refusal })}
         </Alert>
       ) : null}
-      <Button type="submit" variant="primary" className="w-fit" disabled={!ready || refusal !== null}
+      <Button type="submit" variant="primary" className={bare ? "w-fit self-end" : "w-fit"} disabled={!ready || refusal !== null}
         disabledReason={refusal ?? t("models.relationships.add.pickFirst")}
       >
         {t("models.relationships.add.submit")}

@@ -18,7 +18,7 @@ import type { DrawEngine, GeoLabels } from "../geo/GeoEditor";
 import { GeoView } from "../geo/GeoView";
 import type { GeoFeature, TileSource } from "../geo/GeoView";
 import type { Geometry, GeometryType } from "../geo/validate";
-import { areaQuery, ringOfBounds } from "./geoarea";
+import { areaQuery } from "./geoarea";
 import type { GeoArea, GeoQuery } from "./geoarea";
 import { diffGeometry, featuresOfRows, geometryOfRow, rowsOffTheMap } from "./mapRows";
 import type { RichRow } from "./model";
@@ -103,8 +103,10 @@ export interface GridMapProps {
   /** The area the grid is filtered to, and how to set or clear it. */
   area?: GeoArea | null;
   onArea?: (area: GeoArea | null) => void;
-  /** The current map bounds, for the rectangle the "Draw area" action asks for. */
+  /** Unused since the area is drawn on the map; kept so existing hosts still compile. */
   boundsNow?: () => [number, number, number, number] | null;
+  /** Open with the area drawing tools, as the location column's filter button does. */
+  startDrawing?: boolean;
   labels?: Partial<GridMapLabels>;
   basemap?: string;
   /** The drawing library, injected the same way `GeoEditor` takes it. */
@@ -114,6 +116,8 @@ export interface GridMapProps {
   /** Every entity of the type from the Endpoint's vector tiles, under the page's shapes (T-5195). */
   tiles?: TileSource | null;
 }
+
+const AREA_TYPES: readonly GeometryType[] = ["Polygon"];
 
 export function GridMap({
   rows,
@@ -126,7 +130,8 @@ export function GridMap({
   allowed,
   area,
   onArea,
-  boundsNow,
+  boundsNow: _boundsNow,
+  startDrawing,
   labels: labelsPartial,
   basemap,
   engine,
@@ -156,25 +161,23 @@ export function GridMap({
   const reasonId = `${useId()}cannot-edit`;
   const editorOpen = canEdit && editing && activeRow !== null;
 
-  const drawArea = (): void => {
-    if (!onArea || !boundsNow) {
-      return;
-    }
-    const bounds = boundsNow();
-    if (!bounds) {
-      return;
-    }
-    const [west, south, east, north] = bounds;
-    onArea({ geoproperty: attr, geometry: { type: "Polygon", coordinates: [ringOfBounds(west, south, east, north)] } as Geometry });
-  };
+  // The area filter is drawn on the map (polygon, rectangle, circle, freehand: each a Polygon that
+  // becomes georel=within), not taken from the viewport (owner 2026-11-01).
+  const [drawingArea, setDrawingArea] = useState(Boolean(startDrawing) && !area);
+  const areaOpen = Boolean(onArea) && drawingArea && !editorOpen;
 
   return (
     <section className={`jc-grid-map jc-grid-map--${position}`} aria-label={labels.panel}>
       <header className="jc-grid-map__bar">
         <h3 className="jc-grid-map__title">{labels.panel}</h3>
-        {onArea && boundsNow ? (
-          <button type="button" className="jc-grid-map__action" onClick={area ? () => onArea(null) : drawArea}>
-            {area ? labels.clearArea : labels.drawArea}
+        {onArea ? (
+          <button
+            type="button"
+            className="jc-grid-map__action"
+            aria-pressed={areaOpen}
+            onClick={() => (area || drawingArea ? (onArea(null), setDrawingArea(false)) : setDrawingArea(true))}
+          >
+            {area || drawingArea ? labels.clearArea : labels.drawArea}
           </button>
         ) : null}
         {mode === "edit" && activeRow ? (
@@ -218,7 +221,20 @@ export function GridMap({
         </p>
       ) : null}
 
-      {editorOpen ? (
+      {areaOpen ? (
+        <div className="jc-grid-map__draw">
+        <GeoEditor
+          value={area?.geometry ?? null}
+          onChange={(geometry) => onArea?.(geometry && geometry.type === "Polygon" ? { geoproperty: attr, geometry } : null)}
+          allowed={AREA_TYPES}
+          snapTo={features}
+          basemap={basemap}
+          engine={engine}
+          labels={geoLabels}
+          label={labels.drawArea}
+        />
+        </div>
+      ) : editorOpen ? (
         <>
           <GeoEditor
             value={shown}

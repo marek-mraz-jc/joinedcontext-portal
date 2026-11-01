@@ -56,6 +56,7 @@ export const DEFAULT_INSPECTOR_LABELS: CellInspectorLabels = {
   naming: "Looking up the policy…",
   namingFailed: "The policy could not be named; try again shortly.",
   askAccess: "Ask for access",
+
 };
 
 export interface CellInspectorProps {

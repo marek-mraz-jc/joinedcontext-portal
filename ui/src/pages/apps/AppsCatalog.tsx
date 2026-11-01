@@ -38,7 +38,6 @@ import {
   EmptyState,
   InlineError,
   PageFailed,
-  MayNotCreate,
   PageHeader,
   PageLoading,
   recordCard,
@@ -383,7 +382,6 @@ export function AppsCatalog({ project }: { project: string }): JSX.Element {
         <PageHeader compact
           title={t("apps.title")}
           description={t("apps.subtitle")}
-          note={<MayNotCreate project={project} kinds={["App"]} />}
         />
         <PermissionGuard project={project} kind="App" verb="propose">
           <Button

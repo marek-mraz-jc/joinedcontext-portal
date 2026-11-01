@@ -52,7 +52,8 @@ export interface ConfigFinding {
 }
 
 export const DEFAULT_PAGE_SIZE = 50;
-export const MAX_PAGE_SIZE = 1000;
+/** A page the grid shows; the source reads it in broker pages of at most `BROKER_PAGE` (owner 2026-11-01: 5000). */
+export const MAX_PAGE_SIZE = 5000;
 
 const VALID_FORMATS = new Set(["text", "number", "date", "link"]);
 const VALID_MODES = new Set(["view", "edit"]);
@@ -235,7 +236,7 @@ export const gridConfigSchema: Record<string, unknown> = {
         },
       },
     },
-    pageSize: { type: "integer", minimum: 1, maximum: 1000 },
+    pageSize: { type: "integer", minimum: 1, maximum: 5000 },
     mode: { type: "string", enum: ["view", "edit"] },
     editableAttrs: { type: "array", items: { type: "string" } },
     history: {

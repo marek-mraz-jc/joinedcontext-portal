@@ -116,10 +116,10 @@ describe("the grid's inspector", () => {
     expect(screen.queryByRole("textbox")).toBeNull();
   });
 
-  it("opens on a click of a cell that takes no edit, and Escape gives the grid back", async () => {
+  it("opens from the cell's info button, and Escape gives the grid back", async () => {
     render(<EntityGrid config={config()} source={source(async () => table)} />);
     const cell = (await screen.findByText("21")).closest('[role="gridcell"]') as HTMLElement;
-    fireEvent.click(cell);
+    fireEvent.click(cell.querySelector(".jc-grid-info") as HTMLElement);
     const panel = screen.getByRole("dialog", { name: `${L.title}: no2` });
     expect(within(panel).getByRole("status")).toHaveTextContent(L.prohibited);
     fireEvent.keyDown(panel, { key: "Escape" });
@@ -130,7 +130,7 @@ describe("the grid's inspector", () => {
   it("closes with the host's own word for close", async () => {
     render(<EntityGrid config={config()} source={source(async () => table)} labels={{ close: "Sulje" }} />);
     const cell = (await screen.findByText("21")).closest('[role="gridcell"]') as HTMLElement;
-    fireEvent.click(cell);
+    fireEvent.click(cell.querySelector(".jc-grid-info") as HTMLElement);
     const panel = screen.getByRole("dialog", { name: `${L.title}: no2` });
     fireEvent.click(within(panel).getByRole("button", { name: "Sulje" }));
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -157,10 +157,18 @@ describe("the grid's inspector", () => {
     expect(within(screen.getByRole("dialog")).getByRole("status")).toHaveTextContent(L.grant);
   });
 
+  it("opens the attribute's own view on a click of its value (owner 2026-11-01)", async () => {
+    render(<EntityGrid config={config()} source={source(async () => table)} />);
+    const cell = (await screen.findByText("21")).closest('[role="gridcell"]') as HTMLElement;
+    fireEvent.click(cell);
+    expect(await screen.findByRole("tab", { name: "no2", selected: true })).toBeInTheDocument();
+    expect(screen.queryByRole("dialog", { name: `${L.title}: no2` })).toBeNull();
+  });
+
   it("treats an attribute the decisions leave out as refused", async () => {
     render(<EntityGrid config={config()} source={source(async () => table.slice(0, 1))} />);
     const cell = (await screen.findByText("21")).closest('[role="gridcell"]') as HTMLElement;
-    fireEvent.click(cell);
+    fireEvent.click(cell.querySelector(".jc-grid-info") as HTMLElement);
     expect(chips().every(([className]) => className?.endsWith("--none"))).toBe(true);
   });
 });
