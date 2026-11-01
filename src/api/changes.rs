@@ -890,27 +890,30 @@ async fn load_manifest_data(
                 return Ok(None);
             };
 
-            let head_file = gitea
-                .get_file(&repo_path, pr.head_ref())
-                .await?
-                .ok_or_else(|| {
-                    ApiError::NotFound(format!(
-                        "manifest file '{repo_path}' not found on head branch"
-                    ))
-                })?;
+            // The two sides are independent reads: one round trip, not two (T-6347).
+            let (head_file, base_file) =
+                tokio::join!(gitea.get_file(&repo_path, pr.head_ref()), async {
+                    if branch_info.operation == Operation::Update {
+                        gitea
+                            .get_file(&repo_path, pr.base_ref())
+                            .await
+                            .ok()
+                            .flatten()
+                    } else {
+                        None
+                    }
+                });
+            let head_file = head_file?.ok_or_else(|| {
+                ApiError::NotFound(format!(
+                    "manifest file '{repo_path}' not found on head branch"
+                ))
+            })?;
 
             let head_env: ResourceEnvelope = serde_norway::from_str(&head_file.content)
                 .map_err(|e| ApiError::Internal(format!("failed to parse head manifest: {e}")))?;
 
-            let base_env = if branch_info.operation == Operation::Update {
-                if let Ok(Some(base_file)) = gitea.get_file(&repo_path, pr.base_ref()).await {
-                    serde_norway::from_str::<ResourceEnvelope>(&base_file.content).ok()
-                } else {
-                    None
-                }
-            } else {
-                None
-            };
+            let base_env = base_file
+                .and_then(|file| serde_norway::from_str::<ResourceEnvelope>(&file.content).ok());
 
             (base_env, Some(head_env))
         }
@@ -1473,8 +1476,9 @@ fn kind_of(proposal: &ChangeProposal) -> Option<&str> {
 }
 
 /// Core proposal listing reusable by the REST route, operations registry and MCP.
-/// How many open merge requests the listing reads at once.
-const LISTED_AT_ONCE: usize = 4;
+/// How many open merge requests the listing reads at once: a project's open changes in one
+/// wave (helsinki held ~15 when four at a time took ~1 s, T-6347), still a bound on the forge.
+const LISTED_AT_ONCE: usize = 16;
 
 /// What the listing shows for one open merge request.
 enum Listed {
@@ -1505,18 +1509,26 @@ async fn listed(
     // The file list is fetched here anyway for the count, and its paths carry the lane the
     // approval will apply (T-1224) and the headline manifest's path (T-6347): no extra call,
     // and the list stops promising a lane the detail page contradicts.
-    let carried = gitea.pull_request_files(pr.number).await?;
-    let Some(data) = load_manifest_data(gitea, pr, project, Some(&carried)).await? else {
+    // The author and the awaited changes need nothing the manifest reads find: all three run
+    // at once, so a change costs two round trips, not four (T-6347).
+    let manifest = async {
+        let carried = gitea.pull_request_files(pr.number).await?;
+        let data = load_manifest_data(gitea, pr, project, Some(&carried)).await?;
+        Ok::<_, ApiError>((carried, data))
+    };
+    let (manifest, author, waits_on) = tokio::join!(
+        manifest,
+        human_author(gitea, pr),
+        awaited_changes(state, gitea, pr, project)
+    );
+    let (carried, data) = manifest?;
+    let Some(data) = data else {
         return Ok(Listed::Unlisted);
     };
 
     let plan = plan::diff(data.base_envelope.as_ref(), data.head_envelope.as_ref());
     let mut proposal = build_proposal(pr, project, &data, plan, None, lane_of_paths(&carried));
     proposal.metadata = change_meta(state, gitea, pr.number, project);
-    let (author, waits_on) = tokio::join!(
-        human_author(gitea, pr),
-        awaited_changes(state, gitea, pr, project)
-    );
     proposal.author = author;
     // The count only: a listing that read every file of every open change to render
     // "+3 files" would pay for the detail page on the way past it (T-0861).
@@ -3474,6 +3486,100 @@ mod tests {
         );
         // pulls, pulls/7/files, the manifest on head and on base, the head commit.
         assert_eq!(asked.len(), 5, "{asked:?}");
+    }
+
+    /// Four changes at a time, each reading its files, its head, its base and its author one
+    /// after another: ~1 s on dev for helsinki's open changes after the tree walk was gone
+    /// (T-6347). Eight open changes behind a forge that answers each read in 150 ms took
+    /// 2 waves x 4 round trips (~1.35 s with the list); one wave of two round trips takes ~0.45 s.
+    #[tokio::test]
+    async fn the_list_reads_its_open_changes_in_one_wave_of_two_round_trips() {
+        let server = MockServer::start().await;
+        let client = GiteaClient::new(
+            server.uri().parse().unwrap(),
+            "test-owner",
+            "test-repo",
+            "token-xyz",
+        )
+        .unwrap();
+        let state = AppState::new(Config::for_tests(), None).with_gitea(Arc::new(client));
+        let slow = std::time::Duration::from_millis(150);
+        let pulls: Vec<Value> = (1..=8)
+            .map(|n| {
+                json!({
+                    "number": n,
+                    "html_url": format!("https://gitea.example.sk/pulls/{n}"),
+                    "state": "open",
+                    "title": format!("update Endpoint air-{n}"),
+                    "head": { "ref": format!("portal/update-endpoint-air-{n}-1234567{n}") },
+                    "base": { "ref": "main" },
+                    "created_at": "2026-09-06T09:14:22Z",
+                    "user": { "login": "author", "full_name": "Author", "email": "author@example.sk" }
+                })
+            })
+            .collect();
+        Mock::given(method("GET"))
+            .and(path("/api/v1/repos/test-owner/test-repo/pulls"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(pulls)
+                    .set_delay(slow),
+            )
+            .mount(&server)
+            .await;
+        for n in 1..=8 {
+            let manifest_path = format!("projects/ovzdusie/spaces/air/endpoints/air-{n}.yaml");
+            Mock::given(method("GET"))
+                .and(path(format!(
+                    "/api/v1/repos/test-owner/test-repo/pulls/{n}/files"
+                )))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(json!([{ "filename": manifest_path, "status": "modified" }]))
+                        .set_delay(slow),
+                )
+                .mount(&server)
+                .await;
+            let manifest = format!(
+                "apiVersion: joinedcontext.com/v1alpha1\nkind: Endpoint\nmetadata:\n  name: air-{n}\n  namespace: ovzdusie\nspec:\n  contextSpaceRef: air\n"
+            );
+            Mock::given(method("GET"))
+                .and(path(format!(
+                    "/api/v1/repos/test-owner/test-repo/contents/{manifest_path}"
+                )))
+                .respond_with(
+                    ResponseTemplate::new(200)
+                        .set_body_json(json!({
+                            "sha": format!("blob-{n}"),
+                            "content": base64::engine::Engine::encode(
+                                &base64::engine::general_purpose::STANDARD,
+                                manifest.as_bytes(),
+                            )
+                        }))
+                        .set_delay(slow),
+                )
+                .mount(&server)
+                .await;
+        }
+        Mock::given(method("GET"))
+            .and(wiremock::matchers::path_regex("/(branches|commits)"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({ "commit": { "id": "head" } }))
+                    .set_delay(slow),
+            )
+            .mount(&server)
+            .await;
+
+        let started = std::time::Instant::now();
+        let list = list_changes_for(&state, "ovzdusie").await.unwrap();
+        let took = started.elapsed();
+        assert_eq!(list.items.len(), 8, "{:?}", list.items);
+        // One wave: the list, then files and the author together, then head and base together.
+        assert!(
+            took < std::time::Duration::from_millis(900),
+            "the list took {took:?}"
+        );
     }
 
     #[tokio::test]
