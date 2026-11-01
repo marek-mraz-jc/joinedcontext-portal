@@ -491,6 +491,8 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
   const accessOf = useCallback((attr: string) => accessByName.get(attr), [accessByName]);
   const editable = useMemo(() => {
     const allowed = hookOptions.config.editableAttrs;
+    // A computed column is worked out from the row (T-6384): nothing to write back.
+    const computed = new Set(hookOptions.config.columns.filter((c) => c.formula !== undefined).map((c) => c.attr));
     return (column: VisibleColumn): boolean =>
       // The attribute's own column only: a metadata column shows when the value was observed or
       // what it is measured in, and neither is corrected by typing over it.
@@ -498,8 +500,9 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
       column.attr !== null &&
       column.meta === null &&
       allowed.includes(column.attr) &&
+      !computed.has(column.attr) &&
       (!asked || accessOf(column.attr)?.write === true);
-  }, [editing, hookOptions.config.editableAttrs, asked, accessOf]);
+  }, [editing, hookOptions.config.editableAttrs, hookOptions.config.columns, asked, accessOf]);
   const [inspected, setInspected] = useState<{ attr: string; label: string; row?: RichRow } | null>(null);
   // A host that translated only the grid's labels still gets its own word for closing.
   const inspectorLabels = { ...DEFAULT_INSPECTOR_LABELS, close: labels.close, ...hookOptions.labels?.inspectorLabels };

@@ -6,6 +6,7 @@ import type { EntitySource, GridQuery } from "./source";
 import { SourceError } from "./source";
 import type { RichRow, RichCell } from "./model";
 import { attributesOf, cellText } from "./model";
+import { formulasOf, withFormulas } from "./formula";
 import { unitSymbol } from "../sdk/units";
 import { andQ, opsForKind, queryFromFilters, typeOfFilter } from "./filters";
 import type { ColumnFilter, FilterColumn, FilterKind, FilterOp } from "./filters";
@@ -843,6 +844,14 @@ function holdsLanguage(rows: RichRow[], attr: string): boolean {
  */
 const refusesOrder = new WeakSet<EntitySource>();
 
+/** A narrowed read still brings what the computed columns read, or they would stay empty. */
+function withReads(attrs: string[] | undefined, formulas: readonly { reads: string[] }[]): string[] | undefined {
+  if (attrs === undefined) return undefined;
+  const all = [...attrs];
+  for (const name of formulas.flatMap((each) => each.reads)) if (!all.includes(name)) all.push(name);
+  return all;
+}
+
 export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   const { config, source, labels: labelsPartial, state: controlledState, onStateChange, query: queryPartial, enums, relations, virtual = false, paged = false, hidden, layout } = options;
   // By content, as `hidden`: a host building new arrays each render does not ask again.
@@ -890,7 +899,11 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     controlledState?.filterText !== undefined ? controlledState.filterText : internalFilterText;
   const edits = controlledState?.edits !== undefined ? controlledState.edits : internalEdits;
 
-  const [rows, setRows] = useState<RichRow[]>([]);
+  const [loadedRows, setRows] = useState<RichRow[]>([]);
+  // A computed column (T-6384) is a cell of every loaded row, worked out here from the row's own
+  // attributes: it sorts and shows as any other, and is never asked of or written to the endpoint.
+  const formulas = useMemo(() => formulasOf(config.columns), [config.columns]);
+  const rows = useMemo(() => withFormulas(loadedRows, formulas), [loadedRows, formulas]);
   const [total, setTotal] = useState<number | undefined>(undefined);
   const [more, setMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -925,9 +938,10 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     [groupByKey, sort, thenByKey],
   );
   const ordersAll = source.orders === true && !refusesOrder.has(source);
-  const sortedLoadedOnly =
-    source.orders === true && !ordersAll && keys.length > 0 && !keys.some((key) => key.attr.startsWith("entity:"));
-  const serverOrder = ordersAll && keys.length > 0 && !keys.some((key) => key.attr.startsWith("entity:"))
+  // The entity's timestamps and a computed column are no stored attribute `orderBy` could name.
+  const unstored = (attr: string) => attr.startsWith("entity:") || formulas.some((each) => each.attr === attr);
+  const sortedLoadedOnly = source.orders === true && !ordersAll && keys.length > 0 && !keys.some((key) => unstored(key.attr));
+  const serverOrder = ordersAll && keys.length > 0 && !keys.some((key) => unstored(key.attr))
     ? keys.map((key) => (key.dir === "desc" ? `${key.attr};desc` : key.attr)).join(",")
     : undefined;
   const sortedRows = useMemo(() => {
@@ -968,8 +982,13 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
           ...(column.attr !== null && column.meta === null && holdsLanguage(shapeRows, column.attr) ? { language: true } : {}),
         }))
         // A computed end is not stored, so no `q` can ask about it.
-        .filter((column) => opsForKind(column.kind).length > 0 && !(column.attr !== null && relations?.[column.attr]?.inverseOf)),
-    [columns, config, shapeRows, enums, relations],
+        .filter(
+          (column) =>
+            opsForKind(column.kind).length > 0 &&
+            !(column.attr !== null && relations?.[column.attr]?.inverseOf) &&
+            !formulas.some((each) => each.attr === column.attr),
+        ),
+    [columns, config, shapeRows, enums, relations, formulas],
   );
 
   // What the endpoint is asked for: the typed query when the person took it over, else the row's.
@@ -1021,7 +1040,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     // The caller's query and the filter row are both true: `;` is how NGSI-LD says "and", so a
     // preset that narrows the grid to one district cannot be widened by a filter (EP-07).
     q: andQ(queryPartial?.q ?? config.filters.preset?.q, askedQuery.q),
-    attrs: queryPartial?.attrs ?? config.filters.preset?.attrs,
+    attrs: withReads(queryPartial?.attrs ?? config.filters.preset?.attrs, formulas),
     idPattern: askedQuery.idPattern ?? queryPartial?.idPattern ?? config.filters.preset?.idPattern,
     scopeQ: queryPartial?.scopeQ ?? config.filters.preset?.scopeQ,
     // Exactly these entities: an opened relationship target (G-R2GRID2-017).
