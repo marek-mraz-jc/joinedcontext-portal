@@ -28,6 +28,18 @@ use serde_json::{json, Value};
 use wiremock::matchers::{body_string_contains, method, path, path_regex, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+/// T-6301: the client holds no optional scope, so the pass unlinks nothing.
+async fn no_optional_scopes(keycloak: &MockServer) {
+    Mock::given(method("GET"))
+        .and(path_regex(
+            "^/admin/realms/bb/clients/[^/]+/optional-client-scopes$",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .with_priority(5)
+        .mount(keycloak)
+        .await;
+}
+
 const REALM: &str = "/admin/realms/bb";
 const HOST: &str = "city.example";
 
@@ -116,6 +128,7 @@ fn mirror_with(apps: Vec<ResourceEnvelope>) -> Mirror {
 
 async fn realm() -> MockServer {
     let keycloak = MockServer::start().await;
+    no_optional_scopes(&keycloak).await;
     Mock::given(method("POST"))
         .and(path("/realms/bb/protocol/openid-connect/token"))
         .respond_with(
@@ -367,6 +380,7 @@ async fn a_managed_client_whose_app_is_gone_is_deleted_and_a_draft_gets_none() {
 #[tokio::test]
 async fn a_realm_that_refuses_the_token_is_one_failure_and_writes_nothing() {
     let keycloak = MockServer::start().await;
+    no_optional_scopes(&keycloak).await;
     Mock::given(method("POST"))
         .and(path("/realms/bb/protocol/openid-connect/token"))
         .respond_with(ResponseTemplate::new(401))
@@ -947,6 +961,7 @@ async fn a_realm_that_fails_on_the_roles_still_gets_the_audiences() {
 /// call shows which credential made it.
 async fn realm_of_two() -> MockServer {
     let keycloak = MockServer::start().await;
+    no_optional_scopes(&keycloak).await;
     Mock::given(method("POST"))
         .and(path("/realms/bb/protocol/openid-connect/token"))
         .and(body_string_contains("client_id=portal-reconciler"))
@@ -1116,6 +1131,7 @@ async fn role_holders_are_read_by_the_login_client_and_mapped_by_the_reconciler(
 #[tokio::test]
 async fn a_refused_member_credential_fails_the_roles_and_keeps_the_login() {
     let keycloak = MockServer::start().await;
+    no_optional_scopes(&keycloak).await;
     Mock::given(method("POST"))
         .and(path("/realms/bb/protocol/openid-connect/token"))
         .and(body_string_contains("client_id=portal-reconciler"))
