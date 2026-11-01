@@ -6,9 +6,11 @@ import { describe, expect, it } from "vitest";
 describe("the grid at a phone's width", () => {
   const css = readFileSync("src/grid/grid.css", "utf8");
 
-  it("keeps the pinned name a column to read in on a narrow screen", () => {
+  // T-6210: the pinned column is the id, so on a phone it keeps a quarter of the screen and leaves
+  // the cells to its right reachable instead of covering them.
+  it("keeps the pinned id a column to read in on a narrow screen", () => {
     const narrow = css.slice(css.indexOf("@media (width <= 640px)"));
-    expect(narrow).toMatch(/\.jc-grid td\.jc-grid-pinned[^{]*\{[^}]*min-width:\s*min\(45vw, 12rem\)/);
+    expect(narrow).toMatch(/\.jc-grid td\.jc-grid-pinned[^{]*\{[^}]*min-width:\s*min\(25vw, 7rem\)/);
   });
 
   it("shadows the right edge while the table scrolls on", () => {

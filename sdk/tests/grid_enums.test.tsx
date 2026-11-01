@@ -141,7 +141,8 @@ describe("an enum column in the grid", () => {
     const cell = { ignore: "option, script, style" };
     expect(await screen.findByText("Traffic", cell)).toBeInTheDocument();
     expect(screen.queryByText("traffic", cell)).toBeNull();
-    expect(screen.getByText("roadworks", cell)).toBeInTheDocument();
+    // A value outside the list says so (G-R2GRID2-019).
+    expect(screen.getByText(`roadworks (${DEFAULT_LABELS.notInList})`, cell)).toBeInTheDocument();
   });
 
   it("edits by picking exactly the permissible values, showing titles and storing the value", async () => {
@@ -193,7 +194,7 @@ describe("an enum column in the grid", () => {
 
   it("filters with a multi-select that asks the endpoint for any of the picked values", async () => {
     const { asked } = grid("view");
-    await screen.findByText("roadworks");
+    await screen.findByText(`roadworks (${DEFAULT_LABELS.notInList})`);
     fireEvent.change(screen.getByLabelText(`${DEFAULT_LABELS.filter}: Category`), { target: { value: "anyOf" } });
     const picker = screen.getByLabelText(`${DEFAULT_LABELS.value}: Category`) as HTMLSelectElement;
     expect(picker.multiple).toBe(true);

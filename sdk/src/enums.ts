@@ -13,6 +13,11 @@ export interface EnumOption {
   value: string;
   title?: string;
   description?: string;
+  /**
+   * The term the value stands for: the LinkML permissible value's `meaning`, an IRI a host may link
+   * to (G-R2GRID2-019). Read from `x-enum-meanings`, keyed by value, beside `x-enum-titles`.
+   */
+  meaning?: string;
 }
 
 type Json = Record<string, unknown>;
@@ -117,16 +122,22 @@ function read(property: unknown, defs: Json, language: string | undefined, seen:
 
 /**
  * Titles given beside a plain `enum`: `x-enum-titles` and `x-enum-descriptions`, keyed by value,
- * each a string or a language map. A title a `oneOf` already carries is kept.
+ * each a string or a language map, and `x-enum-meanings`, each an IRI. A title a `oneOf` already
+ * carries is kept.
  */
 function withTitles(schema: Json, options: EnumOption[], language?: string): EnumOption[] {
   const titles = object(schema["x-enum-titles"]) ?? {};
   const descriptions = object(schema["x-enum-descriptions"]) ?? {};
-  return options.map((option) => ({
-    value: option.value,
-    title: option.title ?? phrase(titles[option.value], language),
-    description: option.description ?? phrase(descriptions[option.value], language),
-  }));
+  const meanings = object(schema["x-enum-meanings"]) ?? {};
+  return options.map((option) => {
+    const meaning = meanings[option.value];
+    return {
+      value: option.value,
+      title: option.title ?? phrase(titles[option.value], language),
+      description: option.description ?? phrase(descriptions[option.value], language),
+      ...(typeof meaning === "string" && meaning.trim() !== "" ? { meaning: meaning.trim() } : {}),
+    };
+  });
 }
 
 /**

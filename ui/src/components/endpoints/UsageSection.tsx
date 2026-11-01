@@ -29,14 +29,16 @@ function WindowPicker({
   id,
   value,
   onChange,
+  className = "w-48",
 }: {
   id: string;
   value: UsageWindow;
   onChange: (days: UsageWindow) => void;
+  className?: string;
 }): JSX.Element {
   const { t } = useTranslation();
   return (
-    <Field id={id} label={t("endpointUsage.window")} help={t("endpointUsage.hint.window")} className="w-48">
+    <Field id={id} label={t("endpointUsage.window")} help={t("endpointUsage.hint.window")} className={className}>
       <Select
         id={id}
         value={value}
@@ -142,6 +144,8 @@ export function EndpointUsageSection({ project, name }: { project: string; name:
   );
 }
 
+const SUBGRID_FIELD = "sm:row-span-4 sm:grid sm:grid-rows-subgrid";
+
 /**
  * Every Endpoint of the project the person may read, with its calls over the window, and a month
  * of all of them as CSV (T-5118).
@@ -175,18 +179,21 @@ export function ProjectUsageSection({ project }: { project: string }): JSX.Eleme
         {t("endpointUsage.title")}
       </h2>
       <p className="text-sm text-fg-muted">{t("endpointUsage.lead")}</p>
-      <div className="flex flex-wrap items-end gap-3">
-        <WindowPicker id="project-usage-window" value={days} onChange={setDays} />
+      {/* From sm up each Field spans four subgrid rows (label, control, hint, error), so the labels
+          share a top line and the controls one line whatever their hints say; the button sits on
+          the control row. Below sm the three stack (T-6310). */}
+      <div className="grid gap-x-3 gap-y-1.5 sm:grid-cols-[12rem_12rem_auto] sm:grid-rows-[repeat(4,auto)] sm:justify-start">
+        <WindowPicker id="project-usage-window" value={days} onChange={setDays} className={SUBGRID_FIELD} />
         <Field
           id="project-usage-month"
           label={t("endpointUsage.month")}
           help={t("endpointUsage.hint.month")}
           errors={monthValid ? undefined : [t("endpointUsage.monthInvalid")]}
-          className="w-48"
+          className={SUBGRID_FIELD}
         >
           <Input id="project-usage-month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
         </Field>
-        <Button variant="secondary" size="sm" onClick={() => void save()}
+        <Button variant="secondary" className="justify-self-start sm:col-start-3 sm:row-start-2" onClick={() => void save()}
           disabled={exporting || !monthValid}
           title={exporting ? t("endpointUsage.exporting") : monthValid ? undefined : t("endpointUsage.monthInvalid")}
         >
