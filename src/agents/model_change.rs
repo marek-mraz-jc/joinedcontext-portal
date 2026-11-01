@@ -934,6 +934,21 @@ mod tests {
         serde_json::from_value(json).expect("operations")
     }
 
+    #[test]
+    fn a_blank_model_takes_the_organization_prefix_and_imports_ngsi_ld_core() {
+        let model = blank("bratislava.sk", "bikes");
+        assert_eq!(model["id"], "https://bratislava.sk/models/bikes");
+        assert_eq!(model["default_prefix"], "bratislava");
+        assert_eq!(
+            model["prefixes"]["bratislava"],
+            "https://bratislava.sk/terms/"
+        );
+        assert_eq!(model["imports"], json!(["linkml:types", "ngsi-ld-core"]));
+        assert_eq!(blank(".sk", "bikes")["default_prefix"], "org");
+        let added = apply(&model, &ops(json!([{ "op": "addClass", "name": "Bike" }])));
+        assert!(added.is_ok(), "{added:?}");
+    }
+
     fn op(json: Value) -> Operation {
         serde_json::from_value(json).expect("operation")
     }
