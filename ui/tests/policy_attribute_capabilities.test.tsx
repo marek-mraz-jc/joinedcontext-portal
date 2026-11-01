@@ -96,7 +96,7 @@ describe("the attribute capability matrix (DM-153)", () => {
     const rows = within(table).getAllByRole("rowheader").map((cell) => cell.textContent);
     expect(rows).toEqual(["All attributes (*)", "name", "pm10"]);
     // Every column says what it does, with an example.
-    expect(screen.getByText(/Example: Yes on pm10 serves its readings of last week/)).toBeTruthy();
+    expect(screen.getByText(/Example: Allowed on pm10 serves its readings of last week/)).toBeTruthy();
 
     await user.selectOptions(within(table).getByRole("combobox", { name: "pm10: Read" }), "false");
     await user.selectOptions(within(table).getByRole("combobox", { name: "pm10: History" }), "true");
@@ -140,7 +140,7 @@ describe("the attribute capability matrix (DM-153)", () => {
     await i18n.changeLanguage("sk");
     form(PUBLIC_READER, () => {});
     expect(await screen.findByRole("table", { name: /Schopnosti atribútov typu AirQualityObserved/ })).toBeTruthy();
-    expect(screen.getByText(/Napríklad Áno pri pm10/)).toBeTruthy();
+    expect(screen.getByText(/Napríklad Povolené pri pm10/)).toBeTruthy();
   });
 });
 
@@ -213,7 +213,7 @@ describe("the matrix cells on their own", () => {
         <CapabilityCell attribute="name" column="write" row={undefined} limits={limits} frozen={false} describedBy="h" onChange={() => {}} />
       </>,
     );
-    expect(screen.getByRole("option", { name: "Same as all (*): No" })).toBeTruthy();
+    expect(screen.getByRole("option", { name: "Same as all (*): Withheld" })).toBeTruthy();
     expect(screen.getByText("Needs queryTemporal or retrieveTemporal in the operations.")).toBeTruthy();
     expect(screen.getByRole("checkbox", { name: "name: Edit update" })).toBeTruthy();
   });

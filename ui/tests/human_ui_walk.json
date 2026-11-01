@@ -521,6 +521,16 @@
         "evidence/T-4832/service-account-custom-400.png"
       ]
     },
+    "src/components/forms/widgets/AttributeCapabilitiesField.tsx": {
+      "walkedBy": "worker-t6339 (stub walk, e2e/policy_attribute_capabilities.spec.ts)",
+      "date": "2026-11-01",
+      "screenshots": [
+        "evidence/T-6339/matrix-en-1440.png",
+        "evidence/T-6339/matrix-en-400.png",
+        "evidence/T-6339/matrix-sk-1440.png",
+        "evidence/T-6339/matrix-sk-400.png"
+      ]
+    },
     "src/components/forms/widgets/KnowledgeSourcesField.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",

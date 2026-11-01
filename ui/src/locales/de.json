@@ -6820,8 +6820,8 @@
       "every": "Alle Attribute (*)",
       "asGrant": "Standard der Berechtigung",
       "asEvery": "Wie alle (*)",
-      "yes": "Ja",
-      "no": "Nein",
+      "yes": "Erlaubt",
+      "no": "Verweigert",
       "hintsTitle": "Was jede Spalte bedeutet, mit Beispielen",
       "limitsTitle": "Was diese Berechtigung nicht geben kann",
       "none": "Keine",
@@ -6848,8 +6848,8 @@
         "write": "Bearbeiten"
       },
       "hint": {
-        "read": "Der aktuelle Wert. Beispiel: Nein bei pm10 behält ihn nur für den Verlauf.",
-        "history": "Frühere Werte über die Zeit. Beispiel: Ja bei pm10 liefert die Messungen der letzten Woche.",
+        "read": "Der aktuelle Wert. Beispiel: Verweigert bei pm10 behält ihn nur für den Verlauf.",
+        "history": "Frühere Werte über die Zeit. Beispiel: Erlaubt bei pm10 liefert die Messungen der letzten Woche.",
         "versions": "read liefert frühere Versionen eines Werts, keep bewahrt jeden Schreibvorgang als Version. Beispiel: keep bei name.",
         "metadata": "Welche Angaben mit dem Wert reisen. Beispiel: observedAt und unitCode.",
         "write": "Welche Änderungen erlaubt sind. Beispiel: update bei name, nichts bei pm10."

@@ -6820,8 +6820,8 @@
       "every": "Všetky atribúty (*)",
       "asGrant": "Podľa oprávnenia",
       "asEvery": "Ako všetky (*)",
-      "yes": "Áno",
-      "no": "Nie",
+      "yes": "Povolené",
+      "no": "Odopreté",
       "hintsTitle": "Čo znamená každý stĺpec, s príkladmi",
       "limitsTitle": "Čo toto oprávnenie nemôže dať",
       "none": "Žiadne",
@@ -6848,8 +6848,8 @@
         "write": "Úpravy"
       },
       "hint": {
-        "read": "Aktuálna hodnota. Napríklad Nie pri pm10 ju ponechá len pre históriu.",
-        "history": "Minulé hodnoty v čase. Napríklad Áno pri pm10 poskytne merania za minulý týždeň.",
+        "read": "Aktuálna hodnota. Napríklad Odopreté pri pm10 ju ponechá len pre históriu.",
+        "history": "Minulé hodnoty v čase. Napríklad Povolené pri pm10 poskytne merania za minulý týždeň.",
         "versions": "read poskytne staršie verzie hodnoty, keep uloží každý zápis ako verziu. Napríklad keep pri name.",
         "metadata": "Ktoré údaje idú s hodnotou. Napríklad observedAt a unitCode.",
         "write": "Ktoré zmeny smie volajúci urobiť. Napríklad update pri name, nič pri pm10."

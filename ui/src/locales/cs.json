@@ -6820,8 +6820,8 @@
       "every": "Všechny atributy (*)",
       "asGrant": "Výchozí podle oprávnění",
       "asEvery": "Jako všechny (*)",
-      "yes": "Ano",
-      "no": "Ne",
+      "yes": "Povoleno",
+      "no": "Odepřeno",
       "hintsTitle": "Co znamená každý sloupec, s příklady",
       "limitsTitle": "Co toto oprávnění nemůže dát",
       "none": "Žádné",
@@ -6848,8 +6848,8 @@
         "write": "Úpravy"
       },
       "hint": {
-        "read": "Aktuální hodnota. Například Ne u pm10 ji ponechá jen pro historii.",
-        "history": "Minulé hodnoty v čase. Například Ano u pm10 poskytne měření za minulý týden.",
+        "read": "Aktuální hodnota. Například Odepřeno u pm10 ji ponechá jen pro historii.",
+        "history": "Minulé hodnoty v čase. Například Povoleno u pm10 poskytne měření za minulý týden.",
         "versions": "read poskytne starší verze hodnoty, keep uloží každý zápis jako verzi. Například keep u name.",
         "metadata": "Které údaje jdou s hodnotou. Například observedAt a unitCode.",
         "write": "Které změny smí volající provést. Například update u name, nic u pm10."

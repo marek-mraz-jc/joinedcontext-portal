@@ -6820,8 +6820,8 @@
       "every": "All attributes (*)",
       "asGrant": "Grant's default",
       "asEvery": "Same as all (*)",
-      "yes": "Yes",
-      "no": "No",
+      "yes": "Allowed",
+      "no": "Withheld",
       "hintsTitle": "What each column means, with examples",
       "limitsTitle": "What this grant cannot give",
       "none": "None",
@@ -6848,8 +6848,8 @@
         "write": "Edit"
       },
       "hint": {
-        "read": "The current value. Example: No on pm10 keeps it for history only.",
-        "history": "Past values over time. Example: Yes on pm10 serves its readings of last week.",
+        "read": "The current value. Example: Withheld on pm10 keeps it for history only.",
+        "history": "Past values over time. Example: Allowed on pm10 serves its readings of last week.",
         "versions": "read serves earlier versions of a value, keep stores every write as a version. Example: keep on name.",
         "metadata": "Which members travel with the value. Example: observedAt and unitCode.",
         "write": "Which changes the caller may make. Example: update on name, nothing on pm10."

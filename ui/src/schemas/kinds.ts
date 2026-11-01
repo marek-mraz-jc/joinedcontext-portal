@@ -1818,7 +1818,7 @@ export function policySchema(
             attributes: {
               type: "object",
               title: t("policies.capabilities.title"),
-              additionalProperties: ATTRIBUTE_CAPABILITIES_SCHEMA,
+              additionalProperties: attributeCapabilitiesSchema(t),
             },
           },
         },
@@ -1852,18 +1852,24 @@ export function policySchema(
   };
 }
 
-/** One attribute's capabilities in a grant, as jc-core's `AttributeCapabilities` (ADR-N-066). */
-const ATTRIBUTE_CAPABILITIES_SCHEMA: JsonSchema = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    read: { type: "boolean" },
-    history: { type: "boolean" },
-    versions: { type: "array", items: { type: "string", enum: [...VERSIONS_CAPABILITIES] }, uniqueItems: true },
-    metadata: { type: "array", items: { type: "string", enum: [...METADATA_MEMBERS] }, uniqueItems: true },
-    write: { type: "array", items: { type: "string", enum: [...WRITE_CAPABILITIES] }, uniqueItems: true },
-  },
-};
+/**
+ * One attribute's capabilities in a grant, as jc-core's `AttributeCapabilities` (ADR-N-066).
+ * Metadata members are titled by their own names: they are the names a reader of the answer sees.
+ */
+function attributeCapabilitiesSchema(t: (key: string) => string): JsonSchema {
+  const list = (choices: JsonSchema): JsonSchema => ({ type: "array", items: { type: "string", ...choices }, uniqueItems: true });
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      read: { type: "boolean" },
+      history: { type: "boolean" },
+      versions: list(words(t, "policies.capabilities.value", VERSIONS_CAPABILITIES)),
+      metadata: list({ oneOf: METADATA_MEMBERS.map((member) => ({ const: member, title: member })) }),
+      write: list(words(t, "policies.capabilities.value", WRITE_CAPABILITIES)),
+    },
+  };
+}
 
 /** The members a rule of `rules[]` carries, which the Policy then holds in no other place (ADR-N-057). */
 export const POLICY_RULE_MEMBERS = ["effect", "assignee", "operations", "actions", "information", "q", "scopeQ", "geoQ", "temporalQ"];
