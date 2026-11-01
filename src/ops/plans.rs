@@ -387,9 +387,7 @@ async fn checked(
     let mut manifest = manifest_of(state, at, &home, change)?;
     // The slug is the platform's to mint (EP-75): a typed one is refused under this change's own
     // path here, before the check below mints one and records it on the Endpoint's draft.
-    if let Some(m) = &manifest {
-        slug_settled(caller, state, at, &home, &mut m.clone()).await?;
-    }
+    slug_settled(caller, state, at, &home, manifest.clone().as_mut()).await?;
     let base = etag(state, &home, info.kind, &change.name);
     let answer = match &manifest {
         Some(m) => {
@@ -404,9 +402,7 @@ async fn checked(
     };
     // The slug the check minted, from the draft it recorded, so the change proposes what was
     // checked.
-    if let Some(m) = manifest.as_mut() {
-        slug_settled(caller, state, at, &home, m).await?;
-    }
+    slug_settled(caller, state, at, &home, manifest.as_mut()).await?;
     let mut answer = answer;
     if let (Some(m), "Pipeline") = (&manifest, info.kind) {
         let warnings = super::replace_check::warnings(state, project, &home, m).await;
@@ -479,8 +475,11 @@ async fn slug_settled(
     state: &AppState,
     at: &str,
     home: &str,
-    manifest: &mut Value,
+    manifest: Option<&mut Value>,
 ) -> Result<(), OpError> {
+    let Some(manifest) = manifest else {
+        return Ok(());
+    };
     // The check records its draft outside every workspace, so the slug is read there.
     crate::endpoint_slug::settle_in(state, home, None, caller.brings_its_own_slug(), manifest)
         .await
