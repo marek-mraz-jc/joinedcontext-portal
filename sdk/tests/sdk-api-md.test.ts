@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import apiMd from "../API.md?raw";
 import * as sdk from "../src/sdk/index";
+import * as grid from "../src/sdk/grid";
 import * as server from "../src/sdk/server";
 import * as testing from "../src/sdk/testing";
 
@@ -8,6 +9,7 @@ import * as testing from "../src/sdk/testing";
 describe("API.md", () => {
   it.each([
     ["@joinedcontext/sdk", sdk],
+    ["@joinedcontext/sdk/grid", grid],
     ["@joinedcontext/sdk/server", server],
     ["@joinedcontext/sdk/testing", testing],
   ])("lists every runtime export of %s", (_entry, exports) => {
@@ -24,6 +26,12 @@ describe("API.md", () => {
   ])("declares nothing %s does not export", (entry, exports) => {
     const invented = declaredIn(entry).filter((name) => !(name in exports));
     expect(invented).toEqual([]);
+  });
+
+  // G-R2GRID2-001: the grid entry is the root's grid, so an App may import either and gets one component.
+  it("lists @joinedcontext/sdk/grid as an import, with names the root entry also exports", () => {
+    expect(apiMd).toMatch(/Allowed imports:[^\n]*`@joinedcontext\/sdk\/grid`/);
+    expect(Object.keys(grid).filter((name) => !(name in sdk))).toEqual([]);
   });
 
   it("finds the declarations it checks", () => {
