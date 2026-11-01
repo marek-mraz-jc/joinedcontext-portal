@@ -1141,7 +1141,7 @@
       "ownTypeHint": "Jedno slovo s velkým počátečním písmenem, například Garage.",
       "space": "Název prostoru",
       "notReady": "Nejprve vyberte soubor, typ a prostor.",
-      "spaceHint": "Existující prostor nebo nový název malými písmeny, například parkovaci-domy.",
+      "spaceHint": "Existující prostor nebo nový název malými písmeny, třeba parkovaci-domy.",
       "missingSpace": "Vyberte kontextový prostor, který se má navrhnout.",
       "missingType": "Vyberte typ nebo napište název vlastního typu.",
       "columns": "Sloupce: {names}",
