@@ -18,6 +18,7 @@ import {
   TableHeaderCell,
   TableRow,
   Term,
+  RadioGroup,
 } from "../../components/ui";
 import {
   DEFAULT_KIND,
@@ -86,7 +87,6 @@ export function LinkmlVisualEditor({
   const { t } = useTranslation();
   const word = useFieldWords();
   const model = useMemo(() => parseModel(source), [source]);
-  const newClassInput = useRef<HTMLInputElement>(null);
 
   const [selectedClass, setSelectedClass] = useState<string | null>(initialClass ?? null);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
@@ -353,8 +353,8 @@ export function LinkmlVisualEditor({
               >
                 <Field id="new-class-name" label={t("models.newClass")} help={t("models.addClassNameHint")}>
                   <div className="flex gap-2">
-                    <Input id="new-class-name" ref={newClassInput} autoFocus value={newClass} onChange={(event) => setNewClass(event.target.value)} />
-                    <Button type="submit" variant="primary" disabled={!newClass.trim()}>
+                    <Input id="new-class-name" value={newClass} onChange={(event) => setNewClass(event.target.value)} />
+                    <Button type="submit" variant="primary" disabled={!newClass.trim()} disabledReason={t("models.nameFirst")}>
                       {t("models.add")}
                     </Button>
                   </div>
@@ -665,23 +665,13 @@ export function LinkmlVisualEditor({
             <div className="mb-3 flex flex-col gap-3">
               {/* What the field holds first (owner 2026-11-01): a value, a link to another type, a place or a
                   text per language; a link takes the relationship form, every other kind the name. */}
-              <fieldset className="flex flex-col gap-2">
-                <legend className="mb-1 text-sm font-semibold">{t("models.addWhat")}</legend>
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {ADD_KINDS.map((kind) => (
-                    <label
-                      key={kind}
-                      className={`flex cursor-pointer flex-col gap-0.5 rounded-md border p-3 ${addKind === kind ? "border-primary bg-primary-soft" : "border-border"}`}
-                    >
-                      <span className="flex items-center gap-2 font-medium">
-                        <input type="radio" name="add-kind" checked={addKind === kind} onChange={() => setAddKind(kind)} />
-                        {t(`models.addKind.${kind}`)}
-                      </span>
-                      <span className="text-caption text-fg-muted">{t(`models.addKindHint.${kind}`)}</span>
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
+              <RadioGroup
+                name="add-kind"
+                legend={t("models.addWhat")}
+                value={addKind}
+                options={ADD_KINDS.map((kind) => ({ value: kind, label: t(`models.addKind.${kind}`), description: t(`models.addKindHint.${kind}`) }))}
+                onChange={setAddKind}
+              />
               {addKind === "Relationship" && activeClass ? (
                 <AddRelationshipForm
                   bare
@@ -710,8 +700,8 @@ export function LinkmlVisualEditor({
                 >
                   <Field id="new-slot-name" label={t("models.slotName")} help={t("models.slotNameHint")}>
                     <div className="flex gap-2">
-                      <Input id="new-slot-name" autoFocus value={newSlot} onChange={(event) => setNewSlot(event.target.value)} />
-                      <Button type="submit" variant="primary" disabled={!newSlot.trim()}>
+                      <Input id="new-slot-name" value={newSlot} onChange={(event) => setNewSlot(event.target.value)} />
+                      <Button type="submit" variant="primary" disabled={!newSlot.trim()} disabledReason={t("models.nameFirst")}>
                         {t("models.add")}
                       </Button>
                     </div>

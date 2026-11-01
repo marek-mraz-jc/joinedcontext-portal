@@ -4100,7 +4100,7 @@
       "create": "Vytvoriť model"
     },
     "structures": "Štruktúry hodnôt ({count})",
-    "structuresHint": "Tvar hodnoty štruktúrovaného poľa, napríklad jeho časti L1, L2, L3; nie typy entít.",
+    "structuresHint": "Tvar hodnoty štruktúrovaného poľa, ako jeho časti L1, L2, L3; nie typy entít.",
     "inlinePart": "Časť štruktúrovanej hodnoty, prevzatá zo Smart Data Model.",
     "addFrom": {
       "sdm": "Importovať zo Smart Data Models",
@@ -4109,7 +4109,8 @@
       "fileHint": "Excel, CSV alebo JSON: zo stĺpcov sa stanú polia.",
       "fileTitle": "Typy z tabuľky"
     },
-    "addClassNameHint": "Alebo začnite prázdny typ: názov ako WeatherObserved, písmená a číslice, bez medzier.",
+    "addClassNameHint": "Alebo začnite prázdny typ: názov z písmen a číslic bez medzier, ako Station.",
+    "nameFirst": "Najprv zadajte názov.",
     "addWhat": "Čo pole obsahuje?",
     "addKind": {"Property": "Hodnotu", "Relationship": "Odkaz na iný typ", "GeoProperty": "Miesto", "LanguageProperty": "Text vo viacerých jazykoch"},
     "addKindHint": {"Property": "Číslo, text, dátum, áno/nie alebo hodnotu zo zoznamu, ako teplotu.", "Relationship": "Ukazuje na entitu iného typu, ako stanicu, ku ktorej meranie patrí.", "GeoProperty": "Bod, čiaru alebo plochu na mape, ako polohu.", "LanguageProperty": "Jeden text pre každý jazyk, ako názov po fínsky a anglicky."},

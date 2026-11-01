@@ -65,7 +65,7 @@ export function SettingsPage({ project }: { project: string }): JSX.Element {
           <p className="mb-3 text-caption text-fg-muted">{t(`settingsPage.scopeHint.${group.scope}`)}</p>
           <ul className="flex flex-col gap-2">
             {group.entries.map((entry) => (
-              <li key={entry.key} className="flex items-center gap-2 text-body font-medium [&_a]:text-primary [&_a]:underline-offset-2 hover:[&_a]:underline">
+              <li key={entry.key} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-body font-medium [&_a]:text-primary-soft-fg [&_a]:underline-offset-2 hover:[&_a]:underline">
                 <Icon name={entry.icon} className="size-4 text-fg-subtle" />
                 {entry.link}
                 <span className="text-caption font-normal text-fg-muted">{t(`settingsPage.hint.${entry.key}`)}</span>

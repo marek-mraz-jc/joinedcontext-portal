@@ -625,10 +625,10 @@ export function ModelsPage({
           }}
         >
           <Field id="new-model-name" label={t("models.identity.name")} help={t("models.create.nameHint")}>
-            <Input id="new-model-name" autoFocus value={newName} onChange={(event) => setNewName(event.target.value)} />
+            <Input id="new-model-name" value={newName} onChange={(event) => setNewName(event.target.value)} />
           </Field>
           <div className="flex justify-end border-t border-border pt-3">
-            <Button type="submit" disabled={!newName.trim()}>
+            <Button type="submit" disabled={!newName.trim()} disabledReason={t("models.nameFirst")}>
               {t("models.newDialog.create")}
             </Button>
           </div>

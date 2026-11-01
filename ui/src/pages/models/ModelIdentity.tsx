@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { isMap, isScalar, type Document } from "yaml";
-import { Button, Icon, Input } from "../../components/ui";
+import { Button, Icon, InlineError, Input } from "../../components/ui";
 
 /**
  * The name line under the editor's title (T-6162, owner review v2): the model's name, which a
@@ -125,9 +125,7 @@ export function ModelIdentity({ name, id, creating, version, readOnly, onRename 
             </Button>
           </div>
           {empty ? (
-            <p role="alert" className="basis-full text-caption text-danger">
-              {t("models.identity.nameEmpty")}
-            </p>
+            <InlineError className="basis-full">{t("models.identity.nameEmpty")}</InlineError>
           ) : null}
         </form>
       )}

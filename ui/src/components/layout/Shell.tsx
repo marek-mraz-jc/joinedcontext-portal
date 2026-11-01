@@ -29,7 +29,6 @@ import {
   MenuLabel,
   MenuSeparator,
   MenuTrigger,
-  safeHref,
   PageLoading,
 } from "../ui";
 import type { IconName } from "../ui";
@@ -39,6 +38,7 @@ import { NewProjectButton } from "./NewProject";
 import { WorkspaceBar } from "./WorkspaceBar";
 import { withoutCopy } from "./WorkspaceContext";
 import { BrandMark, navLinkClass } from "./BrandMark";
+import { ShellFooter } from "./ShellFooter";
 
 export { BrandMark, navLinkClass };
 
@@ -1009,22 +1009,7 @@ export function Shell({
               </ErrorBoundary>
             </div>
           </main>
-          {branding.organisation || branding.contactEmail ? (
-            <footer className="border-t border-border bg-surface px-4 py-3 text-caption text-fg-muted sm:px-gutter">
-              {branding.organisation ? <span>{branding.organisation}</span> : null}
-              {branding.organisation && branding.contactEmail ? (
-                <span aria-hidden="true"> · </span>
-              ) : null}
-              {branding.contactEmail ? (
-                <a
-                  href={safeHref(`mailto:${branding.contactEmail}`)}
-                  className="focus-ring touch-target rounded-sm underline hover:text-fg hover:no-underline"
-                >
-                  {branding.contactEmail}
-                </a>
-              ) : null}
-            </footer>
-          ) : null}
+          <ShellFooter organisation={branding.organisation} contactEmail={branding.contactEmail} />
           </div>
         )}
         {/* The assistant is on the right of every page a run is remembered: a column beside

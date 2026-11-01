@@ -4109,7 +4109,8 @@
       "fileHint": "Excel, CSV or JSON: the columns become fields.",
       "fileTitle": "Types from a spreadsheet"
     },
-    "addClassNameHint": "Or start an empty type: a name such as WeatherObserved, letters and digits, no spaces.",
+    "addClassNameHint": "Or start an empty type: a name in letters and digits with no spaces, such as Station.",
+    "nameFirst": "Type a name first.",
     "addWhat": "What does the field hold?",
     "addKind": {"Property": "A value", "Relationship": "A link to another type", "GeoProperty": "A place", "LanguageProperty": "Text in several languages"},
     "addKindHint": {"Property": "A number, text, date, yes/no or a list value, such as temperature.", "Relationship": "Points at an entity of another type, such as the station a reading belongs to.", "GeoProperty": "A point, line or area on the map, such as location.", "LanguageProperty": "One text per language, such as a name in Finnish and English."},

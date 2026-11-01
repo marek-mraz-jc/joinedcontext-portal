@@ -4109,7 +4109,8 @@
       "fileHint": "Excel, CSV nebo JSON: ze sloupců se stanou pole.",
       "fileTitle": "Typy z tabulky"
     },
-    "addClassNameHint": "Nebo začněte prázdný typ: název jako WeatherObserved, písmena a číslice, bez mezer.",
+    "addClassNameHint": "Nebo začněte prázdný typ: název z písmen a číslic bez mezer, třeba Station.",
+    "nameFirst": "Nejprve zadejte název.",
     "addWhat": "Co pole obsahuje?",
     "addKind": {"Property": "Hodnotu", "Relationship": "Odkaz na jiný typ", "GeoProperty": "Místo", "LanguageProperty": "Text ve více jazycích"},
     "addKindHint": {"Property": "Číslo, text, datum, ano/ne nebo hodnotu ze seznamu, jako teplotu.", "Relationship": "Ukazuje na entitu jiného typu, jako stanici, ke které měření patří.", "GeoProperty": "Bod, čáru nebo plochu na mapě, jako polohu.", "LanguageProperty": "Jeden text pro každý jazyk, jako název finsky a anglicky."},

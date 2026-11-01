@@ -4109,7 +4109,8 @@
       "fileHint": "Excel, CSV oder JSON: die Spalten werden zu Feldern.",
       "fileTitle": "Typen aus einer Tabelle"
     },
-    "addClassNameHint": "Oder beginnen Sie einen leeren Typ: ein Name wie WeatherObserved, Buchstaben und Ziffern, ohne Leerzeichen.",
+    "addClassNameHint": "Oder beginnen Sie einen leeren Typ: ein Name aus Buchstaben und Ziffern ohne Leerzeichen, etwa Station.",
+    "nameFirst": "Geben Sie zuerst einen Namen ein.",
     "addWhat": "Was enthält das Feld?",
     "addKind": {"Property": "Einen Wert", "Relationship": "Einen Verweis auf einen anderen Typ", "GeoProperty": "Einen Ort", "LanguageProperty": "Text in mehreren Sprachen"},
     "addKindHint": {"Property": "Eine Zahl, einen Text, ein Datum, ja/nein oder einen Listenwert, wie die Temperatur.", "Relationship": "Zeigt auf eine Entität eines anderen Typs, wie die Station einer Messung.", "GeoProperty": "Einen Punkt, eine Linie oder eine Fläche auf der Karte, wie den Standort.", "LanguageProperty": "Einen Text je Sprache, wie einen Namen auf Finnisch und Englisch."},
