@@ -454,7 +454,7 @@ fn may_approve(
         .transpose()
         .map_err(|e| ApiError::Internal(e.to_string()))?;
     crate::permissions::for_request(state, identity, project).check(
-        &data.kind,
+        gate_kind(&data.kind),
         jc_core::kinds::Verb::Approve,
         target.as_ref(),
     )
@@ -771,6 +771,60 @@ async fn bundle_headline(
     Ok(None)
 }
 
+/// The headline kind of a change to a project's encrypted secrets file (CC-06, T-5971). No
+/// manifest kind: every right on it is DataSource's, as the secret form's (T-6359).
+pub(crate) const SECRET: &str = "Secret";
+
+/// The kind whose grants decide a change of headline `kind`.
+fn gate_kind(kind: &str) -> &str {
+    if kind == SECRET {
+        crate::api::secrets::KIND
+    } else {
+        kind
+    }
+}
+
+/// Whether `branch` is the secret form's (`portal/secret-{project}-{name}`, secrets.rs).
+fn is_secret_branch(branch: &str) -> bool {
+    let branch = branch.strip_prefix("refs/heads/").unwrap_or(branch);
+    branch.starts_with("portal/secret-")
+}
+
+/// The headline of a secret's change: the encrypted file of `project` it adds, replaces or
+/// removes, named by its path. The branch is no key to the name (a project and a name both hold
+/// `-`), and no content is read: the file holds ciphertext and the headline names no value.
+async fn secret_headline(
+    gitea: &GiteaClient,
+    pr: &PullRequest,
+    project: &str,
+    files: Option<&[crate::git::gitea::ChangedFile]>,
+) -> Result<Option<ManifestData>, ApiError> {
+    let fetched;
+    let files = match files {
+        Some(files) => files,
+        None => {
+            fetched = gitea.pull_request_files(pr.number).await?;
+            &fetched
+        }
+    };
+    Ok(files.iter().find_map(|file| {
+        let (home, name) = crate::secret_files::parse_path(&file.path)?;
+        (home == project).then(|| ManifestData {
+            kind: SECRET.to_owned(),
+            name: name.to_owned(),
+            operation: if file.deleted {
+                Operation::Delete
+            } else if file.added {
+                Operation::Create
+            } else {
+                Operation::Update
+            },
+            base_envelope: None,
+            head_envelope: None,
+        })
+    }))
+}
+
 /// The headline manifest of `pr`. `files` is the merge request's file list when the caller holds
 /// it: the manifest is found there before any probe (T-6347); `None` reads it only for a bundle.
 async fn load_manifest_data(
@@ -779,6 +833,9 @@ async fn load_manifest_data(
     project: &str,
     files: Option<&[crate::git::gitea::ChangedFile]>,
 ) -> Result<Option<ManifestData>, ApiError> {
+    if is_secret_branch(&pr.head_branch) {
+        return secret_headline(gitea, pr, project, files).await;
+    }
     let Some(branch_info) = parse_branch_name(&pr.head_branch) else {
         return bundle_headline(gitea, pr, project, files).await;
     };
@@ -1097,6 +1154,13 @@ fn space_of(data: &ManifestData) -> Option<String> {
 /// to any space, so a steward of one space read the changes of every other one.
 fn may_read_change(effective: &crate::permissions::Effective, proposal: &ChangeProposal) -> bool {
     kind_of(proposal).is_some_and(|kind| {
+        // A secret's names are listed to who may write or approve one, as the secrets list is
+        // (T-5971, T-6359): `read` on DataSource does not reach them.
+        if kind == SECRET {
+            return [jc_core::kinds::Verb::Propose, jc_core::kinds::Verb::Approve]
+                .into_iter()
+                .any(|verb| effective.check(gate_kind(kind), verb, None).is_ok());
+        }
         effective.may_read(kind) && effective.may_read_in(kind, proposal.space.as_deref())
     })
 }
@@ -1267,6 +1331,9 @@ async fn closed_headline(
         .collect();
     if ours.is_empty() {
         return Ok(None);
+    }
+    if is_secret_branch(&pr.head_branch) {
+        return secret_headline(gitea, pr, project, Some(files)).await;
     }
     if let Some(branch) = parse_branch_name(&pr.head_branch) {
         let kind = crate::resource::kinds()
@@ -1734,7 +1801,11 @@ fn administers(
         .and_then(|envelope| serde_json::to_value(envelope).ok());
     [jc_core::kinds::Verb::Approve, jc_core::kinds::Verb::Delete]
         .into_iter()
-        .all(|verb| effective.check(&data.kind, verb, target.as_ref()).is_ok())
+        .all(|verb| {
+            effective
+                .check(gate_kind(&data.kind), verb, target.as_ref())
+                .is_ok()
+        })
 }
 
 /// Every file the merge request changes, with the kind, the operation and the lane each one
@@ -1788,6 +1859,7 @@ async fn changed_files(
             .as_ref()
             .map(|envelope| envelope.kind.clone())
             .or_else(|| crate::api::import::native_kind(&file.path).map(str::to_owned))
+            .or_else(|| crate::secret_files::parse_path(&file.path).map(|_| SECRET.to_owned()))
             .unwrap_or_default();
         let operation = match (file.deleted, file.added) {
             (true, _) => Operation::Delete,
@@ -1856,9 +1928,22 @@ async fn approve_every_file(
             })?
             .content;
         let envelope = serde_norway::from_str::<ResourceEnvelope>(&content).ok();
-        files.push((file, envelope));
+        // A secrets file approves only as the form writes it, encrypted; a plain text one under
+        // `secrets/` would put a credential in the repository (CC-06, T-6359).
+        // Only its `sops` block may be plain: a fake `sops` key beside a plain value, or a
+        // manifest saved under `secrets/`, is refused before any kind is asked.
+        let sealed = crate::secret_files::parse_path(&file.path).is_some()
+            && (file.deleted || crate::secret_files::sealed(&content));
+        if crate::secret_files::parse_path(&file.path).is_some() && !sealed {
+            return Err(ApiError::Denied(format!(
+                "'{}' is under secrets/ but holds a value SOPS did not encrypt; enter the \
+                 credential in the project's Secrets form instead (CC-06)",
+                file.path
+            )));
+        }
+        files.push((file, envelope, sealed));
     }
-    for (file, envelope) in &files {
+    for (file, envelope, sealed) in &files {
         // A file outside `projects/` belongs to the organization — `users/`, `environments/`,
         // `blueprints/`, `org.yaml` — and is decided where the approval is made, as before.
         let home = project_of_path(&file.path).unwrap_or(project).to_owned();
@@ -1866,19 +1951,22 @@ async fn approve_every_file(
             .entry(home.clone())
             .or_insert_with(|| crate::permissions::for_request(state, identity, &home));
         let Some(envelope) = envelope else {
-            let kind = crate::api::import::native_kind(&file.path).ok_or_else(|| {
-                ApiError::Denied(format!(
+            // A secrets file is approved as the secret form proposes it: on DataSource (T-6359).
+            let kind = crate::api::import::native_kind(&file.path)
+                .or_else(|| sealed.then_some(crate::api::secrets::KIND))
+                .ok_or_else(|| {
+                    ApiError::Denied(format!(
                     "'{}' belongs to no kind this platform serves, so no role grants approving \
                      it (PF-50)",
                     file.path
                 ))
-            })?;
+                })?;
             // A native file whose manifest is in the same change (a DataModel's `.linkml.yaml`)
             // is judged as that manifest, which this walk checks too: a role constrained by
             // `metadata.name` reads the owner's name (T-5162). Without one the path still names
             // the space; a target that holds only the space leaves every constraint as it was
             // and lets a grant scoped to that space reach the file (PF-35, T-1404).
-            let owner = files.iter().find_map(|(other, manifest)| {
+            let owner = files.iter().find_map(|(other, manifest, _)| {
                 manifest.as_ref().filter(|manifest| {
                     manifest.kind == kind
                         && crate::api::import::owns_native(
@@ -3883,5 +3971,306 @@ mod tests {
             blank.summary,
             "Change chg-00000005 rejected: create Endpoint public-air, by eva@bb.sk."
         );
+    }
+
+    /// A forge holding one open secret change (`portal/secret-{project}-{name}`, secrets.rs)
+    /// whose only file is `file` with `content`.
+    async fn secret_forge(file: &str, content: &str) -> (MockServer, AppState) {
+        secret_forge_with(file, content, "added").await
+    }
+
+    /// [`secret_forge`] with the file's status in the change (`added`, `deleted`).
+    async fn secret_forge_with(file: &str, content: &str, status: &str) -> (MockServer, AppState) {
+        let server = MockServer::start().await;
+        let client = GiteaClient::new(
+            server.uri().parse().unwrap(),
+            "test-owner",
+            "test-repo",
+            "token-xyz",
+        )
+        .unwrap();
+        let state = AppState::new(Config::for_tests(), None).with_gitea(Arc::new(client));
+        Mock::given(method("GET"))
+            .and(path("/api/v1/repos/test-owner/test-repo/pulls"))
+            .and(query_param("state", "open"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([{
+                "number": 9,
+                "html_url": "https://gitea.example.sk/pulls/9",
+                "state": "open",
+                "title": "add secret github-token",
+                "head": { "ref": "portal/secret-hel-mobility-github-token" },
+                "base": { "ref": "main" },
+                "created_at": "2026-11-01T09:14:22Z",
+                "user": { "login": "author", "full_name": "Author", "email": "author@example.sk" }
+            }])))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/repos/test-owner/test-repo/pulls/9/files"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                { "filename": file, "status": status }
+            ])))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/api/v1/repos/test-owner/test-repo/contents/{file}"
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "sha": "blob-9",
+                "content": base64::engine::Engine::encode(
+                    &base64::engine::general_purpose::STANDARD,
+                    content.as_bytes(),
+                )
+            })))
+            .mount(&server)
+            .await;
+        (server, state)
+    }
+
+    const SEALED: &str = "github-token:\n  token: ENC[AES256_GCM,data:x,iv:y,tag:z,type:str]\nsops:\n  version: 3.9.0\n";
+
+    /// `{who}` holding `verbs` on DataSource across project `hel-mobility`, or in its space `air`.
+    fn data_source_grant(state: &AppState, who: &str, verbs: &[&str], space: Option<&str>) {
+        use crate::resource::{ObjectMeta, API_VERSION};
+        let envelope = |kind: &str, name: &str, spec: Value| ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: kind.to_owned(),
+            metadata: ObjectMeta::new(name, crate::permissions::ORG_NAMESPACE),
+            spec,
+            status: None,
+        };
+        let role = format!("ds-{}", verbs.join("-"));
+        state.mirror.upsert(envelope(
+            "Role",
+            &role,
+            json!({ "rules": [{ "kinds": ["DataSource"], "verbs": verbs }] }),
+        ));
+        let scope = match space {
+            Some(space) => json!({ "contextSpace": space }),
+            None => json!({ "project": "hel-mobility" }),
+        };
+        state.mirror.upsert(envelope(
+            "RoleBinding",
+            &format!("{role}-{}", who.replace(['@', '.'], "-")),
+            json!({ "subjects": [{ "user": who }], "role": role, "scope": scope }),
+        ));
+    }
+
+    fn person(email: &str) -> Identity {
+        Identity {
+            username: email.into(),
+            ..test_user(email, vec![]).0.identity
+        }
+    }
+
+    /// JC2-01 (T-6359): the secret form's change was Unlisted, so no list showed it and every
+    /// detail, approval and rejection answered 404. It lists, headed by the secret's file and
+    /// name, and no read of the list touches the encrypted file.
+    #[tokio::test]
+    async fn a_secret_change_lists_by_its_file_and_reads_no_value() {
+        let (server, state) = secret_forge(
+            "projects/hel-mobility/secrets/github-token.enc.yaml",
+            SEALED,
+        )
+        .await;
+        let list = list_changes_for(&state, "hel-mobility").await.unwrap();
+        assert_eq!(list.items.len(), 1, "{:?}", list.items);
+        let change = &list.items[0];
+        assert_eq!(kind_of(change), Some(SECRET));
+        assert_eq!(change.summary.params["name"], json!("github-token"));
+        assert_eq!(change.metadata.name, "chg-00000009");
+        let asked: Vec<String> = server
+            .received_requests()
+            .await
+            .unwrap()
+            .iter()
+            .map(|request| request.url.path().to_owned())
+            .collect();
+        assert!(
+            !asked.iter().any(|path| path.contains("/contents/")),
+            "the list read the secrets file: {asked:?}"
+        );
+
+        // The detail, approval and rejection read the headline without a file list in hand.
+        let gitea = state.forge_for("hel-mobility").unwrap();
+        let pr = PullRequest {
+            number: 9,
+            head_branch: "portal/secret-hel-mobility-github-token".into(),
+            ..PullRequest::default()
+        };
+        let data = load_manifest_data(&gitea, &pr, "hel-mobility", None)
+            .await
+            .unwrap()
+            .expect("a secret change has a headline");
+        assert_eq!(
+            (data.kind.as_str(), data.name.as_str()),
+            (SECRET, "github-token")
+        );
+        assert_eq!(data.operation, Operation::Create);
+        // A secrets file of another project heads nothing here.
+        assert!(load_manifest_data(&gitea, &pr, "other", None)
+            .await
+            .unwrap()
+            .is_none());
+    }
+
+    /// The secrets list is a DataSource proposer's (T-5971): its changes are listed to who may
+    /// propose or approve one across the project, never to a reader or a one-space grant.
+    #[test]
+    fn a_secret_change_is_read_by_a_data_source_proposer_or_approver_alone() {
+        let state = AppState::new(Config::for_tests(), None);
+        data_source_grant(&state, "reader@hel.fi", &["read"], None);
+        data_source_grant(&state, "writer@hel.fi", &["propose"], None);
+        data_source_grant(&state, "approver@hel.fi", &["approve"], None);
+        data_source_grant(&state, "air@hel.fi", &["propose", "approve"], Some("air"));
+        let data = ManifestData {
+            kind: SECRET.to_owned(),
+            name: "github-token".to_owned(),
+            operation: Operation::Create,
+            base_envelope: None,
+            head_envelope: None,
+        };
+        let change = build_proposal(
+            &PullRequest::default(),
+            "hel-mobility",
+            &data,
+            plan::diff(None, None),
+            None,
+            Lane::Green,
+        );
+        let reads = |who: &str| {
+            let effective = crate::permissions::for_request(&state, &person(who), "hel-mobility");
+            may_read_change(&effective, &change)
+        };
+        assert!(
+            !reads("reader@hel.fi"),
+            "read on DataSource reached a secret"
+        );
+        assert!(reads("writer@hel.fi"));
+        assert!(reads("approver@hel.fi"));
+        assert!(
+            !reads("air@hel.fi"),
+            "a one-space grant reached the project's secrets"
+        );
+        assert!(!reads("nobody@hel.fi"));
+        let elsewhere = build_proposal(
+            &PullRequest::default(),
+            "ovzdusie",
+            &data,
+            plan::diff(None, None),
+            None,
+            Lane::Green,
+        );
+        let effective =
+            crate::permissions::for_request(&state, &person("writer@hel.fi"), "ovzdusie");
+        assert!(
+            !may_read_change(&effective, &elsewhere),
+            "a DataSource grant in hel-mobility reached another project's secret"
+        );
+        let approves = |who: &str| may_approve(&state, &person(who), "hel-mobility", &data);
+        assert!(approves("approver@hel.fi").is_ok());
+        assert!(matches!(
+            approves("writer@hel.fi"),
+            Err(ApiError::Denied(_))
+        ));
+        assert!(matches!(approves("air@hel.fi"), Err(ApiError::Denied(_))));
+    }
+
+    /// The approval walk judged the secrets file as no kind at all and refused every approver
+    /// (T-6359). It approves under DataSource, and only a file the form wrote: SOPS-encrypted.
+    #[tokio::test]
+    async fn a_secret_file_approves_on_data_source_and_only_encrypted() {
+        let file = "projects/hel-mobility/secrets/github-token.enc.yaml";
+        let pr = PullRequest {
+            number: 9,
+            head_branch: "portal/secret-hel-mobility-github-token".into(),
+            ..PullRequest::default()
+        };
+        let (_server, state) = secret_forge(file, SEALED).await;
+        data_source_grant(&state, "approver@hel.fi", &["approve"], None);
+        data_source_grant(&state, "air@hel.fi", &["approve"], Some("air"));
+        let gitea = state.forge_for("hel-mobility").unwrap();
+        let walk = |who: &'static str| {
+            let (state, gitea, pr) = (state.clone(), gitea.clone(), pr.clone());
+            async move { approve_every_file(&state, &person(who), "hel-mobility", &gitea, &pr).await }
+        };
+        assert!(walk("approver@hel.fi").await.is_ok());
+        assert!(matches!(walk("air@hel.fi").await, Err(ApiError::Denied(_))));
+        assert!(matches!(
+            walk("nobody@hel.fi").await,
+            Err(ApiError::Denied(_))
+        ));
+
+        let (_plain, state) = secret_forge(file, "github-token:\n  token: hunter2\n").await;
+        data_source_grant(&state, "approver@hel.fi", &["approve"], None);
+        let gitea = state.forge_for("hel-mobility").unwrap();
+        assert!(
+            matches!(
+                approve_every_file(
+                    &state,
+                    &person("approver@hel.fi"),
+                    "hel-mobility",
+                    &gitea,
+                    &pr
+                )
+                .await,
+                Err(ApiError::Denied(_))
+            ),
+            "a plain text file under secrets/ approved"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_secrets_file_with_any_plain_value_is_refused_whatever_it_claims_to_be() {
+        let file = "projects/hel-mobility/secrets/github-token.enc.yaml";
+        let pr = PullRequest {
+            number: 9,
+            head_branch: "portal/secret-hel-mobility-github-token".into(),
+            ..PullRequest::default()
+        };
+        let fake_sops = "github-token:\n  token: hunter2\nsops: {}\n";
+        let half_sealed = "github-token:\n  token: ENC[AES256_GCM,data:x,iv:y,tag:z,type:str]\n  \
+                           user: admin\nsops:\n  version: 3.9.0\n";
+        let manifest =
+            "apiVersion: joinedcontext.com/v1alpha1\nkind: DataSource\nmetadata:\n  name: \
+                        github-token\n  namespace: hel-mobility\nspec:\n  token: hunter2\n";
+        for content in [fake_sops, half_sealed, manifest] {
+            let (_server, state) = secret_forge(file, content).await;
+            data_source_grant(&state, "approver@hel.fi", &["approve", "delete"], None);
+            let gitea = state.forge_for("hel-mobility").unwrap();
+            let answer = approve_every_file(
+                &state,
+                &person("approver@hel.fi"),
+                "hel-mobility",
+                &gitea,
+                &pr,
+            )
+            .await;
+            assert!(
+                matches!(&answer, Err(ApiError::Denied(why)) if why.contains("did not encrypt")),
+                "{content}: {answer:?}"
+            );
+        }
+
+        // Taking a secrets file out of the repository needs no encryption check: DataSource
+        // approve and delete decide it.
+        let (_server, state) = secret_forge_with(file, fake_sops, "deleted").await;
+        data_source_grant(&state, "approver@hel.fi", &["approve", "delete"], None);
+        data_source_grant(&state, "air@hel.fi", &["approve"], None);
+        let gitea = state.forge_for("hel-mobility").unwrap();
+        assert!(approve_every_file(
+            &state,
+            &person("approver@hel.fi"),
+            "hel-mobility",
+            &gitea,
+            &pr
+        )
+        .await
+        .is_ok());
+        assert!(matches!(
+            approve_every_file(&state, &person("air@hel.fi"), "hel-mobility", &gitea, &pr).await,
+            Err(ApiError::Denied(_))
+        ));
     }
 }

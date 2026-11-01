@@ -72,6 +72,16 @@ describe("the controls each role is offered", () => {
     }
   }
 
+  // The secret form's change is judged on DataSource, as the API does (T-6359).
+  it("offers approving a secret change as approving a DataSource", () => {
+    for (const role of Object.keys(ROLES)) {
+      const data = effective(role);
+      const permissions = { data, can: (k: string, verb: Verb) => allows(data, k, verb) };
+      const other = approvalStanding(permissions, `${role}@hel.fi`, change("Secret", "someone@hel.fi"));
+      expect(other.block, role).toBe(ROLES[role].includes("approve") ? null : "needsRole");
+    }
+  });
+
   it("the bootstrap group is offered everything but approving its own change", () => {
     const data: Effective = { bootstrap: true, project: "helsinki", grants: [] };
     const permissions = { data, can: (k: string, verb: Verb) => allows(data, k, verb) };
