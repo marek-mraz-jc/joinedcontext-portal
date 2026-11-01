@@ -179,8 +179,82 @@ async fn captured(
     Ok(value)
 }
 
+/// `jc_mqtt_test_publish`: the broker card's Test drawer, a dry run of one device message (JC2-59).
+pub const TEST_PUBLISH: &str = "jc_mqtt_test_publish";
+/// The largest payload the route takes.
+const MAX_PAYLOAD: u64 = 1024 * 1024;
+
+/// `name` is the broker, beside the route's own body.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct TestInput {
+    name: String,
+    account: String,
+    topic: String,
+    payload: String,
+}
+
+fn test_input_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "name": text("MqttBroker name, e.g. sensors", NAME),
+            "account": text("A ServiceAccount the broker's roles name, e.g. cam-west", NAME),
+            "topic": text("No wildcard, e.g. cameras/cam-west/frame", 1024),
+            "payload": { "type": "string", "maxLength": MAX_PAYLOAD, "description": "The message as the device sends it, e.g. {\"temperature\": 21.5}" }
+        },
+        "required": ["name", "account", "topic", "payload"],
+        "additionalProperties": false
+    })
+}
+
+fn test_output_schema() -> Value {
+    json!({
+        "type": "object",
+        "description": "Each step's outcome (ACL, limits, DataSource and Pipeline, mapping, record check); nothing published or written"
+    })
+}
+
+async fn test_publish(
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+    input: TestInput,
+) -> Result<Value, super::OpError> {
+    let Json(dry_run) = crate::api::mqtt_test_publish::test_publish(
+        as_user(caller),
+        State(state.clone()),
+        Path((project.to_owned(), input.name)),
+        Json(crate::api::mqtt_test_publish::TestPublish {
+            account: input.account,
+            topic: input.topic,
+            payload: input.payload,
+        }),
+    )
+    .await?;
+    Ok(serde_json::to_value(dry_run)?)
+}
+
 pub fn operations() -> Vec<Operation> {
     vec![Operation {
+        name: TEST_PUBLISH,
+        title: "Test an MQTT Publish",
+        description: "Dry-runs one device message on a topic through the broker's ACL and limits, the bound DataSource and Pipeline, the mapping and the Endpoint's record check; publishes and writes nothing",
+        input: test_input_schema,
+        output: test_output_schema,
+        annotations: Annotations {
+            read_only_hint: true,
+            destructive_hint: false,
+            idempotent_hint: true,
+        },
+        kind: "MqttBroker",
+        verb: None,
+        lane: Lane::Green,
+        validate: |val| parse_input::<TestInput>(val.clone()).map(|_| ()),
+        run: |caller, state, project, val| {
+            Box::pin(async move { test_publish(caller, state, project, parse_input(val)?).await })
+        },
+    }, Operation {
         name: CAPTURED,
         title: "Read An MQTT Broker's Capture",
         description:

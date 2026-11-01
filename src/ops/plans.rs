@@ -180,6 +180,7 @@ impl PlanStore {
                     home: item.home.clone(),
                     name: item.name.clone(),
                     manifest: item.manifest.clone(),
+                    source: item.model.as_ref().map(|model| model.source.clone()),
                 })
                 .collect(),
         )
@@ -193,6 +194,8 @@ pub struct PlanItem {
     pub home: String,
     pub name: String,
     pub manifest: Option<Value>,
+    /// A DataModel's planned LinkML source, when the plan changes its file (JC2-11).
+    pub source: Option<String>,
 }
 
 /// What an object is now, as a plan compares it: its metadata and spec (a status the reconciler
@@ -1888,6 +1891,58 @@ pub fn operations() -> Vec<Operation> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// JC2-11: a peeked plan carries a model's planned LinkML, so the paired tab's editor shows
+    /// the source the plan changes and not only its manifest.
+    #[test]
+    fn a_peek_carries_the_planned_model_source() {
+        let now = Utc::now();
+        let store = PlanStore::default();
+        let item = |name: &str, model: Option<ModelPlan>| Planned {
+            kind: "DataModel".into(),
+            plural: "datamodels",
+            home: "helsinki".into(),
+            name: name.into(),
+            manifest: Some(json!({ "kind": "DataModel" })),
+            base: "absent".into(),
+            model,
+        };
+        let model = ModelPlan {
+            source: "id: https://hel.fi/air\nname: air\n".into(),
+            checked: SourceDryRunResult {
+                severity: "patch".into(),
+                changes: Vec::new(),
+                version: "1.0.1".into(),
+                artifacts: Default::default(),
+            },
+            next_val: Value::Null,
+            imports: BTreeMap::new(),
+            creating: false,
+            base: "etag".into(),
+        };
+        store.keep(
+            "p1".into(),
+            Plan {
+                owner: "ana".into(),
+                connector: None,
+                project: "helsinki".into(),
+                workspace: None,
+                items: vec![item("air", Some(model)), item("bus", None)],
+                expires_at: now + chrono::Duration::minutes(5),
+            },
+            now,
+        );
+        let peeked = store.peek("p1", "ana", "helsinki", now).expect("the plan");
+        assert_eq!(
+            peeked[0].source.as_deref(),
+            Some("id: https://hel.fi/air\nname: air\n")
+        );
+        assert_eq!(peeked[1].source, None);
+        assert!(
+            store.peek("p1", "eva", "helsinki", now).is_none(),
+            "another person's plan"
+        );
+    }
 
     /// S-10: a breaking change counts the stored entities of the class it touches, also for a
     /// top-level slot a class lists.

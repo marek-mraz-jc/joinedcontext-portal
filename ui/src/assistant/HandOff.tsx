@@ -1,6 +1,7 @@
-import { Fragment, useState } from "react";
+import { Fragment, useState, useSyncExternalStore } from "react";
 import type { JSX, ReactNode } from "react";
 import { useRouter, useRouterState } from "@tanstack/react-router";
+import { handOffCount, subscribeHandOffs } from "./state";
 
 /** What the assistant leaves in the address for the page it opens (AG-73, AG-77). */
 export const HAND_OFF = ["edit", "delete", "grant", "draft", "space", "endpoint"] as const;
@@ -29,12 +30,14 @@ export function replaceOwnSearch(query: URLSearchParams): void {
 export function HandOff({ children }: { children: ReactNode }): JSX.Element {
   const history = useRouter().history;
   const searchStr = useRouterState({ select: (state) => state.location.searchStr.replace(/^\?/, "") });
-  const handed = useRouterState({
+  const inAddress = useRouterState({
     select: (state) => {
       const search = new URLSearchParams(state.location.searchStr);
       return HAND_OFF.map((name) => search.get(name) ?? "").join("\n");
     },
   });
+  // A prefill handed again at the same address is a hand-off too (JC2-11).
+  const handed = `${inAddress}\n${useSyncExternalStore(subscribeHandOffs, handOffCount)}`;
   // The router moves before the address does (its history writes the browser's a microtask
   // later), and the page reads its hand-off from the address as it mounts (T-0770).
   history.flush();

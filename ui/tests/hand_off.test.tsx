@@ -3,7 +3,7 @@
  * handed only as it mounts. A second hand-off to a page already open must therefore mount it
  * again — for the explorer that means a change of the endpoint alone (AG-73, UI-46).
  */
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { useEffect, useState } from "react";
 import type { JSX } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -18,6 +18,8 @@ vi.mock("@tanstack/react-router", () => ({
 }));
 
 const { HandOff, HAND_OFF } = await import("../src/assistant/HandOff");
+const { handPrefill, takePrefill } = await import("../src/assistant/state");
+const { runTabAction } = await import("../src/connectors/pairedTab");
 
 /** A page that takes what it was handed at the moment it mounted, as every hand-off page does. */
 function Page(): JSX.Element {
@@ -60,6 +62,42 @@ describe("a hand-off from the assistant", () => {
     rerender(handedOff());
 
     expect(mounts).toBe(1);
+  });
+
+  it("mounts the open form again when a newer plan is handed to the same address (JC2-11)", async () => {
+    window.history.replaceState(null, "", "/projects/helsinki/models");
+    searchStr = "?edit=air";
+    function Editor(): JSX.Element {
+      const [source] = useState(() => String(takePrefill(window.location.pathname)?.source ?? "none"));
+      useEffect(() => {
+        mounts += 1;
+      }, []);
+      return <p>source {source}</p>;
+    }
+    handPrefill("/projects/helsinki/models?edit=air", { source: "first plan" });
+    render(
+      <HandOff>
+        <Editor />
+      </HandOff>,
+    );
+    expect(await screen.findByText("source first plan")).toBeInTheDocument();
+
+    // The paired tab runs the connector's second show_diff: same address, a newer source.
+    const go = vi.fn();
+    await act(async () => {
+      await runTabAction(
+        {
+          frame: "navigate",
+          payload: { route: "/projects/helsinki/models?edit=air", prefill: { source: "second plan" } },
+          tool: "jc_ui_show_diff",
+          from: { connector: "claude-code" },
+        },
+        go,
+      );
+    });
+    expect(await screen.findByText("source second plan")).toBeInTheDocument();
+    expect(mounts).toBe(2);
+    expect(go).toHaveBeenCalledWith("/projects/helsinki/models?edit=air");
   });
 
   it("carries every name a page is handed", () => {

@@ -37,7 +37,7 @@ Say the numbers the operation answered with and nothing you did not read.
 impl Driver {
     pub(super) async fn drive_conversation(
         &self,
-        inbox: &mut broadcast::Receiver<AgentRunEvent>,
+        inbox: &mut crate::agents::events::RunInbox,
         deadline: tokio::time::Instant,
     ) -> Result<(), String> {
         self.status(AgentRunStatus::Starting).await?;
@@ -72,16 +72,14 @@ impl Driver {
 
         loop {
             let event = tokio::select! {
-                event = inbox.recv() => event,
+                event = inbox.recv(&self.state.agents) => event,
                 () = tokio::time::sleep_until(deadline) => {
                     self.expire().await;
                     return Ok(());
                 }
             };
-            let event = match event {
-                Ok(event) => event,
-                Err(broadcast::error::RecvError::Lagged(_)) => continue,
-                Err(broadcast::error::RecvError::Closed) => return Ok(()),
+            let Some(event) = event else {
+                return Ok(());
             };
             match event.kind.as_str() {
                 "status" if is_terminal(&event) => return Ok(()),
@@ -206,12 +204,9 @@ impl Driver {
         if let Some(segment) = self.capabilities().and_then(|chosen| chosen.segment) {
             return Box::pin(self.connector_turn(conversation, text, &segment)).await;
         }
-        let catalog = if names_something_new(conversation, text) {
-            self.find(text).await?
-        } else {
-            None
-        };
-        let base = self.conversation_pack(conversation, text, catalog.as_ref());
+        // No search runs before the model: it calls search_catalog itself when the question
+        // needs one, in the person's own words and language (JC1-10).
+        let base = self.conversation_pack(conversation, text, None);
         // The earlier turns the pack repeats hold their tool outputs: data, as this turn's are.
         let earlier: String = conversation
             .iter()
@@ -264,9 +259,10 @@ impl Driver {
                 super::model::CACHE_BREAK,
                 data_query::results_section(&results)
             );
+            let specs = turn_specs(path, capable.as_ref(), &offered);
             let answer = tokio::time::timeout(
                 self.answer_timeout,
-                self.complete_streamed(CONVERSATION_SYSTEM, &user),
+                self.complete_streamed(CONVERSATION_SYSTEM, &user, &specs),
             )
             .await
             .map_err(|_| {
@@ -662,8 +658,9 @@ impl Driver {
     ) -> String {
         let mut pack = String::new();
         pack.push_str(
-            "You are the joinedcontext Portal assistant. Answer in plain prose, or answer with \
-             exactly one of the tool calls below. Never write files or SEARCH/REPLACE blocks.\n\n",
+            "You are the joinedcontext Portal assistant. Answer in plain prose, or call exactly \
+             one of the tools below with the fields its block shows. Never write files or \
+             SEARCH/REPLACE blocks.\n\n",
         );
         pack.push_str(WHERE_THE_ANSWERS_LIVE.trim_start());
         pack.push('\n');
@@ -1520,22 +1517,34 @@ fn playbook(pack: &str, name: &str) -> Option<String> {
     Some(pack[start..end].trim().to_owned())
 }
 
-/// Whether a message names something the conversation does not know yet (T-2770): only then
-/// does the platform search the catalog before the model. A follow-up whose words the
-/// conversation already holds ("and the bikes now?" after the bikes were found) goes without it;
-/// the model still searches itself when it needs to.
-fn names_something_new(conversation: &[(String, String)], text: &str) -> bool {
-    let known: std::collections::BTreeSet<String> = conversation
-        .iter()
-        .flat_map(|(asked, answered)| {
-            crate::api::assistant::words(asked)
-                .into_iter()
-                .chain(crate::api::assistant::words(answered))
-        })
-        .collect();
-    crate::api::assistant::words(text)
-        .iter()
-        .any(|word| !known.contains(word))
+/// What a conversation tool's native definition says: its fields are the ones its block in the
+/// message's tools section shows.
+const OWN_TOOL: &str = "A tool of this conversation: call it with the fields its block in the \
+                        message's tools section shows, when that section says to.";
+
+/// A turn's tools as native tool definitions (JC1-10): the registry operations offered, each
+/// with its own input schema, and the conversation's own tools the path and the person's
+/// choice allow. Nothing here widens the turn: the dispatch checks path, capability and the
+/// person's rights on every call as before.
+fn turn_specs(
+    path: Option<Path>,
+    capable: Option<&crate::agents::capabilities::Capabilities>,
+    offered: &[crate::ops::OperationSummary],
+) -> Vec<super::model::ToolSpec> {
+    let mut specs = super::connector_turn::tool_specs(offered);
+    for name in paths::every_tool() {
+        let allowed = Path::offers(path, name)
+            && capable.is_none_or(|capable| capable.allows_tool(name, !tools_registry::acts(name)));
+        if crate::ops::find(name).is_some() || !allowed {
+            continue;
+        }
+        specs.push(super::model::ToolSpec {
+            name: std::borrow::Cow::Borrowed(name),
+            description: std::borrow::Cow::Borrowed(OWN_TOOL),
+            input_schema: json!({ "type": "object", "additionalProperties": true }),
+        });
+    }
+    specs
 }
 
 /// The `jc_switch_path` call of an answer, if it makes one: the path and the reason.
@@ -2578,24 +2587,6 @@ mod tests {
             2,
             "a 500 is asked once more, then said"
         );
-    }
-
-    /// T-2770, T-2763: the platform searches the catalog before the model only for a message that
-    /// names something new; a follow-up of known words or of no words at all goes without it.
-    #[test]
-    fn a_follow_up_of_known_words_runs_no_catalog_search() {
-        let before = [(
-            "how many city bikes are free in helsinki?".to_owned(),
-            "12 of the 40 city bikes stations have free bikes.".to_owned(),
-        )];
-        assert!(names_something_new(&[], "how many city bikes are free?"));
-        assert!(!names_something_new(&[], "and right now??"));
-        assert!(!names_something_new(&before, "and right now??"));
-        assert!(!names_something_new(
-            &before,
-            "and the free bikes stations?"
-        ));
-        assert!(names_something_new(&before, "and the tram stops?"));
     }
 
     /// T-2770: a path carries its own playbooks whole and names every other one on a line

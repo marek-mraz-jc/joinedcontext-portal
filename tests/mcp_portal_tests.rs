@@ -2584,3 +2584,62 @@ async fn the_kind_enum_holds_the_kinds_the_caller_may_read() {
     every.sort();
     assert_eq!(enums(&answer), vec![every.clone(), every]);
 }
+
+/// JC2-47: an organization model's LinkML source is listed under `jc://-/` beside its manifest,
+/// and only to a caller who reads the manifest.
+#[tokio::test]
+async fn an_organization_models_source_is_listed_beside_its_manifest_to_its_readers() {
+    let (app, issuer, signer, kid) = setup_app_with(vec![envelope(
+        "DataModel",
+        "city-air",
+        joinedcontext_portal::permissions::ORG_NAMESPACE,
+        json!({ "linkml": "./city-air.linkml.yaml", "version": "1.0.0" }),
+    )])
+    .await;
+    let uris = |listed: Value| -> Vec<String> {
+        listed["result"]["resources"]
+            .as_array()
+            .map(|all| {
+                all.iter()
+                    .filter_map(|r| r["uri"].as_str().map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let list = json!({ "jsonrpc": "2.0", "id": 1, "method": "resources/list",
+                       "params": { "project": "ovzdusie" } });
+    let reader = sign_token(
+        &signer,
+        &kid,
+        &issuer,
+        PORTAL_AUDIENCE,
+        "steward.user",
+        &["portal-approver"],
+        &["platform-admins"],
+    );
+    let listed = uris(rpc(app.clone(), &reader, list.clone()).await);
+    assert!(
+        listed.iter().any(|u| u == "jc://-/datamodels/city-air"),
+        "the organization model is offered: {listed:?}"
+    );
+    assert!(
+        listed
+            .iter()
+            .any(|u| u == "jc://-/datamodels/city-air/linkml"),
+        "its source beside it: {listed:?}"
+    );
+    let stranger = sign_token(
+        &signer,
+        &kid,
+        &issuer,
+        PORTAL_AUDIENCE,
+        "nobody.user",
+        &[],
+        &[],
+    );
+    let unlisted = uris(rpc(app, &stranger, list).await);
+    assert!(
+        !unlisted.iter().any(|u| u.starts_with("jc://-/datamodels/")),
+        "a caller who reads no organization model is offered none: {unlisted:?}"
+    );
+}

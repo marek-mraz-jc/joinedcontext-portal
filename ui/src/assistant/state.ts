@@ -153,6 +153,25 @@ export function handPrefill(
   handed = { route: route.split("?")[0], prefill };
   replay = null;
   write(PREFILL_KEY, handed);
+  handOffs += 1;
+  handOffListeners.forEach((listener) => listener());
+}
+
+/**
+ * How many prefills were handed in this tab: a second one to the page already open at the same
+ * address (a connector's newer plan, JC2-11) mounts the page afresh, so its form takes the new
+ * values instead of keeping what it took the first time.
+ */
+let handOffs = 0;
+const handOffListeners = new Set<() => void>();
+
+export function handOffCount(): number {
+  return handOffs;
+}
+
+export function subscribeHandOffs(listener: () => void): () => void {
+  handOffListeners.add(listener);
+  return () => handOffListeners.delete(listener);
 }
 
 /**

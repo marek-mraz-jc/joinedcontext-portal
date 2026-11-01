@@ -167,6 +167,89 @@ async fn runs(
     Ok(answer)
 }
 
+/// `jc_pipeline_inspect`: what the pipeline page shows of a running pipeline (JC2-32).
+pub const INSPECT: &str = "jc_pipeline_inspect";
+/// Rejected records one page lists when the call names no limit; the route takes up to 100.
+const REJECTED: usize = 20;
+
+/// Which of the pipeline page's panels to read.
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum View {
+    Samples,
+    Stats,
+    Rejected,
+    SourceDeletes,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct InspectInput {
+    pub name: String,
+    pub view: View,
+    /// Rejected records per page.
+    #[serde(default)]
+    pub limit: Option<usize>,
+    /// The `next` of the previous rejected page.
+    #[serde(default)]
+    pub cursor: Option<i64>,
+}
+
+fn inspect_input_schema() -> Value {
+    json!({
+        "type": "object",
+        "properties": {
+            "name": text("The Pipeline's name, e.g. counters-hourly", NAME),
+            "view": {
+                "type": "string",
+                "enum": ["samples", "stats", "rejected", "sourceDeletes"],
+                "description": "samples: last message per node; stats: per-node rates over 1/5/15 min; rejected: records validation refused, with the rule; sourceDeletes: a snapshot pipeline's source ledger and delete dry run"
+            },
+            "limit": { "type": "integer", "minimum": 1, "maximum": 100, "description": "rejected per page (default 20)" },
+            "cursor": { "type": "integer", "description": "rejected: the previous answer's next" }
+        },
+        "required": ["name", "view"],
+        "additionalProperties": false
+    })
+}
+
+fn inspect_output_schema() -> Value {
+    json!({
+        "type": "object",
+        "description": "The panel as the pipeline page reads it; rejected pages carry next while older records follow"
+    })
+}
+
+async fn inspect(
+    caller: &super::Caller,
+    state: &crate::state::AppState,
+    project: &str,
+    input: InspectInput,
+) -> Result<Value, OpError> {
+    let user = || as_user(caller);
+    let at = || Path((project.to_owned(), input.name.clone()));
+    let api = || State(state.clone());
+    use crate::api::pipelines as route;
+    Ok(match input.view {
+        View::Samples => serde_json::to_value(route::get_samples(user(), api(), at()).await?.0)?,
+        View::Stats => serde_json::to_value(route::get_stats(user(), api(), at()).await?.0)?,
+        View::SourceDeletes => {
+            serde_json::to_value(route::get_source_deletes(user(), api(), at()).await?.0)?
+        }
+        View::Rejected => {
+            let query = route::RejectedQuery {
+                limit: Some(input.limit.unwrap_or(REJECTED).clamp(1, 100)),
+                before: input.cursor,
+            };
+            serde_json::to_value(
+                route::get_rejected(user(), api(), at(), Query(query))
+                    .await?
+                    .0,
+            )?
+        }
+    })
+}
+
 /// This module's operations in the registry (`super::init_registry`).
 pub fn operations() -> Vec<Operation> {
     vec![
@@ -216,6 +299,25 @@ pub fn operations() -> Vec<Operation> {
             validate: |val| parse_input::<RunsInput>(val.clone()).map(|_| ()),
             run: |caller, state, project, val| {
                 Box::pin(async move { runs(caller, state, project, parse_input(val)?).await })
+            },
+        },
+        Operation {
+            name: INSPECT,
+            title: "Inspect A Running Pipeline",
+            description: "One panel of the pipeline page: the last message per node, per-node rates, the records validation refused, or a snapshot pipeline's source-delete dry run",
+            input: inspect_input_schema,
+            output: inspect_output_schema,
+            annotations: Annotations {
+                read_only_hint: true,
+                destructive_hint: false,
+                idempotent_hint: true,
+            },
+            kind: "Pipeline",
+            verb: None,
+            lane: Lane::Green,
+            validate: |val| parse_input::<InspectInput>(val.clone()).map(|_| ()),
+            run: |caller, state, project, val| {
+                Box::pin(async move { inspect(caller, state, project, parse_input(val)?).await })
             },
         },
     ]
