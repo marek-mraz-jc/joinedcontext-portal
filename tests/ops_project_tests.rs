@@ -449,3 +449,92 @@ async fn the_rest_routes_and_the_ops_door_answer_alike() {
         }
     }
 }
+
+/// JC1-01: the ceiling of a run (and of any caller) is judged on the project the call is addressed
+/// to, so the deletion names that project and no other. A steward bound in both projects whose run
+/// works in `ovzdusie` does not propose the removal of `doprava` by naming it.
+#[tokio::test]
+async fn a_deletion_names_the_project_the_call_is_addressed_to() {
+    let (server, state) = world().await;
+    state.mirror.upsert(envelope(
+        "Project",
+        "doprava",
+        ORG_NAMESPACE,
+        json!({ "organizationRef": { "name": "bb" } }),
+    ));
+    state.mirror.upsert(envelope(
+        "RoleBinding",
+        "steward-binding-doprava",
+        ORG_NAMESPACE,
+        json!({
+            "subjects": [{ "group": "city-stewards" }],
+            "role": "steward-role",
+            "scope": { "project": "doprava" },
+        }),
+    ));
+    for (who, caller) in [
+        ("steward", session(steward())),
+        ("steward over mcp", mcp(steward())),
+        ("steward's run", run(steward(), &["jc_project_delete"])),
+    ] {
+        let refused = doors::call(
+            "jc_project_delete",
+            &caller,
+            &state,
+            json!({ "name": "doprava" }),
+        )
+        .await;
+        assert_eq!(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            refused.status,
+            "{who}: {}",
+            refused.text()
+        );
+        assert_eq!(
+            "name",
+            refused.body["errors"][0]["path"],
+            "{who}: {}",
+            refused.text()
+        );
+    }
+    assert_eq!(
+        Vec::<String>::new(),
+        removed(&server).await,
+        "a deletion of another project touched the tree"
+    );
+}
+
+/// JC1-02, AG-70: an agent run reads over MCP `resources/*` only the kinds its profile grants
+/// `read`, as its tools do; the person's own MCP client reads what the person reads.
+#[tokio::test]
+async fn a_run_reads_no_resource_of_a_kind_its_profile_does_not_grant() {
+    let (_server, state) = world().await;
+    let list = json!({ "jsonrpc": "2.0", "id": 1, "method": "resources/list", "params": { "project": PROJECT } });
+    let uris = |answer: &Value| -> Vec<String> {
+        answer["result"]["resources"]
+            .as_array()
+            .map(|all| {
+                all.iter()
+                    .filter_map(|r| r["uri"].as_str().map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default()
+    };
+    let person = uris(&doors::mcp_rpc(&mcp(steward()), &state, list.clone()).await);
+    let space = person
+        .iter()
+        .find(|uri| uri.starts_with(&format!("jc://{PROJECT}/")) && uri.ends_with("/air"))
+        .unwrap_or_else(|| panic!("the steward's own client lists the air space: {person:?}"))
+        .clone();
+
+    let narrow = run(steward(), &["jc_project_get"]);
+    let listed = uris(&doors::mcp_rpc(&narrow, &state, list).await);
+    assert!(!listed.contains(&space), "{listed:?}");
+    let read = doors::mcp_rpc(
+        &narrow,
+        &state,
+        json!({ "jsonrpc": "2.0", "id": 2, "method": "resources/read", "params": { "uri": space } }),
+    )
+    .await;
+    assert_eq!(-32002, read["error"]["code"], "{read}");
+}

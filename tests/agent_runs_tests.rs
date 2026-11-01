@@ -5215,3 +5215,81 @@ async fn two_concurrent_creates_of_one_apps_run_start_one() {
         two.1
     );
 }
+
+/// JC1-24, AG-70: a continuation that names no endpoints keeps the ones of the run it continues,
+/// held to the profile it starts with like named ones: a profile that does not list the inherited
+/// endpoint refuses the continuation instead of reading it.
+#[tokio::test]
+async fn a_continuation_holds_inherited_endpoints_to_its_profile() {
+    let config = config();
+    let mirror = mirror(Some(builder_profile_spec()));
+    let mut narrow = builder_profile_spec();
+    narrow["access"] = json!({
+        "operations": ["jc_catalog_search"],
+        "endpoints": [{ "name": "another-endpoint", "verbs": ["read"] }]
+    });
+    mirror.upsert(envelope("AgentProfile", "narrow", "org", narrow));
+    let (state, app, _) = with_state(mirror, &config);
+    let cookie = session_cookie(&config, STEWARD, &["portal-approver"]);
+
+    let parent_id = mint_run_id();
+    let (_, ticket_hash) = mint_ticket();
+    let parent = AgentRun {
+        id: parent_id.clone(),
+        project: PROJECT.to_owned(),
+        app_name: "".to_owned(),
+        title: None,
+        endpoint_name: "helsinki-bikes".to_owned(),
+        endpoint_slug: SLUG.to_owned(),
+        endpoints: json!([{ "name": "helsinki-bikes", "slug": SLUG, "space": "helsinki" }]),
+        profile: "app-builder".to_owned(),
+        kind: "conversation".to_owned(),
+        unattended: false,
+        continues: None,
+        app_class: "ui".to_owned(),
+        visibility: "private".to_owned(),
+        prompt: "Earlier conversation".to_owned(),
+        prompt_digest: digest_prompt("Earlier conversation"),
+        data_needs: json!([]),
+        allows_write: false,
+        branch: "".to_owned(),
+        path_prefix: "".to_owned(),
+        status: "succeeded".to_owned(),
+        ticket_hash,
+        workspace: None,
+        merge_request: None,
+        change_id: None,
+        source_url: None,
+        mirror_url: None,
+        preview_url: None,
+        first_frame_ms: None,
+        first_version_ms: None,
+        files: json!({}),
+        steps: 0,
+        tokens_used: 0,
+        created_by: STEWARD.to_owned(),
+        origin: "person".to_owned(),
+        starter: serde_json::Value::Null,
+        created_at: "2026-09-12T08:00:00Z".to_owned(),
+        started_at: None,
+        finished_at: Some("2026-09-12T08:05:00Z".to_owned()),
+        expires_at: "2026-09-12T08:30:00Z".to_owned(),
+        error: None,
+    };
+    state.agents.create_run(&parent).await.expect("create run");
+
+    let (status, problem) = call(
+        &app,
+        &cookie,
+        Method::POST,
+        &format!("/api/v1/projects/{PROJECT}/assistant/conversations"),
+        Some(json!({
+            "message": "Continue please",
+            "continues": parent_id,
+            "profile": "narrow"
+        })),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{problem}");
+    assert!(problem.to_string().contains("helsinki-bikes"), "{problem}");
+}

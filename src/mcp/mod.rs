@@ -423,6 +423,7 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
             // A draft is readable exactly where its manifest would be (PF-59, T-1455).
             for draft in drafts
                 .into_iter()
+                .filter(|draft| may_read_kind(&state, &caller, &project, &draft.kind))
                 .filter(|draft| effective.may_read_manifest(&draft.kind, &draft.manifest))
             {
                 resources.push(json!({
@@ -455,7 +456,9 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
             // The open changes and their plans (AG-60, CC-34). The list is what the change
             // route lists for this caller; a plan is read one at a time, because reading one
             // asks the forge.
-            if may_read(&state, &caller, &project) {
+            if may_read(&state, &caller, &project)
+                && may_read_kind(&state, &caller, &project, "Change")
+            {
                 let open =
                     crate::api::changes::list_changes_readable(&state, &caller.identity, &project)
                         .await
@@ -652,9 +655,14 @@ fn readable_item(
 }
 
 /// Whether the caller reads this kind here (PF-59): the same rule the REST list and get apply,
-/// so a resource the API hides is not handed out over MCP either.
+/// so a resource the API hides is not handed out over MCP either. An agent run reads only the
+/// kinds its profile grants `read` (AG-70, JC1-02).
 fn may_read_kind(state: &AppState, caller: &crate::ops::Caller, project: &str, kind: &str) -> bool {
-    crate::permissions::for_request(state, &caller.identity, project).may_read(kind)
+    caller
+        .access
+        .as_ref()
+        .is_none_or(|access| access.reads(kind))
+        && crate::permissions::for_request(state, &caller.identity, project).may_read(kind)
 }
 /// One `tools/call`, answered as its JSON-RPC envelope: an error, or a result the caller grounds.
 ///
@@ -962,7 +970,7 @@ async fn read_resource(
         // project *and* on the kind the change proposes, so a caller who may read a Pipeline
         // here is not handed a change that rewrites a Role. `change_for` asks neither, and
         // reading it behind a project-level check handed out the whole diff.
-        [project, "changes", change_id] => {
+        [project, "changes", change_id] if may_read_kind(state, caller, project, "Change") => {
             let change =
                 crate::api::changes::change_readable(state, &caller.identity, project, change_id)
                     .await

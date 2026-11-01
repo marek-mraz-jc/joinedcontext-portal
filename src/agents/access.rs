@@ -99,7 +99,7 @@ impl Access {
             return true;
         }
         let verb = match op.verb {
-            None => "read",
+            None | Some(Verb::Read) => "read",
             Some(Verb::Propose) => "propose",
             Some(_) => return false,
         };
@@ -107,6 +107,17 @@ impl Access {
             .kinds
             .get(op.kind)
             .is_some_and(|verbs| verbs.contains(verb))
+    }
+
+    /// The profile's half of reading a kind's manifests outside a tool (MCP `resources/*`):
+    /// without an access block, every kind the person reads; with one, a kind it grants `read`.
+    pub fn reads(&self, kind: &str) -> bool {
+        self.declared.as_ref().is_none_or(|declared| {
+            declared
+                .kinds
+                .get(kind)
+                .is_some_and(|verbs| verbs.contains("read"))
+        })
     }
 
     /// The profile's half of a tool that names its kind only when it is called (`change_resource`):
@@ -174,6 +185,36 @@ mod tests {
         // not read-only and a profile that declares nothing does not get it (T-0917).
         assert!(!access.names(op("jc_endpoint_propose")));
         assert!(!access.names(op("jc_change_approve")));
+    }
+
+    /// JC1-04: an operation that declares `read` (jc_pipeline_validate) is offered to a profile
+    /// that names it and grants `read` on its kind, as a verbless read is; without `read` it is not.
+    #[test]
+    fn a_profile_granting_read_is_offered_an_operation_declaring_read() {
+        let reads = Access::from_spec(&json!({ "access": {
+            "operations": ["jc_pipeline_validate"],
+            "kinds": [{ "kind": "Pipeline", "verbs": ["read"] }]
+        }}));
+        assert!(reads.names(op("jc_pipeline_validate")));
+        let proposes = Access::from_spec(&json!({ "access": {
+            "operations": ["jc_pipeline_validate"],
+            "kinds": [{ "kind": "Pipeline", "verbs": ["propose"] }]
+        }}));
+        assert!(!proposes.names(op("jc_pipeline_validate")));
+    }
+
+    /// JC1-02: a profile reads over MCP `resources/*` only the kinds it grants `read`; without an
+    /// access block, the person's own reach decides.
+    #[test]
+    fn a_profile_reads_resources_of_the_kinds_it_grants_read() {
+        let access = Access::from_spec(&json!({ "access": {
+            "operations": ["jc_resource_get"],
+            "kinds": [{ "kind": "Pipeline", "verbs": ["read"] }, { "kind": "Policy", "verbs": ["propose"] }]
+        }}));
+        assert!(access.reads("Pipeline"));
+        assert!(!access.reads("Policy"));
+        assert!(!access.reads("RoleBinding"));
+        assert!(Access::from_spec(&json!({})).reads("RoleBinding"));
     }
 
     /// A workspace is no manifest kind, so a profile names its operations and nothing more
