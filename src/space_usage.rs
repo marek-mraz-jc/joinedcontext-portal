@@ -126,26 +126,37 @@ impl Counter {
     /// broker named `broker` (PF-111, empty when its `brokerRef` resolves to none). `tenant`
     /// must already be a DNS-1123 name: it becomes a path segment.
     pub async fn usage(&self, broker_name: &str, tenant: &str) -> Result<SpaceUsage, String> {
-        self.measured(broker_name, tenant, |kept| current(kept, Utc::now()))
+        self.measured(broker_name, tenant, |kept| current(kept, Utc::now()), true)
             .await
+    }
+
+    /// One broker read now, for a decision that must not stand on a kept number (a broker move,
+    /// PF-115): no kept answer is taken, neither before the read nor when the broker is away.
+    pub async fn measure_now(&self, broker_name: &str, tenant: &str) -> Result<SpaceUsage, String> {
+        self.measured(broker_name, tenant, |_| false, false).await
     }
 
     /// Measures the space again for a reader who asked (T-6208). An answer younger than
     /// [`RECALCULATED`] stands: concurrent clicks share one broker read, and repeated ones within
     /// half a minute ask nothing.
     pub async fn recalculate(&self, broker_name: &str, tenant: &str) -> Result<SpaceUsage, String> {
-        self.measured(broker_name, tenant, |kept| {
-            Utc::now() - kept.observed_at < RECALCULATED
-        })
+        self.measured(
+            broker_name,
+            tenant,
+            |kept| Utc::now() - kept.observed_at < RECALCULATED,
+            true,
+        )
         .await
     }
 
-    /// The kept answer while `good` holds for it, else one broker read under the tenant's lock.
+    /// The kept answer while `good` holds for it, else one broker read under the tenant's lock;
+    /// with `fallback` a failed read answers the last kept row younger than [`STALE`].
     async fn measured(
         &self,
         broker_name: &str,
         tenant: &str,
         good: impl Fn(&SpaceUsage) -> bool,
+        fallback: bool,
     ) -> Result<SpaceUsage, String> {
         let broker = self.reach(broker_name)?;
         let key = format!("{broker}/{tenant}");
@@ -172,7 +183,7 @@ impl Counter {
         if let Some(kept) = held(&key) {
             return Ok(kept);
         }
-        self.ask(broker_name, &broker, tenant, key).await
+        self.ask(broker_name, &broker, tenant, key, fallback).await
     }
 
     /// One broker read of the tenant's counts, kept under `key`.
@@ -182,6 +193,7 @@ impl Counter {
         broker: &str,
         tenant: &str,
         key: String,
+        fallback: bool,
     ) -> Result<SpaceUsage, String> {
         let token = self.token()?;
         let response = match self
@@ -195,7 +207,10 @@ impl Counter {
             Err(err) => {
                 let reason = unanswered(&err);
                 tracing::warn!(tenant, error = ?err.without_url(), "the broker did not answer a space's counts");
-                return self.kept(&key, Utc::now()).ok_or(reason);
+                return self
+                    .kept(&key, Utc::now())
+                    .filter(|_| fallback)
+                    .ok_or(reason);
             }
         };
         let status = response.status();
@@ -225,6 +240,7 @@ impl Counter {
                 tracing::warn!(tenant, %status, "the broker refused a space's counts");
                 return self
                     .kept(&key, now)
+                    .filter(|_| fallback)
                     .ok_or_else(|| format!("the broker answered {status} for the space's counts"));
             }
         };
@@ -682,6 +698,38 @@ mod tests {
         let _ = std::fs::remove_file(&file);
         assert_eq!(kept.map(|u| u.entities), Ok(42));
         assert!(gone.unwrap_err().contains("503"));
+    }
+
+    /// T-6208: a decision read takes no kept row, a fresh one included, and fails while the
+    /// broker is away instead of answering the last count.
+    #[tokio::test]
+    async fn a_measurement_now_never_answers_a_kept_count() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let broker = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/q/tenants/air"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"counts": {"entities": 0}})),
+            )
+            .up_to_n_times(1)
+            .mount(&broker)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/q/tenants/air"))
+            .respond_with(ResponseTemplate::new(503))
+            .mount(&broker)
+            .await;
+        let file = token_file("now");
+        let counter = Counter::new(Some(broker.uri()), Some(file.clone()));
+        let first = counter.measure_now("main", "air").await;
+        let kept = counter.usage("main", "air").await;
+        let now = counter.measure_now("main", "air").await;
+        let _ = std::fs::remove_file(&file);
+        assert_eq!(first.map(|u| u.entities), Ok(0));
+        assert_eq!(kept.map(|u| u.entities), Ok(0));
+        assert!(now.unwrap_err().contains("503"));
+        assert_eq!(broker.received_requests().await.map(|r| r.len()), Some(2));
     }
 
     /// T-6208: a small space is measured again after five minutes, a large one is kept for the
