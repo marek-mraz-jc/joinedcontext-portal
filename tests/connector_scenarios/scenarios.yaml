@@ -1902,14 +1902,15 @@
       contains: ['read only']
 - id: S-89
   segment: pipeline
-  as: project-admin
+  # org-admin and viewer: the project-admin's and steward's MCP minutes (120 calls each) are nearly full.
+  as: org-admin
   says: "Which MQTT brokers does this project have, and what did the sensors broker capture lately? Then add an mqtt source reading it."
   expect: 'the pipeline segment lists MqttBroker and reads the capture through jc_mqtt_captured; a DataSource naming a broker the project lacks is refused by spec.mqtt.brokerRef (T-6290)'
   deny: 'a caller who may not approve brokers -> 404 as for a broker that is not there; a wildcard topic -> refused'
   script:
     # The administrator's ceiling, as the reconciler loads it from Git once merged.
     - proves: expect
-      manifest: { kind: Group, name: devices, spec: { members: [{ user: scn.project-admin@hel.fi }] } }
+      manifest: { kind: Group, name: devices, spec: { members: [{ user: scn.org-admin@hel.fi }] } }
     - proves: expect
       manifest: { kind: DelegationPolicy, name: devices-pipeline, spec: { subjects: [{ kind: Group, name: devices }], projects: ['{project}'], segments: [pipeline], writes: true, maxExpiry: P90D } }
     - proves: expect
@@ -1943,7 +1944,7 @@
       refused: true
       contains: ['without + or #']
     - proves: deny
-      as: steward
+      as: viewer
       call: jc_mqtt_captured
       args: { name: sensors }
       refused: true
