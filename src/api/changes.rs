@@ -478,25 +478,42 @@ async fn find_manifest_in_tree(
         Ok(t) => t,
         Err(_) => return Ok(None),
     };
-    let prefix = format!("projects/{project}/");
-    let yaml_suffix = format!("/{resource_name}.yaml");
-    let yml_suffix = format!("/{resource_name}.yml");
-    let space_yaml = format!("/{resource_name}/space.yaml");
-    let pipeline_yaml = format!("/{resource_name}/pipeline.yaml");
-    let app_yaml = format!("/{resource_name}/app.yaml");
+    Ok(tree
+        .into_iter()
+        .find(|p| names_manifest(p, project, resource_name)))
+}
 
-    for p in tree {
-        if p.starts_with(&prefix)
-            && (p.ends_with(&yaml_suffix)
-                || p.ends_with(&yml_suffix)
-                || p.ends_with(&space_yaml)
-                || p.ends_with(&pipeline_yaml)
-                || p.ends_with(&app_yaml))
-        {
-            return Ok(Some(p));
-        }
-    }
-    Ok(None)
+/// Whether `path` is the manifest of the resource `name` in `project`: a `{name}.yaml` under the
+/// project, or the folder file of a kind that lives in one (`{name}/space.yaml`, ...).
+fn names_manifest(path: &str, project: &str, name: &str) -> bool {
+    let Some(rest) = path.strip_prefix(&format!("projects/{project}/")) else {
+        return false;
+    };
+    let rest = format!("/{rest}");
+    [
+        ".yaml",
+        ".yml",
+        "/space.yaml",
+        "/pipeline.yaml",
+        "/app.yaml",
+    ]
+    .iter()
+    .any(|suffix| rest.ends_with(&format!("/{name}{suffix}")))
+}
+
+/// The manifest among the merge request's own files, deleted ones for a deletion: one list
+/// call the listing pays anyway, where the tree walk read every file of the repository once per
+/// open change (T-6347).
+fn manifest_in_files(
+    files: Option<&[crate::git::gitea::ChangedFile]>,
+    project: &str,
+    name: &str,
+    deleted: bool,
+) -> Option<String> {
+    files?
+        .iter()
+        .find(|file| file.deleted == deleted && names_manifest(&file.path, project, name))
+        .map(|file| file.path.clone())
 }
 
 /// The project a file of the configuration repository belongs to: the segment after `projects/`.
@@ -657,6 +674,7 @@ async fn bundle_headline(
     gitea: &GiteaClient,
     pr: &PullRequest,
     project: &str,
+    files: Option<&[crate::git::gitea::ChangedFile]>,
 ) -> Result<Option<ManifestData>, ApiError> {
     let branch = pr
         .head_branch
@@ -679,10 +697,16 @@ async fn bundle_headline(
     } else {
         format!("projects/{project}/")
     };
-    let mut files: Vec<_> = gitea
-        .pull_request_files(pr.number)
-        .await?
-        .into_iter()
+    let fetched;
+    let files = match files {
+        Some(files) => files,
+        None => {
+            fetched = gitea.pull_request_files(pr.number).await?;
+            &fetched
+        }
+    };
+    let mut files: Vec<_> = files
+        .iter()
         .filter(|file| file.path.starts_with(&home))
         .collect();
     // `false` sorts first: the Project manifest heads a project's deletion.
@@ -747,13 +771,16 @@ async fn bundle_headline(
     Ok(None)
 }
 
+/// The headline manifest of `pr`. `files` is the merge request's file list when the caller holds
+/// it: the manifest is found there before any probe (T-6347); `None` reads it only for a bundle.
 async fn load_manifest_data(
     gitea: &GiteaClient,
     pr: &PullRequest,
     project: &str,
+    files: Option<&[crate::git::gitea::ChangedFile]>,
 ) -> Result<Option<ManifestData>, ApiError> {
     let Some(branch_info) = parse_branch_name(&pr.head_branch) else {
-        return bundle_headline(gitea, pr, project).await;
+        return bundle_headline(gitea, pr, project, files).await;
     };
 
     let kind_info =
@@ -780,8 +807,11 @@ async fn load_manifest_data(
                 })
                 .unwrap_or_default();
 
-            let mut path = None;
+            let mut path = manifest_in_files(files, project, &branch_info.resource_name, true);
             for candidate in candidates {
+                if path.is_some() {
+                    break;
+                }
                 if let Ok(Some(_)) = gitea.get_file(&candidate, pr.base_ref()).await {
                     path = Some(candidate);
                     break;
@@ -825,7 +855,11 @@ async fn load_manifest_data(
                 .ok()
             });
 
-            let path = if let Some(cand) = direct {
+            let path = if let Some(found) =
+                manifest_in_files(files, project, &branch_info.resource_name, false)
+            {
+                Some(found)
+            } else if let Some(cand) = direct {
                 if let Ok(Some(_)) = gitea.get_file(&cand, pr.head_ref()).await {
                     Some(cand)
                 } else {
@@ -1468,22 +1502,26 @@ async fn listed(
         Standing::Unlisted => return Ok(Listed::Unlisted),
     }
 
-    let Some(data) = load_manifest_data(gitea, pr, project).await? else {
+    // The file list is fetched here anyway for the count, and its paths carry the lane the
+    // approval will apply (T-1224) and the headline manifest's path (T-6347): no extra call,
+    // and the list stops promising a lane the detail page contradicts.
+    let carried = gitea.pull_request_files(pr.number).await?;
+    let Some(data) = load_manifest_data(gitea, pr, project, Some(&carried)).await? else {
         return Ok(Listed::Unlisted);
     };
 
     let plan = plan::diff(data.base_envelope.as_ref(), data.head_envelope.as_ref());
-    // The file list is fetched here anyway for the count, and its paths carry the lane the
-    // approval will apply (T-1224): no extra call, and the list stops promising a lane the
-    // detail page contradicts.
-    let carried = gitea.pull_request_files(pr.number).await?;
     let mut proposal = build_proposal(pr, project, &data, plan, None, lane_of_paths(&carried));
     proposal.metadata = change_meta(state, gitea, pr.number, project);
-    proposal.author = human_author(gitea, pr).await;
+    let (author, waits_on) = tokio::join!(
+        human_author(gitea, pr),
+        awaited_changes(state, gitea, pr, project)
+    );
+    proposal.author = author;
     // The count only: a listing that read every file of every open change to render
     // "+3 files" would pay for the detail page on the way past it (T-0861).
     proposal.file_count = Some(carried.len());
-    proposal.waits_on = awaited_changes(state, gitea, pr, project).await?;
+    proposal.waits_on = waits_on?;
     Ok(Listed::Change(Box::new(proposal)))
 }
 
@@ -1566,7 +1604,8 @@ pub async fn change_for(
     let pr = gitea.pull_request(pr_number).await?;
     require_change(state, gitea, project, id, &pr).await?;
 
-    let data = load_manifest_data(gitea, &pr, project)
+    let pr_files = gitea.pull_request_files(pr.number).await?;
+    let data = load_manifest_data(gitea, &pr, project, Some(&pr_files))
         .await?
         .ok_or_else(|| {
             ApiError::NotFound(format!(
@@ -1577,7 +1616,7 @@ pub async fn change_for(
     let plan = plan::diff(data.base_envelope.as_ref(), data.head_envelope.as_ref());
     let redacted_fields = redact(plan.fields.clone());
     let author = human_author(gitea, &pr).await;
-    let files = changed_files(gitea, &pr).await?;
+    let files = changed_files(gitea, &pr, pr_files).await?;
     // Here every file's spec was read, so the lane each one carries is the exact one the
     // approval computes rather than the path's lower bound (T-1224).
     let carried = files.iter().fold(Lane::Green, |lane, file| {
@@ -1695,9 +1734,13 @@ fn administers(
 /// approver who cannot see it cannot understand the refusal.
 /// ponytail: one `get_file` per changed file, as the approval does; the tree diff is the
 /// upgrade for both at once.
-async fn changed_files(gitea: &GiteaClient, pr: &PullRequest) -> Result<Vec<ChangeFile>, ApiError> {
+async fn changed_files(
+    gitea: &GiteaClient,
+    pr: &PullRequest,
+    files: Vec<crate::git::gitea::ChangedFile>,
+) -> Result<Vec<ChangeFile>, ApiError> {
     let mut listed = Vec::new();
-    for file in gitea.pull_request_files(pr.number).await? {
+    for file in files {
         let read = |git_ref: &str| {
             let path = file.path.clone();
             let git_ref = git_ref.to_owned();
@@ -2106,7 +2149,7 @@ pub async fn approve_change_for(
 
     let pr = gitea.pull_request(pr_number).await?;
     require_change(state, gitea, project, id, &pr).await?;
-    let data = load_manifest_data(gitea, &pr, project)
+    let data = load_manifest_data(gitea, &pr, project, None)
         .await?
         .ok_or_else(|| {
             ApiError::NotFound(format!(
@@ -2594,7 +2637,14 @@ pub(crate) async fn merge_if_narrowing(
             return change;
         }
     };
-    let narrowed = match load_manifest_data(&gitea, &pr, project).await {
+    let files = match gitea.pull_request_files(pr.number).await {
+        Ok(files) => files,
+        Err(err) => {
+            tracing::warn!(change = %id, error = %err, "the revoke waits for a person: its files could not be read");
+            return change;
+        }
+    };
+    let narrowed = match load_manifest_data(&gitea, &pr, project, Some(&files)).await {
         Ok(Some(ManifestData {
             base_envelope: Some(base),
             head_envelope: Some(head),
@@ -2606,13 +2656,6 @@ pub(crate) async fn merge_if_narrowing(
         tracing::warn!(change = %id, "the change does not only remove access and waits for a person");
         return change;
     }
-    let files = match gitea.pull_request_files(pr.number).await {
-        Ok(files) => files,
-        Err(err) => {
-            tracing::warn!(change = %id, error = %err, "the revoke waits for a person: its files could not be read");
-            return change;
-        }
-    };
     let [file] = files.as_slice() else {
         return change;
     };
@@ -2744,7 +2787,7 @@ pub async fn reject_change_for(
 
     let pr = gitea.pull_request(pr_number).await?;
     require_change(state, gitea, project, id, &pr).await?;
-    let data = load_manifest_data(gitea, &pr, project)
+    let data = load_manifest_data(gitea, &pr, project, None)
         .await?
         .ok_or_else(|| {
             ApiError::NotFound(format!(
@@ -3344,6 +3387,93 @@ mod tests {
             .map(|change| change.metadata.name.clone())
             .collect();
         assert_eq!(names, vec!["chg-00000001".to_owned()], "{names:?}");
+    }
+
+    /// The list read the whole repository tree once per open change of a kind that lives in a
+    /// context space, after probing a path that put the project where the space goes: 4.6-14.7 s
+    /// on dev (T-6347). The merge request's own file list names the manifest: one change costs
+    /// the list, its files, the two sides of the manifest and its head commit, nothing more.
+    #[tokio::test]
+    async fn the_list_reads_a_bounded_number_of_forge_calls_per_change_and_no_tree() {
+        let server = MockServer::start().await;
+        let client = GiteaClient::new(
+            server.uri().parse().unwrap(),
+            "test-owner",
+            "test-repo",
+            "token-xyz",
+        )
+        .unwrap();
+        let state = AppState::new(Config::for_tests(), None).with_gitea(Arc::new(client));
+        let manifest_path = "projects/ovzdusie/spaces/air/endpoints/air-quality.yaml";
+        Mock::given(method("GET"))
+            .and(path("/api/v1/repos/test-owner/test-repo/pulls"))
+            .and(query_param("state", "open"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([{
+                "number": 7,
+                "html_url": "https://gitea.example.sk/pulls/7",
+                "state": "open",
+                "title": "update Endpoint air-quality",
+                "head": { "ref": "portal/update-endpoint-air-quality-12345678" },
+                "base": { "ref": "main" },
+                "created_at": "2026-09-06T09:14:22Z",
+                "user": { "login": "author", "full_name": "Author", "email": "author@example.sk" }
+            }])))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/repos/test-owner/test-repo/pulls/7/files"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                { "filename": manifest_path, "status": "modified" }
+            ])))
+            .mount(&server)
+            .await;
+        let manifest = "apiVersion: joinedcontext.com/v1alpha1\nkind: Endpoint\nmetadata:\n  name: air-quality\n  namespace: ovzdusie\nspec:\n  contextSpaceRef: air\n";
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/api/v1/repos/test-owner/test-repo/contents/{manifest_path}"
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "sha": "blob-7",
+                "content": base64::engine::Engine::encode(
+                    &base64::engine::general_purpose::STANDARD,
+                    manifest.as_bytes(),
+                )
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(wiremock::matchers::path_regex("/branches/"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "commit": { "id": "head-7" } })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(wiremock::matchers::path_regex("/git/trees/"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "sha": "tree-1",
+                "truncated": false,
+                "tree": [{ "path": manifest_path, "type": "blob", "sha": "blob-7" }]
+            })))
+            .mount(&server)
+            .await;
+
+        let list = list_changes_for(&state, "ovzdusie").await.unwrap();
+        assert_eq!(list.items.len(), 1, "{:?}", list.items);
+        assert_eq!(kind_of(&list.items[0]), Some("Endpoint"));
+        let asked: Vec<String> = server
+            .received_requests()
+            .await
+            .unwrap()
+            .iter()
+            .map(|request| request.url.path().to_owned())
+            .collect();
+        assert!(
+            !asked.iter().any(|path| path.contains("/git/trees/")),
+            "the list walked the tree: {asked:?}"
+        );
+        // pulls, pulls/7/files, the manifest on head and on base, the head commit.
+        assert_eq!(asked.len(), 5, "{asked:?}");
     }
 
     #[tokio::test]
