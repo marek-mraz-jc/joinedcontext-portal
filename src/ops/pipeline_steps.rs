@@ -777,6 +777,80 @@ fn step_name(step: &Step) -> String {
     }
 }
 
+/// `jc_pipeline_sample_source` input: a DataSource, maybe of an open plan, or a sample.
+fn sample_source_valid(val: &Value) -> Result<(), OpError> {
+    let input: SampleSourceInput = parse_input(val.clone())?;
+    if input.plan_id.is_some() && input.data_source.is_none() {
+        return Err(OpError::InvalidInput {
+            path: "/planId".into(),
+            message: "planId goes with dataSource, the name of the DataSource the plan adds".into(),
+        });
+    }
+    match (&input.data_source, &input.sample) {
+        (Some(_), None) | (None, Some(_)) => Ok(()),
+        _ => Err(OpError::InvalidInput {
+            path: "/dataSource".into(),
+            message: "give exactly one of dataSource and sample".into(),
+        }),
+    }
+}
+
+/// `jc_pipeline_sample_source`: the first records of a DataSource, a planned one or a sample.
+async fn sample_source(
+    caller: &super::Caller,
+    state: &AppState,
+    project: &str,
+    val: Value,
+) -> Result<Value, OpError> {
+    let input: SampleSourceInput = parse_input(val)?;
+    let named = input.data_source.clone();
+    // A planned source is not in the mirror yet: its own manifest lists its
+    // personal fields (AG-158).
+    let mut planned = Value::Null;
+    let (sample, plan) = match (input.data_source, input.sample) {
+        (Some(name), None) if input.plan_id.is_some() => {
+            let id = input.plan_id.unwrap_or_default();
+            let (spec, sampled) = sample_of_planned(caller, state, project, &id, &name).await?;
+            planned = spec;
+            sampled
+        }
+        (Some(name), None) => {
+            if let Some(source) = streamed_source(caller, state, project, &name)? {
+                let answer = streamed_sample(caller, state, project, &name, &source).await?;
+                return Ok(without_source_fields(
+                    caller,
+                    state,
+                    project,
+                    [name.as_str()],
+                    answer,
+                ));
+            }
+            sample_of_data_source(caller, state, project, &name)?
+        }
+        (None, Some(sample)) => (sample, no_steps()?),
+        _ => {
+            return Err(OpError::InvalidInput {
+                path: "/dataSource".into(),
+                message: "give exactly one of dataSource and sample".into(),
+            })
+        }
+    };
+    let trace = pipeline_test::run_harness(state, project, &plan, &sample).await?;
+    let fields = fields_of(&trace.mapping);
+    let answer = json!({
+        "count": trace.mapping.len(),
+        "truncated": trace.mapping.len() >= MAX_MESSAGES,
+        "fields": fields,
+        "records": trace.mapping,
+        "errors": trace.errors,
+    });
+    let answer = without_source_fields(caller, state, project, named.as_deref(), answer);
+    Ok(match named.as_deref() {
+        Some(name) => without_planned_fields(caller, name, &planned, answer),
+        None => answer,
+    })
+}
+
 /// This module's operations in the registry (`super::init_registry`).
 pub fn operations() -> Vec<Operation> {
     vec![
@@ -794,78 +868,8 @@ pub fn operations() -> Vec<Operation> {
             kind: "Pipeline",
             verb: Some(Verb::Propose),
             lane: Lane::Green,
-            validate: |val| {
-                let input: SampleSourceInput = parse_input(val.clone())?;
-                if input.plan_id.is_some() && input.data_source.is_none() {
-                    return Err(OpError::InvalidInput {
-                        path: "/planId".into(),
-                        message: "planId goes with dataSource, the name of the DataSource the plan adds".into(),
-                    });
-                }
-                match (&input.data_source, &input.sample) {
-                    (Some(_), None) | (None, Some(_)) => Ok(()),
-                    _ => Err(OpError::InvalidInput {
-                        path: "/dataSource".into(),
-                        message: "give exactly one of dataSource and sample".into(),
-                    }),
-                }
-            },
-            run: |caller, state, project, val| {
-                Box::pin(async move {
-                    let input: SampleSourceInput = parse_input(val)?;
-                    let named = input.data_source.clone();
-                    // A planned source is not in the mirror yet: its own manifest lists its
-                    // personal fields (AG-158).
-                    let mut planned = Value::Null;
-                    let (sample, plan) = match (input.data_source, input.sample) {
-                        (Some(name), None) if input.plan_id.is_some() => {
-                            let id = input.plan_id.unwrap_or_default();
-                            let (spec, sampled) =
-                                sample_of_planned(caller, state, project, &id, &name).await?;
-                            planned = spec;
-                            sampled
-                        }
-                        (Some(name), None) => {
-                            if let Some(source) = streamed_source(caller, state, project, &name)? {
-                                let answer =
-                                    streamed_sample(caller, state, project, &name, &source)
-                                        .await?;
-                                return Ok(without_source_fields(
-                                    caller,
-                                    state,
-                                    project,
-                                    [name.as_str()],
-                                    answer,
-                                ));
-                            }
-                            sample_of_data_source(caller, state, project, &name)?
-                        }
-                        (None, Some(sample)) => (sample, no_steps()?),
-                        _ => {
-                            return Err(OpError::InvalidInput {
-                                path: "/dataSource".into(),
-                                message: "give exactly one of dataSource and sample".into(),
-                            })
-                        }
-                    };
-                    let trace =
-                        pipeline_test::run_harness(state, project, &plan, &sample).await?;
-                    let fields = fields_of(&trace.mapping);
-                    let answer = json!({
-                        "count": trace.mapping.len(),
-                        "truncated": trace.mapping.len() >= MAX_MESSAGES,
-                        "fields": fields,
-                        "records": trace.mapping,
-                        "errors": trace.errors,
-                    });
-                    let answer =
-                        without_source_fields(caller, state, project, named.as_deref(), answer);
-                    Ok(match named.as_deref() {
-                        Some(name) => without_planned_fields(caller, name, &planned, answer),
-                        None => answer,
-                    })
-                })
-            },
+            validate: sample_source_valid,
+            run: |caller, state, project, val| Box::pin(sample_source(caller, state, project, val)),
         },
         Operation {
             name: "jc_pipeline_try_mapping",
