@@ -406,6 +406,7 @@ mod tests {
             entities,
             broker: "main".into(),
             observed_at: Utc::now(),
+            measured_at: Utc::now(),
             bytes: Some(crate::space_usage::SpaceBytes {
                 entities,
                 attr_instances: history,

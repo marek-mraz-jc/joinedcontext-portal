@@ -123,7 +123,8 @@ pub async fn check_move(
         return Ok(());
     }
     let tenant = crate::spaces::segment(&state.mirror, project, name);
-    match state.space_usage.usage(&now, &tenant).await {
+    // a fresh count: a kept zero up to hours old must not let entities stay behind
+    match state.space_usage.measure_now(&now, &tenant).await {
         Ok(usage) if usage.entities == 0 => Ok(()),
         Ok(usage) => Err(ApiError::Conflict(format!(
             "space '{name}' holds {} entities on broker '{now}'; use the move job to take it to \
@@ -285,6 +286,55 @@ mod tests {
         assert!(
             matches!(unknown, Err(ApiError::BadRequest(_))),
             "{unknown:?}"
+        );
+    }
+
+    /// T-6208: a zero the Portal keeps for hours lets no space move while its broker is away;
+    /// the move check counts the space again and refuses when it cannot.
+    #[tokio::test]
+    async fn a_kept_zero_moves_no_space_while_its_broker_is_away() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let broker = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/q/tenants/port-ships"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"counts": {"entities": 0}})),
+            )
+            .up_to_n_times(1)
+            .mount(&broker)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/q/tenants/port-ships"))
+            .respond_with(ResponseTemplate::new(503))
+            .mount(&broker)
+            .await;
+        let token = std::env::temp_dir().join(format!("brokers-away-{}", std::process::id()));
+        std::fs::write(&token, "t").expect("write the token");
+        let mut config = crate::config::Config::for_tests();
+        config.broker_url = Some(broker.uri());
+        config.broker_admin_token_file = Some(token.clone());
+        let state = AppState::new(config, None);
+        state.mirror.replace_all(&mirror(json!([])));
+        state
+            .mirror
+            .upsert(envelope("ContextSpace", "port", "ships", json!({})));
+
+        let kept = state.space_usage.usage("main", "port-ships").await;
+        let moved = check_move(
+            &state,
+            "port",
+            "ContextSpace",
+            "ships",
+            &json!({"brokerRef": "canary"}),
+        )
+        .await;
+        let _ = std::fs::remove_file(&token);
+
+        assert_eq!(kept.map(|u| u.entities), Ok(0));
+        assert!(
+            matches!(&moved, Err(ApiError::Conflict(m)) if m.contains("could not be counted") && m.contains("503")),
+            "{moved:?}"
         );
     }
 

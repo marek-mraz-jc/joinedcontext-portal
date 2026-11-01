@@ -18,6 +18,18 @@ use serde_json::{json, Value};
 use wiremock::matchers::{method, path, path_regex, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
+/// T-6301: the client holds no optional scope, so the pass unlinks nothing.
+async fn no_optional_scopes(keycloak: &MockServer) {
+    Mock::given(method("GET"))
+        .and(path_regex(
+            "^/admin/realms/bb/clients/[^/]+/optional-client-scopes$",
+        ))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .with_priority(5)
+        .mount(keycloak)
+        .await;
+}
+
 const REALM: &str = "/admin/realms/bb";
 
 fn server(project: &str, name: &str) -> ResourceEnvelope {
@@ -40,6 +52,7 @@ fn mirror_with(items: Vec<ResourceEnvelope>) -> Mirror {
 
 async fn realm(listed: Value) -> MockServer {
     let keycloak = MockServer::start().await;
+    no_optional_scopes(&keycloak).await;
     Mock::given(method("POST"))
         .and(path("/realms/bb/protocol/openid-connect/token"))
         .respond_with(
@@ -273,6 +286,59 @@ async fn reordered_callbacks_are_no_drift_and_no_put() {
         "{outcomes:?}"
     );
     assert_eq!(wrote(&keycloak).await, Vec::<String>::new());
+}
+
+/// T-6301: a server's client inherits the realm's optional scopes (the CIMD clients' `connector`
+/// and `offline_access`) at creation; the pass unlinks both and reports it.
+#[tokio::test]
+async fn inherited_optional_scopes_are_unlinked_from_a_servers_client() {
+    let keycloak = realm(json!([])).await;
+    lookup(
+        &keycloak,
+        "mcp-helsinki-mobility",
+        json!([held("uuid-m", "helsinki", "mobility")]),
+    )
+    .await;
+    let mut own = audience_mapper("mcp-helsinki-mobility");
+    own["id"] = json!("mapper-own");
+    let mut groups = groups_mapper();
+    groups["id"] = json!("mapper-groups");
+    mappers(&keycloak, "uuid-m", json!([own, groups])).await;
+    let scopes = format!("{REALM}/clients/uuid-m/optional-client-scopes");
+    Mock::given(method("GET"))
+        .and(path(scopes.clone()))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            { "id": "s-con", "name": "connector" },
+            { "id": "s-off", "name": "offline_access" },
+        ])))
+        .with_priority(1)
+        .mount(&keycloak)
+        .await;
+    Mock::given(method("DELETE"))
+        .and(path_regex(format!("^{scopes}/s-(con|off)$")))
+        .respond_with(ResponseTemplate::new(204))
+        .mount(&keycloak)
+        .await;
+
+    let outcomes = sync(&keycloak)
+        .converge(&mirror_with(vec![server("helsinki", "mobility")]))
+        .await;
+    let outcome = outcomes
+        .iter()
+        .find(|o| {
+            o.drift
+                .iter()
+                .any(|d| d.contains("connector, offline_access"))
+        })
+        .unwrap_or_else(|| panic!("no outcome names the scopes: {outcomes:?}"));
+    assert!(outcome.error.is_none(), "{outcome:?}");
+    assert_eq!(
+        wrote(&keycloak).await,
+        vec![
+            format!("DELETE {scopes}/s-con"),
+            format!("DELETE {scopes}/s-off")
+        ]
+    );
 }
 
 /// A client of that id the platform did not create is left alone, and the server is reported.
