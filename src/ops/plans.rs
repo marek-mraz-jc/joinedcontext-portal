@@ -384,7 +384,12 @@ async fn checked(
     }
     through_connector(caller, project, info.kind, &change.name, false)?;
     let home = super::resources::home_holding(state, info, project, &change.name);
-    let manifest = manifest_of(state, at, &home, change)?;
+    let mut manifest = manifest_of(state, at, &home, change)?;
+    // The slug is the platform's to mint (EP-75): a typed one is refused under this change's own
+    // path here, before the check below mints one and records it on the Endpoint's draft.
+    if let Some(m) = &manifest {
+        slug_settled(caller, state, at, &home, &mut m.clone()).await?;
+    }
     let base = etag(state, &home, info.kind, &change.name);
     let answer = match &manifest {
         Some(m) => {
@@ -397,6 +402,11 @@ async fn checked(
         }
         None => removal_dry_run(caller, state, &home, info.plural, &change.name, workspace).await?,
     };
+    // The slug the check minted, from the draft it recorded, so the change proposes what was
+    // checked.
+    if let Some(m) = manifest.as_mut() {
+        slug_settled(caller, state, at, &home, m).await?;
+    }
     let mut answer = answer;
     if let (Some(m), "Pipeline") = (&manifest, info.kind) {
         let warnings = super::replace_check::warnings(state, project, &home, m).await;
@@ -462,6 +472,24 @@ async fn checked(
         model,
     };
     Ok((diff, planned))
+}
+
+async fn slug_settled(
+    caller: &Caller,
+    state: &AppState,
+    at: &str,
+    home: &str,
+    manifest: &mut Value,
+) -> Result<(), OpError> {
+    // The check records its draft outside every workspace, so the slug is read there.
+    crate::endpoint_slug::settle_in(state, home, None, caller.brings_its_own_slug(), manifest)
+        .await
+        .map_err(|message| {
+            invalid(
+                format!("{at}/manifest{}", crate::endpoint_slug::PATH),
+                message,
+            )
+        })
 }
 
 /// A LinkML source rides only on a DataModel change that is no removal and no workspace commit.
@@ -1608,6 +1636,38 @@ mod tests {
             via: super::super::Via::Mcp,
             access,
             bearer: None,
+        }
+    }
+
+    /// EP-75 (T-6285): a connector planning an Endpoint with a slug it wrote is refused at the
+    /// change's own path, before anything is checked or kept; so is an update moving the slug.
+    #[tokio::test]
+    async fn a_planned_endpoint_slug_the_caller_wrote_is_refused() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let typed = "aaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let input = PlanInput {
+            changes: vec![ChangeInput {
+                op: Op::Create,
+                kind: "Endpoint".into(),
+                name: "t6242-probe".into(),
+                manifest: Some(json!({
+                    "apiVersion": crate::resource::API_VERSION,
+                    "kind": "Endpoint",
+                    "metadata": { "name": "t6242-probe", "namespace": "doprava" },
+                    "spec": { "contextSpaceRef": "air", "audience": "public", "slug": typed }
+                })),
+                patch: None,
+                source: None,
+            }],
+            workspace: None,
+        };
+        match plan(&caller(None), &state, "doprava", input).await {
+            Err(OpError::InvalidInput { path, message }) => {
+                assert_eq!(path, "/changes/0/manifest/spec/slug");
+                assert!(message.contains("leave spec.slug out"), "{message}");
+                assert!(!message.contains(typed), "{message}");
+            }
+            other => panic!("expected a refusal at the slug, got {other:?}"),
         }
     }
 

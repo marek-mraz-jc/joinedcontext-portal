@@ -27,6 +27,7 @@ pub mod dashboards;
 pub mod dataset_score;
 pub mod db;
 pub mod domain_verification;
+pub mod endpoint_slug;
 pub mod endpoint_usage;
 pub mod entity_comments;
 pub mod entity_trash;

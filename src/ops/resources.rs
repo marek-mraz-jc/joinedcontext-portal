@@ -311,6 +311,45 @@ pub fn with_readable_kinds(
         .collect()
 }
 
+/// The homes of this kind the caller may read it in, each with the grants they hold there: a
+/// Role lives in the project and the organization, and a grant in one reads nothing in the
+/// other, as [`readable`] judges `jc_resource_get` in the home holding the name (PF-59, T-6273).
+fn readable_homes<'a>(
+    caller: &Caller,
+    state: &AppState,
+    homes: &'a [String],
+    info: &'static KindInfo,
+) -> Vec<(&'a str, crate::permissions::Effective)> {
+    homes
+        .iter()
+        .map(|home| {
+            let effective = crate::permissions::for_request(state, &caller.identity, home);
+            (home.as_str(), effective)
+        })
+        .filter(|(_, effective)| effective.may_read(info.kind))
+        .collect()
+}
+
+/// Every manifest of this kind in `homes`, judged by the grants held in its own home; a grant
+/// bound to one context space reads that space's manifests alone (T-5698).
+fn readable_in(
+    state: &AppState,
+    homes: &[(&str, crate::permissions::Effective)],
+    info: &'static KindInfo,
+) -> Vec<ResourceEnvelope> {
+    homes
+        .iter()
+        .flat_map(|(home, effective)| {
+            state
+                .mirror
+                .list(home, info.kind, &ListOptions::default())
+                .items
+                .into_iter()
+                .filter(move |envelope| effective.may_read_envelope(info.kind, envelope))
+        })
+        .collect()
+}
+
 async fn list(
     caller: &Caller,
     state: &AppState,
@@ -319,8 +358,10 @@ async fn list(
 ) -> Result<Value, OpError> {
     let info = kind_named(&input.kind)?;
     let homes = crate::resource::homes(info, project);
-    readable(caller, state, &homes[0], info)?;
-    let effective = crate::permissions::for_request(state, &caller.identity, &homes[0]);
+    let readable_homes = readable_homes(caller, state, &homes, info);
+    if readable_homes.is_empty() {
+        readable(caller, state, &homes[0], info)?;
+    }
     let filter = match input.filter.as_deref().map(str::trim) {
         Some(text) if !text.is_empty() => Some(
             crate::resource::filter::Filter::parse(
@@ -331,16 +372,8 @@ async fn list(
         ),
         _ => None,
     };
-    let items: Vec<Value> = homes
-        .iter()
-        .flat_map(|home| {
-            state
-                .mirror
-                .list(home, info.kind, &ListOptions::default())
-                .items
-        })
-        // A grant bound to one context space lists that space's manifests alone (T-5698).
-        .filter(|envelope| effective.may_read_envelope(info.kind, envelope))
+    let items: Vec<Value> = readable_in(state, &readable_homes, info)
+        .into_iter()
         .filter(|envelope| {
             input
                 .space
@@ -404,17 +437,11 @@ async fn get(
         None => {
             // The names it could have been are every name of every place this kind lives in,
             // so a caller who asked in the project is told about the organization's too.
-            let mut names: Vec<String> = homes
-                .iter()
-                .flat_map(|home| {
-                    state
-                        .mirror
-                        .list(home, info.kind, &ListOptions::default())
-                        .items
-                })
-                .filter(|envelope| effective.may_read_envelope(info.kind, envelope))
-                .map(|envelope| envelope.metadata.name)
-                .collect();
+            let mut names: Vec<String> =
+                readable_in(state, &readable_homes(caller, state, &homes, info), info)
+                    .into_iter()
+                    .map(|envelope| envelope.metadata.name)
+                    .collect();
             names.sort();
             Err(OpError::Api(ApiError::NotFound(if names.is_empty() {
                 format!(
