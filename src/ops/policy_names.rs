@@ -125,26 +125,23 @@ fn entry_types(info: &Value) -> Vec<&str> {
         .collect()
 }
 
-/// One error per capability key that lets a public grant read the versions of an attribute its
-/// model marks personal (DM-151): the attribute's own key, or `*` when it sets no `versions`.
+/// One error per entry that lets a public grant read the versions of an attribute its model
+/// marks personal (DM-151). The attribute's `versions` falls back to `*`'s, then to the
+/// default (ADR-N-066 2.1): read whenever the grant lists the action `readVersions`.
 fn public_personal_versions(spec: &Value, marks: &crate::personal_data::Marks) -> Vec<Finding> {
     let mut out = Vec::new();
-    let public = |holder: &Value| {
-        holder["effect"].as_str() != Some("prohibition")
-            && holder["assignee"]["kind"].as_str() == Some("role")
-            && holder["assignee"]["id"].as_str() == Some("public")
-    };
-    // A rule takes the spec's assignee when it names none.
-    let own_public = public(spec);
     for (at, holder) in holders(spec) {
-        let named = holder.get("assignee").is_some();
-        if !(public(holder) || (!named && own_public)) {
+        let public = holder["effect"].as_str() != Some("prohibition")
+            && holder["assignee"]["kind"].as_str() == Some("role")
+            && holder["assignee"]["id"].as_str() == Some("public");
+        if !public {
             continue;
         }
+        let default_reads = holder["actions"]
+            .as_array()
+            .is_some_and(|actions| actions.iter().any(|a| a.as_str() == Some("readVersions")));
         for (at, info) in entries_of(at, holder) {
-            let Some(caps) = info["attributes"].as_object() else {
-                continue;
-            };
+            let caps = info["attributes"].as_object();
             let listed: Vec<&str> = ["propertyNames", "relationshipNames"]
                 .iter()
                 .flat_map(|list| info[*list].as_array().into_iter().flatten())
@@ -157,20 +154,22 @@ fn public_personal_versions(spec: &Value, marks: &crate::personal_data::Marks) -
                 .map(String::as_str)
                 .filter(|name| listed.is_empty() || listed.contains(name))
                 .collect();
+            let versions = |key: &str| caps.and_then(|c| c.get(key)?["versions"].as_array());
             for name in personal {
-                let key = if caps.get(name).is_some_and(|c| c.get("versions").is_some()) {
-                    name
-                } else {
-                    "*"
+                let (path, reads) = match versions(name)
+                    .map(|v| (name, v))
+                    .or_else(|| versions("*").map(|v| ("*", v)))
+                {
+                    Some((key, list)) => (
+                        format!("{at}.attributes.{key}.versions"),
+                        list.iter().any(|v| v.as_str() == Some("read")),
+                    ),
+                    None => (format!("{at}.attributes"), default_reads),
                 };
-                let reads = caps
-                    .get(key)
-                    .and_then(|c| c["versions"].as_array())
-                    .is_some_and(|versions| versions.iter().any(|v| v.as_str() == Some("read")));
                 if reads {
                     out.push(Finding {
                         level: Level::Error,
-                        path: format!("{at}.attributes.{key}.versions"),
+                        path,
                         message: format!(
                             "'{name}' is personal data in the model, so a public grant never \
                              reads its versions; set `{name}: {{versions: []}}` or drop read"
@@ -470,15 +469,40 @@ classes:
         let mut internal = public(json!({"*": {"versions": ["read"]}}));
         internal["assignee"]["id"] = json!("city-staff");
         assert_eq!(public_personal_versions(&internal, &marks()), Vec::new());
-        // A rule without its own assignee takes the spec's.
+        // A rule names its own assignee.
         let ruled = json!({
-            "assignee": {"kind": "role", "id": "public"},
-            "rules": [{"information": [{"entities": [{"type": "OnStreetParking"}], "attributes": {"*": {"versions": ["read"]}}}]}],
+            "rules": [{
+                "assignee": {"kind": "role", "id": "public"},
+                "information": [{"entities": [{"type": "OnStreetParking"}], "attributes": {"*": {"versions": ["read"]}}}],
+            }],
         });
         let found = public_personal_versions(&ruled, &marks());
         assert_eq!(
             found[0].path,
             "spec.rules.0.information.0.attributes.*.versions"
+        );
+        // Without a versions key the default reads when the grant lists readVersions.
+        let mut bare = public(Value::Null);
+        bare["information"][0]
+            .as_object_mut()
+            .map(|info| info.remove("attributes"));
+        bare["actions"] = json!(["readVersions"]);
+        let found = public_personal_versions(&bare, &marks());
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].path, "spec.information.0.attributes");
+        let mut history = public(json!({"*": {"history": true}}));
+        history["actions"] = json!(["readVersions"]);
+        let found = public_personal_versions(&history, &marks());
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].path, "spec.information.0.attributes");
+        // An explicit list without read wins over the default.
+        let mut narrowed = public(json!({"*": {"versions": []}}));
+        narrowed["actions"] = json!(["readVersions"]);
+        assert_eq!(public_personal_versions(&narrowed, &marks()), Vec::new());
+        // Without readVersions the default reads nothing.
+        assert_eq!(
+            public_personal_versions(&public(json!({"*": {"history": true}})), &marks()),
+            Vec::new()
         );
     }
 }
