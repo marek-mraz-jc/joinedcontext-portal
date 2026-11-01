@@ -70,12 +70,15 @@ for (const lang of ["en", "sk"] as const) {
       await expect(table.getByRole("rowheader", { name: "no2" })).toBeVisible();
       const legend = page.getByText(lang === "en" ? "What the grant lets a caller do with each attribute" : "Čo oprávnenie dovoľuje volajúcemu s každým atribútom");
       await legend.scrollIntoViewIfNeeded();
-      const box = await page.locator("fieldset", { has: table }).last().boundingBox();
+      const field = page.locator("fieldset", { has: table }).last();
+      const box = await field.boundingBox();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
-      await page.screenshot({
-        path: `test-results/T-6339/matrix-${lang}-${width}.png`,
-        fullPage: true,
+      // A viewport shot with the matrix's legend just below the sticky app header.
+      await field.evaluate((el) => {
+        el.scrollIntoView({ block: "start" });
+        window.scrollBy(0, -72);
       });
+      await page.screenshot({ path: `test-results/T-6339/matrix-${lang}-${width}.png` });
       expect(box).not.toBeNull();
       if (lang === "en" && width === 1440) expect(await axeViolations(page)).toEqual([]);
       info.annotations.push({ type: "shot", description: `matrix-${lang}-${width}.png` });
