@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -19,6 +19,7 @@ import {
   TableRow,
   Term,
   RadioGroup,
+  fieldIds,
 } from "../../components/ui";
 import {
   DEFAULT_KIND,
@@ -184,10 +185,6 @@ export function LinkmlVisualEditor({
     setSelectedSlot(name);
     setIriDraft(null);
     setIriError(null);
-    // The panel opens under the table, a screen away on a phone: bring it into view.
-    requestAnimationFrame(() =>
-      document.getElementById("models-slot-detail")?.scrollIntoView?.({ block: "nearest", behavior: "smooth" }),
-    );
   };
 
   const addClass = () => {
@@ -353,7 +350,7 @@ export function LinkmlVisualEditor({
               >
                 <Field id="new-class-name" label={t("models.newClass")} help={t("models.addClassNameHint")}>
                   <div className="flex gap-2">
-                    <Input id="new-class-name" value={newClass} onChange={(event) => setNewClass(event.target.value)} />
+                    <Input id="new-class-name" aria-describedby={fieldIds("new-class-name").help} value={newClass} onChange={(event) => setNewClass(event.target.value)} />
                     <Button type="submit" variant="primary" disabled={!newClass.trim()} disabledReason={t("models.nameFirst")}>
                       {t("models.add")}
                     </Button>
@@ -700,7 +697,7 @@ export function LinkmlVisualEditor({
                 >
                   <Field id="new-slot-name" label={t("models.slotName")} help={t("models.slotNameHint")}>
                     <div className="flex gap-2">
-                      <Input id="new-slot-name" value={newSlot} onChange={(event) => setNewSlot(event.target.value)} />
+                      <Input id="new-slot-name" aria-describedby={fieldIds("new-slot-name").help} value={newSlot} onChange={(event) => setNewSlot(event.target.value)} />
                       <Button type="submit" variant="primary" disabled={!newSlot.trim()} disabledReason={t("models.nameFirst")}>
                         {t("models.add")}
                       </Button>
@@ -716,7 +713,7 @@ export function LinkmlVisualEditor({
             </Field>
           ) : null}
           {activeSlot && activeSlotInheritedFrom ? (
-            <section aria-labelledby="models-slot-detail" className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2">
               <p className="text-fg-muted">
                 {t("models.inheritedDefinedOn", { type: activeSlotInheritedFrom })}
               </p>
@@ -729,9 +726,9 @@ export function LinkmlVisualEditor({
                   {t("models.inheritedOpen", { type: activeSlotInheritedFrom })}
                 </Button>
               </div>
-            </section>
+            </div>
           ) : activeSlot ? (
-            <section aria-labelledby="models-slot-detail" className="flex flex-col gap-3">
+            <div className="flex flex-col gap-3">
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field id="slot-range" label={t("models.range")}>
                   <Select
@@ -879,7 +876,7 @@ export function LinkmlVisualEditor({
                   {diagnostic.message}
                 </p>
               ))}
-            </section>
+            </div>
           ) : null}
         </Dialog>
 

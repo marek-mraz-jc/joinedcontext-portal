@@ -100,6 +100,7 @@ export function ModelIdentity({ name, id, creating, version, readOnly, onRename 
             <Input
               id={inputId}
               aria-label={t("models.identity.name")}
+              aria-describedby={`${inputId}-hint`}
               aria-invalid={empty || undefined}
               className="w-64 max-w-full"
               ref={field}
@@ -124,6 +125,10 @@ export function ModelIdentity({ name, id, creating, version, readOnly, onRename 
               {t("app.cancel")}
             </Button>
           </div>
+          {/* The field's hint under the row (UI-44, owner 2026-10-21): the row stays one line. */}
+          <p id={`${inputId}-hint`} className="basis-full text-caption text-fg-muted">
+            {t("models.identity.nameHint")}
+          </p>
           {empty ? (
             <InlineError className="basis-full">{t("models.identity.nameEmpty")}</InlineError>
           ) : null}

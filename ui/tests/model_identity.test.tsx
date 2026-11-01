@@ -56,11 +56,16 @@ describe("ModelIdentity", () => {
     expect(onRename).not.toHaveBeenCalled();
   });
 
-  it("names a new model as it is typed, before it has an id", async () => {
-    const { onRename, user } = renderIdentity({ name: "", id: undefined, creating: true, version: undefined });
+  // A new model is named in the New data model window (owner 2026-11-01, T-6344); the page renames
+  // it behind the pencil like a saved one.
+  it("renames a new model behind the pencil, before it has an id", async () => {
+    const { onRename, user } = renderIdentity({ id: undefined, creating: true, version: undefined });
     expect(screen.getByText(en.models.identity.noId)).toBeInTheDocument();
-    await user.type(screen.getByRole("textbox", { name: en.models.identity.name }), "B");
-    expect(onRename).toHaveBeenLastCalledWith("B");
+    await user.click(screen.getByRole("button", { name: rename }));
+    const field = screen.getByRole("textbox", { name: en.models.identity.name });
+    await user.clear(field);
+    await user.type(field, "Bikes{Enter}");
+    expect(onRename).toHaveBeenLastCalledWith("Bikes");
   });
 
   it("offers no rename to a person who may not propose", () => {

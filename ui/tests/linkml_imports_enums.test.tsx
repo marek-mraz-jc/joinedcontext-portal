@@ -193,25 +193,30 @@ describe("the diagram", () => {
 describe("an empty model", () => {
   const EMPTY = "id: https://hel.fi/models/new\nname: new\nclasses: {}\nslots: {}\nenums: {}\n";
 
-  it("shows three ways to start, each one doing what it says", async () => {
+  // One "Add type" (owner 2026-11-01, T-6344): its dialog brings types from a Smart Data Model or a
+  // spreadsheet, or starts an empty one by name; the three-step hints block left the page.
+  it("adds a type from a Smart Data Model, a spreadsheet or a name, all from Add type", async () => {
     const onImport = vi.fn();
     renderPart(<LinkmlVisualEditor source={EMPTY} onChange={() => undefined} onImport={onImport} />);
-    const hints = screen.getByRole("region", { name: en.models.hints.title });
-    expect(within(hints).getAllByRole("listitem")).toHaveLength(3);
-    await userEvent.click(within(hints).getByRole("button", { name: en.models.hints.sdmAction }));
-    expect(onImport).toHaveBeenCalledOnce();
-    await userEvent.click(within(hints).getByRole("button", { name: en.models.hints.klassAction }));
-    expect(screen.getByRole("textbox", { name: en.models.newClass })).toHaveFocus();
+    await userEvent.click(screen.getByRole("button", { name: en.models.addClass }));
+    let dialog = screen.getByRole("dialog", { name: en.models.addClass });
+    await userEvent.click(within(dialog).getByRole("button", { name: new RegExp(en.models.addFrom.sdm) }));
+    expect(onImport).toHaveBeenLastCalledWith("sdm");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: en.models.addClass }));
+    dialog = screen.getByRole("dialog", { name: en.models.addClass });
+    await userEvent.click(within(dialog).getByRole("button", { name: new RegExp(en.models.addFrom.file) }));
+    expect(onImport).toHaveBeenLastCalledWith("file");
+    await userEvent.click(screen.getByRole("button", { name: en.models.addClass }));
+    dialog = screen.getByRole("dialog", { name: en.models.addClass });
+    expect(within(dialog).getByRole("textbox", { name: en.models.newClass })).toHaveAccessibleDescription(en.models.addClassNameHint);
   });
 
-  it("offers no import where the page has none, and no hints once a class exists or the text is broken", () => {
-    const { unmount } = renderPart(<LinkmlVisualEditor source={EMPTY} onChange={() => undefined} />);
-    expect(screen.queryByRole("button", { name: en.models.hints.sdmAction })).toBeNull();
-    unmount();
-    const second = renderPart(<LinkmlVisualEditor source={SCHOOL} onChange={() => undefined} />);
-    expect(screen.queryByRole("region", { name: en.models.hints.title })).toBeNull();
-    second.unmount();
-    renderPart(<LinkmlVisualEditor source={"classes: [unclosed"} onChange={() => undefined} />);
-    expect(screen.queryByRole("region", { name: en.models.hints.title })).toBeNull();
+  it("offers no import where the page has none, only the name", async () => {
+    renderPart(<LinkmlVisualEditor source={EMPTY} onChange={() => undefined} />);
+    await userEvent.click(screen.getByRole("button", { name: en.models.addClass }));
+    const dialog = screen.getByRole("dialog", { name: en.models.addClass });
+    expect(within(dialog).queryByRole("button", { name: new RegExp(en.models.addFrom.sdm) })).toBeNull();
+    expect(within(dialog).getByRole("textbox", { name: en.models.newClass })).toBeInTheDocument();
   });
 });

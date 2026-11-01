@@ -105,9 +105,9 @@ describe("LinkML visual editor", () => {
 
     await user.click(screen.getByRole("button", { name: "AirQualityObserved" }));
     await user.click(within(screen.getByRole("table", { name: en.models.slots })).getByRole("button", { name: "dateObserved" }));
-    // The opened row is marked, so the panel below the table names the row it belongs to.
-    expect(within(screen.getByRole("table", { name: en.models.slots })).getByRole("button", { name: "dateObserved" }).closest("tr")).toHaveAttribute("aria-current", "true");
-    const detail = screen.getByRole("region", { name: "dateObserved" });
+    // The opened row is marked under the field's dialog (owner 2026-11-01: a field opens as a dialog).
+    expect(within(screen.getByRole("table", { name: en.models.slots, hidden: true })).getByRole("button", { name: "dateObserved", hidden: true }).closest("tr")).toHaveAttribute("aria-current", "true");
+    const detail = screen.getByRole("dialog", { name: "dateObserved" });
     expect(within(detail).getByText(i18n.t("models.inheritedDefinedOn", { type: "Observed" }))).toBeInTheDocument();
     // Nothing to edit here: a change would reach every type that inherits the field.
     expect(within(detail).queryByRole("checkbox")).not.toBeInTheDocument();
@@ -115,9 +115,9 @@ describe("LinkML visual editor", () => {
     expect(source()).toBe(before);
 
     await user.click(within(detail).getByRole("button", { name: i18n.t("models.inheritedOpen", { type: "Observed" }) }));
-    expect(screen.getByRole("button", { name: "Observed" })).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("button", { name: "Observed", hidden: true })).toHaveAttribute("aria-current", "true");
     // On its own type the field is editable again.
-    expect(within(screen.getByRole("region", { name: "dateObserved" })).getAllByRole("checkbox").length).toBeGreaterThan(0);
+    expect(within(screen.getByRole("dialog", { name: "dateObserved" })).getAllByRole("checkbox").length).toBeGreaterThan(0);
   });
 
   it("keeps a phone page 375 px wide: the attribute table scrolls in its own frame, the editor's column does not grow to it (T-4165)", () => {
@@ -134,8 +134,9 @@ describe("LinkML visual editor", () => {
   it("creates a class, and the YAML keeps the comment that was already there", async () => {
     const { source, user } = renderEditor();
 
-    await user.type(screen.getByLabelText("New type"), "WeatherObserved");
     await user.click(screen.getByRole("button", { name: "Add type" }));
+    await user.type(screen.getByRole("textbox", { name: "New type" }), "WeatherObserved");
+    await user.click(screen.getByRole("button", { name: "Add" }));
 
     expect(parseModel(source()).classes.map((klass) => klass.name)).toEqual([
       "AirQualityObserved",
@@ -148,8 +149,9 @@ describe("LinkML visual editor", () => {
   it("makes a new type an NGSI-LD entity type when the model imports ngsi-ld-core, so Check finds one (T-5066)", async () => {
     const { source, user } = renderEditor(blankSource("hel.fi", "stations"));
 
-    await user.type(screen.getByLabelText("New type"), "Station");
     await user.click(screen.getByRole("button", { name: "Add type" }));
+    await user.type(screen.getByRole("textbox", { name: "New type" }), "Station");
+    await user.click(screen.getByRole("button", { name: "Add" }));
 
     expect(parseModel(source()).classes.find((klass) => klass.name === "Station")?.is_a).toBe("Entity");
   });
@@ -157,8 +159,9 @@ describe("LinkML visual editor", () => {
   it("leaves a new type without a parent in a model that has no Entity to specialise", async () => {
     const { source, user } = renderEditor();
 
-    await user.type(screen.getByLabelText("New type"), "WeatherObserved");
     await user.click(screen.getByRole("button", { name: "Add type" }));
+    await user.type(screen.getByRole("textbox", { name: "New type" }), "WeatherObserved");
+    await user.click(screen.getByRole("button", { name: "Add" }));
 
     expect(parseModel(source()).classes.find((klass) => klass.name === "WeatherObserved")?.is_a).toBeUndefined();
   });
@@ -166,14 +169,17 @@ describe("LinkML visual editor", () => {
   it("adds a slot to the open class and lists it with its range", async () => {
     const { source, user } = renderEditor();
 
-    await user.type(screen.getByLabelText("New field"), "pm25");
     const slots = screen.getByRole("table");
     await user.click(screen.getByRole("button", { name: "Add field" }));
+    await user.type(screen.getByRole("textbox", { name: "Name" }), "pm25");
+    await user.click(screen.getByRole("button", { name: "Add" }));
 
     const model = parseModel(source());
     expect(model.classes[0].slots).toEqual(["pm10", "pm25"]);
     expect(model.slots.find((slot) => slot.name === "pm25")?.range).toBe("string");
-    expect(within(slots).getByRole("row", { name: /pm10/ })).toBeInTheDocument();
+    // The new field opens in its dialog; the table under it lists both.
+    expect(screen.getByRole("dialog", { name: "pm25" })).toBeInTheDocument();
+    expect(within(slots).getByRole("row", { name: /pm10/, hidden: true })).toBeInTheDocument();
   });
 
   it("edits a slot's range, kind, unit and required flag through the document", async () => {
@@ -210,7 +216,7 @@ describe("LinkML visual editor", () => {
     expect(pm10()?.range).toBe("float");
     expect(pm10()?.unit?.exact_mappings).toContain("ucefact:CEL");
     expect(screen.getByRole("status")).toHaveTextContent(en.models.unitRule.madeNumber);
-    expect(screen.getByRole("row", { name: /pm10/ })).toHaveTextContent("°C");
+    expect(screen.getByRole("row", { name: /pm10/, hidden: true })).toHaveTextContent("°C");
 
     await user.click(screen.getByRole("button", { name: en.models.unitRule.undo }));
     expect(pm10()?.range).toBe("string");
@@ -227,10 +233,12 @@ describe("LinkML visual editor", () => {
     await user.keyboard("{Enter}");
     expect(screen.getByRole("button", { name: en.models.unitRule.undo })).toBeInTheDocument();
 
-    await user.type(document.getElementById("class-description") as HTMLElement, "Air");
+    // A later edit in the same field dialog (owner 2026-11-01: the dialog covers the type's form).
+    await user.click(screen.getByLabelText("Required"));
     expect(screen.queryByRole("button", { name: en.models.unitRule.undo })).not.toBeInTheDocument();
-    expect(source()).toContain("Air");
-    expect(parseModel(source()).slots.find((candidate) => candidate.name === "pm10")?.range).toBe("float");
+    const pm10 = parseModel(source()).slots.find((candidate) => candidate.name === "pm10");
+    expect(pm10?.required).toBe(true);
+    expect(pm10?.range).toBe("float");
   });
 
   it("makes a count an Integer, and drops the unit of a field that stops being a number", async () => {
