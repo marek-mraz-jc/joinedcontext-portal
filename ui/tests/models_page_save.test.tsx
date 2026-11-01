@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -76,6 +76,28 @@ function requests(mock: ReturnType<typeof vi.fn>): { url: string; method: string
       method: init?.method ?? (req instanceof Request ? req.method : "GET"),
     };
   });
+}
+
+/** New data model is named in its window (owner 2026-11-01, T-6344); then the empty editor opens. */
+async function nameNewModel(user: ReturnType<typeof userEvent.setup>, name: string): Promise<void> {
+  const dialog = await screen.findByRole("dialog", { name: en.models.newDialog.title });
+  await user.type(within(dialog).getByRole("textbox", { name: en.models.identity.name }), name);
+  await user.click(within(dialog).getByRole("button", { name: en.models.newDialog.create }));
+}
+
+/** Types come in from Add type: a Smart Data Model or a spreadsheet (owner 2026-11-01, T-6344). */
+async function addTypeFrom(user: ReturnType<typeof userEvent.setup>, from: "sdm" | "file"): Promise<void> {
+  await user.click(await screen.findByRole("button", { name: en.models.addClass }));
+  const dialog = screen.getByRole("dialog", { name: en.models.addClass });
+  await user.click(within(dialog).getByRole("button", { name: new RegExp(en.models.addFrom[from]) }));
+}
+
+/** A model handed to the page (a file, the assistant) is renamed behind the pencil, as a saved one. */
+async function renameTo(user: ReturnType<typeof userEvent.setup>, name: string): Promise<void> {
+  await user.click(await screen.findByRole("button", { name: /^Rename/ }));
+  const field = screen.getByRole("textbox", { name: en.models.identity.name });
+  await user.clear(field);
+  await user.type(field, `${name}{Enter}`);
 }
 
 describe("ModelsPage save and source loading (DM-56)", () => {
@@ -510,20 +532,21 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     // A blank draft has no manifest, so nothing can be saved until it is named and placed.
     expect(screen.queryByRole("button", { name: PROPOSE })).not.toBeInTheDocument();
 
-    // A new model opens on the import dialog (T-6106); closing it leaves the blank editor.
-    await user.click(await screen.findByRole("button", { name: en.models.importDialog.close }));
-    const name = await screen.findByLabelText(en.models.identity.name);
+    // A new model opens on the New data model window (owner 2026-11-01, T-6344).
+    const dialog = await screen.findByRole("dialog", { name: en.models.newDialog.title });
+    const name = within(dialog).getByRole("textbox", { name: en.models.identity.name });
     await user.type(name, "air-quality");
-    // The editor names no space (T-6162): which spaces use a model stays on the space pages.
-    expect(screen.queryByRole("combobox", { name: /space/i })).not.toBeInTheDocument();
+    // The window names no space (T-6162): which spaces use a model stays on the space pages.
+    expect(within(dialog).queryByRole("combobox", { name: /space/i })).not.toBeInTheDocument();
 
-    // A name the project already carries would fork a second model under one name.
-    expect(await screen.findByRole("alert")).toHaveTextContent(/already has a model named/i);
-    expect(screen.getByRole("button", { name: PROPOSE })).toHaveAttribute("aria-disabled", "true");
+    // A name the project already carries would fork a second model under one name: said in the window.
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(/already has a model named/i);
+    expect(within(dialog).getByRole("button", { name: en.models.newDialog.create })).toHaveAttribute("aria-disabled", "true");
 
     await user.clear(name);
     await user.type(name, "Bikes");
-    await user.click(screen.getByRole("button", { name: PROPOSE }));
+    await user.click(within(dialog).getByRole("button", { name: en.models.newDialog.create }));
+    await user.click(await screen.findByRole("button", { name: PROPOSE }));
 
     await waitFor(() => {
       expect(requests(fetchMock)).toContainEqual({
@@ -610,18 +633,19 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     window.history.replaceState(null, "", "/?new=sdm");
     try {
       renderWithClient(<ModelsPage project="ovzdusie" />);
+      // The model keeps the name typed for it; the Smart Data Model brings a type (owner 2026-11-01).
+      await nameNewModel(user, "Air quality");
+      await addTypeFrom(user, "sdm");
       await user.click(await screen.findByRole("button", { name: /AirQualityObserved/ }));
       await user.click(screen.getByRole("button", { name: "Import AirQualityObserved" }));
 
-      // Still a new model: named after the upstream model, its id in DNS form, renamable before Save.
-      expect(await screen.findByLabelText(en.models.identity.name)).toHaveValue("AirQualityObserved");
-      expect(screen.getByText("air-quality-observed.linkml.yaml")).toBeInTheDocument();
-      expect(screen.queryByRole("button", { name: /remove/i })).not.toBeInTheDocument();
+      expect(await screen.findByRole("button", { name: "AirQualityObserved" })).toBeInTheDocument();
+      expect(screen.getByText("air-quality.linkml.yaml")).toBeInTheDocument();
 
       await user.click(screen.getByRole("button", { name: PROPOSE }));
       await waitFor(() => {
         expect(requests(fetchMock)).toContainEqual({
-          url: "/api/v1/projects/ovzdusie/datamodels/air-quality-observed/source",
+          url: "/api/v1/projects/ovzdusie/datamodels/air-quality/source",
           method: "PUT",
         });
       });
@@ -651,8 +675,10 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     window.history.replaceState(null, "", "/?new=blank&space=air");
     try {
       renderWithClient(<ModelsPage project="ovzdusie" />);
-      await user.type(await screen.findByLabelText(en.models.identity.name), "second");
-      expect(await screen.findByRole("alert")).toHaveTextContent(
+      const dialog = await screen.findByRole("dialog", { name: en.models.newDialog.title });
+      await user.type(within(dialog).getByRole("textbox", { name: en.models.identity.name }), "second");
+      expect(within(dialog).getByRole("button", { name: en.models.newDialog.create })).toHaveAttribute("aria-disabled", "true");
+      expect(await within(dialog).findByRole("alert")).toHaveTextContent(
         en.models.create.spaceTaken.replaceAll("{space}", "air").replaceAll("{model}", "air-quality"),
       );
       expect(screen.queryByRole("button", { name: PROPOSE })).not.toBeInTheDocument();
@@ -707,9 +733,7 @@ describe("ModelsPage save and source loading (DM-56)", () => {
       rememberPrefill("/", { source: INFERRED });
       renderWithClient(<ModelsPage project="ovzdusie" />);
 
-      const name = await screen.findByLabelText(en.models.identity.name);
-      await user.clear(name);
-      await user.type(name, "sensors");
+      await renameTo(user, "sensors");
 
       await waitFor(() => {
         expect(drafts).toHaveLength(1);
@@ -746,14 +770,12 @@ describe("ModelsPage save and source loading (DM-56)", () => {
 
       renderWithClient(<ModelsPage project="ovzdusie" />);
 
-      const name = await screen.findByLabelText(en.models.identity.name);
-      await user.clear(name);
-      await user.type(name, "sensors");
+      await renameTo(user, "sensors");
 
       expect(await screen.findByText(en.models.create.heldConflict)).toBeInTheDocument();
-      // Nothing of theirs is overwritten: the page does not try again on the next keystroke.
+      // Nothing of theirs is overwritten: the page does not try again on the next rename.
       const sofar = puts;
-      await user.type(name, "-2");
+      await renameTo(user, "sensors-2");
       await new Promise((resolve) => setTimeout(resolve, 900));
       expect(puts).toBe(sofar);
     });
@@ -815,6 +837,8 @@ describe("ModelsPage save and source loading (DM-56)", () => {
 
       renderWithClient(<ModelsPage project="ovzdusie" />);
 
+      await nameNewModel(user, "Vehicle");
+      await addTypeFrom(user, "sdm");
       await user.click(await screen.findByRole("button", { name: /Vehicle/ }));
       await user.click(await screen.findByRole("button", { name: "Import Vehicle" }));
 
@@ -859,7 +883,8 @@ describe("ModelsPage save and source loading (DM-56)", () => {
       renderWithClient(<ModelsPage project="ovzdusie" />);
 
       // The editor opens on the model that was in hand, not on the import tab.
-      expect(await screen.findByDisplayValue("sensors")).toBeInTheDocument();
+      expect(screen.queryByRole("dialog", { name: en.models.newDialog.title })).toBeNull();
+      expect((await screen.findAllByText("sensors")).length).toBeGreaterThan(0);
       await waitFor(() => {
         expect(screen.getAllByText("Sensors").length).toBeGreaterThan(0);
       });

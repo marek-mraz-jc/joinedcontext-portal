@@ -117,10 +117,9 @@ export function ModelsPage({
   });
   const prefilled = handedOff.source;
   const [editing, setEditing] = useState(baseline ? undefined : handedOff.edit);
-  // A new model starts in the import dialog (T-6106); a loaded, handed-off or blank one does not.
-  const [importChoice, setImportOpen] = useState<boolean | undefined>(
-    baseline || prefilled || editing || handedOff.start === "blank" ? false : undefined,
-  );
+  // A new model starts in the New data model window, blank ones too (owner 2026-11-01: name it, then
+  // the empty editor); a loaded or handed-off one does not.
+  const [importChoice, setImportOpen] = useState<boolean | undefined>(baseline || prefilled || editing ? false : undefined);
   const [chosen, setChosen] = useState(baseline);
   const [breakingConfirmed, setBreakingConfirmed] = useState(false);
   /** What a second import could not take because the model already had it (T-1102). */
@@ -164,7 +163,8 @@ export function ModelsPage({
   // The editor names no space (T-6162, DM-57): a model started from a space's page is that
   // space's model, any other one a project model a space adopts later (DM-75).
   const newSpace = handedOff.space ?? held?.space ?? "";
-  const importOpen = importChoice ?? !held;
+  // A draft the address names opens as it was kept, never behind the window while it is read.
+  const importOpen = importChoice ?? !(held || handedOff.draft);
 
   // The list keys are shared with every page that lists these kinds, so the cache holds the list
   // as the API answers it and the manifests are read off it here (T-0625).
@@ -343,6 +343,14 @@ export function ModelsPage({
     return held;
   }, [models.data, spaces.data, activeModelName]);
   const spaceTakenBy = creating && newSpace ? occupied.get(newSpace) : undefined;
+  // Why the New data model window cannot create yet, said on its button.
+  const newNameRefusal = !newName.trim()
+    ? t("models.nameFirst")
+    : taken
+      ? t("models.create.taken", { name: targetName })
+      : spaceTakenBy
+        ? t("models.create.spaceTaken", { space: newSpace, model: spaceTakenBy })
+        : undefined;
 
   const consumers = useMemo(() => {
     const name = published?.name ?? model.name;
@@ -621,14 +629,21 @@ export function ModelsPage({
           className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault();
-            if (newName.trim()) setImportOpen(false);
+            if (!newNameRefusal) setImportOpen(false);
           }}
         >
           <Field id="new-model-name" label={t("models.identity.name")} help={t("models.create.nameHint")}>
             <Input id="new-model-name" value={newName} onChange={(event) => setNewName(event.target.value)} />
           </Field>
+          {/* Said in the window, where the name is typed: a taken name never reaches the editor. */}
+          {taken ? <InlineError>{t("models.create.taken", { name: targetName })}</InlineError> : null}
+          {spaceTakenBy ? <InlineError>{t("models.create.spaceTaken", { space: newSpace, model: spaceTakenBy })}</InlineError> : null}
           <div className="flex justify-end border-t border-border pt-3">
-            <Button type="submit" disabled={!newName.trim()} disabledReason={t("models.nameFirst")}>
+            <Button
+              type="submit"
+              disabled={Boolean(newNameRefusal)}
+              disabledReason={newNameRefusal}
+            >
               {t("models.newDialog.create")}
             </Button>
           </div>

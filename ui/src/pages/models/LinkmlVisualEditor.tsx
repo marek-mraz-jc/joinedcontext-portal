@@ -739,6 +739,8 @@ export function LinkmlVisualEditor({
                       // A class is the other end of a relationship: never a one-sided slot (DM-64).
                       if (model.classes.some((klass) => klass.name === range)) {
                         setPrefill((last) => ({ target: range, key: (last?.key ?? 0) + 1 }));
+                        // The form opens under the page: the field's dialog closes, or it would cover it.
+                        setSelectedSlot(null);
                         return;
                       }
                       pickRange(activeSlot, range);

@@ -152,10 +152,12 @@ describe("the list of data models", () => {
     expect(screen.queryByRole("menuitem", { name: en.models.page.new.blank })).toBeNull();
   });
 
-  it("opens the editor when the address asks for one", async () => {
+  it("opens the editor when the address asks for one, after the new model's name", async () => {
     await renderRoute({ path: "/projects/helsinki/models?new=blank", answer });
+    const dialog = await screen.findByRole("dialog", { name: en.models.newDialog.title });
+    await userEvent.type(within(dialog).getByRole("textbox", { name: en.models.identity.name }), "trams");
+    await userEvent.click(within(dialog).getByRole("button", { name: en.models.newDialog.create }));
     expect(await screen.findByRole("tab", { name: en.models.view.structure, selected: true })).toBeInTheDocument();
-    expect(screen.queryByRole("dialog", { name: en.models.importDialog.title })).toBeNull();
     expect(screen.queryByRole("table", { name: en.models.page.listCaption })).toBeNull();
   });
 
@@ -166,7 +168,7 @@ describe("the list of data models", () => {
     const dialog = await screen.findByRole("dialog", { name: en.models.newDialog.title });
     const create = within(dialog).getByRole("button", { name: en.models.newDialog.create });
     expect(create).toHaveAttribute("aria-disabled", "true");
-    await userEvent.type(within(dialog).getByRole("textbox", { name: en.models.identity.name }), "bikes");
+    await userEvent.type(within(dialog).getByRole("textbox", { name: en.models.identity.name }), "trams");
     await userEvent.click(create);
     expect(screen.queryByRole("dialog", { name: en.models.newDialog.title })).toBeNull();
     expect(await screen.findByRole("tab", { name: en.models.view.structure, selected: true })).toBeInTheDocument();
