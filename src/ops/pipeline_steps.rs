@@ -428,27 +428,71 @@ async fn sample_of_planned(
         .into());
     }
     if let Some(url) = spec.pointer("/http/url").and_then(Value::as_str) {
-        public_address(url).await?;
+        public_address(url, "/dataSource").await?;
     }
     let sampled = sample_of_spec(name, &spec)?;
     Ok((spec, sampled))
 }
 
-/// Refuses an address that is not on the public internet: written into the URL, or what its name
-/// resolves to now (AG-65). The runner resolves it again; its egress policy stays the last guard.
-async fn public_address(url: &str) -> Result<(), OpError> {
+/// Refuses a planned DataSource's address that is not on the public internet (T-6269), or whose
+/// host does not resolve: [`sample_address`], and a name that resolves to nothing is refused too.
+async fn public_address(url: &str, path: &str) -> Result<(), OpError> {
+    match resolved_address(url, path).await? {
+        Some((host, addresses)) => {
+            resolved_public(&host, &addresses).map_err(|message| OpError::InvalidInput {
+                path: path.into(),
+                message,
+            })
+        }
+        None => Ok(()),
+    }
+}
+
+/// Refuses a sample address a caller typed that is not on the public internet: written into the
+/// URL, or what its name resolves to now (AG-65, JC1-27), answered at the input member `path`. A
+/// name that resolves to nothing passes: the runner cannot fetch it either and says so. The
+/// runner resolves it again; its egress policy stays the last guard.
+pub(crate) async fn sample_address(url: &str, path: &str) -> Result<(), OpError> {
     let refused = |message: String| OpError::InvalidInput {
-        path: "/dataSource".into(),
+        path: path.into(),
         message,
     };
-    let parsed = url::Url::parse(url).map_err(|e| {
-        refused(format!(
-            "the planned DataSource's address does not parse: {e}"
-        ))
-    })?;
+    // A name the Portal cannot resolve may still resolve in the runner's pod, whose DNS search
+    // list names its own namespace: a single-label or cluster-internal name is refused as written.
+    if let Ok(parsed) = url::Url::parse(url) {
+        if let Some(url::Host::Domain(host)) = parsed.host() {
+            if cluster_name(host) {
+                return Err(refused(format!(
+                    "'{host}' is a name inside the cluster, not a public host; outbound calls reach public hosts only (AG-65)"
+                )));
+            }
+        }
+    }
+    match resolved_address(url, path).await? {
+        Some((host, addresses)) if !addresses.is_empty() => resolved_public(&host, &addresses)
+            .map_err(|message| OpError::InvalidInput {
+                path: path.into(),
+                message,
+            }),
+        _ => Ok(()),
+    }
+}
+
+/// The host an address names and what it resolves to now, after the written URL itself was held
+/// to a public host; `None` when the URL names an address, not a name.
+async fn resolved_address(
+    url: &str,
+    path: &str,
+) -> Result<Option<(String, Vec<std::net::IpAddr>)>, OpError> {
+    let refused = |message: String| OpError::InvalidInput {
+        path: path.into(),
+        message,
+    };
+    let parsed =
+        url::Url::parse(url).map_err(|e| refused(format!("the address does not parse: {e}")))?;
     jc_core::outbound::check(&parsed).map_err(|r| refused(r.to_string()))?;
     let Some(url::Host::Domain(host)) = parsed.host() else {
-        return Ok(());
+        return Ok(None);
     };
     let port = parsed.port_or_known_default().unwrap_or(443);
     let resolved = tokio::time::timeout(
@@ -460,7 +504,17 @@ async fn public_address(url: &str) -> Result<(), OpError> {
         Ok(Ok(found)) => found.map(|a| a.ip()).collect(),
         _ => Vec::new(),
     };
-    resolved_public(host, &addresses).map_err(refused)
+    Ok(Some((host.to_owned(), addresses)))
+}
+
+/// Whether `host` names something inside the cluster or the pod's own network rather than the
+/// public internet: one label (`gitea`), or a cluster or local suffix.
+fn cluster_name(host: &str) -> bool {
+    let host = host.trim_end_matches('.').to_ascii_lowercase();
+    !host.contains('.')
+        || [".local", ".svc", ".internal", ".localdomain", ".home.arpa"]
+            .iter()
+            .any(|suffix| host.ends_with(suffix))
 }
 
 /// Why a host that resolved to `addresses` is not called: none at all, or one that is not public.
@@ -470,7 +524,7 @@ fn resolved_public(host: &str, addresses: &[std::net::IpAddr]) -> Result<(), Str
             "'{host}' resolves to {private}, a private, loopback or link-local address; outbound calls reach public hosts only (AG-65)"
         )),
         None if addresses.is_empty() => Err(format!(
-            "the planned DataSource's host '{host}' does not resolve"
+            "the host '{host}' does not resolve"
         )),
         None => Ok(()),
     }
@@ -827,7 +881,12 @@ async fn sample_source(
             }
             sample_of_data_source(caller, state, project, &name)?
         }
-        (None, Some(sample)) => (sample, no_steps()?),
+        (None, Some(sample)) => {
+            if let Some(url) = sample.url.as_deref() {
+                sample_address(url, "/sample/url").await?;
+            }
+            (sample, no_steps()?)
+        }
         _ => {
             return Err(OpError::InvalidInput {
                 path: "/dataSource".into(),
@@ -1053,6 +1112,43 @@ mod tests {
         assert!(resolved_public("nowhere.invalid", &[])
             .expect_err("no address")
             .contains("does not resolve"));
+    }
+
+    /// JC1-27: a name only the cluster's DNS answers is refused as written, whatever the
+    /// Portal's own pod resolves; a public name is left to its resolution.
+    #[test]
+    fn a_cluster_name_is_never_a_public_host() {
+        for host in [
+            "gitea",
+            "portal.portal.svc",
+            "portal.portal.svc.cluster.local.",
+            "metadata.google.internal",
+            "printer.local",
+        ] {
+            assert!(cluster_name(host), "{host}");
+        }
+        for host in ["data.example.org", "api.citybik.es", "svc.example.com"] {
+            assert!(!cluster_name(host), "{host}");
+        }
+    }
+
+    /// JC1-27: a typed sample address is refused at the member named, for a written loopback,
+    /// private or cluster address; a dotted name that resolves to nothing is left to the runner.
+    #[tokio::test]
+    async fn a_sample_address_inside_the_cluster_is_refused_at_its_member() {
+        for url in [
+            "http://127.0.0.1/a.csv",
+            "http://10.0.0.5/a.csv",
+            "http://gitea:3000/a.csv",
+        ] {
+            match sample_address(url, "/sample/url").await {
+                Err(OpError::InvalidInput { path, .. }) => assert_eq!("/sample/url", path, "{url}"),
+                other => panic!("{url}: {other:?}"),
+            }
+        }
+        assert!(sample_address("https://feeds.invalid/a.csv", "/sample/url")
+            .await
+            .is_ok());
     }
 
     /// AG-158 (T-6265): an MCP client and an agent run get a sample without the fields the
