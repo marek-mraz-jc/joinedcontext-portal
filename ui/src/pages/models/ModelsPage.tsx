@@ -15,7 +15,9 @@ import {
   Button,
   Checkbox,
   Dialog,
+  Field,
   InlineError,
+  Input,
 } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { usePermissions } from "../../api/permissions";
@@ -24,12 +26,11 @@ import { getDraft, putDraft } from "../../api/drafts";
 import { setPageTitle } from "../../documentTitle";
 import { LinkmlEditor } from "./LinkmlEditor";
 import { replaceOwnSearch } from "../../assistant/HandOff";
-import { ModelFileDrop } from "./ModelFileDrop";
 import { spaceOfModel } from "./modelUsage";
 import { mergeModels } from "./linkml";
 import { ModelIdentity, setModelTitle } from "./ModelIdentity";
+import { ModelFileDrop } from "./ModelFileDrop";
 import { SmartDataModelsImport } from "./SmartDataModelsImport";
-import type { CatalogueModel } from "./SmartDataModelsImport";
 import { blankSource, diagnose, edit, parseModel } from "./linkml";
 import { applyOperations } from "./operations";
 import type { Operation } from "./operations";
@@ -365,33 +366,25 @@ export function ModelsPage({
   // and an AirQualityObserved can sit in one model and a slot can relate them. A name the model
   // already has is kept and reported: what is in hand may have been edited, and an import must
   // not undo that.
-  const onImport = (imported: string, catalogueModel: CatalogueModel) => {
+  // Types join the model from a Smart Data Model or a spreadsheet (owner 2026-11-01): into a model
+  // with types the import merges and keeps what is there; into an empty one it is the model.
+  const [addFrom, setAddFrom] = useState<"sdm" | "file" | null>(null);
+  const takeTypes = (imported: string) => {
     const editing = source.trim() !== "" && parseModel(source).classes.length > 0;
     const { source: joined, conflicts } = editing
       ? mergeModels(source, imported)
       : { source: imported, conflicts: [] };
     setSource(joined);
     setImportConflicts(conflicts.map((conflict) => `${conflict.section}: ${conflict.name}`));
-    // Into an empty editor the import is a new model, as an inferred one is: nothing published
-    // to compare against or to read, named after the upstream model and renamable before Save
-    // creates it (T-2847).
+    // A Smart Data Model or a sheet brings types; the model keeps the name given in the new-model
+    // window (owner 2026-11-01).
     if (!editing) {
       setChosen(undefined);
       setEditing(undefined);
-      setNewName(catalogueModel.name);
     }
-    setImportOpen(false);
+    setAddFrom(null);
   };
-
-  // A model inferred from a file is a new draft: nothing published to compare against. Its
-  // LinkML name is the obvious manifest name, and the person can change it before saving.
-  const onPopulate = (draft: string) => {
-    setSource(draft);
-    setChosen(undefined);
-    setEditing(undefined);
-    setNewName(parseModel(draft).name ?? "");
-    setImportOpen(false);
-  };
+  const onImport = (imported: string) => takeTypes(imported);
 
   // The space travels with a create, and with nothing else: for a model that exists the route
   // reads the space off its manifest (DM-56).
@@ -614,20 +607,45 @@ export function ModelsPage({
         </section>
       ) : null}
 
+      {/* New data model (owner 2026-11-01): one window for its name, then the empty editor. Types
+          come in from the editor's Add type: blank, a Smart Data Model or a spreadsheet. */}
       <Dialog
         open={importOpen}
         onOpenChange={setImportOpen}
-        title={t("models.importDialog.title")}
-        description={t("models.importDialog.description")}
+        title={t("models.newDialog.title")}
+        description={t("models.newDialog.description")}
         closeLabel={t("models.importDialog.close")}
+        size="md"
+      >
+        <form
+          className="flex flex-col gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (newName.trim()) setImportOpen(false);
+          }}
+        >
+          <Field id="new-model-name" label={t("models.identity.name")} help={t("models.create.nameHint")}>
+            <Input id="new-model-name" autoFocus value={newName} onChange={(event) => setNewName(event.target.value)} />
+          </Field>
+          <div className="flex justify-end border-t border-border pt-3">
+            <Button type="submit" disabled={!newName.trim()}>
+              {t("models.newDialog.create")}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+      <Dialog
+        open={addFrom !== null}
+        onOpenChange={(open) => setAddFrom(open ? addFrom : null)}
+        title={t(addFrom === "file" ? "models.addFrom.fileTitle" : "models.importDialog.title")}
+        closeLabel={t("app.close")}
         size="lg"
       >
-        {/* The catalogue first, as the description reads: on a phone the file drop's help
-            pushed it below the dialog's fold (T-6106). */}
-        <div className="flex flex-col gap-4">
+        {addFrom === "file" ? (
+          <ModelFileDrop project={project} onPopulate={(draft) => takeTypes(draft)} />
+        ) : (
           <SmartDataModelsImport onImport={onImport} />
-          <ModelFileDrop project={project} onPopulate={onPopulate} />
-        </div>
+        )}
       </Dialog>
 
       <div className="flex flex-col gap-3">
@@ -663,7 +681,7 @@ export function ModelsPage({
           source={source}
           onChange={setSource}
           locales={locales}
-          onImport={() => setImportOpen(true)}
+          onImport={setAddFrom}
           readOnlyDrawing={!mayPropose}
         />
       </div>

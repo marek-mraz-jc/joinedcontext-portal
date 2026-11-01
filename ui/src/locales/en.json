@@ -4094,6 +4094,25 @@
     "download": "Download"
   },
   "models": {
+    "newDialog": {
+      "title": "New data model",
+      "description": "Name the model. The editor opens empty; add types there by hand, from a Smart Data Model or from a spreadsheet.",
+      "create": "Create model"
+    },
+    "structures": "Value structures ({count})",
+    "structuresHint": "The shape of a structured field's value, such as its L1, L2, L3 parts; not entity types.",
+    "inlinePart": "A part of a structured value, read from the Smart Data Model.",
+    "addFrom": {
+      "sdm": "Import from Smart Data Models",
+      "sdmHint": "Copy a published type with its fields.",
+      "file": "From a spreadsheet",
+      "fileHint": "Excel, CSV or JSON: the columns become fields.",
+      "fileTitle": "Types from a spreadsheet"
+    },
+    "addClassNameHint": "Or start an empty type: a name such as WeatherObserved, letters and digits, no spaces.",
+    "addWhat": "What does the field hold?",
+    "addKind": {"Property": "A value", "Relationship": "A link to another type", "GeoProperty": "A place", "LanguageProperty": "Text in several languages"},
+    "addKindHint": {"Property": "A number, text, date, yes/no or a list value, such as temperature.", "Relationship": "Points at an entity of another type, such as the station a reading belongs to.", "GeoProperty": "A point, line or area on the map, such as location.", "LanguageProperty": "One text per language, such as a name in Finnish and English."},
     "share": {
       "action": "Share with the organization",
       "title": "Share {name} with the organization?",
@@ -4696,7 +4715,14 @@
       "newHint": "The value entities store, fixed once added, for example active.",
       "unused": "No field uses this enumeration yet: pick it as a field's type of value.",
       "usedBy": "Used by {fields}"
-    }
+    },
+    "rules": "Rules",
+    "optional": "optional",
+    "deprecatedBadge": "Deprecated",
+    "slotName": "Name",
+    "slotNameHint": "Such as temperature or openingHours: letters and digits, no spaces.",
+    "slotNameFirst": "Name the field and add it; its type, kind, unit and rules follow in this form.",
+    "slotNameFixed": "A field keeps its name: every stored value and partner payload uses it."
   },
   "apps": {
     "title": "Applications",
@@ -5495,6 +5521,9 @@
     "matching": "matching",
     "noTotal": "the endpoint gives no total for this answer",
     "history": "History",
+    "areaPick": "Pick area on map",
+    "rowsPerPage": "Rows per page",
+    "areaClear": "Clear area",
     "historyWindow": {
       "hour": "Last hour",
       "day": "Last day",
@@ -11102,6 +11131,26 @@
       "action": "View YAML",
       "title": "{name} as YAML",
       "lead": "The manifest as the project repository holds it, read only. Secrets appear by reference (secretRef) only; a value under a secret-like key is masked."
+    }
+  },
+  "settingsPage": {
+    "title": "Settings",
+    "description": "Your own settings, this project's and, for an administrator, the platform's.",
+    "projectSettings": "Settings of {project}",
+    "scope": {
+      "personal": "Personal",
+      "project": "Project",
+      "platform": "Platform"
+    },
+    "scopeHint": {
+      "personal": "Only you see and use these.",
+      "project": "Shared by everyone in the project; changes go through approval.",
+      "platform": "The whole platform: projects, people and sign-in."
+    },
+    "hint": {
+      "aiConnectors": "Claude and other assistants that read data as you",
+      "project": "spaces, members, secrets",
+      "administration": "for platform administrators"
     }
   }
 }

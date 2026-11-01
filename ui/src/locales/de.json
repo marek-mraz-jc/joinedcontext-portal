@@ -4094,6 +4094,25 @@
     "download": "Herunterladen"
   },
   "models": {
+    "newDialog": {
+      "title": "Neues Datenmodell",
+      "description": "Benennen Sie das Modell. Der Editor öffnet sich leer; Typen fügen Sie dort von Hand, aus Smart Data Models oder aus einer Tabelle hinzu.",
+      "create": "Modell anlegen"
+    },
+    "structures": "Wertstrukturen ({count})",
+    "structuresHint": "Die Form des Werts eines strukturierten Felds, etwa seine Teile L1, L2, L3; keine Entitätstypen.",
+    "inlinePart": "Ein Teil eines strukturierten Werts, aus dem Smart Data Model übernommen.",
+    "addFrom": {
+      "sdm": "Aus Smart Data Models importieren",
+      "sdmHint": "Übernimmt einen veröffentlichten Typ mit seinen Feldern.",
+      "file": "Aus einer Tabelle",
+      "fileHint": "Excel, CSV oder JSON: die Spalten werden zu Feldern.",
+      "fileTitle": "Typen aus einer Tabelle"
+    },
+    "addClassNameHint": "Oder beginnen Sie einen leeren Typ: ein Name wie WeatherObserved, Buchstaben und Ziffern, ohne Leerzeichen.",
+    "addWhat": "Was enthält das Feld?",
+    "addKind": {"Property": "Einen Wert", "Relationship": "Einen Verweis auf einen anderen Typ", "GeoProperty": "Einen Ort", "LanguageProperty": "Text in mehreren Sprachen"},
+    "addKindHint": {"Property": "Eine Zahl, einen Text, ein Datum, ja/nein oder einen Listenwert, wie die Temperatur.", "Relationship": "Zeigt auf eine Entität eines anderen Typs, wie die Station einer Messung.", "GeoProperty": "Einen Punkt, eine Linie oder eine Fläche auf der Karte, wie den Standort.", "LanguageProperty": "Einen Text je Sprache, wie einen Namen auf Finnisch und Englisch."},
     "share": {
       "action": "Mit der Organisation teilen",
       "title": "{name} mit der Organisation teilen?",
@@ -4696,7 +4715,14 @@
       "newHint": "Der Wert, den Entitäten speichern, nach dem Hinzufügen fest, zum Beispiel active.",
       "unused": "Noch kein Feld nutzt diese Aufzählung: wählen Sie sie als Werttyp eines Feldes.",
       "usedBy": "Genutzt von {fields}"
-    }
+    },
+    "rules": "Regeln",
+    "optional": "freiwillig",
+    "deprecatedBadge": "Veraltet",
+    "slotName": "Name",
+    "slotNameHint": "Wie temperature oder openingHours: Buchstaben und Ziffern, ohne Leerzeichen.",
+    "slotNameFirst": "Benennen Sie das Feld und fügen Sie es hinzu; Typ, Art, Einheit und Regeln folgen in diesem Formular.",
+    "slotNameFixed": "Ein Feld behält seinen Namen: jeder gespeicherte Wert und jede Partnernachricht nutzt ihn."
   },
   "apps": {
     "title": "Anwendungen",
@@ -5495,6 +5521,9 @@
     "matching": "passend",
     "noTotal": "der Endpoint nennt für diese Antwort keine Gesamtzahl",
     "history": "Verlauf",
+    "areaPick": "Gebiet auf der Karte wählen",
+    "rowsPerPage": "Zeilen pro Seite",
+    "areaClear": "Gebiet entfernen",
     "historyWindow": {
       "hour": "Letzte Stunde",
       "day": "Letzter Tag",
@@ -11102,6 +11131,26 @@
       "action": "YAML anzeigen",
       "title": "{name} als YAML",
       "lead": "Das Manifest, wie das Projekt-Repository es hält, nur lesbar. Geheimnisse erscheinen nur als Verweis (secretRef); ein Wert unter einem geheimnisartigen Schlüssel wird maskiert."
+    }
+  },
+  "settingsPage": {
+    "title": "Einstellungen",
+    "description": "Ihre eigenen Einstellungen, die des Projekts und für Administratoren die der Plattform.",
+    "projectSettings": "Einstellungen von {project}",
+    "scope": {
+      "personal": "Persönlich",
+      "project": "Projekt",
+      "platform": "Plattform"
+    },
+    "scopeHint": {
+      "personal": "Nur Sie sehen und nutzen diese.",
+      "project": "Für alle im Projekt; Änderungen gehen durch die Freigabe.",
+      "platform": "Die ganze Plattform: Projekte, Personen und Anmeldung."
+    },
+    "hint": {
+      "aiConnectors": "Claude und andere Assistenten, die Daten in Ihrem Namen lesen",
+      "project": "Bereiche, Mitglieder, Geheimnisse",
+      "administration": "für Plattform-Administratoren"
     }
   }
 }

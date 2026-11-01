@@ -46,11 +46,12 @@ function Host({ onSelected }: { onSelected?: (ids: string[]) => void }) {
 }
 
 describe("EntityGrid rows (T-4883)", () => {
-  it("numbers the rows, checks one, a shift-click range and all", async () => {
+  it("checks one row, a shift-click range and all", async () => {
     const onSelected = vi.fn();
     const { container } = render(<Host onSelected={onSelected} />);
     await waitFor(() => expect(screen.getByText("Pasila")).toBeInTheDocument());
-    expect([...container.querySelectorAll("tbody .jc-grid-rownum-n")].map((n) => n.textContent)).toEqual(["1", "2", "3", "4"]);
+    // No row numbers since owner 2026-11-01: the checkbox column is only the checkbox.
+    expect(container.querySelectorAll("tbody .jc-grid-rownum-n")).toHaveLength(0);
     fireEvent.click(screen.getByRole("checkbox", { name: "Select row: Kamppi" }));
     expect(onSelected).toHaveBeenLastCalledWith(["urn:ngsi-ld:Station:1"]);
     fireEvent.click(screen.getByRole("checkbox", { name: "Select row: Töölö" }), { shiftKey: true });

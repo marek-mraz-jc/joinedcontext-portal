@@ -182,7 +182,10 @@ describe("row dialog (T-4828)", () => {
     expect(history.mock.calls.every(([, , window]) => !window.versions)).toBe(true);
     fireEvent.click(screen.getByRole("checkbox", { name: /Every version/ }));
     expect(await screen.findByText(/Your role may not read earlier versions/)).toBeInTheDocument();
-    expect(history).toHaveBeenLastCalledWith(KPI, "kpiValue", expect.objectContaining({ versions: true }));
+    expect(history).toHaveBeenCalledWith(KPI, "kpiValue", expect.objectContaining({ versions: true }));
+    // Refused once, the switch turns off and the readings the role may read come back.
+    expect(screen.getByRole("checkbox", { name: /Every version/ })).toBeDisabled();
+    await waitFor(() => expect(history.mock.lastCall?.[2].versions).toBeFalsy());
   });
 
   it("lists each version with who changed it and why, markup as text", async () => {

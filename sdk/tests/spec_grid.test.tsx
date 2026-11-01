@@ -44,13 +44,13 @@ describe("a grid view of a spec", () => {
 
   it("reports a bad grid config under the view's own path", () => {
     const parsed = parseSpec(
-      spec([{ kind: "grid", grid: { pageSize: 5000, columns: [{ attr: "" }], nope: true } }]),
+      spec([{ kind: "grid", grid: { pageSize: 5001, columns: [{ attr: "" }], nope: true } }]),
     );
     expect(parsed.spec).toBeNull();
     expect(parsed.errors).toEqual([
       "views[0].grid.nope: unknown property",
       "views[0].grid.columns.0.attr: must be a non-empty string",
-      "views[0].grid.pageSize: must be an integer between 1 and 1000",
+      "views[0].grid.pageSize: must be an integer between 1 and 5000",
     ]);
   });
 

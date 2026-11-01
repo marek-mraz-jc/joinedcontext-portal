@@ -1,6 +1,6 @@
 import { Fragment, Suspense, useEffect, useRef, useState } from "react";
 import type { JSX, ReactNode } from "react";
-import { Link, useMatchRoute, useNavigate, useRouterState } from "@tanstack/react-router";
+import { Link, useMatchRoute, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { clsx } from "clsx";
 import { LanguageSwitcher } from "../LanguageSwitcher";
@@ -9,7 +9,6 @@ import { useDecisions } from "../../api/decision";
 import { HelpMenu } from "../HelpMenu";
 import { FeedbackButton } from "../FeedbackButton";
 import { JobsMenu } from "../JobsMenu";
-import { useFirstRun } from "../../pages/home/firstRun";
 import { AssistantDock } from "../../assistant/AssistantDock";
 import { PairedTabBar } from "../../connectors/PairedTabBar";
 import { CommandPalette } from "../../navigation/CommandPalette";
@@ -211,8 +210,6 @@ function ownRoute(plural: string): (typeof OWN_ROUTES)[keyof typeof OWN_ROUTES] 
 function UserMenu() {
   const { t } = useTranslation();
   const { identity, signOut } = useAuth();
-  const firstRun = useFirstRun();
-  const navigate = useNavigate();
   const { opensAdministration } = useAdministers();
   if (!identity) {
     return null;
@@ -242,44 +239,22 @@ function UserMenu() {
           {identity.name ? <span className="block truncate font-mono">{identity.username}</span> : null}
         </MenuLabel>
         <MenuSeparator />
-        {/* On a phone the header has no room for Administration beside 44 px targets (T-3319):
-            it is here instead. */}
+        {/* The account menu holds the person and, for a platform administrator, Administration
+            (owner 2026-11-01); help pages and AI connectors live elsewhere. */}
+        <MenuItem asChild>
+          <Link to="/settings">
+            <Icon name="user" className="size-4" />
+            {t("settingsPage.title")}
+          </Link>
+        </MenuItem>
         {opensAdministration ? (
-          <MenuItem asChild className="sm:hidden">
+          <MenuItem asChild>
             <Link to="/organization/$tab" params={{ tab: "settings" }}>
               <Icon name="access" className="size-4" />
               {t("nav.organization")}
             </Link>
           </MenuItem>
         ) : null}
-        <MenuItem asChild>
-          <Link to="/ai-connectors">
-            <Icon name="access" className="size-4" />
-            {t("aiConnectors.title")}
-          </Link>
-        </MenuItem>
-        {/* The way back to what the first run offered (T-3233, T-3236). */}
-        <MenuItem
-          onSelect={() => {
-            firstRun.restore();
-            void navigate({ to: "/" });
-          }}
-        >
-          <Icon name="check" className="size-4" />
-          {t("home.firstRun.restore")}
-        </MenuItem>
-        <MenuItem asChild>
-          <a href="/glossary">
-            <Icon name="info" className="size-4" />
-            {t("glossary.page.title")}
-          </a>
-        </MenuItem>
-        <MenuItem asChild>
-          <a href="/accessibility">
-            <Icon name="info" className="size-4" />
-            {t("accessibility.link")}
-          </a>
-        </MenuItem>
         <MenuSeparator />
         <MenuItem
           onSelect={() => {
@@ -291,50 +266,6 @@ function UserMenu() {
         </MenuItem>
       </MenuContent>
     </Menu>
-  );
-}
-
-/**
- * The signed-in person at the bottom of the sidebar, with sign-out beside them (UI-83).
- */
-function ProfileBlock(): JSX.Element | null {
-  const { t } = useTranslation();
-  const { identity, signOut } = useAuth();
-  if (!identity) {
-    return null;
-  }
-  const display = identity.name ?? identity.username;
-  return (
-    <section
-      aria-label={t("nav.profile")}
-      className="mt-auto flex flex-col gap-0.5 border-t border-border pt-3"
-    >
-      <div className="flex items-center gap-2 px-2 pb-1">
-        <span
-          aria-hidden="true"
-          className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-primary-soft text-caption font-bold text-primary-soft-fg"
-        >
-          {display.trim().charAt(0).toUpperCase()}
-        </span>
-        {/* A name and a username are the person's own words, never a string to translate. */}
-        <span className="min-w-0" translate="no">
-          <span className="block truncate text-body font-medium text-fg">{display}</span>
-          {identity.name ? (
-            <span className="block truncate font-mono text-caption text-fg-muted">{identity.username}</span>
-          ) : null}
-        </span>
-      </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={() => {
-          void signOut();
-        }}
-        className="justify-start gap-2 px-2"
-      >
-        <NavLabel icon="logout" label={t("auth.signOut")} />
-      </Button>
-    </section>
   );
 }
 
@@ -974,9 +905,8 @@ export function Shell({
             </li>
           </ul>
           </>)}
-          {/* The signed-in person at the bottom (UI-83). The organization is one button in the
-              header; its sections are Administration's own sidebar (T-4831). */}
-          <ProfileBlock />
+          {/* The signed-in person and sign-out live in the header's account menu only (owner 2026-11-01:
+              "it's on two places"); the organization is one header button (T-4831). */}
         </nav>
         {fill ? (
           <main id="main" className="flex min-h-0 min-w-0 flex-1 flex-col">
