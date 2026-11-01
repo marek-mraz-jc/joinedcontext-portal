@@ -21,6 +21,9 @@ describe("originTransport", () => {
     await transport({ method: "PATCH", path: "/cs/x/ngsi-ld/v1/entities/e/attrs", body: {} });
     expect(sent[0]["JC-Reason"]).toBe("Sn%C3%ADma%C4%8D%20zamrzol%0Ar%C3%A1no");
     expect(sent[1]["JC-Reason"]).toBeUndefined();
+    // A write with a reason is an edit by hand: its replaced value is kept as a version (T-6333).
+    expect(sent[0]["JC-Record"]).toBe("version");
+    expect(sent[1]["JC-Record"]).toBeUndefined();
   });
 
   it("includes CSRF header and content-type on PATCH, and omits them on GET", async () => {

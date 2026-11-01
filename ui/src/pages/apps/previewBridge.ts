@@ -358,6 +358,8 @@ async function perform(
     headers["x-csrf-token"] = readCsrfToken() ?? "";
     if (reason !== undefined) {
       headers["JC-Reason"] = encodeURIComponent(reason);
+      // As the SDK transport: a write with a reason keeps the value it replaces (T-6333).
+      headers["JC-Record"] = "version";
     }
     if (body !== undefined) {
       headers["content-type"] = "application/json";

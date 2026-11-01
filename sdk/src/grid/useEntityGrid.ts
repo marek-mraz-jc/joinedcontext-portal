@@ -110,6 +110,8 @@ export interface GridLabels {
   /** The row detail's Metadata tab: created, changed, by whom and through what (T-5529). */
   metadata: string;
   metadataLabels?: Partial<import("./AttributeMetadata").MetadataLabels>;
+  /** The row detail's Changes tab: who changed what and when, from the kept versions (T-6333). */
+  changesLabels?: Partial<import("./EntityChanges").ChangesLabels>;
   /** Edit mode: the cell editor, the pending list and what applying them is called (UI-67). */
   edit: string;
   pending: string;

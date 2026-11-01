@@ -12,7 +12,8 @@ export interface JcRequest {
   as?: "blob";
   /**
    * Why a write is made, in the person's words: sent as `JC-Reason`, percent-encoded so any
-   * language fits a header, and kept with the write's provenance (DM-113).
+   * language fits a header, and kept with the write's provenance (DM-113). It also sends
+   * `JC-Record: version`, so the replaced value is kept as a version (T-6333).
    */
   reason?: string;
 }
@@ -62,6 +63,9 @@ export function originTransport(fetchImpl?: typeof fetch, doc?: Document): Trans
       }
       if (request.reason !== undefined) {
         headers["JC-Reason"] = encodeURIComponent(request.reason);
+        // A write a person names a reason for is an edit by hand: the broker keeps the value it
+        // replaces as a version, shown in the row's Changes (ADR-N-054 2.9, T-6333).
+        headers["JC-Record"] = "version";
       }
     }
 

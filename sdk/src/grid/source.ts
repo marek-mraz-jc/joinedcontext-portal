@@ -11,6 +11,8 @@ import { queryString } from "../sdk/query";
 import type { GeoQuery } from "./geoarea";
 import type { RichRow } from "./model";
 import { toRichRow } from "./model";
+import { changesOf } from "./changes";
+import type { EntityChange } from "./changes";
 
 export interface GridQuery {
   type: string;
@@ -101,6 +103,8 @@ export interface EntitySource {
   query(q: GridQuery, page: { offset: number; limit: number; count?: boolean }): Promise<GridPage>;
   get(id: string): Promise<RichRow | null>;
   history?(id: string, attr: string, window: HistoryWindow): Promise<HistoryPoint[]>;
+  /** Who changed `attrs` of one entity and when, newest first (T-6333): a 403 without `readVersions`. */
+  changes?(id: string, attrs: string[]): Promise<EntityChange[]>;
   /** `reason` is why the person writes, sent as `JC-Reason` (DM-113). */
   patch?(id: string, attrs: Record<string, unknown>, reason?: string): Promise<void>;
   remove?(id: string): Promise<void>;
@@ -236,6 +240,9 @@ function entitiesQuery(q: GridQuery, offset: number, limit: number, count = true
   });
 }
 
+/** The most versions one changes read asks for per attribute (EP-07, as history's MAX_POINTS). */
+const MAX_VERSIONS = 1000;
+
 function historyQuery(attr: string, window: HistoryWindow): string {
   const { from, to, lastN, versions } = window;
   return queryString({
@@ -334,6 +341,14 @@ function ngsiSource(base: string, transport: Transport, language: string, hidden
       if (status === 404) return [];
       if (!ok(status)) refuse(status, body, "the history was refused");
       return historyOf(body, attr);
+    },
+    async changes(id, attrs) {
+      const query = queryString({ attrs: attrs.join(","), versions: "all", lastN: String(MAX_VERSIONS) });
+      const { status, body } = await transport({ method: "GET", path: `${base}/temporal/entities/${encodeURIComponent(id)}?${query}` });
+      // Nothing kept of any of `attrs` is the broker's 404, as for history above.
+      if (status === 404) return [];
+      if (!ok(status)) refuse(status, body, "the changes were refused");
+      return changesOf(body);
     },
     async patch(id, attrs, reason) {
       const { status, body } = await transport({ method: "PATCH", path: `${entity(id)}/attrs`, body: attrs, reason });

@@ -34,6 +34,7 @@ import type { AttributeAccess } from "./source";
 import { RowDetail } from "./RowDetail";
 import { AttributeMetadata } from "./AttributeMetadata";
 import type { RowDetailTab } from "./RowDetail";
+import { useChangesFeed } from "./EntityChanges";
 import { parseClipboard, planPaste } from "./paste";
 import { problemOf } from "./rules";
 import { queryExample } from "./queryExample";
@@ -1150,6 +1151,10 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
     };
   }, [detailId, listedRow, loading, getRow, setDetailId]);
   const detailRow = listedRow ?? (linked && linked.id === detailId ? linked : undefined);
+  // One stable reader per open row, so the dialog's Changes read runs once per row (T-6333).
+  const changesFeed = useChangesFeed(hookOptions.source, detailRow?.id, where, hookOptions.labels?.changesLabels, (cell) => (
+    <CellView cell={cell} locale={where} labels={cellLabels} targets={targets} />
+  ));
   const historyOn = Boolean(hookOptions.source.history) && hookOptions.config.history.enabled !== false;
 
   // What is typed and not applied yet, with Review and Discard: under the toolbar, and inside the row
@@ -1869,6 +1874,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
               labels={hookOptions.labels?.metadataLabels}
             />
           )}
+          changes={changesFeed}
           tabs={detailTabs?.(detailRow)}
           place={detailPlace}
           onPlace={onDetailPlace}

@@ -1600,6 +1600,218 @@ a.jc-cell--link:focus-visible {
   }
 }
 
+/* The row's Changes (T-6333): one card per change, before and after side by side from a tablet
+   up and stacked on a phone; the filters share one row from a tablet up and two columns on a phone. */
+.jc-grid-changes-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 0.75rem;
+  align-items: end;
+  margin: 1rem 0 0.75rem;
+}
+
+@media (min-width: 640px) {
+  .jc-grid-changes-filters {
+    grid-template-columns: minmax(10rem, 14rem) minmax(10rem, 14rem) auto;
+    justify-content: start;
+  }
+}
+
+.jc-grid-changes-filters label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  color: var(--jc-color-muted, #57606a);
+}
+
+.jc-grid-changes-filters select {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0 0.5rem;
+  border: 1px solid var(--jc-color-line, #d0d7de);
+  border-radius: 0.375rem;
+  background: var(--jc-color-surface, #fff);
+  color: var(--jc-color-text, #1f2328);
+  font: inherit;
+  font-size: 0.875rem;
+}
+
+.jc-grid-changes-filters button,
+.jc-grid-changes-failed button {
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border: 1px solid var(--jc-color-line, #d0d7de);
+  border-radius: 0.375rem;
+  background: var(--jc-color-surface, #fff);
+  color: var(--jc-color-text, #1f2328);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+@media (max-width: 639px) {
+  .jc-grid-changes-filters button {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+
+.jc-grid-changes-filters button:focus-visible,
+.jc-grid-changes-failed button:focus-visible,
+.jc-grid-changes-filters select:focus-visible {
+  outline: 2px solid var(--jc-color-focus, #0969da);
+  outline-offset: 2px;
+}
+
+.jc-grid-changes-list {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.jc-grid-changes-list li {
+  padding: 0.75rem;
+  border: 1px solid var(--jc-color-line, #d0d7de);
+  border-radius: 0.375rem;
+}
+
+.jc-grid-changes-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.75rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.jc-grid-changes-head time {
+  font-size: 0.875rem;
+  color: var(--jc-color-text, #1f2328);
+}
+
+.jc-grid-changes-values dt {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--jc-color-muted, #57606a);
+}
+
+/* Before reads as replaced, after as current: the eye finds the new value first. */
+.jc-grid-changes-values div:first-child dd {
+  color: var(--jc-color-muted, #57606a);
+  text-decoration: line-through;
+}
+
+.jc-grid-changes-values div:last-child dd {
+  font-weight: 600;
+}
+
+.jc-grid-changes-values {
+  display: grid;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.jc-grid-changes-values dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 640px) {
+  .jc-grid-changes-values {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.jc-grid-changes-who {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.125rem 0;
+  margin: 0.5rem 0 0;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--jc-color-line, #d0d7de);
+  font-size: 0.8125rem;
+  color: var(--jc-color-text, #1f2328);
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 639px) {
+  .jc-grid-changes-values {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* A dot between the writer, the organization and the channel; a wrapped line starts clean. */
+.jc-grid-changes-who > span:not(:last-child)::after {
+  content: "·";
+  margin: 0 0.5rem;
+  color: var(--jc-color-muted, #57606a);
+}
+
+.jc-grid-changes-reason {
+  margin: 0.375rem 0 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+/* Loading, nothing kept, nothing matching and a failed read: one designed box, left-aligned. */
+.jc-grid-changes-state {
+  margin: 1rem 0 0;
+  padding: 1rem;
+  border: 1px dashed var(--jc-color-line, #d0d7de);
+  border-radius: 0.375rem;
+  color: var(--jc-color-text, #1f2328);
+}
+
+.jc-grid-changes-failed {
+  border-style: solid;
+  border-color: var(--jc-color-danger, #cf222e);
+}
+
+.jc-grid-changes-state p {
+  margin: 0;
+}
+
+.jc-grid-changes-state button {
+  margin-top: 0.75rem;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border: 1px solid var(--jc-color-line, #d0d7de);
+  border-radius: 0.375rem;
+  background: var(--jc-color-surface, #fff);
+  color: var(--jc-color-text, #1f2328);
+  font: inherit;
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.jc-grid-changes-failed p {
+  margin: 0 0 0.75rem;
+  color: var(--jc-color-danger, #cf222e);
+  font-weight: 600;
+}
+
+/* The mark beside a field with kept versions: opens Changes on that field. */
+.jc-grid-changed-mark {
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  min-height: 2rem;
+  border: 1px solid var(--jc-color-primary, #0969da);
+  border-radius: 999px;
+  background: var(--jc-color-primary-soft, #ddf4ff);
+  color: var(--jc-color-primary-strong, #0550ae);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.jc-grid-changed-mark:focus-visible {
+  outline: 2px solid var(--jc-color-focus, #0969da);
+  outline-offset: 2px;
+}
+
 /* A column's header filter (T-6328): a funnel beside the label, filled where the column is filtered. */
 .jc-grid-funnel {
   display: inline-block;

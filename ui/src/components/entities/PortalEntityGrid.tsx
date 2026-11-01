@@ -84,6 +84,12 @@ function writeLayout(project: string, type: string, layout: Layout): void {
 
 /** Every string the grid shows, from the Portal's own catalogue (`entityGrid.*`). */
 /** The cell inspector's words (T-5528), each under `entityGrid.inspector`. */
+/** The Changes tab's words read one to one from `entityGrid.changes` (T-6333). */
+const CHANGES_KEYS = [
+  "tab", "attribute", "person", "all", "before", "after", "channel", "organization", "reason", "noValue", "empty", "emptyFiltered", "showAll",
+  "loading", "error", "retry", "copy", "copied", "changed",
+] as const satisfies readonly (keyof NonNullable<GridLabels["changesLabels"]>)[];
+
 const INSPECTOR_KEYS = [
   "title", "close", "read", "write", "delete", "allowed", "notAllowed", "loading", "failed", "grant", "notInGrant",
   "noGrant", "formula", "prohibited", "prohibitedBy", "prohibitedHidden", "naming", "namingFailed", "askAccess",
@@ -178,6 +184,17 @@ export function gridLabels(t: (key: string, values?: Record<string, string>) => 
       supersededAt: t("entityGrid.historySuperseded"),
       changedBy: t("entityGrid.historyChangedBy"),
       reason: t("entityGrid.historyReason"),
+    },
+    changesLabels: {
+      ...Object.fromEntries(CHANGES_KEYS.map((key) => [key, t(`entityGrid.changes.${key}`)])),
+      // The placeholder goes through as it is: the dialog fills it with the field's label.
+      showChanges: t("entityGrid.changes.showChanges", { attr: "{attr}" }),
+      actorKinds: {
+        person: t("entityGrid.changes.kindPerson"),
+        pipeline: t("entityGrid.changes.kindPipeline"),
+        serviceAccount: t("entityGrid.changes.kindServiceAccount"),
+        agent: t("entityGrid.changes.kindAgent"),
+      },
     },
     // The placeholders go through as they are: the inspector fills them with the policy or the reason.
     inspectorLabels: Object.fromEntries(
