@@ -15448,6 +15448,359 @@
         }
       }
     },
+    "/api/v1/projects/{project}/ops/jc_access_explore": {
+      "post": {
+        "description": "Every Endpoint of the project a subject reaches, with its Policies and the gateway's grant document; organization administrators",
+        "operationId": "jc_access_explore",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "subject": {
+                  "kind": "person"
+                }
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "subject": {
+                    "additionalProperties": false,
+                    "description": "person takes id; group, role, serviceAccount take name",
+                    "properties": {
+                      "id": {
+                        "description": "Keycloak user id",
+                        "maxLength": 512,
+                        "type": "string"
+                      },
+                      "kind": {
+                        "description": "Subject kind",
+                        "enum": [
+                          "person",
+                          "group",
+                          "role",
+                          "serviceAccount",
+                          "public"
+                        ],
+                        "type": "string"
+                      },
+                      "name": {
+                        "description": "e.g. city-stewards",
+                        "maxLength": 253,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "subject"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "consents": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "endpoints": {
+                      "description": "Each Endpoint the subject reaches with its Policies and grant document",
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "mcpServers": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "subject": {
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "subject",
+                    "endpoints",
+                    "mcpServers",
+                    "consents"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Explore Access",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "Policy",
+          "verb": "read"
+        }
+      }
+    },
+    "/api/v1/projects/{project}/ops/jc_access_simulate": {
+      "post": {
+        "description": "What the gateway decides for a person, group, role, ServiceAccount or the public doing one action on an Endpoint, and the Policy that decides; organization administrators",
+        "operationId": "jc_access_simulate",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "action": "example",
+                "endpoint": "example",
+                "subject": {
+                  "kind": "person"
+                }
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "description": "A CIM 009 operation, e.g. retrieveEntity",
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "endpoint": {
+                    "description": "Endpoint name, e.g. air-public",
+                    "maxLength": 253,
+                    "type": "string"
+                  },
+                  "subject": {
+                    "additionalProperties": false,
+                    "description": "person takes id; group, role, serviceAccount take name",
+                    "properties": {
+                      "id": {
+                        "description": "Keycloak user id",
+                        "maxLength": 512,
+                        "type": "string"
+                      },
+                      "kind": {
+                        "description": "Subject kind",
+                        "enum": [
+                          "person",
+                          "group",
+                          "role",
+                          "serviceAccount",
+                          "public"
+                        ],
+                        "type": "string"
+                      },
+                      "name": {
+                        "description": "e.g. city-stewards",
+                        "maxLength": 253,
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "kind"
+                    ],
+                    "type": "object"
+                  },
+                  "type": {
+                    "description": "Entity type; absent: any type",
+                    "maxLength": 128,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "endpoint",
+                  "subject",
+                  "action"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "assigner": {
+                      "type": "string"
+                    },
+                    "decision": {
+                      "type": "boolean"
+                    },
+                    "policy": {
+                      "description": "The Policy that decided",
+                      "type": "string"
+                    },
+                    "reason": {
+                      "type": "string"
+                    },
+                    "subject": {
+                      "description": "The subject as the gateway resolved it",
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "decision",
+                    "reason",
+                    "subject"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Try A Policy",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "Policy",
+          "verb": "read"
+        }
+      }
+    },
     "/api/v1/projects/{project}/ops/jc_activity_list": {
       "post": {
         "description": "What happened in the project: the same events, filters and paging the activity page reads",
@@ -15743,6 +16096,182 @@
         }
       }
     },
+    "/api/v1/projects/{project}/ops/jc_attribute_explain": {
+      "post": {
+        "description": "What decided one attribute of an Endpoint for you and, if you may read it, the Policy that decided",
+        "operationId": "jc_attribute_explain",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "attribute": "example",
+                "name": "example",
+                "type": "example"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "description": "default write",
+                    "enum": [
+                      "read",
+                      "write",
+                      "delete"
+                    ],
+                    "type": "string"
+                  },
+                  "attribute": {
+                    "description": "e.g. pm10",
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "name": {
+                    "description": "Endpoint name, e.g. air-public",
+                    "maxLength": 253,
+                    "type": "string"
+                  },
+                  "type": {
+                    "description": "e.g. AirQualityObserved",
+                    "maxLength": 128,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "type",
+                  "attribute"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "action": {
+                      "type": "string"
+                    },
+                    "attribute": {
+                      "type": "string"
+                    },
+                    "decision": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "policy": {
+                      "description": "The deciding Policy, where you may read it",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "policyTitle": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "reason": {
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    },
+                    "type": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type",
+                    "attribute",
+                    "action"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Why An Attribute Is Refused",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "Endpoint",
+          "verb": "read"
+        }
+      }
+    },
     "/api/v1/projects/{project}/ops/jc_catalog_search": {
       "post": {
         "description": "Find spaces, endpoints, models and open datasets by keywords",
@@ -15881,6 +16410,154 @@
         "x-jc-requires": {
           "checkedBy": "project",
           "kind": "*",
+          "verb": "read"
+        }
+      }
+    },
+    "/api/v1/projects/{project}/ops/jc_catalogue_draft": {
+      "post": {
+        "description": "The spec.catalog and spec.publish the publish flow proposes for an Endpoint, and whether publishing makes it public; writes nothing",
+        "operationId": "jc_catalogue_draft",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "endpoint": "example"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "endpoint": {
+                    "description": "Endpoint name, e.g. air-public",
+                    "maxLength": 253,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "endpoint"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "attributes": {
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "catalog": {
+                      "description": "The drafted spec.catalog",
+                      "type": "object"
+                    },
+                    "endpoint": {
+                      "type": "string"
+                    },
+                    "makesPublic": {
+                      "description": "Publishing makes the Endpoint public (red lane)",
+                      "type": "boolean"
+                    },
+                    "missing": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "publish": {
+                      "description": "The drafted spec.publish",
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "endpoint",
+                    "makesPublic",
+                    "catalog",
+                    "publish",
+                    "missing"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Draft A Catalogue Entry",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "Endpoint",
           "verb": "read"
         }
       }
@@ -16360,6 +17037,154 @@
         ],
         "x-jc-requires": {
           "checkedBy": "route",
+          "kind": "*",
+          "verb": "read"
+        }
+      }
+    },
+    "/api/v1/projects/{project}/ops/jc_change_history": {
+      "post": {
+        "description": "One page of the merged and rejected changes, most recently closed first, each naming who decided it; `next` is the page that continues it",
+        "operationId": "jc_change_history",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {},
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "author": {
+                    "description": "Author name or e-mail contains, e.g. jana",
+                    "maxLength": 256,
+                    "type": "string"
+                  },
+                  "kind": {
+                    "description": "Only changes to this kind, e.g. Endpoint",
+                    "maxLength": 128,
+                    "type": "string"
+                  },
+                  "name": {
+                    "description": "Resource name contains, e.g. air",
+                    "maxLength": 253,
+                    "type": "string"
+                  },
+                  "page": {
+                    "description": "From 1; the previous answer's next",
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "since": {
+                    "description": "Decided on or after, YYYY-MM-DD",
+                    "maxLength": 10,
+                    "type": "string"
+                  },
+                  "until": {
+                    "description": "Decided on or before, YYYY-MM-DD",
+                    "maxLength": 10,
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "items": {
+                      "description": "Merged or rejected changes, most recently closed first, each naming who decided it",
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "next": {
+                      "description": "Present when older changes follow: send it as page",
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "List Closed Changes",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
           "kind": "*",
           "verb": "read"
         }
@@ -17519,6 +18344,168 @@
         }
       }
     },
+    "/api/v1/projects/{project}/ops/jc_data_write": {
+      "post": {
+        "description": "Creates, upserts, merges or deletes up to 100 entities through one Endpoint of the project, as you; its Policy decides each",
+        "operationId": "jc_data_write",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "action": "create",
+                "endpoint": "example"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "action": {
+                    "description": "create: new entities; upsert: create or replace attributes; merge: patch existing ones; delete: ids",
+                    "enum": [
+                      "create",
+                      "upsert",
+                      "merge",
+                      "delete"
+                    ],
+                    "type": "string"
+                  },
+                  "endpoint": {
+                    "description": "Endpoint name of the project, e.g. bike-stations",
+                    "maxLength": 253,
+                    "type": "string"
+                  },
+                  "entities": {
+                    "description": "create, upsert, merge: NGSI-LD entities with id and type, e.g. {id: urn:ngsi-ld:BikeHireDockingStation:s1, type: BikeHireDockingStation, name: {type: Property, value: Main}}",
+                    "items": {
+                      "maxProperties": 512,
+                      "type": "object"
+                    },
+                    "maxItems": 100,
+                    "type": "array"
+                  },
+                  "ids": {
+                    "description": "delete: entity ids",
+                    "items": {
+                      "maxLength": 512,
+                      "type": "string"
+                    },
+                    "maxItems": 100,
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "endpoint",
+                  "action"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "errors": {
+                      "description": "Entities the Endpoint refused, each with its id and why",
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "written": {
+                      "description": "Ids the Endpoint took",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "written",
+                    "errors"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Write Data",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "registry",
+          "kind": "Endpoint",
+          "verb": "read"
+        }
+      }
+    },
     "/api/v1/projects/{project}/ops/jc_datasource_check": {
       "post": {
         "description": "Dry-runs a DataSource manifest and probes the external feed",
@@ -18597,6 +19584,233 @@
         "x-jc-requires": {
           "checkedBy": "route",
           "kind": "*",
+          "verb": "read"
+        }
+      }
+    },
+    "/api/v1/projects/{project}/ops/jc_endpoint_preview": {
+      "post": {
+        "description": "The count and one page of an Endpoint's entities under a draft projection and hidden attributes, before proposing them; writes nothing",
+        "operationId": "jc_endpoint_preview",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "name": "example",
+                "type": "example"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "hiddenAttributes": {
+                    "description": "Draft hidden attributes",
+                    "items": {
+                      "maxLength": 128,
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "id": {
+                    "description": "Only these entity ids",
+                    "items": {
+                      "maxLength": 512,
+                      "type": "string"
+                    },
+                    "maxItems": 100,
+                    "type": "array"
+                  },
+                  "limit": {
+                    "description": "default 50",
+                    "maximum": 100,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "name": {
+                    "description": "Endpoint name, e.g. air-public",
+                    "maxLength": 253,
+                    "type": "string"
+                  },
+                  "offset": {
+                    "description": "Entities skipped",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  "projection": {
+                    "additionalProperties": false,
+                    "description": "Draft spec.projection",
+                    "properties": {
+                      "classes": {
+                        "description": "Classes served",
+                        "items": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "name": {
+                              "description": "Class",
+                              "maxLength": 128,
+                              "type": "string"
+                            },
+                            "slots": {
+                              "description": "e.g. [pm10]",
+                              "items": {
+                                "maxLength": 128,
+                                "type": "string"
+                              },
+                              "type": "array"
+                            }
+                          },
+                          "required": [
+                            "name"
+                          ],
+                          "type": "object"
+                        },
+                        "maxItems": 64,
+                        "type": "array"
+                      },
+                      "filter": {
+                        "additionalProperties": false,
+                        "description": "NGSI-LD query parts",
+                        "properties": {
+                          "geoQ": {
+                            "description": "e.g. near;maxDistance==500;Point;[19.1,48.7]",
+                            "maxLength": 2048,
+                            "type": "string"
+                          },
+                          "q": {
+                            "description": "e.g. pm10>40",
+                            "maxLength": 2048,
+                            "type": "string"
+                          },
+                          "scopeQ": {
+                            "description": "e.g. /city/#",
+                            "maxLength": 2048,
+                            "type": "string"
+                          },
+                          "temporalQ": {
+                            "description": "e.g. after;2026-10-01T00:00:00Z",
+                            "maxLength": 2048,
+                            "type": "string"
+                          }
+                        },
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "classes"
+                    ],
+                    "type": "object"
+                  },
+                  "type": {
+                    "description": "e.g. AirQualityObserved",
+                    "maxLength": 128,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "type"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "count": {
+                      "type": "integer"
+                    },
+                    "entities": {
+                      "description": "One page under the draft",
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "count",
+                    "entities"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Preview An Endpoint Filter",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "Endpoint",
           "verb": "read"
         }
       }
@@ -20121,6 +21335,130 @@
         }
       }
     },
+    "/api/v1/projects/{project}/ops/jc_model_generate": {
+      "post": {
+        "description": "Compiles LinkML source into its artifacts (JSON Schema, JSON-LD context, SHACL and the rest) through the model tools service, or answers the messages of a source that does not compile. Writes nothing",
+        "operationId": "jc_model_generate",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "source": "example"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "source": {
+                    "description": "LinkML YAML",
+                    "maxLength": 524288,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The artifacts (jsonSchema, context, shacl, docs, example and the rest), or errors when the source does not compile",
+                  "properties": {
+                    "errors": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "errors"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Generate Model Artifacts",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "DataModel",
+          "verb": "read"
+        }
+      }
+    },
     "/api/v1/projects/{project}/ops/jc_model_infer": {
       "post": {
         "description": "Infers a draft LinkML data model from sample data bytes or text",
@@ -20244,6 +21582,289 @@
           }
         },
         "summary": "Infer Schema",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "DataModel",
+          "verb": "read"
+        }
+      }
+    },
+    "/api/v1/projects/{project}/ops/jc_model_sdm_import": {
+      "post": {
+        "description": "Compiles one Smart Data Models catalogue model into LinkML and its artifacts. Writes nothing; proposing it as a DataModel is a separate change",
+        "operationId": "jc_model_sdm_import",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "model": "example"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "model": {
+                    "description": "subject/model as search lists it, e.g. dataModel.Parking/OnStreetParking",
+                    "maxLength": 256,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "model"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "classes": {
+                      "description": "Each class with its slots",
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "errors": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "description": "The LinkML: jc_change_plan's DataModel source",
+                      "type": [
+                        "string",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "model",
+                    "source",
+                    "classes",
+                    "errors"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Import A Smart Data Model",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "DataModel",
+          "verb": "read"
+        }
+      }
+    },
+    "/api/v1/projects/{project}/ops/jc_model_sdm_search": {
+      "post": {
+        "description": "Models of the Smart Data Models catalogue whose name, description or attributes match q; import one with jc_model_sdm_import",
+        "operationId": "jc_model_sdm_search",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "q": "example"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "q": {
+                    "description": "A model, subject or attribute name, e.g. parking",
+                    "maxLength": 100,
+                    "minLength": 2,
+                    "type": "string"
+                  },
+                  "subject": {
+                    "description": "e.g. dataModel.Parking: search its attribute names too",
+                    "maxLength": 128,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "q"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "models": {
+                      "description": "Matching catalogue models, each with id (the import's model), name and description",
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "more": {
+                      "description": "More models matched than listed: narrow q",
+                      "type": "boolean"
+                    },
+                    "stale": {
+                      "description": "The index is the older cached one",
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "models",
+                    "more",
+                    "stale"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Search Smart Data Models",
         "tags": [
           "ops"
         ],
@@ -20932,6 +22553,265 @@
         "x-jc-requires": {
           "checkedBy": "project",
           "kind": "MqttBroker",
+          "verb": "read"
+        }
+      }
+    },
+    "/api/v1/projects/{project}/ops/jc_mqtt_test_publish": {
+      "post": {
+        "description": "Dry-runs one device message on a topic through the broker's ACL and limits, the bound DataSource and Pipeline, the mapping and the Endpoint's record check; publishes and writes nothing",
+        "operationId": "jc_mqtt_test_publish",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "account": "example",
+                "name": "example",
+                "payload": "example",
+                "topic": "example"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "account": {
+                    "description": "A ServiceAccount the broker's roles name, e.g. cam-west",
+                    "maxLength": 253,
+                    "type": "string"
+                  },
+                  "name": {
+                    "description": "MqttBroker name, e.g. sensors",
+                    "maxLength": 253,
+                    "type": "string"
+                  },
+                  "payload": {
+                    "description": "The message as the device sends it, e.g. {\"temperature\": 21.5}",
+                    "maxLength": 1048576,
+                    "type": "string"
+                  },
+                  "topic": {
+                    "description": "No wildcard, e.g. cameras/cam-west/frame",
+                    "maxLength": 1024,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "account",
+                  "topic",
+                  "payload"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Each step's outcome (ACL, limits, DataSource and Pipeline, mapping, record check); nothing published or written",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Test an MQTT Publish",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "MqttBroker",
+          "verb": "read"
+        }
+      }
+    },
+    "/api/v1/projects/{project}/ops/jc_permissions_me": {
+      "post": {
+        "description": "Your effective rules in the project: which verbs on which kinds, from which bindings",
+        "operationId": "jc_permissions_me",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {},
+              "schema": {
+                "additionalProperties": false,
+                "properties": {},
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "bootstrap": {
+                      "type": "boolean"
+                    },
+                    "grants": {
+                      "description": "Verbs on kinds and the bindings they come from",
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "project": {
+                      "type": "string"
+                    },
+                    "projects": {
+                      "description": "Whether you may open projects",
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "project",
+                    "bootstrap",
+                    "grants"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Read My Permissions",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "*",
           "verb": "read"
         }
       }
@@ -21796,6 +23676,141 @@
           "checkedBy": "organization",
           "kind": "*",
           "verb": "propose"
+        }
+      }
+    },
+    "/api/v1/projects/{project}/ops/jc_pipeline_inspect": {
+      "post": {
+        "description": "One panel of the pipeline page: the last message per node, per-node rates, the records validation refused, or a snapshot pipeline's source-delete dry run",
+        "operationId": "jc_pipeline_inspect",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "name": "example",
+                "view": "samples"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "cursor": {
+                    "description": "rejected: the previous answer's next",
+                    "type": "integer"
+                  },
+                  "limit": {
+                    "description": "rejected per page (default 20)",
+                    "maximum": 100,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "name": {
+                    "description": "The Pipeline's name, e.g. counters-hourly",
+                    "maxLength": 253,
+                    "type": "string"
+                  },
+                  "view": {
+                    "description": "samples: last message per node; stats: per-node rates over 1/5/15 min; rejected: records validation refused, with the rule; sourceDeletes: a snapshot pipeline's source ledger and delete dry run",
+                    "enum": [
+                      "samples",
+                      "stats",
+                      "rejected",
+                      "sourceDeletes"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name",
+                  "view"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The panel as the pipeline page reads it; rejected pages carry next while older records follow",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Inspect A Running Pipeline",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "Pipeline",
+          "verb": "read"
         }
       }
     },
@@ -26365,6 +28380,138 @@
           "checkedBy": "registry",
           "kind": "ContextSpace",
           "verb": "propose"
+        }
+      }
+    },
+    "/api/v1/projects/{project}/ops/jc_space_governance": {
+      "post": {
+        "description": "One reading about a Context Space's data: quality, checks on write, entity count, history creation, surface fit or drift",
+        "operationId": "jc_space_governance",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "aspect": "quality",
+                "space": "example"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "aspect": {
+                    "description": "quality: daily report; qualityChecks: checks on write, 24 h and 7 d; usage: entity count; temporalAudit: how pipelines create history; surfaceFit: standard surfaces the model serves; drift: live differences from the repository",
+                    "enum": [
+                      "quality",
+                      "qualityChecks",
+                      "usage",
+                      "temporalAudit",
+                      "surfaceFit",
+                      "drift"
+                    ],
+                    "type": "string"
+                  },
+                  "pipeline": {
+                    "description": "temporalAudit: only this pipeline",
+                    "maxLength": 253,
+                    "type": "string"
+                  },
+                  "space": {
+                    "description": "Context Space name, e.g. air",
+                    "maxLength": 253,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "space",
+                  "aspect"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "The reading, as the space's page shows it",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Read Space Governance",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "ContextSpace",
+          "verb": "read"
         }
       }
     },

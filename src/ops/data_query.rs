@@ -22,7 +22,7 @@ const MAX_LIMIT: u32 = 1000;
 /// The page when the caller names none.
 const DEFAULT_LIMIT: u32 = 20;
 /// How long the gateway gets to answer one read; its own cut is 10 s (T-5349).
-const GATEWAY_TIMEOUT: Duration = Duration::from_secs(12);
+pub(super) const GATEWAY_TIMEOUT: Duration = Duration::from_secs(12);
 /// The most bytes of one page read back: the gateway's own body ceiling (8 MiB).
 const MAX_BODY: usize = 8 * 1024 * 1024;
 
@@ -281,7 +281,7 @@ fn temporal_of(
 }
 
 /// The gateway's own words for a refusal, when its body has them.
-fn detail_of(body: &Value) -> String {
+pub(super) fn detail_of(body: &Value) -> String {
     body.get("detail")
         .or_else(|| body.get("title"))
         .and_then(Value::as_str)
@@ -295,7 +295,7 @@ fn detail_of(body: &Value) -> String {
 /// project named by its slug, read anonymously so a connector never reads more there than an
 /// anonymous caller does (T-6272).
 #[derive(Debug, PartialEq)]
-enum Target {
+pub(super) enum Target {
     Own(String),
     Public(String),
 }
@@ -303,7 +303,7 @@ enum Target {
 /// The Endpoint `name` names: the project's Endpoint of that name when the caller may read its
 /// manifest, else the public Endpoint with that slug; any other case reads as a missing Endpoint,
 /// so a refusal tells nothing about Endpoints the caller cannot see.
-fn readable_slug(
+pub(super) fn readable_slug(
     caller: &Caller,
     state: &AppState,
     project: &str,
@@ -459,7 +459,7 @@ async fn run(
 
 /// The gateway's page, read to [`MAX_BODY`]: a larger one is refused at the first byte past the
 /// cap, never held whole first (F-R2POR4-009).
-async fn capped_page(answer: reqwest::Response) -> Result<Vec<u8>, OpError> {
+pub(super) async fn capped_page(answer: reqwest::Response) -> Result<Vec<u8>, OpError> {
     jc_core::outbound::read_capped(answer, MAX_BODY)
         .await
         .map_err(|err| match err {
