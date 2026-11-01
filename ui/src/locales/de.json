@@ -10832,6 +10832,11 @@
     "aboveCeiling": "Ihre Organisation erlaubt einem Konnektor diese Vorgabe noch nicht.",
     "projectAboveCeiling": "Ihre Organisation lässt einen Konnektor dieses Projekt noch nicht erreichen: Bitten Sie eine Administratorin oder einen Administrator, es der Konnektor-Richtlinie Ihrer Organisation hinzuzufügen.",
     "endpointsOnly": "Ihre Organisation lässt einen Konnektor nur einige Endpoints dieses Projekts erreichen: Bitten Sie eine Administratorin oder einen Administrator, weitere der Konnektor-Richtlinie Ihrer Organisation hinzuzufügen.",
+    "verbsOf": "Was er mit {kind} tun darf",
+    "readComes": "Lesen bringt die Vorlage mit.",
+    "verbsNone": "Haken Sie eine Vorlage an, die Änderungen vorschlägt, etwa Kontext oder Pipelines, um festzulegen, was er ändern darf.",
+    "verbsGreyed": "Graue Verben muss Ihre Organisation erst freigeben; bitten Sie eine Administratorin oder einen Administrator darum.",
+    "verb": {"read": "lesen", "create": "anlegen", "edit": "bearbeiten", "delete": "löschen", "run": "ausführen", "propose": "anlegen, bearbeiten, löschen"},
     "binds": "nur dieser Client kann ihn nutzen",
     "clientRefused": "die Richtlinie Ihrer Organisation lässt ihn nicht zu",
     "intendedFor": "sagt, für wen er ist; auch andere lokale Programme können ihn nennen",
@@ -10861,7 +10866,8 @@
       "segments": "Vorgaben",
       "scope": "Was er erreicht",
       "expires": "Gültig bis",
-      "clients": "Erlaubte Clients"
+      "clients": "Erlaubte Clients",
+      "kinds": "Änderungen, die er vorschlagen darf"
     },
     "segment": {
       "data-read": "Daten lesen",
@@ -10912,7 +10918,8 @@
       "expires": "Der letzte gültige Tag, höchstens {days} Tage ab heute, z. B. das Monatsende.",
       "clients": "Leer lassen für jeden Client, oder z. B. Claude Code ankreuzen, für wen er ist.",
       "clientsListed": "Kreuzen Sie den Client an, den Sie nutzen, z. B. claude.ai: Ihre Organisation lässt einen Connector nur den Clients antworten, die ihre Richtlinie nennt.",
-      "nameStays": "Der Name bleibt; unter ihm listet Ihr KI-Client den Konnektor."
+      "nameStays": "Der Name bleibt; unter ihm listet Ihr KI-Client den Konnektor.",
+      "kinds": "Z. B. neue Endpoints anlegen, aber keine bearbeiten. Zeilen fügen nur Vorlagen hinzu, die Änderungen vorschlagen; jede Änderung genehmigt weiterhin ein Mensch."
     },
     "problem": {
       "name": "Geben Sie einen Namen aus Kleinbuchstaben, Ziffern und Bindestrichen an, z. B. verkehr-in-claude.",
