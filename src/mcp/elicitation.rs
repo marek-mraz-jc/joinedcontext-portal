@@ -539,7 +539,10 @@ mod tests {
         let text = answer["content"][0]["text"].as_str().unwrap_or_default();
         assert!(text.starts_with("Delete it."), "{text}");
         assert!(text.contains(url), "{text}");
-        assert!(text.contains("\"elicitationId\": \"eli-00000000000000aa\""), "{text}");
+        assert!(
+            text.contains("\"elicitationId\": \"eli-00000000000000aa\""),
+            "{text}"
+        );
         assert!(text.contains("arguments"), "{text}");
         assert!(answer.get("structuredContent").is_none(), "{answer}");
         let meta = &answer["_meta"][ELICITATION_META];

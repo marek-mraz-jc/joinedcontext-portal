@@ -1637,7 +1637,8 @@ async fn a_red_call_asks_the_person_before_it_runs_and_a_refusal_runs_nothing() 
 
     // 6. A new question the person accepts on the page: the client's call passes the gate.
     let asked = call(json!({ "name": "jc_resource_delete", "arguments": arguments })).await;
-    let again_id = asked["result"]["_meta"]["joinedcontext.com/elicitation"]["elicitation"]["elicitationId"]
+    let again_id = asked["result"]["_meta"]["joinedcontext.com/elicitation"]["elicitation"]
+        ["elicitationId"]
         .as_str()
         .unwrap_or_default()
         .to_owned();

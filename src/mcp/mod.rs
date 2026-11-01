@@ -1589,7 +1589,10 @@ mod tests {
         assert_eq!(result["status"], "input_required", "{asked}");
         assert!(result.get("structuredContent").is_none(), "{asked}");
         let text = result["content"][0]["text"].as_str().unwrap_or_default();
-        assert!(text.contains("/projects/ovzdusie/mcp-elicitations/eli-"), "{text}");
+        assert!(
+            text.contains("/projects/ovzdusie/mcp-elicitations/eli-"),
+            "{text}"
+        );
         let id = text
             .split('"')
             .find(|word| word.starts_with("eli-"))
