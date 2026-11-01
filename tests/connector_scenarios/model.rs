@@ -339,7 +339,7 @@ impl Harness {
             }
         };
         let (mut refused, mut answer) = rpc(body.clone()).await;
-        let asked = answer["result"]["structuredContent"]["elicitation"]["elicitationId"]
+        let asked = answer["result"]["_meta"]["joinedcontext.com/elicitation"]["elicitation"]["elicitationId"]
             .as_str()
             .map(str::to_owned);
         if let Some(id) = asked.filter(|_| steps.iter().any(|s| s.accepted)) {

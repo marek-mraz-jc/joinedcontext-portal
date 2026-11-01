@@ -245,19 +245,28 @@ fn question_of(id: &str, pending: &Pending) -> Question {
     }
 }
 
+/// The `_meta` key of an `input_required` answer's machine-readable question (T-6361).
+pub const ELICITATION_META: &str = "joinedcontext.com/elicitation";
+
 /// The question as the client receives it: what would happen, and where the person decides.
+///
+/// The text carries everything a model needs to go on, the Portal URL and the `elicitationId`
+/// included: a real MCP client hands its model the content text only (T-6042, T-6361). The
+/// answer carries no `structuredContent`, because every tool declares an `outputSchema` and a
+/// question is not the tool's output (CC-47); the same fields sit in `_meta` under
+/// [`ELICITATION_META`] for a client that reads them by name.
 ///
 /// `refusal` is the gate's own answer when one already holds — a proposal whose check has not
 /// run, for instance. It is carried beside the question rather than instead of it: the three
-/// fields the REST route answers (`error`, `check`, `reason`) sit at the top of
-/// `structuredContent`, so a client that reads `verdict_required` on the route reads it here
-/// too, and the URL the person needs is still there (PF-57, ADR-N-021, T-0947).
+/// fields the REST route answers (`error`, `check`, `reason`) sit at the top of that `_meta`
+/// object, so a client that reads `verdict_required` on the route reads it here too, and the URL
+/// the person needs is still there (PF-57, ADR-N-021, T-0947).
 pub fn document(id: &str, message: &str, url: &str, refusal: Option<Value>) -> Value {
-    let mut structured = serde_json::Map::new();
-    if let Some(Value::Object(fields)) = refusal {
-        structured.extend(fields);
+    let mut fields = serde_json::Map::new();
+    if let Some(Value::Object(refused)) = refusal {
+        fields.extend(refused);
     }
-    structured.insert(
+    fields.insert(
         "elicitation".to_owned(),
         json!({
             "elicitationId": id,
@@ -267,11 +276,18 @@ pub fn document(id: &str, message: &str, url: &str, refusal: Option<Value>) -> V
             "expiresIn": EXPIRES_IN_SECONDS,
         }),
     );
+    let minutes = EXPIRES_IN_SECONDS / 60;
+    let text = format!(
+        "{message}\n\nThe person decides here: {url}\nThen send this same call again with \
+         `\"elicitation\": {{\"elicitationId\": \"{id}\"}}` added to its arguments (or to its \
+         params); `\"action\": \"decline\"` beside the id withdraws it. The question expires in \
+         {minutes} minutes."
+    );
     json!({
         "isError": false,
         "status": "input_required",
-        "content": [{ "type": "text", "text": message }],
-        "structuredContent": Value::Object(structured),
+        "content": [{ "type": "text", "text": text }],
+        "_meta": { ELICITATION_META: Value::Object(fields) },
     })
 }
 
@@ -511,6 +527,26 @@ mod tests {
         };
         assert_eq!(answer(false), Answer::Waiting);
         assert_eq!(answer(true), Answer::Accepted);
+    }
+
+    /// T-6361: the model reads the text alone, so the text names where to decide and the id to
+    /// send back; the answer carries no `structuredContent` a tool's `outputSchema` would refuse.
+    #[test]
+    fn the_text_names_the_url_and_the_id_and_no_structured_content_is_sent() {
+        let url = "https://portal.example/projects/helsinki/mcp-elicitations/eli-00000000000000aa";
+        let refusal = json!({ "error": "verdict_required", "check": "jc_change_plan" });
+        let answer = document("eli-00000000000000aa", "Delete it.", url, Some(refusal));
+        let text = answer["content"][0]["text"].as_str().unwrap_or_default();
+        assert!(text.starts_with("Delete it."), "{text}");
+        assert!(text.contains(url), "{text}");
+        assert!(text.contains("\"elicitationId\": \"eli-00000000000000aa\""), "{text}");
+        assert!(text.contains("arguments"), "{text}");
+        assert!(answer.get("structuredContent").is_none(), "{answer}");
+        let meta = &answer["_meta"][ELICITATION_META];
+        assert_eq!(meta["elicitation"]["url"], url);
+        assert_eq!(meta["elicitation"]["elicitationId"], "eli-00000000000000aa");
+        assert_eq!(meta["error"], "verdict_required");
+        assert_eq!(answer["status"], "input_required");
     }
 
     #[test]

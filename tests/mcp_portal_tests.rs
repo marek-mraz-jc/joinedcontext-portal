@@ -1523,7 +1523,7 @@ async fn a_red_call_asks_the_person_before_it_runs_and_a_refusal_runs_nothing() 
 
     // 1. The call the model makes alone: a question, and nothing removed.
     let asked = call(json!({ "name": "jc_resource_delete", "arguments": arguments })).await;
-    let elicitation = &asked["result"]["structuredContent"]["elicitation"];
+    let elicitation = &asked["result"]["_meta"]["joinedcontext.com/elicitation"]["elicitation"];
     let elicitation_id = elicitation["elicitationId"]
         .as_str()
         .unwrap_or_else(|| panic!("a question: {asked}"))
@@ -1637,7 +1637,7 @@ async fn a_red_call_asks_the_person_before_it_runs_and_a_refusal_runs_nothing() 
 
     // 6. A new question the person accepts on the page: the client's call passes the gate.
     let asked = call(json!({ "name": "jc_resource_delete", "arguments": arguments })).await;
-    let again_id = asked["result"]["structuredContent"]["elicitation"]["elicitationId"]
+    let again_id = asked["result"]["_meta"]["joinedcontext.com/elicitation"]["elicitation"]["elicitationId"]
         .as_str()
         .unwrap_or_default()
         .to_owned();
@@ -1717,7 +1717,7 @@ async fn a_proposal_without_a_verdict_names_verdict_required_on_the_mcp_door() {
         }),
     )
     .await;
-    let structured = &proposal["result"]["structuredContent"];
+    let structured = &proposal["result"]["_meta"]["joinedcontext.com/elicitation"];
     assert_eq!(
         proposal["result"]["status"],
         json!("input_required"),

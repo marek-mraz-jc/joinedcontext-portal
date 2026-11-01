@@ -1963,7 +1963,7 @@ impl Harness {
             return send(body).await;
         }
         let (_, asked) = send(body.clone()).await?;
-        let id = asked["result"]["structuredContent"]["elicitation"]["elicitationId"]
+        let id = asked["result"]["_meta"]["joinedcontext.com/elicitation"]["elicitation"]["elicitationId"]
             .as_str()
             .ok_or_else(|| format!("accepted: no question asked in {asked}"))?;
         self.state
