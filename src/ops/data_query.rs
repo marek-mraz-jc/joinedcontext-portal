@@ -81,7 +81,7 @@ fn input_schema() -> Value {
     json!({
         "type": "object",
         "properties": {
-            "endpoint": text("Endpoint name, e.g. doprava-counters", NAME),
+            "endpoint": text("Endpoint name or public slug, e.g. city-counters", NAME),
             "type": text("The entity type, e.g. BikeCounter", TERM),
             "id": text("One entity's id, e.g. urn:ngsi-ld:BikeCounter:c1", ID),
             "q": text("An NGSI-LD q, e.g. count>40;name~=\"Most\"", QUERY),
@@ -291,36 +291,50 @@ fn detail_of(body: &Value) -> String {
         .collect()
 }
 
-/// The slug of Endpoint `name`, when the caller may read its manifest; any other case reads as
-/// a missing Endpoint, so a refusal tells nothing about Endpoints the caller cannot see.
+/// The Endpoint a read goes to: one of the project, read as the caller, or a public one of any
+/// project named by its slug, read anonymously so a connector never reads more there than an
+/// anonymous caller does (T-6272).
+#[derive(Debug, PartialEq)]
+enum Target {
+    Own(String),
+    Public(String),
+}
+
+/// The Endpoint `name` names: the project's Endpoint of that name when the caller may read its
+/// manifest, else the public Endpoint with that slug; any other case reads as a missing Endpoint,
+/// so a refusal tells nothing about Endpoints the caller cannot see.
 fn readable_slug(
     caller: &Caller,
     state: &AppState,
     project: &str,
     name: &str,
-) -> Result<String, OpError> {
+) -> Result<Target, OpError> {
     let missing = || {
         OpError::Api(ApiError::NotFound(format!(
-            "no Endpoint {name} in project {project}"
+            "no Endpoint {name} in project {project}, and no public Endpoint has slug {name}"
         )))
     };
-    let envelope = state
-        .mirror
-        .get(project, "Endpoint", name)
-        .ok_or_else(missing)?;
-    let manifest = serde_json::to_value(&envelope)?;
-    // A space-living kind: the grant of the Endpoint's own space decides (T-5112).
-    if !crate::permissions::for_request(state, &caller.identity, project)
-        .may_read_manifest("Endpoint", &manifest)
-    {
-        return Err(missing());
+    let own = match state.mirror.get(project, "Endpoint", name) {
+        Some(envelope) => {
+            let manifest = serde_json::to_value(&envelope)?;
+            // A space-living kind: the grant of the Endpoint's own space decides (T-5112).
+            crate::permissions::for_request(state, &caller.identity, project)
+                .may_read_manifest("Endpoint", &manifest)
+                .then_some(envelope)
+        }
+        None => None,
+    };
+    if let Some(envelope) = own {
+        let slug = envelope.spec["slug"].as_str().ok_or_else(|| {
+            ApiError::Unavailable(format!(
+                "Endpoint {name} has no slug yet; read it again once it is served"
+            ))
+        })?;
+        return Ok(Target::Own(slug.to_owned()));
     }
-    let slug = envelope.spec["slug"].as_str().ok_or_else(|| {
-        ApiError::Unavailable(format!(
-            "Endpoint {name} has no slug yet; read it again once it is served"
-        ))
-    })?;
-    Ok(slug.to_owned())
+    crate::api::catalogue::public_endpoint(state, name)
+        .map(|_| Target::Public(name.to_owned()))
+        .ok_or_else(missing)
 }
 
 /// The gateway's status for an NGSI-LD read, as the error the caller can act on; `Ok` on 200.
@@ -391,27 +405,40 @@ async fn run(
 ) -> Result<Value, OpError> {
     let (path, query) = request_of(&input)?;
     let name = &input.endpoint;
-    let slug = readable_slug(caller, state, project, name)?;
-    let bearer = caller.bearer.as_ref().ok_or_else(|| {
-        ApiError::Denied(
-            "jc_data_query reads as you with the token your MCP client presented: call it through \
-             /api/v1/mcp or a connector"
-                .into(),
-        )
-    })?;
+    let target = readable_slug(caller, state, project, name)?;
     let base = state.config.gateway_url.as_deref().ok_or_else(|| {
         ApiError::Unavailable("this Portal has no gateway address (JC_PORTAL_GATEWAY_URL)".into())
     })?;
-    let oidc = state.oidc.as_ref().ok_or_else(|| {
-        ApiError::Unavailable("this Portal has no Keycloak client to read data with".into())
-    })?;
-    let token = oidc.exchange_for_endpoint(&bearer.0, &slug).await?;
-    let answer = crate::api::pipelines::http()
-        .get(format!("{}/api/endpoint/{slug}/{path}", base.trim_end_matches('/')))
+    let (slug, token) = match target {
+        Target::Own(slug) => {
+            let bearer = caller.bearer.as_ref().ok_or_else(|| {
+                ApiError::Denied(
+                    "jc_data_query reads as you with the token your MCP client presented: call it \
+                     through /api/v1/mcp or a connector"
+                        .into(),
+                )
+            })?;
+            let oidc = state.oidc.as_ref().ok_or_else(|| {
+                ApiError::Unavailable("this Portal has no Keycloak client to read data with".into())
+            })?;
+            let token = oidc.exchange_for_endpoint(&bearer.0, &slug).await?;
+            (slug, Some(token))
+        }
+        Target::Public(slug) => (slug, None),
+    };
+    let request = crate::api::pipelines::http()
+        .get(format!(
+            "{}/api/endpoint/{slug}/{path}",
+            base.trim_end_matches('/')
+        ))
         .query(&query)
-        .bearer_auth(token)
         .header("accept", "application/json")
-        .timeout(GATEWAY_TIMEOUT)
+        .timeout(GATEWAY_TIMEOUT);
+    let request = match token {
+        Some(token) => request.bearer_auth(token),
+        None => request,
+    };
+    let answer = request
         .send()
         .await
         .map_err(|err| {
@@ -450,7 +477,7 @@ pub fn operations() -> Vec<Operation> {
     vec![Operation {
         name: NAME,
         title: "Query Data",
-        description: "Reads one Endpoint's entities as you, current or history (temporal), with type, id, q, attrs, a geo-query, count and paging",
+        description: "Reads one Endpoint's entities, current or history (temporal), by type, id, q, attrs, geo-query, count and paging",
         input: input_schema,
         output: output_schema,
         annotations: OperationAnnotations {
@@ -611,5 +638,105 @@ mod tests {
         assert!(!schema.is_valid(&json!({ "endpoint": "e", "sql": "select 1" })));
         assert!(!schema.is_valid(&json!({ "endpoint": "e", "limit": 1001 })));
         assert!(!schema.is_valid(&json!({ "type": "T" })));
+    }
+
+    const PUBLIC: &str = "stopshelsinkizzzzzzzzzzzzzzz";
+    const PRIVATE: &str = "privatehelsinkizzzzzzzzzzzz";
+
+    /// A Portal whose mirror holds Helsinki's public stops Endpoint and a project-only one, and a
+    /// person of another project with no grant in Helsinki (T-6272).
+    fn helsinki(gateway: Option<String>) -> (AppState, Caller) {
+        let mut config = crate::config::Config::for_tests();
+        config.gateway_url = gateway;
+        let state = AppState::new(config, None);
+        for (name, slug, audience) in [("stops", PUBLIC, "public"), ("staff", PRIVATE, "project")] {
+            state.mirror.upsert(crate::resource::ResourceEnvelope {
+                api_version: crate::resource::API_VERSION.to_owned(),
+                kind: "Endpoint".to_owned(),
+                metadata: crate::resource::ObjectMeta::new(name, "helsinki"),
+                spec: json!({ "slug": slug, "audience": audience }),
+                status: None,
+            });
+        }
+        let caller = Caller {
+            identity: crate::auth::session::Identity {
+                client: None,
+                subject: "sub-full".into(),
+                username: "t6025-full".into(),
+                email: None,
+                name: None,
+                roles: vec![],
+                groups: vec![],
+                second_factor: false,
+            },
+            via: super::super::Via::Mcp,
+            access: None,
+            bearer: Some(super::super::Bearer("person-token".into())),
+        };
+        (state, caller)
+    }
+
+    #[test]
+    fn a_public_slug_of_another_project_is_readable_and_nothing_else_is() {
+        let (state, caller) = helsinki(None);
+        assert_eq!(
+            readable_slug(&caller, &state, "t6025-full", PUBLIC).expect("public"),
+            Target::Public(PUBLIC.into())
+        );
+        // A project-only Endpoint of another project, by slug or by name, and a public one by
+        // its name: each reads as missing, the same words as an unknown name.
+        for name in [PRIVATE, "staff", "stops", "helsinki-transport"] {
+            match readable_slug(&caller, &state, "t6025-full", name) {
+                Err(OpError::Api(ApiError::NotFound(text))) => {
+                    assert!(
+                        text.starts_with(&format!("no Endpoint {name} in project t6025-full")),
+                        "{text}"
+                    );
+                }
+                other => panic!("{name} is not missing: {other:?}"),
+            }
+        }
+    }
+
+    /// The answer is the anonymous gateway read itself: no token goes with it, the person's
+    /// own least of all.
+    #[tokio::test]
+    async fn a_public_endpoint_is_read_anonymously_with_the_gateway_answer() {
+        use wiremock::matchers::{method, path, query_param};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let gateway = MockServer::start().await;
+        let stops = json!([{ "id": "urn:ngsi-ld:GtfsStop:1", "type": "GtfsStop" }]);
+        Mock::given(method("GET"))
+            .and(path(format!("/api/endpoint/{PUBLIC}/ngsi-ld/v1/entities")))
+            .and(query_param("type", "GtfsStop"))
+            .and(query_param("georel", "within"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("ngsild-results-count", "14")
+                    .set_body_json(&stops),
+            )
+            .expect(1)
+            .mount(&gateway)
+            .await;
+        let (state, caller) = helsinki(Some(gateway.uri()));
+        let polygon = json!([[[24.9, 60.1], [25.0, 60.1], [25.0, 60.2], [24.9, 60.1]]]);
+        let answer = run(
+            &caller,
+            &state,
+            "t6025-full",
+            input(
+                json!({ "endpoint": PUBLIC, "type": "GtfsStop", "georel": "within",
+                          "geometry": "Polygon", "coordinates": polygon, "count": true }),
+            ),
+        )
+        .await
+        .expect("an anonymous read");
+        assert_eq!(answer, json!({ "entities": stops, "total": 14 }));
+        let sent = gateway.received_requests().await.expect("recorded");
+        assert!(
+            sent.iter()
+                .all(|r| !r.headers.contains_key("authorization")),
+            "a public read carries no token"
+        );
     }
 }

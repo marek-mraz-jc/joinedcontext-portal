@@ -1132,13 +1132,12 @@ pub(crate) async fn datasets_matching(
                     .iter()
                     .filter(|dataset| dataset["private"] != Value::Bool(true))
                     .map(|dataset| {
-                        let summary = summary(dataset);
-                        serde_json::json!({
-                            "title": summary.title,
-                            "url": format!("{base}/dataset/{}", summary.name),
-                            "publisher": summary.publisher.map(|p| p.title),
-                            "formats": summary.formats,
-                        })
+                        let mut hit = hit(&base, dataset);
+                        // The slug jc_data_query reads, only for a public Endpoint here (T-6272).
+                        if let Some(slug) = public_slug(state, dataset) {
+                            hit["endpoint"] = Value::String(slug);
+                        }
+                        hit
                     }),
             ),
             Err(reason) => {
@@ -1149,6 +1148,34 @@ pub(crate) async fn datasets_matching(
     }
     hits.truncate(limit);
     (hits, unavailable)
+}
+
+/// The most resources one search hit lists.
+const HIT_RESOURCES: usize = 10;
+
+/// One search hit: the dataset page and each resource's `{format, url}`, the download a
+/// DataSource reads; the page is HTML, which no pipeline maps (T-6269).
+fn hit(base: &str, dataset: &Value) -> Value {
+    let summary = summary(dataset);
+    let resources: Vec<Value> = dataset
+        .get("resources")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|r| {
+            let url = text(r, "url")
+                .filter(|u| Url::parse(u).is_ok_and(|u| matches!(u.scheme(), "http" | "https")))?;
+            Some(serde_json::json!({ "format": text(r, "format"), "url": url }))
+        })
+        .take(HIT_RESOURCES)
+        .collect();
+    serde_json::json!({
+        "title": summary.title,
+        "url": format!("{base}/dataset/{}", summary.name),
+        "publisher": summary.publisher.map(|p| p.title),
+        "formats": summary.formats,
+        "resources": resources,
+    })
 }
 
 /// The public dataset `name` and the catalogue that holds it.
@@ -1210,6 +1237,13 @@ pub fn endpoint_slug(extra: &str, public_base: &Url) -> Option<String> {
 fn our_endpoint_slug(state: &AppState, extra: &str) -> Option<String> {
     endpoint_slug(extra, &state.config.api_base_url())
         .or_else(|| endpoint_slug(extra, &state.config.public_base_url))
+}
+
+/// The slug of the dataset's Endpoint when it is a public Endpoint of this installation.
+fn public_slug(state: &AppState, dataset: &Value) -> Option<String> {
+    extra(dataset, "endpoint")
+        .and_then(|e| our_endpoint_slug(state, &e))
+        .filter(|slug| public_endpoint(state, slug).is_some())
 }
 
 /// The public Endpoint with `slug`, and the project it belongs to.
@@ -1798,6 +1832,37 @@ mod tests {
     }
 
     #[test]
+    fn a_search_hit_lists_each_resource_with_its_format_and_download_url() {
+        let dataset = json!({
+            "name": "parkoviska", "title": "Parkoviská",
+            "resources": [
+                { "format": "CSV", "url": "https://data.example/parkoviska.csv" },
+                { "format": "GeoJSON", "url": "https://data.example/parkoviska.geojson" },
+                { "format": "HTML", "url": "javascript:alert(1)" },
+                { "format": "XLS" }
+            ]
+        });
+        let hit = hit("https://ckan.example", &dataset);
+        assert_eq!(hit["url"], "https://ckan.example/dataset/parkoviska");
+        assert_eq!(
+            hit["resources"],
+            json!([
+                { "format": "CSV", "url": "https://data.example/parkoviska.csv" },
+                { "format": "GeoJSON", "url": "https://data.example/parkoviska.geojson" }
+            ])
+        );
+        let many =
+            json!({ "name": "n", "resources": vec![json!({ "url": "https://d.example/a" }); 30] });
+        assert_eq!(hit_resources(&many), HIT_RESOURCES);
+    }
+
+    fn hit_resources(dataset: &Value) -> usize {
+        hit("https://ckan.example", dataset)["resources"]
+            .as_array()
+            .map_or(0, Vec::len)
+    }
+
+    #[test]
     fn takes_gzip_only_where_the_client_names_it_and_does_not_refuse_it() {
         assert!(takes_gzip(&accepting("gzip, deflate, br")));
         assert!(takes_gzip(&accepting("br;q=1.0, GZIP;q=0.5")));
@@ -1913,6 +1978,41 @@ mod tests {
                 .map(|(k, v)| json!({ "key": k, "value": v }))
                 .collect(),
         )
+    }
+
+    /// T-6272: a hit names its Endpoint's slug only when it is a public Endpoint here; a
+    /// project-only Endpoint or another host's address names none.
+    #[test]
+    fn a_hit_names_the_slug_of_a_public_endpoint_alone() {
+        let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
+        for (name, slug, audience) in [
+            ("stops", "stopshelsinkizzzzzzzzzzzzzzz", "public"),
+            ("staff", "staffhelsinkizzzzzzzzzzzzzzz", "project"),
+        ] {
+            state.mirror.upsert(crate::resource::ResourceEnvelope {
+                api_version: crate::resource::API_VERSION.to_owned(),
+                kind: "Endpoint".to_owned(),
+                metadata: crate::resource::ObjectMeta::new(name, "helsinki"),
+                spec: json!({ "slug": slug, "audience": audience }),
+                status: None,
+            });
+        }
+        let named = |url: String| {
+            public_slug(
+                &state,
+                &dataset("d", "o", extras(&[("endpoint", &url)]), &[], false),
+            )
+        };
+        let ours = |slug: &str| endpoint_url(&state.config.api_base_url(), slug);
+        assert_eq!(
+            named(ours("stopshelsinkizzzzzzzzzzzzzzz")).as_deref(),
+            Some("stopshelsinkizzzzzzzzzzzzzzz")
+        );
+        assert_eq!(named(ours("staffhelsinkizzzzzzzzzzzzzzz")), None);
+        assert_eq!(
+            named("https://other.example/api/endpoint/stopshelsinkizzzzzzzzzzzzzzz/".into()),
+            None
+        );
     }
 
     fn fixture() -> Vec<Value> {
