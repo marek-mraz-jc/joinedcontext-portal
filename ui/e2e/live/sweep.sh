@@ -26,6 +26,12 @@ spending='/(assistant-paths|assistant-evals|app-generated-full|build-samples|rea
 skip=${SWEEP_SKIP:-'^$'}
 mapfile -t specs < <(ls e2e/live/*.spec.ts | grep -vE "$spending" | grep -vE -- "$skip")
 
+# SWEEP_LIST=1 only lists the tests the sweep would run ("Total: N tests in M files"): the release
+# gate sizes its sweep stage from that count (T-6354). Nothing signs in, nothing is written.
+if [ -n "${SWEEP_LIST:-}" ]; then
+  exec npx playwright test --config playwright.live.config.ts --list --grep-invert '\bassistant\b' "${specs[@]}"
+fi
+
 PLAYWRIGHT_JSON_OUTPUT_NAME="$out/report.json" npx playwright test \
   --config playwright.live.config.ts --reporter=list,json \
   --grep-invert '\bassistant\b' "${specs[@]}"
