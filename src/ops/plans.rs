@@ -815,15 +815,26 @@ async fn plan(
     }
     // Changes applied as one Change are checked as one (T-6282): a reference to a sibling
     // resolves and a write a sibling Endpoint binds is made, as in `jc_space_complete`.
-    let bundle = together(state, project, &input);
     for (n, change) in input.changes.iter().enumerate() {
-        let at = format!("/changes/{n}");
         if !seen.insert((change.kind.clone(), change.name.clone())) {
             return Err(invalid(
-                at,
+                format!("/changes/{n}"),
                 format!("{} '{}' is in this plan twice", change.kind, change.name),
             ));
         }
+    }
+    let mut bundle = together(state, project, &input);
+    // In a bundle the Endpoints go first: the slug their check mints joins the bundle, so a
+    // Pipeline or Policy beside them reads a whole Endpoint whatever order the plan lists.
+    let mut order: Vec<usize> = (0..input.changes.len()).collect();
+    if bundle.is_some() {
+        order.sort_by_key(|&n| input.changes[n].kind != "Endpoint");
+    }
+    let mut results: Vec<Option<(Value, Planned, Vec<String>)>> =
+        (0..input.changes.len()).map(|_| None).collect();
+    for n in order {
+        let change = &input.changes[n];
+        let at = format!("/changes/{n}");
         let check = checked(
             caller,
             state,
@@ -832,19 +843,28 @@ async fn plan(
             change,
             input.workspace.as_deref(),
         );
-        let (diff, planned) = match &bundle {
+        let (diff, planned) = match &mut bundle {
             Some(manifests) => {
-                crate::references::BUNDLE
+                let checked = crate::references::BUNDLE
                     .scope(manifests.clone(), check)
-                    .await?
+                    .await?;
+                if let (Some(slot), Some(m)) = (manifests.get_mut(n), &checked.1.manifest) {
+                    *slot = m.clone();
+                }
+                checked
             }
             None => check.await?,
         };
+        let mut found = Vec::new();
         if diff.pointer("/verdict/ok") != Some(&json!(true)) {
-            errors.extend(findings_of(&at, &diff));
+            found.extend(findings_of(&at, &diff));
         } else if let Some(refusal) = gate_refusal(state, &planned).await? {
-            errors.push(format!("{at}/manifest: {refusal}"));
+            found.push(format!("{at}/manifest: {refusal}"));
         }
+        results[n] = Some((diff, planned, found));
+    }
+    for (diff, planned, found) in results.into_iter().flatten() {
+        errors.extend(found);
         diffs.push(diff);
         items.push(planned);
     }
