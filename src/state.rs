@@ -156,6 +156,8 @@ pub struct AppState {
     mcp_calls: Arc<RwLock<HashMap<String, (i64, u32)>>>,
     /// The calls each key is answering right now (T-5968); a key leaves at zero.
     mcp_in_flight: Arc<Mutex<HashMap<String, u32>>>,
+    /// The forge reads of the open changes, per head and base commit (T-6347).
+    pub change_reads: crate::api::changes::ChangeReads,
     /// The MCP calls that outlive their request (AG-60): a client starts one, polls it and
     /// reads its result through `tasks/*`.
     pub mcp_tasks: crate::mcp::tasks::McpTasks,
@@ -260,6 +262,7 @@ impl AppState {
             revocations: Arc::new(RwLock::new(HashMap::new())),
             mcp_calls: Arc::new(RwLock::new(HashMap::new())),
             mcp_in_flight: Arc::default(),
+            change_reads: Default::default(),
             mcp_tasks: crate::mcp::tasks::McpTasks::new(),
             mcp_elicitations: crate::mcp::elicitation::McpElicitations::new(),
             wasm_apps: None,

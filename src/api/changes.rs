@@ -1004,28 +1004,37 @@ async fn load_manifest_data(
 /// The human behind a pull request: the author of its head commit (CC-44; the forge token only
 /// posts the pull request), the poster when the branch has no commit yet or the forge does not
 /// answer.
-// ponytail: one forge call per open change; a cache keyed by head sha if the list grows.
 async fn human_author(gitea: &GiteaClient, pr: &crate::git::gitea::PullRequest) -> ChangeAuthor {
+    head_author(gitea, pr).await.unwrap_or_else(|_| poster(pr))
+}
+
+/// What [`human_author`] names, or the forge's error when it could not say: the list keeps only
+/// an answer, never the fallback a forge blip gave (T-6347).
+async fn head_author(
+    gitea: &GiteaClient,
+    pr: &crate::git::gitea::PullRequest,
+) -> Result<ChangeAuthor, GitError> {
     // A writer's own branch: the forge account that opened it. Its commits say whatever their
     // author configured, and an approver named there could approve their own Change (T-3433).
     if !is_change_branch(&pr.head_branch) {
-        return ChangeAuthor {
-            name: pr.author_name.clone(),
-            email: pr.author_email.clone(),
-        };
+        return Ok(poster(pr));
     }
     // The head commit, not the branch: a merged change's branch may be gone (T-3292).
-    match gitea.list_commits(pr.head_ref(), "", 1).await {
-        Ok(commits) if commits.first().is_some_and(|c| !c.author.trim().is_empty()) => {
-            ChangeAuthor {
-                name: commits[0].author.clone(),
-                email: commits[0].email.clone(),
-            }
-        }
-        _ => ChangeAuthor {
-            name: pr.author_name.clone(),
-            email: pr.author_email.clone(),
+    let commits = gitea.list_commits(pr.head_ref(), "", 1).await?;
+    Ok(match commits.first() {
+        Some(commit) if !commit.author.trim().is_empty() => ChangeAuthor {
+            name: commit.author.clone(),
+            email: commit.email.clone(),
         },
+        _ => poster(pr),
+    })
+}
+
+/// The forge account that opened `pr`.
+fn poster(pr: &crate::git::gitea::PullRequest) -> ChangeAuthor {
+    ChangeAuthor {
+        name: pr.author_name.clone(),
+        email: pr.author_email.clone(),
     }
 }
 
@@ -1547,6 +1556,93 @@ fn kind_of(proposal: &ChangeProposal) -> Option<&str> {
 /// wave (helsinki held ~15 when four at a time took ~1 s, T-6347), still a bound on the forge.
 const LISTED_AT_ONCE: usize = 16;
 
+/// What the list reads of one open merge request: its files, its headline manifest on head and
+/// base, and its author.
+pub(crate) struct ChangeRead {
+    carried: Vec<crate::git::gitea::ChangedFile>,
+    data: Option<ManifestData>,
+    author: ChangeAuthor,
+}
+
+/// Project, repository, merge request, head commit, base commit.
+type ChangeReadKey = (String, String, u64, String, String);
+
+/// The `ChangeRead`s of open changes, per head and base commit (T-6347). The notification
+/// badge lists the changes every 30 s, and dev's forge took ~1 s for a list of open changes that
+/// had not moved. The forge answers these reads with the Portal's own token, the same for every
+/// person, and a commit never changes, so one read per commit pair is the whole truth; who may
+/// read a change is still decided per request by [`list_changes_readable`], after this.
+/// ponytail: cleared whole at `CHANGE_READS_HELD`; an LRU when a forge holds that many open.
+#[derive(Clone, Default)]
+pub struct ChangeReads(
+    std::sync::Arc<
+        std::sync::Mutex<std::collections::HashMap<ChangeReadKey, std::sync::Arc<ChangeRead>>>,
+    >,
+);
+
+/// How many commit pairs [`ChangeReads`] keeps: a project holds tens of open changes.
+const CHANGE_READS_HELD: usize = 512;
+
+impl ChangeReads {
+    fn get(&self, key: &ChangeReadKey) -> Option<std::sync::Arc<ChangeRead>> {
+        self.0.lock().ok()?.get(key).cloned()
+    }
+
+    fn keep(&self, key: ChangeReadKey, read: std::sync::Arc<ChangeRead>) {
+        let Ok(mut held) = self.0.lock() else {
+            return;
+        };
+        if held.len() >= CHANGE_READS_HELD {
+            held.clear();
+        }
+        held.insert(key, read);
+    }
+}
+
+/// The [`ChangeRead`] of `pr` at its head and base commits: kept from an earlier list, or read
+/// now. A merge request whose forge answer names no head or no base commit is read every time:
+/// a branch name moves.
+async fn change_read(
+    state: &AppState,
+    gitea: &GiteaClient,
+    project: &str,
+    pr: &PullRequest,
+) -> Result<std::sync::Arc<ChangeRead>, ApiError> {
+    let key = (!pr.head_sha.is_empty() && !pr.base_sha.is_empty()).then(|| {
+        (
+            project.to_owned(),
+            pr.repository.clone(),
+            pr.number,
+            pr.head_sha.clone(),
+            pr.base_sha.clone(),
+        )
+    });
+    if let Some(read) = key.as_ref().and_then(|key| state.change_reads.get(key)) {
+        return Ok(read);
+    }
+    // The file list is fetched here anyway for the count, and its paths carry the lane the
+    // approval will apply (T-1224) and the headline manifest's path (T-6347): no extra call,
+    // and the list stops promising a lane the detail page contradicts. The author needs nothing
+    // the manifest reads find, so both run at once.
+    let manifest = async {
+        let carried = gitea.pull_request_files(pr.number).await?;
+        let data = load_manifest_data(gitea, pr, project, Some(&carried)).await?;
+        Ok::<_, ApiError>((carried, data))
+    };
+    let (manifest, author) = tokio::join!(manifest, head_author(gitea, pr));
+    let (carried, data) = manifest?;
+    let settled = author.is_ok();
+    let read = std::sync::Arc::new(ChangeRead {
+        carried,
+        data,
+        author: author.unwrap_or_else(|_| poster(pr)),
+    });
+    if let Some(key) = key.filter(|_| settled) {
+        state.change_reads.keep(key, std::sync::Arc::clone(&read));
+    }
+    Ok(read)
+}
+
 /// What the listing shows for one open merge request.
 enum Listed {
     Change(Box<ChangeProposal>),
@@ -1573,33 +1669,24 @@ async fn listed(
         Standing::Unlisted => return Ok(Listed::Unlisted),
     }
 
-    // The file list is fetched here anyway for the count, and its paths carry the lane the
-    // approval will apply (T-1224) and the headline manifest's path (T-6347): no extra call,
-    // and the list stops promising a lane the detail page contradicts.
-    // The author and the awaited changes need nothing the manifest reads find: all three run
-    // at once, so a change costs two round trips, not four (T-6347).
-    let manifest = async {
-        let carried = gitea.pull_request_files(pr.number).await?;
-        let data = load_manifest_data(gitea, pr, project, Some(&carried)).await?;
-        Ok::<_, ApiError>((carried, data))
-    };
-    let (manifest, author, waits_on) = tokio::join!(
-        manifest,
-        human_author(gitea, pr),
+    // The awaited changes move without a commit of this one: asked on every list, beside the
+    // reads its head and base commits fix (T-6347).
+    let (read, waits_on) = tokio::join!(
+        change_read(state, gitea, project, pr),
         awaited_changes(state, gitea, pr, project)
     );
-    let (carried, data) = manifest?;
-    let Some(data) = data else {
+    let read = read?;
+    let Some(data) = read.data.as_ref() else {
         return Ok(Listed::Unlisted);
     };
 
     let plan = plan::diff(data.base_envelope.as_ref(), data.head_envelope.as_ref());
-    let mut proposal = build_proposal(pr, project, &data, plan, None, lane_of_paths(&carried));
+    let mut proposal = build_proposal(pr, project, data, plan, None, lane_of_paths(&read.carried));
     proposal.metadata = change_meta(state, gitea, pr.number, project);
-    proposal.author = author;
+    proposal.author = read.author.clone();
     // The count only: a listing that read every file of every open change to render
     // "+3 files" would pay for the detail page on the way past it (T-0861).
-    proposal.file_count = Some(carried.len());
+    proposal.file_count = Some(read.carried.len());
     proposal.waits_on = waits_on?;
     Ok(Listed::Change(Box::new(proposal)))
 }
@@ -3574,6 +3661,146 @@ mod tests {
         );
         // pulls, pulls/7/files, the manifest on head and on base, the head commit.
         assert_eq!(asked.len(), 5, "{asked:?}");
+    }
+
+    /// One open Endpoint update at head `head`, base `base-1`, behind `server`; the author read
+    /// answers with `commits`.
+    async fn an_open_change_at(server: &MockServer, head: &'static str, commits: ResponseTemplate) {
+        let manifest_path = "projects/ovzdusie/spaces/air/endpoints/air-quality.yaml";
+        Mock::given(method("GET"))
+            .and(path("/api/v1/repos/test-owner/test-repo/pulls"))
+            .and(query_param("state", "open"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([{
+                "number": 7,
+                "html_url": "https://gitea.example.sk/pulls/7",
+                "state": "open",
+                "title": "update Endpoint air-quality",
+                "head": { "ref": "portal/update-endpoint-air-quality-12345678", "sha": head },
+                "base": { "ref": "main", "sha": "base-1" },
+                "created_at": "2026-09-06T09:14:22Z",
+                "user": { "login": "portal", "full_name": "Portal", "email": "portal@example.sk" }
+            }])))
+            .mount(server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/repos/test-owner/test-repo/pulls/7/files"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                { "filename": manifest_path, "status": "modified" }
+            ])))
+            .mount(server)
+            .await;
+        let manifest = "apiVersion: joinedcontext.com/v1alpha1\nkind: Endpoint\nmetadata:\n  name: air-quality\n  namespace: ovzdusie\nspec:\n  contextSpaceRef: air\n";
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "/api/v1/repos/test-owner/test-repo/contents/{manifest_path}"
+            )))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "sha": "blob-7",
+                "content": base64::engine::Engine::encode(
+                    &base64::engine::general_purpose::STANDARD,
+                    manifest.as_bytes(),
+                )
+            })))
+            .mount(server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/repos/test-owner/test-repo/commits"))
+            .respond_with(commits)
+            .mount(server)
+            .await;
+    }
+
+    fn author_commit() -> ResponseTemplate {
+        ResponseTemplate::new(200).set_body_json(json!([{
+            "sha": "head-1",
+            "commit": {
+                "message": "update",
+                "author": { "name": "Jana Steward", "email": "jana@example.sk", "date": "2026-09-06T09:14:22Z" }
+            }
+        }]))
+    }
+
+    async fn forge_paths(server: &MockServer) -> Vec<String> {
+        server
+            .received_requests()
+            .await
+            .unwrap()
+            .iter()
+            .map(|request| request.url.path().to_owned())
+            .collect()
+    }
+
+    fn state_on(server: &MockServer) -> AppState {
+        let client = GiteaClient::new(
+            server.uri().parse().unwrap(),
+            "test-owner",
+            "test-repo",
+            "token-xyz",
+        )
+        .unwrap();
+        AppState::new(Config::for_tests(), None).with_gitea(Arc::new(client))
+    }
+
+    /// Even in one wave the list cost ~1.1 s on dev (p90 1.5 s), and the notification badge asks
+    /// for it every 30 s while nothing moved (T-6347). A change whose head and base commits have
+    /// not moved is read once: the next list asks the forge for the list alone.
+    #[tokio::test]
+    async fn a_second_list_of_unmoved_changes_asks_the_forge_for_the_list_alone() {
+        let server = MockServer::start().await;
+        an_open_change_at(&server, "head-1", author_commit()).await;
+        let state = state_on(&server);
+
+        let first = list_changes_for(&state, "ovzdusie").await.unwrap();
+        let read = forge_paths(&server).await.len();
+        assert_eq!(read, 5, "{:?}", forge_paths(&server).await);
+        let second = list_changes_for(&state, "ovzdusie").await.unwrap();
+        let asked = forge_paths(&server).await;
+        assert_eq!(
+            &asked[read..],
+            ["/api/v1/repos/test-owner/test-repo/pulls"],
+            "{asked:?}"
+        );
+        assert_eq!(
+            serde_json::to_value(&first.items).unwrap(),
+            serde_json::to_value(&second.items).unwrap()
+        );
+        assert_eq!(second.items[0].author.name, "Jana Steward");
+        assert_eq!(second.items[0].file_count, Some(1));
+    }
+
+    /// A pushed head is another change to read: what was kept for the old head is not shown.
+    #[tokio::test]
+    async fn a_moved_head_is_read_again() {
+        let server = MockServer::start().await;
+        an_open_change_at(&server, "head-1", author_commit()).await;
+        let state = state_on(&server);
+        list_changes_for(&state, "ovzdusie").await.unwrap();
+        server.reset().await;
+        an_open_change_at(&server, "head-2", author_commit()).await;
+
+        list_changes_for(&state, "ovzdusie").await.unwrap();
+        let asked = forge_paths(&server).await;
+        assert_eq!(asked.len(), 5, "{asked:?}");
+        assert!(
+            asked.iter().any(|path| path.ends_with("/pulls/7/files")),
+            "{asked:?}"
+        );
+    }
+
+    /// An author read the forge failed falls back to the poster for this list only: the next
+    /// list asks again instead of naming the Portal's own account until the head moves.
+    #[tokio::test]
+    async fn a_failed_author_read_is_not_kept() {
+        let server = MockServer::start().await;
+        an_open_change_at(&server, "head-1", ResponseTemplate::new(502)).await;
+        let state = state_on(&server);
+        let first = list_changes_for(&state, "ovzdusie").await.unwrap();
+        assert_eq!(first.items[0].author.name, "Portal");
+        server.reset().await;
+        an_open_change_at(&server, "head-1", author_commit()).await;
+
+        let second = list_changes_for(&state, "ovzdusie").await.unwrap();
+        assert_eq!(second.items[0].author.name, "Jana Steward");
     }
 
     /// Four changes at a time, each reading its files, its head, its base and its author one
