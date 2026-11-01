@@ -5585,7 +5585,7 @@
       "pointsLoading": "Načítavajú sa body",
       "pointsShown": "na mape",
       "pointsCapped": "zobrazené sú len prvé",
-      "pointsFailed": "Body sa nepodarilo načítať",
+      "pointsFailed": "Body sa nepodarilo načítať; riadky ostávajú v zozname, skúste to znova opätovným otvorením mapy",
       "selected": "Vybraté",
       "drawHint": "Vyberte tvar a klikajte do mapy: obdĺžnik sú dva rohy, kruh jeho stred a okraj, oblasť každý roh a posledný dvakrát. Escape kreslenie ukončí."
     },

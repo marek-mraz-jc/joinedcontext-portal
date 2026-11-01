@@ -321,7 +321,7 @@
     },
     "src/components/entities/EndpointDataView.tsx": {
       "controls": {
-        "Button": 6
+        "Button": 7
       },
       "tests": [
         "data_toolbar.test.tsx",
@@ -1221,7 +1221,7 @@
     },
     "src/pages/catalogue/DatasetPage.tsx": {
       "controls": {
-        "Button": 3
+        "Button": 2
       },
       "tests": [
         "catalogue_page.test.tsx"

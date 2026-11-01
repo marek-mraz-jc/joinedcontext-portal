@@ -50,9 +50,6 @@ async function stubApi(page: Page, quality: unknown): Promise<void> {
       });
     if (url.pathname.endsWith("/auth/me")) return json({ title: "Unauthorized", status: 401 }, 401);
     if (url.pathname === "/api/v1/catalogue/datasets/bbsk-kpi") return json(detail(quality));
-    if (url.pathname === "/api/v1/catalogue/datasets/bbsk-kpi/sample") {
-      return json({ type: "KeyPerformanceIndicator", columns: ["id"], rows: [] });
-    }
     return json({ title: "Not Found", status: 404, detail: "not stubbed" }, 404);
   });
 }
