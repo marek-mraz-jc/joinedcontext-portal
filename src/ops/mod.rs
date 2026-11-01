@@ -684,6 +684,7 @@ fn named_kind(input: &Value) -> Option<&str> {
     input
         .get("kind")
         .or_else(|| input.pointer("/manifest/kind"))
+        .or_else(|| input.pointer("/draft/kind"))
         .and_then(Value::as_str)
         .filter(|kind| crate::resource::by_kind(kind).is_some())
 }

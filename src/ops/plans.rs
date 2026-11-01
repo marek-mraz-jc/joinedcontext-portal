@@ -276,11 +276,11 @@ fn verb_through_connector(
         return Ok(());
     }
     let ceiling = crate::connectors::Ceiling::of(&state.mirror, &caller.identity);
-    if ceiling.honours(connector) || ceiling.allows_verb(Some(project), kind, verb) {
+    if ceiling.honours(connector) || ceiling.allows_change(project, kind, name, verb) {
         return Ok(());
     }
     Err(denied(format!(
-        "{} does not let a connector {} {kind} in project {project}; an administrator widens the policy",
+        "{} does not let a connector {} {kind} {name} in project {project}; an administrator widens the policy",
         ceiling.named(),
         verb.word()
     )))

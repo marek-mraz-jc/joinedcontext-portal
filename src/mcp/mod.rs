@@ -762,7 +762,8 @@ async fn answer_call(
                 // `verdict_required` on the REST route reads it here too. The
                 // question is still asked: the URL is what the person needs to run
                 // the check (ADR-N-021, T-0947).
-                let refusal = crate::ops::verdict_refusal(state, op, project, &input).await;
+                let refusal =
+                    crate::ops::verdict_refusal(state, &caller.identity, op, project, &input).await;
                 let reason = refusal.as_ref().map_or(
                     "Nothing has run: open the Portal page this question names, look at \
                          what this would change and decide there, then send this call again \
