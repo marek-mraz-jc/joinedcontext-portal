@@ -1132,6 +1132,25 @@ mod tests {
         }
     }
 
+    /// JC1-27: a typed sample address is refused at the member named, for a written loopback,
+    /// private or cluster address; a dotted name that resolves to nothing is left to the runner.
+    #[tokio::test]
+    async fn a_sample_address_inside_the_cluster_is_refused_at_its_member() {
+        for url in [
+            "http://127.0.0.1/a.csv",
+            "http://10.0.0.5/a.csv",
+            "http://gitea:3000/a.csv",
+        ] {
+            match sample_address(url, "/sample/url").await {
+                Err(OpError::InvalidInput { path, .. }) => assert_eq!("/sample/url", path, "{url}"),
+                other => panic!("{url}: {other:?}"),
+            }
+        }
+        assert!(sample_address("https://feeds.invalid/a.csv", "/sample/url")
+            .await
+            .is_ok());
+    }
+
     /// AG-158 (T-6265): an MCP client and an agent run get a sample without the fields the
     /// DataSource lists personal, named; a signed-in session keeps them.
     #[test]
