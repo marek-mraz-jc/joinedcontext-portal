@@ -151,6 +151,33 @@ impl Caller {
         }
     }
 
+    /// The profile's half for this call's input (T-6366): a kind-`*` operation reaches only the
+    /// kinds the profile grants, with the verb the call needs.
+    pub fn grants_input(&self, op: &Operation, input: &Value) -> Result<(), OpError> {
+        match &self.access {
+            Some(access) if !access.admits(op, input) => {
+                Err(OpError::Api(ApiError::Denied(format!(
+                    "the agent profile does not grant {} on the kind {} (AG-70)",
+                    if op.annotations.read_only_hint {
+                        "read"
+                    } else {
+                        "propose"
+                    },
+                    named_kind(input).unwrap_or("*")
+                ))))
+            }
+            _ => Ok(()),
+        }
+    }
+
+    /// Whether this run may read objects of `kind`, by its profile; any other caller may, and
+    /// the person's own check still applies (T-6366).
+    pub fn reads_kind(&self, kind: &str) -> bool {
+        self.access
+            .as_ref()
+            .is_none_or(|access| access.reads_kind(kind))
+    }
+
     /// Whether this caller may run the operation at all — asked before anything is asked of a
     /// person (AG-63).
     ///
@@ -479,6 +506,7 @@ pub async fn call(
         return Err(OpError::Api(ApiError::SecretInArgument(pasted)));
     }
     caller.may_run(op)?;
+    caller.grants_input(op, &input)?;
     permitted(op, &caller.identity, state, project)?;
     within_schema(op, &input)?;
     (op.validate)(&input)?;
@@ -680,10 +708,11 @@ fn missing_right(
 
 /// The kind a call's input names, when this Portal has it: an unknown one is the input's 422,
 /// which the call answers.
-fn named_kind(input: &Value) -> Option<&str> {
+pub(crate) fn named_kind(input: &Value) -> Option<&str> {
     input
         .get("kind")
         .or_else(|| input.pointer("/manifest/kind"))
+        .or_else(|| input.pointer("/draft/kind"))
         .and_then(Value::as_str)
         .filter(|kind| crate::resource::by_kind(kind).is_some())
 }
