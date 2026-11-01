@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 
 // The permission-aware grid in the explorer (T-5530): locked columns say why, an attribute the
-// person may not read is a "hidden: no access" column with no value fetched, the review reads
+// person may not read is not drawn at all and no value of it is fetched, the review reads
 // names and formatted values, and export and delete are offered only where the server allows
 // them. `vite preview` has no gateway, so its answers are stubbed in the browser; the explorer,
 // the grid and its review are the real thing.
@@ -183,12 +183,11 @@ for (const width of [1440, 400]) {
       await page.screenshot({ path: `${SHOTS}/viewer-locked-${width}.png` });
     });
 
-    test("an attribute the person may not read is a hidden column, never asked for", async ({ page }) => {
+    test("an attribute the person may not read is not drawn and never asked for (T-6210)", async ({ page }) => {
       const seen = await explore(page, "editor");
-      const header = page.getByRole("columnheader", { name: /operatorNote/ });
-      await header.scrollIntoViewIfNeeded();
-      await expect(header).toContainText("hidden: no access");
-      await expect(page.getByRole("gridcell", { name: "operatorNote: hidden: no access" }).first()).toHaveText("");
+      await expect(page.getByRole("columnheader", { name: /^ID/ }).first()).toBeVisible();
+      await expect(page.getByRole("columnheader", { name: /operatorNote/ })).toHaveCount(0);
+      await expect(page.getByText("hidden: no access")).toHaveCount(0);
       expect(seen.attrs.length).toBeGreaterThan(0);
       for (const attrs of seen.attrs) expect(attrs ?? "").not.toContain("operatorNote");
       await page.screenshot({ path: `${SHOTS}/hidden-column-${width}.png` });

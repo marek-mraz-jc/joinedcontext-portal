@@ -275,7 +275,8 @@ describe("EntityGrid", () => {
     await screen.findByText("Kamppi");
     const grid = screen.getByRole("grid");
     grid.focus();
-    // id, name, bikes: the first key lands on the id, two more to the right is the bikes column.
+    // id, type, name, bikes: the first key lands on the id, three more to the right is the bikes column.
+    fireEvent.keyDown(grid, { key: "ArrowRight" });
     fireEvent.keyDown(grid, { key: "ArrowRight" });
     fireEvent.keyDown(grid, { key: "ArrowRight" });
     fireEvent.keyDown(grid, { key: "ArrowRight" });
@@ -312,7 +313,7 @@ describe("EntityGrid", () => {
   // T-3097, ADR-N-042: a pinned column is the primary field. It takes the identifier's place as the
   // first column, its value opens the row (the id on hover and in the panel), and in the panel it is
   // edited like any other attribute.
-  it("puts a pinned primary field first, opens the row from it and edits it in the panel", async () => {
+  it("keeps id, type and name first whatever the config pins, opens the row from the id and edits it in the panel", async () => {
     const primary = parseGridConfig({
       source: { kind: "fixture", name: "test" },
       type: "BikeHireDockingStation",
@@ -328,8 +329,11 @@ describe("EntityGrid", () => {
     render(<EntityGrid config={primary} source={source} />);
     const open = await screen.findByRole("button", { name: "Open: Kamppi" });
     const headers = screen.getAllByRole("columnheader").map((th) => th.textContent ?? "");
-    expect(headers[0]).toMatch(/^Name/);
-    expect(headers.some((h) => h.startsWith("ID"))).toBe(false);
+    // T-6210: id, type, name lead every grid, then the rest as the config lists it.
+    expect(headers[0]).toMatch(/^ID/);
+    expect(headers[1]).toMatch(/^Type/);
+    expect(headers[2]).toMatch(/^Name/);
+    expect(headers[3]).toMatch(/^Bikes/);
     expect(open).toHaveAttribute("title", "urn:ngsi-ld:BikeHireDockingStation:hel:helsinki:001");
     expect(open.closest("td")).toHaveClass("jc-grid-pinned");
 

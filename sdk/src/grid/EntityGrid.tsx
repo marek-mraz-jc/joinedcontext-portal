@@ -4,7 +4,7 @@ import type { ResolvedGridConfig } from "./config";
 import { cellText } from "./model";
 import type { ColumnLayout, GridLabels, MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
 import { readableName } from "./readableName";
-import { MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, useEntityGrid } from "./useEntityGrid";
+import { MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, NAME_COLUMN, useEntityGrid } from "./useEntityGrid";
 import { CellView, cellDisplayText, columnKind, formatDate, targetName } from "./cells";
 import type { CellLabels, ColumnKind } from "./cells";
 import { ColumnMenu } from "./ColumnMenu";
@@ -375,14 +375,12 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
   const inspectorLabels = { ...DEFAULT_INSPECTOR_LABELS, close: labels.close, ...hookOptions.labels?.inspectorLabels };
   const inspects = (column: VisibleColumn): column is VisibleColumn & { attr: string } =>
     asked && column.attr !== null && column.meta === null && column.key !== "id";
-  // A column the person cannot change once their decisions are read wears a lock with the reason
-  // (T-5530), so a value without an editor is never a puzzle.
+  // In edit mode a column the person cannot change once their decisions are read wears a lock with
+  // the reason (T-5530), so a value without an editor is never a puzzle; a read-only grid wears none.
   const lockOf = (column: VisibleColumn): string | undefined =>
-    accessRows && inspects(column) && !editable(column) ? lockReason(accessOf(column.attr), labels, inspectorLabels) : undefined;
+    editing && accessRows && inspects(column) && !editable(column) ? lockReason(accessOf(column.attr), labels, inspectorLabels) : undefined;
   // Once per column per render, not per cell: ten thousand rows scroll through the same few reasons.
   const locks = new Map(columns.map((column) => [column.key, lockOf(column)]));
-  const [dropped, setDropped] = useState<string[]>([]);
-  const noAccess = unreadable.filter((name) => !dropped.includes(name));
   const [open, setOpen] = useState(false);
   const [observed, setObserved] = useState<Observed>("keep");
   const [applying, setApplying] = useState(false);
@@ -816,15 +814,15 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
 
   /** The attributes in the order the header shows them: what Move and a drop rearrange. */
   const order = useMemo(() => columns.filter((c) => c.attr !== null && c.meta === null).map((c) => c.attr!), [columns]);
-  // The primary column stays first: nothing moves in front of it.
-  const firstMovable = columns.some((c) => c.pinned && c.attr !== null) ? 1 : 0;
+  // The name stays first among the attributes (T-6210): nothing moves in front of it.
+  const firstMovable = order[0] === NAME_COLUMN ? 1 : 0;
   const [dragOver, setDragOver] = useState<string | null>(null);
   const formatOf = useMemo(() => new Map(hookOptions.config.columns.map((column) => [column.attr, column.format])), [hookOptions.config.columns]);
   const kindOf = useMemo(() => {
     const kinds = new Map<string, ColumnKind>();
     const sample = rows.slice(0, 50);
     for (const col of columns) {
-      if (col.meta === "observedAt" || col.meta === "createdAt" || col.meta === "modifiedAt" || col.key.startsWith("entity:")) kinds.set(col.key, "datetime");
+      if (col.meta === "observedAt" || col.meta === "createdAt" || col.meta === "modifiedAt" || col.key === "entity:createdAt" || col.key === "entity:modifiedAt") kinds.set(col.key, "datetime");
       else if (col.attr === null || col.meta !== null) kinds.set(col.key, "text");
       else kinds.set(col.key, columnKind(sample.map((row) => row.cells[col.attr!]), rules?.[col.attr]?.kind, Boolean(relations?.[col.attr])));
     }
@@ -1274,7 +1272,8 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                 const kindLabel = labels[KIND_LABEL[kind]] as string;
                 const own = col.attr !== null && col.meta === null ? col.attr : null;
                 const at = own === null ? -1 : order.indexOf(own);
-                const movable = own !== null && !col.pinned;
+                const fixed = own === NAME_COLUMN;
+                const movable = own !== null && !col.pinned && !fixed;
                 return (
                 <th
                   key={col.key}
@@ -1330,7 +1329,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                       sorted={state.sort?.attr === own ? state.sort.dir : null}
                       onSort={(dir) => { setSort(own, dir); closeMenu(); }}
                       onFilter={filterable.has(col.key) && !asText ? () => focusFilter(col.key) : undefined}
-                      onHide={col.pinned ? undefined : () => hideColumn(own)}
+                      onHide={col.pinned || fixed ? undefined : () => hideColumn(own)}
                       renamed={layout.labels?.[own] !== undefined}
                       onRename={(text) => renameColumn(own, text)}
                       onWiden={(delta) => widen(own, col.width, delta)}
@@ -1388,21 +1387,6 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                 </th>
                 );
               })}
-              {noAccess.map((name) => (
-                <th key={`no-access-${name}`} className="jc-grid-th jc-grid-th--no-access" scope="col" data-no-access={name}>
-                  <span className="jc-grid-no-access-name">{name}</span>
-                  <span className="jc-grid-no-access-note">{labels.hiddenNoAccess}</span>
-                  <button
-                    type="button"
-                    className="jc-grid-meta-btn"
-                    aria-label={`${labels.removeHidden}: ${name}`}
-                    title={labels.removeHidden}
-                    onClick={() => setDropped((before) => [...before, name])}
-                  >
-                    ×
-                  </button>
-                </th>
-              ))}
             </tr>
             {filterRow && filterable.size > 0 && (
               <tr className="jc-grid-filter-row" aria-label={labels.filterRow}>
@@ -1431,7 +1415,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
           <tbody className={`jc-grid-tbody${classNames?.row ? ` ${classNames.row}` : ""}`}>
             {spacerAbove > 0 && (
               <tr className="jc-grid-spacer" aria-hidden="true">
-                <td colSpan={columns.length + lead + noAccess.length} style={{ height: spacerAbove }} />
+                <td colSpan={columns.length + lead} style={{ height: spacerAbove }} />
               </tr>
             )}
             {shownRows.map((row, shownIndex) => {
@@ -1444,7 +1428,7 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                 const text = cellText(row.cells[group.attr]);
                 return (
                   <tr key={`group-${group.level}`} className="jc-grid-group" data-level={group.level}>
-                    <th scope="colgroup" colSpan={columns.length + lead + noAccess.length} style={{ paddingInlineStart: `${0.75 + group.level * 1.25}rem` }}>
+                    <th scope="colgroup" colSpan={columns.length + lead} style={{ paddingInlineStart: `${0.75 + group.level * 1.25}rem` }}>
                       <span className="jc-grid-group-name">{column?.label ?? group.attr}</span>{" "}
                       <span className="jc-grid-group-value">{text === "" ? labels.groupNoValue : text}</span>
                       {groupHeader ? <span className="jc-grid-group-extra">{groupHeader(group)}</span> : null}
@@ -1539,17 +1523,13 @@ export function EntityGrid(props: EntityGridProps): React.JSX.Element {
                     </div>
                   </td>
                 ))}
-                {/* No value is asked for or drawn here: the cell only says the column is not the person's to read. */}
-                {noAccess.map((name) => (
-                  <td key={`${row.id}-no-access-${name}`} className="jc-grid-td jc-grid-td--no-access" aria-label={`${name}: ${labels.hiddenNoAccess}`} />
-                ))}
               </tr>
               </React.Fragment>
               );
             })}
             {spacerBelow > 0 && (
               <tr className="jc-grid-spacer" aria-hidden="true">
-                <td colSpan={columns.length + lead + noAccess.length} style={{ height: spacerBelow }} />
+                <td colSpan={columns.length + lead} style={{ height: spacerBelow }} />
               </tr>
             )}
           </tbody>

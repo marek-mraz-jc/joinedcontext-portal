@@ -5,15 +5,13 @@
  * public form is a public Endpoint that allows creating alone, and its page posts anonymously.
  */
 // covers (T-2137, the module gate in gate_modules.test.ts): src/pages/spaces/FormView.tsx.
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import type { LinkmlSlot } from "../src/pages/models/linkml";
-import { everyAttribute, FormEmbed, FormSettingsEditor, FormSharePanel, FormView, formPublishRequest, PublicFormPage, publishedType } from "../src/pages/spaces/FormView";
-import type { FormSettings } from "../src/pages/spaces/formView";
+import { FormView, PublicFormPage, publishedType } from "../src/pages/spaces/FormView";
 import { expectNoViolations } from "./checks";
 import { renderPage } from "./page_contract";
 
@@ -135,108 +133,7 @@ describe("the form view", () => {
   });
 });
 
-function Editing({ onSettings }: { onSettings: (next: FormSettings) => void }) {
-  const [value, setValue] = useState<FormSettings>({});
-  return (
-    <FormSettingsEditor
-      slots={SLOTS}
-      value={value}
-      onChange={(next) => {
-        setValue(next);
-        onSettings(next);
-      }}
-    />
-  );
-}
-
-describe("the form's settings", () => {
-  it("choose, order and relabel the fields, and add a condition", async () => {
-    const seen: FormSettings[] = [];
-    renderPage(<Editing onSettings={(next) => seen.push(next)} />, { path: "/projects/city/spaces/parking", answer: async () => undefined });
-    await userEvent.click(await screen.findByText(en.spaces.form.settings));
-    await userEvent.click(screen.getByRole("checkbox", { name: "category" }));
-    await userEvent.click(screen.getByRole("button", { name: "Move capacity up" }));
-    await userEvent.type(screen.getByRole("textbox", { name: "Label of capacity" }), "Places");
-    expect(seen.at(-1)?.fields).toEqual([{ attr: "capacity", label: "Places" }, { attr: "name" }]);
-
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: en.spaces.form.show }), "capacity");
-    await userEvent.selectOptions(screen.getByRole("combobox", { name: en.spaces.form.when }), "name");
-    await userEvent.type(screen.getByRole("textbox", { name: en.spaces.form.equals }), "Garage");
-    await userEvent.click(screen.getByRole("button", { name: en.spaces.form.addCondition }));
-    expect(seen.at(-1)?.conditions).toEqual([{ attr: "capacity", when: { attr: "name", equals: "Garage" } }]);
-    await expectNoViolations(screen.getByTestId("form-settings"));
-  });
-});
-
 describe("a public form", () => {
-  it("asks propose-endpoint for a public endpoint that allows creating its type alone", () => {
-    expect(formPublishRequest("parking", "parking-form", "ParkingSpot", ["name", "capacity", "note", "refZone"], ["name", "capacity", "refZone"], ["refZone"])).toEqual({
-      contextSpace: "parking",
-      name: "parking-form",
-      audience: "public",
-      entityTypes: ["ParkingSpot"],
-      access: "create",
-      hiddenAttributes: ["note"],
-      writeAttributes: ["name", "capacity"],
-      writeRelationships: ["refZone"],
-      createsPerDay: 200,
-    });
-  });
-
-  it("proposes the Endpoint and its Policy as one Change and gives the /f link", async () => {
-    const sent: { path: string; body: unknown; dryRun: boolean }[] = [];
-    renderPage(<FormSharePanel project="city" space="parking" type="ParkingSpot" attributes={["name", "note"]} asked={["name"]} />, {
-      path: "/projects/city/spaces/parking",
-      answer: async (url, request) => {
-        if (request.method !== "POST") return undefined;
-        sent.push({ path: url.pathname, body: (await request.json()) as unknown, dryRun: url.searchParams.get("dryRun") === "All" });
-        if (url.pathname.endsWith("/assistant/propose-endpoint")) {
-          return json({
-            lane: "red",
-            slug: "f7m2qz4tv6xh3n5jb2ryd3wcfa",
-            endpoint: { apiVersion: "joinedcontext.com/v1alpha1", kind: "Endpoint", metadata: { name: "parking-parkingspot-form" }, spec: {} },
-            policies: [{ apiVersion: "joinedcontext.com/v1alpha1", kind: "Policy", metadata: { name: "parking-parkingspot-form-public" }, spec: {} }],
-          });
-        }
-        return url.searchParams.get("dryRun") === "All"
-          ? json({ valid: true })
-          : json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "Change", metadata: { name: "chg-0000aa02", namespace: "city" }, status: { lane: "red", phase: "PendingApproval" } }, 202);
-      },
-    });
-    const panel = await screen.findByTestId("form-share");
-    await userEvent.click(within(panel).getByText(en.spaces.form.shareTitle));
-    await userEvent.click(within(panel).getByRole("button", { name: en.spaces.form.publish }));
-    await waitFor(() => expect(sent.filter((s) => s.path.endsWith("/import") && !s.dryRun)).toHaveLength(1));
-    expect(sent[0].body).toMatchObject({ access: "create", createsPerDay: 200 });
-    expect(await within(panel).findByTestId("form-share-link")).toHaveTextContent(`${window.location.origin}/f/f7m2qz4tv6xh3n5jb2ryd3wcfa`);
-  });
-
-  it("takes the daily count of entries, within 1 to 10,000", async () => {
-    const sent: unknown[] = [];
-    renderPage(<FormSharePanel project="city" space="parking" type="ParkingSpot" attributes={["name"]} asked={["name"]} />, {
-      path: "/projects/city/spaces/parking",
-      answer: async (url, request) => {
-        if (request.method !== "POST" || !url.pathname.endsWith("/assistant/propose-endpoint")) return undefined;
-        sent.push(await request.json());
-        return json({ title: "stop here" }, 400);
-      },
-    });
-    const panel = await screen.findByTestId("form-share");
-    await userEvent.click(within(panel).getByText(en.spaces.form.shareTitle));
-    const count = within(panel).getByRole("textbox", { name: new RegExp(en.spaces.form.perDay) });
-    const publish = within(panel).getByRole("button", { name: en.spaces.form.publish });
-    for (const bad of ["0", "10001", "many"]) {
-      await userEvent.clear(count);
-      await userEvent.type(count, bad);
-      expect(publish).toHaveAttribute("aria-disabled", "true");
-    }
-    await userEvent.clear(count);
-    await userEvent.type(count, "25");
-    await userEvent.click(publish);
-    await waitFor(() => expect(sent).toHaveLength(1));
-    expect(sent[0]).toMatchObject({ createsPerDay: 25 });
-  });
-
   it("builds its fields from the published schema and posts anonymously through the Endpoint", async () => {
     const requests: Request[] = [];
     renderPage(<PublicFormPage slug="abc" search={new URLSearchParams("capacity=12")} />, {
@@ -320,78 +217,6 @@ describe("a public form", () => {
     return undefined;
   };
 
-  it("names the sites that may embed it, and refuses a line that is not one (EP-101)", async () => {
-    const sent: unknown[] = [];
-    renderPage(<FormSharePanel project="city" space="parking" type="ParkingSpot" attributes={["name"]} asked={["name"]} />, {
-      path: "/projects/city/spaces/parking",
-      answer: async (url, request) => {
-        if (request.method !== "POST" || !url.pathname.endsWith("/assistant/propose-endpoint")) return undefined;
-        sent.push(await request.json());
-        return json({ title: "stop here" }, 400);
-      },
-    });
-    const panel = await screen.findByTestId("form-share");
-    await userEvent.click(within(panel).getByText(en.spaces.form.shareTitle));
-    const sites = within(panel).getByRole("textbox", { name: new RegExp(en.spaces.form.embedSites) });
-    const publish = within(panel).getByRole("button", { name: en.spaces.form.publish });
-    for (const bad of ["http://www.hel.fi", "https://*.hel.fi", "https://www.hel.fi/form", "https://www.hel.fi https://www.hel.fi"]) {
-      await userEvent.clear(sites);
-      await userEvent.type(sites, bad);
-      expect(publish).toHaveAttribute("aria-disabled", "true");
-      expect(within(panel).getAllByText(/Not a site address/).length).toBeGreaterThan(0);
-    }
-    await userEvent.clear(sites);
-    await userEvent.type(sites, "https://www.hel.fi/{enter}https://news.hel.fi:8443");
-    await expectNoViolations(panel);
-    await userEvent.click(publish);
-    await waitFor(() => expect(sent).toHaveLength(1));
-    expect(sent[0]).toMatchObject({ embedOrigins: ["https://www.hel.fi", "https://news.hel.fi:8443"] });
-  });
-
-  it("gives the two embed snippets and a test preview once published", async () => {
-    const reads: Request[] = [];
-    renderPage(<FormEmbed slug="f7m2qz4tv6xh3n5jb2ryd3wcfa" type="ParkingSpot" framed />, {
-      path: "/projects/city/spaces/parking",
-      answer: async (url, request) => {
-        if (!url.pathname.startsWith("/api/endpoint/f7m2qz4tv6xh3n5jb2ryd3wcfa/")) return undefined;
-        reads.push(request);
-        return parkingSchema(url);
-      },
-    });
-    const embed = await screen.findByTestId("form-embed");
-    const iframe = within(embed).getByRole("textbox", { name: en.spaces.form.embedIframe }) as HTMLTextAreaElement;
-    expect(iframe.value).toContain(`src="${window.location.origin}/f/f7m2qz4tv6xh3n5jb2ryd3wcfa"`);
-    expect(iframe.value).toContain('title="ParkingSpot"');
-    const script = within(embed).getByRole("textbox", { name: en.spaces.form.embedScript }) as HTMLTextAreaElement;
-    expect(script.value).toBe(
-      `<script src="${window.location.origin}/f/embed.js" data-jc-form="f7m2qz4tv6xh3n5jb2ryd3wcfa" data-jc-title="ParkingSpot" async></script>`,
-    );
-    const writeText = vi.fn(async () => undefined);
-    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
-    await userEvent.click(within(embed).getAllByRole("button", { name: en.spaces.form.copy })[1]);
-    expect(writeText).toHaveBeenCalledWith(script.value);
-    expect(await within(embed).findByText(en.spaces.form.copied)).toBeInTheDocument();
-    // The preview is the published page itself in a test run, not a frame of it (AP-19), and it
-    // reads as a visitor: no credentials go with any request (EP-102).
-    expect(embed.querySelector("iframe")).toBeNull();
-    const preview = within(embed).getByRole("region", { name: "Preview of the ParkingSpot form" });
-    expect(await within(preview).findByRole("heading", { level: 4, name: "ParkingSpot" })).toBeInTheDocument();
-    expect(within(preview).getByText(en.spaces.form.testMode)).toBeInTheDocument();
-    expect(within(preview).getByRole("button", { name: en.spaces.form.testSubmit })).toBeInTheDocument();
-    expect(reads.length).toBeGreaterThan(0);
-    expect(reads.every((r) => r.credentials === "omit")).toBe(true);
-    expect(within(embed).getByRole("link", { name: new RegExp(en.spaces.form.previewOpen) })).toHaveAttribute(
-      "href",
-      "/f/f7m2qz4tv6xh3n5jb2ryd3wcfa?test=1",
-    );
-    await expectNoViolations(embed);
-  });
-
-  it("says no site may embed it when it names none", async () => {
-    renderPage(<FormEmbed slug="abc" type="ParkingSpot" framed={false} />, { path: "/projects/city/spaces/parking", answer: async () => undefined });
-    expect(await screen.findByText(en.spaces.form.embedNone)).toBeInTheDocument();
-  });
-
   it("in a test run checks the entry and asks the gateway, and writes nothing (EP-102)", async () => {
     const requests: Request[] = [];
     let decision = true;
@@ -449,15 +274,6 @@ describe("a public form", () => {
     } finally {
       if (real) Object.defineProperty(window, "parent", real);
     }
-  });
-
-  it("hides every model slot the form does not ask for, one the publisher's reads never returned too", () => {
-    const attributes = everyAttribute(["name", "capacity", "ownerPhone"], ["name", "capacity", "note"]);
-    expect(formPublishRequest("parking", "parking-form", "ParkingSpot", attributes, ["name"]).hiddenAttributes).toEqual([
-      "capacity",
-      "ownerPhone",
-      "note",
-    ]);
   });
 
   it("takes the one entity definition as its type, never a nested object's, and guesses none of two", () => {

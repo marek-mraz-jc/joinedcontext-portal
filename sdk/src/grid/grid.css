@@ -1424,46 +1424,6 @@ a.jc-cell--link:focus-visible {
   color: var(--jc-color-muted, #4b5563);
 }
 
-/* An attribute the person may not read: a narrow grey column that says so and holds no value. */
-.jc-grid-th--no-access,
-.jc-grid-td--no-access {
-  width: 7rem;
-  min-width: 7rem;
-  max-width: 7rem;
-  background: var(--jc-color-card, #f3f4f6);
-  color: var(--jc-color-muted, #4b5563);
-}
-
-.jc-grid-td--no-access {
-  background-image: repeating-linear-gradient(135deg, transparent 0 6px, var(--jc-color-line, #d0d7de) 6px 7px);
-}
-
-.jc-grid-th--no-access {
-  padding-inline-end: 1.75rem;
-}
-
-.jc-grid-no-access-name {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* The note wraps rather than cut: "hidden: no access" is the whole message of the column. */
-.jc-grid-no-access-note {
-  display: block;
-  white-space: normal;
-  font-size: var(--jc-font-size-sm, 12px);
-  font-weight: normal;
-  font-style: italic;
-}
-
-.jc-grid-th--no-access .jc-grid-meta-btn {
-  position: absolute;
-  inset-block-start: 0.25rem;
-  inset-inline-end: 0.25rem;
-}
-
 /* The Metadata tab (T-5529): a hidden field reads as withheld, never as an empty value. */
 .jc-grid-meta-hidden {
   color: var(--jc-color-muted, #57606a);

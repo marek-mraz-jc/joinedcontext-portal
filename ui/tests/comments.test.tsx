@@ -9,10 +9,8 @@ import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import type { ReactNode } from "react";
-import { toRichRow } from "@joinedcontext/sdk";
 import i18n from "../src/i18n";
 import { CommentsPanel, NotificationsMenu } from "../src/pages/spaces/Comments";
-import { RowDialog, RowExtra } from "../src/pages/spaces/DataViews";
 
 const navigate = vi.fn();
 vi.mock("@tanstack/react-router", async (original) => ({
@@ -114,18 +112,6 @@ describe("comments on an entity", () => {
     expect(await screen.findByText("No comments yet.")).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Add a comment"), "   ");
     expect(screen.getByRole("button", { name: "Comment" })).toHaveAttribute("aria-disabled", "true");
-  });
-
-  it("is what every view's row adds under the attributes", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => json([])));
-    const row = toRichRow({ id: URN, type: "AirQualityObserved", name: { type: "Property", value: "Station 1" } }, "en");
-    wrap(
-      <RowExtra.Provider value={(open) => <CommentsPanel project="helsinki" space="air" urn={open.id} />}>
-        <RowDialog row={row} onClose={() => {}} />
-      </RowExtra.Provider>,
-    );
-    const dialog = await screen.findByRole("dialog", { name: "Station 1" });
-    expect(within(dialog).getByRole("heading", { name: "Comments" })).toBeInTheDocument();
   });
 });
 

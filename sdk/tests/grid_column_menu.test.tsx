@@ -18,7 +18,8 @@ const config = parseGridConfig({
   columns: [{ attr: "name", label: "Name", pinned: true }, { attr: "count", label: "Count" }, { attr: "ngsi-ld:status" }],
 }).config!;
 
-const headers = () => screen.getAllByRole("columnheader").slice(0, 3).map((th) => within(th).getAllByRole("button")[0].textContent?.replace(/ [↑↓]$/, ""));
+// The id and the type lead every grid (T-6210); these tests read the attribute columns after them.
+const headers = () => screen.getAllByRole("columnheader").slice(2, 5).map((th) => within(th).getAllByRole("button")[0].textContent?.replace(/ [↑↓]$/, ""));
 const names = () => screen.getAllByRole("button", { name: /^Open: / }).map((b) => b.textContent);
 const openMenu = (label: string) => fireEvent.click(screen.getByRole("button", { name: `Column options: ${label}` }));
 
@@ -39,12 +40,35 @@ function Kept({ initial, onLayout }: { initial?: ColumnLayout; onLayout?: (next:
 }
 
 describe("the column header menu (T-4827)", () => {
+  // T-6210 (owner 2026-10-31): id, type, name first and fixed; the type's own attributes; then the
+  // entity timestamps; the scope last. The column menu follows the same order.
+  it("orders id, type, name, the attributes, createdAt, modifiedAt and the scope last", async () => {
+    const scoped = entities.map((entity) => ({ ...entity, scope: "/city/stops", createdAt: "2026-10-01T00:00:00Z", modifiedAt: "2026-10-02T00:00:00Z" }));
+    const ordered = parseGridConfig({
+      source: { kind: "fixture", name: "scoped" },
+      type: "Stop",
+      columns: [{ attr: "count", label: "Count" }, { attr: "ngsi-ld:status" }, { attr: "name", label: "Name" }],
+      entityTimestamps: true,
+    }).config!;
+    render(<EntityGrid config={ordered} source={fixtureSource(scoped)} />);
+    await screen.findByText("Alpha");
+    const all = screen.getAllByRole("columnheader").slice(0, 8).map((th) => within(th).queryAllByRole("button")[0]?.textContent?.replace(/ [↑↓]$/, "") ?? th.textContent);
+    expect(all).toEqual(["ID", "Type", "Name", "Count", "status", "Created", "Modified", "Scope"]);
+    expect(screen.getAllByText("/city/stops")).toHaveLength(3);
+    expect(screen.getAllByText("Stop").length).toBeGreaterThanOrEqual(3);
+    // The name is neither hidden nor moved.
+    openMenu("Name");
+    expect(screen.queryByRole("button", { name: "Hide field" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Move left" })).toBeNull();
+  });
+
   it("names a compact IRI by its local name and shows what each column holds", async () => {
     render(<EntityGrid config={config} source={fixtureSource(entities)} />);
     await screen.findByText("Alpha");
     expect(headers()).toEqual(["Name", "Count", "status"]);
     expect(readableName("https://smartdatamodels.org/dataModel.Transportation/vocab#routeColor")).toBe("routeColor");
-    const count = screen.getAllByRole("columnheader")[1];
+    expect(screen.getAllByRole("columnheader").slice(0, 2).map((th) => th.textContent)).toEqual(["ID", "Type"]);
+    const count = screen.getAllByRole("columnheader")[3];
     expect(within(count).getByRole("img", { name: "Number" })).toBeInTheDocument();
   });
 
@@ -53,10 +77,10 @@ describe("the column header menu (T-4827)", () => {
     await screen.findByText("Alpha");
     openMenu("Count");
     fireEvent.click(screen.getByRole("button", { name: "Sort descending" }));
-    await waitFor(() => expect(names()).toEqual(["Beta", "Gamma", "Alpha"]));
+    await waitFor(() => expect(names()).toEqual(["b", "c", "a"]));
     openMenu("Count");
     fireEvent.click(screen.getByRole("button", { name: "Sort ascending" }));
-    await waitFor(() => expect(names()).toEqual(["Alpha", "Gamma", "Beta"]));
+    await waitFor(() => expect(names()).toEqual(["a", "c", "b"]));
   });
 
   it("Filter puts the focus on the column's filter", async () => {
@@ -67,7 +91,7 @@ describe("the column header menu (T-4827)", () => {
     expect(document.activeElement).toBe(screen.getByRole("combobox", { name: "Filter: Count" }));
   });
 
-  it("hides a field, by the host where it holds hidden, else by itself; the primary is never hidden", async () => {
+  it("hides a field, by the host where it holds hidden, else by itself; the name is never hidden", async () => {
     const onHide = vi.fn();
     const { unmount } = render(<EntityGrid config={config} source={fixtureSource(entities)} onHide={onHide} />);
     await screen.findByText("Alpha");
@@ -149,10 +173,10 @@ describe("the column header menu (T-4827)", () => {
     fireEvent.click(screen.getByRole("button", { name: "Narrower" }));
     fireEvent.click(screen.getByRole("button", { name: "Narrower" }));
     expect(onLayout).toHaveBeenLastCalledWith({ width: { count: 40 } });
-    expect(screen.getAllByRole("columnheader")[1]).toHaveStyle({ width: "40px" });
+    expect(screen.getAllByRole("columnheader")[3]).toHaveStyle({ width: "40px" });
   });
 
-  it("moves a column by the menu and by dragging its header; nothing moves before the primary", async () => {
+  it("moves a column by the menu and by dragging its header; nothing moves before the name", async () => {
     const onLayout = vi.fn();
     render(<Kept onLayout={onLayout} />);
     await screen.findByText("Alpha");
@@ -163,7 +187,7 @@ describe("the column header menu (T-4827)", () => {
     await waitFor(() => expect(headers()).toEqual(["Name", "status", "Count"]));
     const store = new Map<string, string>();
     const dataTransfer = { setData: (k: string, v: string) => store.set(k, v), getData: (k: string) => store.get(k) ?? "", types: ["application/x-jc-grid-column"], effectAllowed: "" };
-    const [, status, count] = screen.getAllByRole("columnheader");
+    const [, , , status, count] = screen.getAllByRole("columnheader");
     fireEvent.dragStart(count, { dataTransfer });
     fireEvent.dragOver(status, { dataTransfer });
     fireEvent.drop(status, { dataTransfer });
@@ -222,6 +246,6 @@ describe("the column header menu (T-4827)", () => {
     render(<Kept initial={{ order: ["name", "ngsi-ld:status"], labels: { count: "Riders" }, width: { count: 120 } }} />);
     await screen.findByText("Alpha");
     expect(headers()).toEqual(["Name", "status", "Riders"]);
-    expect(screen.getAllByRole("columnheader")[2]).toHaveStyle({ width: "120px" });
+    expect(screen.getAllByRole("columnheader")[4]).toHaveStyle({ width: "120px" });
   });
 });

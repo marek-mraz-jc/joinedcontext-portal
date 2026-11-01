@@ -107,8 +107,6 @@ const CASES: { name: string; persona: Persona; attr: string; access?: "ok" | "sl
   { name: "prohibited-named", persona: "steward", attr: "status", says: /policy “Status is set by the operator”/ },
   { name: "prohibited-hidden", persona: "editor", attr: "status", says: /Hidden by a policy you cannot read/ },
   { name: "formula", persona: "steward", attr: "totalSlotNumber", says: /Calculated by a pipeline/ },
-  // Nothing readable: every column is hidden and named so, never a cell with a value to inspect.
-  { name: "no-access", persona: "outsider", attr: "name", says: /name: hidden: no access/, onPage: true },
   { name: "loading", persona: "steward", attr: "name", access: "slow", says: /Checking your access/, onPage: true },
   { name: "gateway-502", persona: "steward", attr: "name", access: "502", says: /could not be read/ },
 ];
@@ -132,6 +130,15 @@ for (const width of [1440, 400]) {
         await page.screenshot({ path: `${SHOTS}/${one.name}-${width}.png` });
       });
     }
+    // Nothing readable (T-6210): no attribute column at all, only what every entity has.
+    test("no-access", async ({ page }) => {
+      await stub(page, "outsider");
+      await page.goto(EXPLORE);
+      await expect(page.getByRole("columnheader", { name: /^ID/ }).first()).toBeVisible();
+      await expect(page.getByRole("columnheader", { name: /name/i })).toHaveCount(0);
+      await expect(page.getByText("hidden: no access")).toHaveCount(0);
+      await page.screenshot({ path: `${SHOTS}/no-access-${width}.png` });
+    });
   });
 }
 

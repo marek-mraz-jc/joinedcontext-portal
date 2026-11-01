@@ -167,11 +167,7 @@
     },
     "src/pages/spaces/FormView.tsx :: (no label)": {
       "class": "FREE",
-      "reason": "a form answer typed as its kind asks (text, number, date) and the read-only embed snippet; a relationship answer of the signed-in form is an EntitySearchPicker (T-4946), while the public form stays a typed URN because its anonymous submitter may read nothing in the space"
-    },
-    "src/pages/spaces/FormView.tsx :: Endpoint name": {
-      "class": "FREE",
-      "reason": "the name of the new public form Endpoint"
+      "reason": "a form answer typed as its kind asks (text, number, date); a relationship answer of the signed-in form is an EntitySearchPicker (T-4946), while the public form stays a typed URN because its anonymous submitter may read nothing in the space"
     },
     "src/pages/spaces/FormView.tsx :: spaces.form.${part}": {
       "class": "FREE",

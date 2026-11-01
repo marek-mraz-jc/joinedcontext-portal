@@ -94,6 +94,7 @@ export function gridLabels(t: (key: string, values?: Record<string, string>) => 
   return {
     id: t("entityGrid.id"),
     type: t("entityGrid.type"),
+    scope: t("entityGrid.scope"),
     createdAt: t("entityGrid.createdAt"),
     modifiedAt: t("entityGrid.modifiedAt"),
     observedAt: t("entityGrid.observedAt"),
@@ -250,8 +251,6 @@ export function gridLabels(t: (key: string, values?: Record<string, string>) => 
     locked: t("entityGrid.locked"),
     lockReadOnly: t("entityGrid.lockReadOnly"),
     lockNotOffered: t("entityGrid.lockNotOffered"),
-    hiddenNoAccess: t("entityGrid.hiddenNoAccess"),
-    removeHidden: t("entityGrid.removeHidden"),
     pasteTooLarge: t("entityGrid.pasteTooLarge"),
     loaded: t("entityGrid.loaded"),
     of: t("entityGrid.of"),

@@ -125,21 +125,23 @@ describe("the permission-aware grid", () => {
     expect(screen.queryByRole("img", { name: new RegExp(`^${DEFAULT_LABELS.locked}`) })).toBeNull();
   });
 
-  it("shows an unreadable attribute as a hidden column with no value and never asks for it", async () => {
+  it("leaves an unreadable attribute out of the grid altogether and never asks for it (T-6210)", async () => {
     const { source, asked } = recorded();
     render(<EntityGrid config={configOf()} source={source} access={ACCESS} />);
     await screen.findByDisplayValue("Kamppi");
-    const header = screen.getByRole("columnheader", { name: /operatorNote/ });
-    expect(header).toHaveTextContent(DEFAULT_LABELS.hiddenNoAccess);
-    expect(screen.getByLabelText(`operatorNote: ${DEFAULT_LABELS.hiddenNoAccess}`)).toBeEmptyDOMElement();
+    // No column, no mark, no hatched cell: what the person may not read is not drawn at all.
+    expect(screen.queryByRole("columnheader", { name: /operatorNote/ })).toBeNull();
+    expect(document.body.textContent).not.toContain("operatorNote");
     expect(document.body.textContent).not.toContain("secret note");
     expect(asked.length).toBeGreaterThan(0);
     for (const attrs of asked) expect(attrs ?? []).not.toContain("operatorNote");
+  });
 
-    // The column menu's button removes it; the rest of the grid stays.
-    fireEvent.click(within(header).getByRole("button", { name: `${DEFAULT_LABELS.removeHidden}: operatorNote` }));
-    expect(screen.queryByRole("columnheader", { name: /operatorNote/ })).toBeNull();
-    expect(screen.getByDisplayValue("Kamppi")).toBeInTheDocument();
+  it("draws no lock on a read-only grid", async () => {
+    const { source } = recorded();
+    render(<EntityGrid config={{ ...configOf(), mode: "view" }} source={source} access={ACCESS} />);
+    await screen.findByText("Kamppi");
+    expect(screen.queryByRole("img", { name: new RegExp(`^${DEFAULT_LABELS.locked}`) })).toBeNull();
   });
 
   it("reviews a GeoProperty and a Relationship change by name, label and formatted value", async () => {
@@ -177,8 +179,8 @@ describe("the permission-aware grid", () => {
     await screen.findByDisplayValue("Kamppi");
     const grid = screen.getByRole("grid");
     grid.focus();
-    // id, name, availableBikeNumber: the third column is not in the person's grant.
-    for (let step = 0; step < 3; step++) fireEvent.keyDown(grid, { key: "ArrowRight" });
+    // id, type, name, availableBikeNumber: the fourth column is not in the person's grant.
+    for (let step = 0; step < 4; step++) fireEvent.keyDown(grid, { key: "ArrowRight" });
     fireEvent.keyDown(grid, { key: "7" });
     expect(screen.getByText(`${DEFAULT_LABELS.locked}: ${DEFAULT_INSPECTOR_LABELS.notInGrant}`, { selector: "[role=status]" })).toBeInTheDocument();
     expect(screen.queryByDisplayValue("7")).toBeNull();
@@ -190,7 +192,8 @@ describe("the permission-aware grid", () => {
     await screen.findByDisplayValue("Kamppi");
     const grid = screen.getByRole("grid");
     grid.focus();
-    // id, then name: the paste starts on the name and runs over the bikes (no write) and the status (prohibited).
+    // id, type, then name: the paste starts on the name and runs over the bikes (no write) and the status (prohibited).
+    fireEvent.keyDown(grid, { key: "ArrowRight" });
     fireEvent.keyDown(grid, { key: "ArrowRight" });
     fireEvent.keyDown(grid, { key: "ArrowRight" });
     fireEvent.paste(grid, { clipboardData: { getData: () => "Kamppi 2\t7\tbroken\n" } });
