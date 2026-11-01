@@ -30,11 +30,14 @@
       "body": {
         "days": 30
       },
-      "status": 201,
+      "status": 202,
       "expect": {
-        "/recorded": 1,
+        "/recorded": 0,
         "/already": false
       }
+    },
+    {
+      "job": "record-forecasts"
     },
     {
       "call": "POST /api/forecasts",

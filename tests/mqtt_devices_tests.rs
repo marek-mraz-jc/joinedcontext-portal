@@ -238,7 +238,7 @@ async fn a_topic_or_role_outside_the_broker_is_refused_naming_the_field() {
     )
     .await;
     assert_eq!(answer.status, 422, "{}", answer.text);
-    assert!(answer.text.contains("topic:"), "{}", answer.text);
+    assert!(answer.names_field("topic", ""), "{}", answer.text);
 
     let mut foreign = device(keys.clone());
     foreign["role"] = json!("espoo-only");
@@ -255,7 +255,7 @@ async fn a_topic_or_role_outside_the_broker_is_refused_naming_the_field() {
         "a role of another project's broker: {}",
         answer.text
     );
-    assert!(answer.text.contains("role:"), "{}", answer.text);
+    assert!(answer.names_field("role", ""), "{}", answer.text);
 
     let mut name = device(keys);
     name["name"] = json!("Sensor_1");

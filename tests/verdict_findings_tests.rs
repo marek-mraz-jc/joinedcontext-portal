@@ -246,16 +246,21 @@ async fn a_refused_check_writes_no_draft_of_its_own() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::OK, "{body}");
-    assert_eq!(body["verdict"]["ok"], false, "{body}");
-    let said = body["verdict"]["findings"].to_string();
+    // Since T-5971 the operations door refuses a credential in any argument before the check
+    // reads it: a 422 naming the field, never the value (MF-24).
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{body}");
+    assert_eq!(
+        body["type"], "https://joinedcontext.com/errors/secret-in-argument",
+        "{body}"
+    );
+    let said = body["errors"].to_string();
     assert!(
         said.contains("passwordRef"),
-        "the finding names the field: {said}"
+        "the refusal names the field: {said}"
     );
     assert!(
-        !said.contains(token),
-        "the finding repeats the credential: {said}"
+        !body.to_string().contains(token),
+        "the refusal repeats the credential: {body}"
     );
 
     let drafts = joinedcontext_portal::ops::draft_store(&state)

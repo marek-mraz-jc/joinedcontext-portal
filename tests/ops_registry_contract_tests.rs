@@ -30,8 +30,13 @@ fn the_tool_list_and_the_openapi_document_say_the_same_of_every_operation() {
             .as_array_mut()
             .expect("required")
             .retain(|name| name != "project");
+        // MCP drops the schema's own description: the tool's description says it (T-6058).
+        let mut documented =
+            entry["requestBody"]["content"]["application/json"]["schema"].clone();
+        if let Some(schema) = documented.as_object_mut() {
+            schema.remove("description");
+        }
         // MCP lists `required` even when empty; JSON Schema reads an empty list as none.
-        let documented = &entry["requestBody"]["content"]["application/json"]["schema"];
         if input["required"] == json!([]) && documented.get("required").is_none() {
             input.as_object_mut().expect("object").remove("required");
         }
@@ -43,11 +48,7 @@ fn the_tool_list_and_the_openapi_document_say_the_same_of_every_operation() {
                 tool["description"].clone(),
                 entry["description"].clone(),
             ),
-            (
-                "input",
-                input,
-                entry["requestBody"]["content"]["application/json"]["schema"].clone(),
-            ),
+            ("input", input, documented),
             (
                 "output",
                 tool["outputSchema"].clone(),
