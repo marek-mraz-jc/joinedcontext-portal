@@ -74,7 +74,9 @@ const NGSI = ROWS.map((row) => ({
   id: row.id, type: row.type,
   stationName: { type: "Property", value: row.stationName },
   pm25: { type: "Property", value: row.pm25, unitCode: "GQ" },
-  temperature: { type: "Property", value: row.temperature, unitCode: "CEL" },
+  // Vallila reports no temperature: its empty cell carries an absolute screen-reader "not
+  // set" span, which once escaped the scroll box and widened a phone page by 565 px (T-6323).
+  ...(row.stationName === "Vallila" ? {} : { temperature: { type: "Property", value: row.temperature, unitCode: "CEL" } }),
   dateObserved: { type: "Property", value: row.dateObserved },
   refStation: { type: "Relationship", object: row.refStation },
 }));
