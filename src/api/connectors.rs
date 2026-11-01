@@ -1064,6 +1064,7 @@ pub async fn tab_events(
             &tab,
             &session.identity.subject,
             session.issued_at,
+            session.expires_at,
             now,
         )
         .ok_or_else(|| {

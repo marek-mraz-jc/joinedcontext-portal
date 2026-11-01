@@ -1012,7 +1012,7 @@ mod tests {
             .pair(&connector.id, "f:1:ana", 5, now + 3600);
         let (mut heard, _) = state
             .paired_tabs
-            .listen(&connector.id, &tab, "f:1:ana", 5, now)
+            .listen(&connector.id, &tab, "f:1:ana", 5, now + 3600, now)
             .expect("paired");
         // A project outside the connector's scope, a page the Portal lacks: refused, nothing sent.
         let other = json!({ "project": "espoo", "page": "spaces" });
