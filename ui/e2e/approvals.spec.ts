@@ -189,7 +189,7 @@ test.describe("approvals", () => {
     for (const width of [400, 1440]) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto(`/projects/helsinki/approvals/${PROPOSAL.metadata.name}?lang=en`);
-      await expect(page.getByTestId("change-proposed-via")).toHaveText("Via claude-code connector doprava-in-claude");
+      await expect(page.getByTestId("change-proposed-via")).toHaveText("Via Claude Code connector doprava-in-claude");
       await expect(page.getByTestId("change-proposed-plan")).toContainText("Plan p2345234523452345234523452");
       const sideways = await page.evaluate(
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,

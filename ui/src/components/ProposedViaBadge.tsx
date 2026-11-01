@@ -5,6 +5,17 @@ import { Badge } from "./ui";
 
 type ProposedVia = components["schemas"]["ProposedVia"];
 
+/** The product names of the CIMD clients the server names by a short id (T-6390). */
+const CLIENT_NAMES: Record<string, string> = {
+  "claude-code": "Claude Code",
+  "claude-ai": "claude.ai",
+};
+
+/** The client as a person reads it: its product name when known, else the id the server kept. */
+export function clientName(client: string): string {
+  return CLIENT_NAMES[client] ?? client;
+}
+
 /**
  * The AI client a change came through, read from its merge request's trailer (AG-137, T-5973):
  * "via Claude Code connector doprava-in-claude" when a connector opened it, else the client alone.
@@ -15,10 +26,10 @@ export function ProposedViaBadge({ via }: { via: ProposedVia }): JSX.Element {
     <Badge tone="accent" data-testid="change-proposed-via">
       {via.connectorName
         ? t("approvals.proposedVia.badgeConnector", {
-            client: via.client,
+            client: clientName(via.client),
             connector: via.connectorName,
           })
-        : t("approvals.proposedVia.badge", { client: via.client })}
+        : t("approvals.proposedVia.badge", { client: clientName(via.client) })}
     </Badge>
   );
 }
@@ -37,11 +48,11 @@ export function ProposedViaHint({
       <dd className="mt-1 text-xs text-fg-muted">
         {via.connectorName
           ? t("approvals.proposedVia.hintConnector", {
-              client: via.client,
+              client: clientName(via.client),
               connector: via.connectorName,
               author,
             })
-          : t("approvals.proposedVia.hint", { client: via.client, author })}
+          : t("approvals.proposedVia.hint", { client: clientName(via.client), author })}
       </dd>
       {via.plan ? (
         <dd className="mt-1 text-xs text-fg-muted" data-testid="change-proposed-plan">

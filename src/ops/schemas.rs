@@ -561,7 +561,7 @@ const EXAMPLES: &[(&str, &str)] = &[
     ),
     (
         "Policy",
-        r#"{"spec":{"assignee":{"kind":"group","id":"example-group"},"operations":["retrieveOps"]}}"#,
+        r#"{"spec":{"assigner":"did:web:{orgDomain}","assignee":{"kind":"group","id":"example-group"},"operations":["retrieveOps"]}}"#,
     ),
     (
         "ScopeDefinition",
@@ -590,7 +590,7 @@ const EXAMPLES: &[(&str, &str)] = &[
     ),
     (
         "Pipeline",
-        r#"{"spec":{"targetEndpoint":"urn:ngsi-ld:Endpoint:example-project:example"}}"#,
+        r#"{"apiVersion":"joinedcontext.com/v1alpha2","spec":{"class":"scheduled","schedule":"0 * * * *","source":null,"targetEndpoint":null,"output":null,"sources":[{"dataSourceRef":"example"}],"steps":[{"kind":"bloblang","bloblang":"root = this"}],"outputs":[{"targetEndpoint":"urn:ngsi-ld:Endpoint:example","type":"Example","mode":"upsert"}]}}"#,
     ),
     (
         "DataSource",
@@ -833,6 +833,29 @@ mod tests {
             let patch: Value = serde_json::from_str(patch).expect("a row is JSON");
             assert!(patch.is_object(), "{kind}");
         }
+    }
+
+    /// T-6392: the Pipeline example is the v1alpha2 shape a client copies, it parses and validates,
+    /// and its output names the Endpoint by its name alone, the id jc-manifest resolves.
+    #[test]
+    fn the_pipeline_example_is_a_valid_v1alpha2_pipeline_naming_its_endpoint() {
+        let answer = schema_of("Pipeline", None).expect("Pipeline");
+        let example = &answer["example"];
+        assert_eq!(
+            example["apiVersion"],
+            jc_core::envelope::API_VERSION_V1ALPHA2
+        );
+        for v1 in ["source", "targetEndpoint", "output"] {
+            assert!(example["spec"].get(v1).is_none(), "{v1}: {example}");
+        }
+        let pipeline = jc_core::kinds::Pipeline::from_yaml(&example.to_string())
+            .unwrap_or_else(|err| panic!("{err}: {example}"));
+        pipeline
+            .validate()
+            .unwrap_or_else(|err| panic!("{err}: {example}"));
+        let outputs = pipeline.spec.outputs();
+        assert_eq!(outputs.len(), 1);
+        assert_eq!(outputs[0].target_endpoint.local_id(), "example");
     }
 
     #[test]
