@@ -1297,48 +1297,8 @@ pub(crate) async fn propose_model(
         proposal.creating,
         proposal.lane,
     );
-    let folder = model_folder(project, &proposal.envelope.spec, name);
-    let linkml = proposal
-        .envelope
-        .spec
-        .get("linkml")
-        .and_then(Value::as_str)
-        .ok_or_else(|| ApiError::BadRequest("DataModel spec missing linkml".into()))?;
-    let confined_linkml = confine_linkml_path(linkml)?;
-    let (source_str, next_val, imports) = (proposal.source, proposal.next_val, proposal.imports);
-    let checked = proposal.checked;
-    let SourceDryRunResult {
-        version, artifacts, ..
-    } = checked;
-    let target_version =
-        SemVer::new(&version).map_err(|e| ApiError::BadRequest(format!("invalid version: {e}")))?;
-
-    let empty_map = serde_json::Map::new();
-    let next_classes = next_val
-        .get("classes")
-        .and_then(Value::as_object)
-        .unwrap_or(&empty_map);
-    let mut classes: Vec<String> = next_classes.keys().cloned().collect();
-    classes.extend(imported_classes(&imports));
-    classes.sort();
-    classes.dedup();
-
-    let mut new_spec = proposal.envelope.spec.clone();
-    let artifact_writes = place_artifacts(&mut new_spec, name, &target_version, &artifacts)?;
-    new_spec["classes"] = serde_json::to_value(&classes).unwrap_or(Value::Array(Vec::new()));
-
-    let typed_spec: DataModelSpec = serde_json::from_value(new_spec.clone())
-        .map_err(|e| ApiError::BadRequest(format!("invalid DataModel spec: {e}")))?;
-    typed_spec
-        .validate()
-        .map_err(|e| ApiError::BadRequest(format!("DataModel validation error: {e}")))?;
-
-    let mut updated_envelope = proposal.envelope;
-    updated_envelope.spec = new_spec;
-    updated_envelope.strip_status();
-
-    let manifest_yaml = serde_norway::to_string(&updated_envelope)
-        .map_err(|e| ApiError::Internal(format!("serialize manifest to yaml: {e}")))?;
+    let (title, body) = (proposal.title.clone(), proposal.body.clone());
+    let files = model_files(&proposal)?;
 
     let gitea = state
         .forge_for(project)
@@ -1354,50 +1314,12 @@ pub(crate) async fn propose_model(
     let branch = branch_name(project, "datamodel", name, operation);
     let held = crate::api::mutate::turn(gitea, &branch).await;
     let branch = create_or_reuse_branch(gitea, &held, &default_branch).await?;
-
-    let (author_name, author_email) = author_credentials(identity, project);
-    let commit_msg = format!("{} with its source and artifacts", proposal.title);
-
-    let manifest_path = format!("{folder}/{name}.yaml");
-    let source_path = format!("{folder}/{confined_linkml}");
-    let mut writes = vec![
-        (manifest_path, manifest_yaml),
-        (source_path, source_str.to_owned()),
-    ];
-    writes.extend(
-        artifact_writes
-            .into_iter()
-            .map(|(file, content)| (format!("{folder}/{file}"), content)),
-    );
-
-    // One commit: a forge failure halfway leaves no branch holding a manifest without its
-    // source or artifacts (F-POR1-023).
-    let mut files = Vec::with_capacity(writes.len());
-    for (file_p, content) in writes {
-        let existing_sha = gitea
-            .get_file(&file_p, &branch)
-            .await
-            .ok()
-            .flatten()
-            .map(|f| f.sha);
-        files.push((file_p, content, existing_sha));
-    }
-    gitea
-        .write_files(
-            &branch,
-            &commit_msg,
-            Author {
-                name: &author_name,
-                email: &author_email,
-            },
-            &files,
-        )
-        .await?;
+    commit_model(gitea, identity, project, &title, &branch, files).await?;
 
     crate::telemetry::proposed(lane, "DataModel");
 
     let pr = gitea
-        .create_pull_request(&branch, &default_branch, &proposal.title, &proposal.body)
+        .create_pull_request(&branch, &default_branch, &title, &body)
         .await?;
 
     let change_meta = crate::api::changes::change_meta(state, gitea, pr.number, project);
@@ -1422,6 +1344,141 @@ pub(crate) async fn propose_model(
     .proposed_through(&pr.body)
     .with_merge_request(pr.url);
     Ok(Change::new(change_meta, change_status))
+}
+
+/// Writes a checked model onto `branch`, the shared branch of a plan of several changes opened
+/// as one Change (T-6282, JC2-10): a change already open on the model still refuses it, as its
+/// own proposal would be (CC-34).
+pub(crate) async fn propose_model_onto(
+    state: &AppState,
+    identity: &Identity,
+    proposal: ModelProposal<'_>,
+    branch: &str,
+) -> Result<Lane, ApiError> {
+    let (project, name, lane) = (proposal.namespace, proposal.name, proposal.lane);
+    let title = proposal.title.clone();
+    let files = model_files(&proposal)?;
+    let gitea = state
+        .forge_for(project)
+        .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let gitea: &crate::git::GiteaClient = &gitea;
+    let default_branch = gitea.default_branch().await?;
+    let operation = if proposal.creating {
+        Operation::Create
+    } else {
+        Operation::Update
+    };
+    let own = branch_name(project, "datamodel", name, operation);
+    if let Some(pending) = crate::api::mutate::open_change_on(state, gitea, &own, project).await? {
+        return Err(ApiError::Conflict(format!(
+            "a change for DataModel '{name}' is already open: {}; approve or reject it first",
+            pending.name
+        )));
+    }
+    match gitea.create_branch(branch, &default_branch).await {
+        Ok(()) | Err(crate::git::GitError::Conflict(_)) => {}
+        Err(err) => return Err(err.into()),
+    }
+    commit_model(gitea, identity, project, &title, branch, files).await?;
+    crate::telemetry::proposed(lane, "DataModel");
+    Ok(lane)
+}
+
+/// The files of one model Change, by repository path: the manifest with its version, classes
+/// and artifacts set from the check, its source as typed and the artifacts compiled from it.
+fn model_files(proposal: &ModelProposal<'_>) -> Result<Vec<(String, String)>, ApiError> {
+    let name = proposal.name;
+    let project = proposal.namespace;
+    let folder = model_folder(project, &proposal.envelope.spec, name);
+    let linkml = proposal
+        .envelope
+        .spec
+        .get("linkml")
+        .and_then(Value::as_str)
+        .ok_or_else(|| ApiError::BadRequest("DataModel spec missing linkml".into()))?;
+    let confined_linkml = confine_linkml_path(linkml)?;
+    let (source_str, next_val, imports) = (proposal.source, &proposal.next_val, &proposal.imports);
+    let SourceDryRunResult {
+        version, artifacts, ..
+    } = &proposal.checked;
+    let target_version =
+        SemVer::new(version).map_err(|e| ApiError::BadRequest(format!("invalid version: {e}")))?;
+
+    let empty_map = serde_json::Map::new();
+    let next_classes = next_val
+        .get("classes")
+        .and_then(Value::as_object)
+        .unwrap_or(&empty_map);
+    let mut classes: Vec<String> = next_classes.keys().cloned().collect();
+    classes.extend(imported_classes(imports));
+    classes.sort();
+    classes.dedup();
+
+    let mut new_spec = proposal.envelope.spec.clone();
+    let artifact_writes = place_artifacts(&mut new_spec, name, &target_version, artifacts)?;
+    new_spec["classes"] = serde_json::to_value(&classes).unwrap_or(Value::Array(Vec::new()));
+
+    let typed_spec: DataModelSpec = serde_json::from_value(new_spec.clone())
+        .map_err(|e| ApiError::BadRequest(format!("invalid DataModel spec: {e}")))?;
+    typed_spec
+        .validate()
+        .map_err(|e| ApiError::BadRequest(format!("DataModel validation error: {e}")))?;
+
+    let mut updated_envelope = proposal.envelope.clone();
+    updated_envelope.spec = new_spec;
+    updated_envelope.strip_status();
+
+    let manifest_yaml = serde_norway::to_string(&updated_envelope)
+        .map_err(|e| ApiError::Internal(format!("serialize manifest to yaml: {e}")))?;
+
+    let manifest_path = format!("{folder}/{name}.yaml");
+    let source_path = format!("{folder}/{confined_linkml}");
+    let mut writes = vec![
+        (manifest_path, manifest_yaml),
+        (source_path, source_str.to_owned()),
+    ];
+    writes.extend(
+        artifact_writes
+            .into_iter()
+            .map(|(file, content)| (format!("{folder}/{file}"), content)),
+    );
+    Ok(writes)
+}
+
+/// Commits a model's files onto `branch` in one commit: a forge failure halfway leaves no branch
+/// holding a manifest without its source or artifacts (F-POR1-023).
+async fn commit_model(
+    gitea: &crate::git::GiteaClient,
+    identity: &Identity,
+    project: &str,
+    title: &str,
+    branch: &str,
+    writes: Vec<(String, String)>,
+) -> Result<(), ApiError> {
+    let (author_name, author_email) = author_credentials(identity, project);
+    let commit_msg = format!("{title} with its source and artifacts");
+    let mut files = Vec::with_capacity(writes.len());
+    for (file_p, content) in writes {
+        let existing_sha = gitea
+            .get_file(&file_p, branch)
+            .await
+            .ok()
+            .flatten()
+            .map(|f| f.sha);
+        files.push((file_p, content, existing_sha));
+    }
+    gitea
+        .write_files(
+            branch,
+            &commit_msg,
+            Author {
+                name: &author_name,
+                email: &author_email,
+            },
+            &files,
+        )
+        .await?;
+    Ok(())
 }
 
 /// The longest `search` the organization's model list takes (API/01).
