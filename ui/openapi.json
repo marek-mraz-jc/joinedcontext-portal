@@ -40249,6 +40249,13 @@
           "isBoundary": {
             "type": "boolean",
             "description": "Whether naming it binds the connector (a published client id) or only says whom it is\nmeant for (a loopback client anyone can name, AG-153)."
+          },
+          "refused": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Why the caller's ceiling refuses it, e.g. `DelegationPolicy p does not allow the client\nmcp-hub`; absent when it may be named. Create checks it again (T-6309)."
           }
         }
       },

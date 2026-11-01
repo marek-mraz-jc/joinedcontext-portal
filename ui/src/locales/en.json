@@ -10837,6 +10837,7 @@
     "needsApproval": "needs your organization's approval",
     "aboveCeiling": "Your organization does not let a connector carry this preset yet.",
     "binds": "only this client can use it",
+    "clientRefused": "your organization's policy does not allow it",
     "intendedFor": "says whom it is for; other local programs can name it too",
     "state": {
       "active": "Active",
@@ -10914,6 +10915,7 @@
       "scope": "Tick a whole project or single spaces, Endpoints or pipelines, e.g. helsinki / Endpoint bike-counters.",
       "expires": "The last day it works, at most {days} days from today, e.g. the end of this month.",
       "clients": "Leave empty for any client, or tick e.g. Claude Code to say whom it is for.",
+      "clientsListed": "Tick the client you will use, e.g. claude.ai: your organization lets a connector answer only the clients its policy lists.",
       "nameStays": "The name stays; it is how your AI client lists the connector."
     },
     "problem": {

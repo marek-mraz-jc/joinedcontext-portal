@@ -24,8 +24,23 @@ const OPTIONS = {
   ],
 };
 
+const CLAUDE_AI = "https://claude.ai/oauth/mcp-oauth-client-metadata";
+const CLAUDE_CODE = "https://claude.ai/oauth/claude-code-client-metadata";
+const LISTED = "DelegationPolicy claude-only does not allow the client";
+// A ceiling listing only the two claude.ai documents (T-6309): the realm clients greyed with why.
+const CLAUDE_ONLY = {
+  ...OPTIONS,
+  clients: [
+    ...OPTIONS.clients.map((one) => ({ ...one, refused: `${LISTED} ${one.id}` })),
+    { id: CLAUDE_CODE, isBoundary: false },
+    { id: CLAUDE_AI, isBoundary: true },
+  ],
+};
+
 interface Stub {
   refuse?: boolean;
+  options?: typeof CLAUDE_ONLY;
+  refuseClient?: boolean;
 }
 
 async function stubApi(page: Page, stub: Stub = {}) {
@@ -41,9 +56,15 @@ async function stubApi(page: Page, stub: Stub = {}) {
     if (path.startsWith("/api/v1/connectors")) {
       const body = request.method() === "POST" ? request.postDataJSON() : undefined;
       requests.push({ method: request.method(), path, body });
-      if (path === "/api/v1/connectors/options") return json(OPTIONS);
+      if (path === "/api/v1/connectors/options") return json(stub.options ?? OPTIONS);
       if (path === "/api/v1/connectors" && request.method() === "GET") return json({ items });
       if (path === "/api/v1/connectors" && request.method() === "POST") {
+        if (stub.refuseClient) {
+          return json(
+            { type: "https://docs.joinedcontext.com/problems/forbidden", title: "Forbidden", status: 403, detail: `allowedClients[0]: ${LISTED} ${CLAUDE_CODE}`, errors: ["allowedClients[0]"] },
+            403,
+          );
+        }
         if (stub.refuse) {
           return json(
             { type: "https://docs.joinedcontext.com/problems/unprocessable", title: "Unprocessable Content", status: 422, detail: "project doprava has no Endpoint parking-lots you may read", errors: ["scope[0].endpoint"] },
@@ -149,6 +170,37 @@ for (const width of [1440, 400]) {
       await expect(dialog.getByText("project doprava has no Endpoint parking-lots you may read")).toBeVisible();
       await expect(dialog.getByRole("checkbox", { name: /Pipelines/ }).first()).toHaveAttribute("aria-disabled", "true");
       await shot(page, `ai-connectors-refusal-${width}`);
+    });
+
+    test("under a ceiling of claude.ai clients the dialog offers them by name and greys the rest (T-6309)", async ({ page }) => {
+      const requests = await stubApi(page, { options: CLAUDE_ONLY });
+      await page.goto("/ai-connectors?lang=en");
+      await page.getByRole("button", { name: "New AI connector" }).first().click();
+      const dialog = page.getByRole("dialog");
+      await dialog.getByRole("textbox", { name: /Name/ }).fill("air-in-claude");
+      await dialog.getByRole("checkbox", { name: "bike-counters" }).check();
+      await expect(dialog.getByRole("checkbox", { name: /The organization's MCP hub/ })).toHaveAttribute("aria-disabled", "true");
+      await expect(dialog.getByText(`${LISTED} mcp-hub`)).toBeVisible();
+      await dialog.getByRole("checkbox", { name: /^claude\.ai/ }).check();
+      await dialog.getByRole("checkbox", { name: /The organization's MCP hub/ }).scrollIntoViewIfNeeded();
+      await shot(page, `ai-connectors-clients-${width}`);
+      await dialog.getByRole("button", { name: "Create" }).click();
+      await expect.poll(() => requests.find((one) => one.method === "POST")?.body).toMatchObject({ allowedClients: [CLAUDE_AI] });
+    });
+
+    test("a client the ceiling refused on create is named beside the clients (T-6309)", async ({ page }) => {
+      await stubApi(page, { options: CLAUDE_ONLY, refuseClient: true });
+      await page.goto("/ai-connectors?lang=en");
+      await page.getByRole("button", { name: "New AI connector" }).first().click();
+      const dialog = page.getByRole("dialog");
+      await dialog.getByRole("textbox", { name: /Name/ }).fill("air-in-claude");
+      await dialog.getByRole("checkbox", { name: "bike-counters" }).check();
+      await dialog.getByRole("checkbox", { name: /^Claude Code(?!,)/ }).check();
+      await dialog.getByRole("button", { name: "Create" }).click();
+      const why = dialog.getByText(`${LISTED} Claude Code`, { exact: false });
+      await expect(why).toBeVisible();
+      await why.scrollIntoViewIfNeeded();
+      await shot(page, `ai-connectors-client-refusal-${width}`);
     });
 
     test("the old connectors address opens My AI connectors (T-5970)", async ({ page }) => {
