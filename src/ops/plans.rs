@@ -1504,7 +1504,8 @@ async fn revert(
             return Err(missing());
         }
         // A narrowed connector hears of nothing outside its scope, a conflict included.
-        through_connector(caller, project, &kind, &name, false)?;
+        let space = crate::connectors::change_space(now.as_ref(), before.as_ref());
+        through_connector(caller, project, &kind, &name, space.as_deref(), false)?;
         if now != made {
             moved.push(file.path.clone());
             continue;

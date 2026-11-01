@@ -2557,34 +2557,44 @@ pub(crate) mod tests {
         let get = op("jc_resource_get");
         let list = op("jc_resource_list");
         assert_eq!(
-            whole.admits(list, "doprava", &json!({ "kind": "Endpoint" })),
+            whole.admits(list, "doprava", &json!({ "kind": "Endpoint" }), &|_, _| {
+                None
+            }),
             Ok(())
         );
         let err = whole
-            .admits(list, "air", &json!({ "kind": "Endpoint" }))
+            .admits(list, "air", &json!({ "kind": "Endpoint" }), &|_, _| None)
             .expect_err("other project");
         assert!(err.contains("does not reach project air"), "{err}");
         // data-read reads no Role, whatever the person may read.
         let err = whole
-            .admits(get, "doprava", &json!({ "kind": "Role", "name": "x" }))
+            .admits(
+                get,
+                "doprava",
+                &json!({ "kind": "Role", "name": "x" }),
+                &|_, _| None,
+            )
             .expect_err("kind");
         assert!(err.contains("read only"), "{err}");
 
         let narrow = connector(&["data-read"], vec![item("doprava", Some("counters"))]);
         let named = json!({ "kind": "Endpoint", "name": "counters" });
-        assert_eq!(narrow.admits(get, "doprava", &named), Ok(()));
+        assert_eq!(narrow.admits(get, "doprava", &named, &|_, _| None), Ok(()));
         let err = narrow
             .admits(
                 get,
                 "doprava",
                 &json!({ "kind": "Endpoint", "name": "parking" }),
+                &|_, _| None,
             )
             .expect_err("unticked Endpoint");
         assert!(err.contains("does not reach Endpoint parking"), "{err}");
         // A list cannot be held to the named Endpoints, so a narrowed project refuses it and
         // tools/list does not offer it.
         assert!(narrow
-            .admits(list, "doprava", &json!({ "kind": "Endpoint" }))
+            .admits(list, "doprava", &json!({ "kind": "Endpoint" }), &|_, _| {
+                None
+            })
             .is_err());
         assert!(!narrow.lists(list, "doprava"));
         assert!(narrow.lists(get, "doprava"));
@@ -2594,29 +2604,42 @@ pub(crate) mod tests {
         let search = op("jc_catalog_search");
         let q = json!({ "q": "schools" });
         assert!(whole.lists(search, "doprava"));
-        assert_eq!(whole.admits(search, "doprava", &q), Ok(()));
+        assert_eq!(whole.admits(search, "doprava", &q, &|_, _| None), Ok(()));
         assert!(!whole.lists(search, "air"));
-        assert!(whole.admits(search, "air", &q).is_err());
+        assert!(whole.admits(search, "air", &q, &|_, _| None).is_err());
         assert!(!narrow.lists(search, "doprava"));
-        assert!(narrow.admits(search, "doprava", &q).is_err());
+        assert!(narrow.admits(search, "doprava", &q, &|_, _| None).is_err());
         // query_data names its Endpoint by `endpoint`: the ticked one reads, another is refused.
         let query = op("jc_data_query");
         assert!(narrow.lists(query, "doprava"));
         assert_eq!(
-            narrow.admits(query, "doprava", &json!({ "endpoint": "counters" })),
+            narrow.admits(
+                query,
+                "doprava",
+                &json!({ "endpoint": "counters" }),
+                &|_, _| None
+            ),
             Ok(())
         );
         let err = narrow
-            .admits(query, "doprava", &json!({ "endpoint": "parking" }))
+            .admits(
+                query,
+                "doprava",
+                &json!({ "endpoint": "parking" }),
+                &|_, _| None,
+            )
             .expect_err("unticked Endpoint");
         assert!(err.contains("does not reach Endpoint parking"), "{err}");
-        assert!(narrow.admits(query, "doprava", &json!({})).is_err());
+        assert!(narrow
+            .admits(query, "doprava", &json!({}), &|_, _| None)
+            .is_err());
         assert!(!narrow.lists(get, "air"));
         assert_eq!(
             narrow.admits(
                 op("jc_schema_get"),
                 "doprava",
-                &json!({ "kind": "Endpoint" })
+                &json!({ "kind": "Endpoint" }),
+                &|_, _| None
             ),
             Ok(())
         );
@@ -2625,7 +2648,8 @@ pub(crate) mod tests {
             .admits(
                 get,
                 "doprava",
-                &json!({ "kind": "DataModel", "name": "counters" })
+                &json!({ "kind": "DataModel", "name": "counters" }),
+                &|_, _| None
             )
             .is_err());
         let star = connector(&["data-read"], vec![item("doprava", Some("*"))]);
@@ -2633,7 +2657,8 @@ pub(crate) mod tests {
             star.admits(
                 get,
                 "doprava",
-                &json!({ "kind": "Endpoint", "name": "any" })
+                &json!({ "kind": "Endpoint", "name": "any" }),
+                &|_, _| None
             ),
             Ok(())
         );
@@ -3039,7 +3064,10 @@ pub(crate) mod tests {
         let events = json!({ "kind": "pipeline.error,pipeline.run", "severity": "error" });
         let activity = op("jc_activity_list");
         assert_eq!(ceiling.admits(&live, activity, "doprava", &events), Ok(()));
-        assert_eq!(live.admits(activity, "doprava", &events), Ok(()));
+        assert_eq!(
+            live.admits(activity, "doprava", &events, &|_, _| None),
+            Ok(())
+        );
         assert!(ceiling
             .admits(&live, activity, "skolstvo", &events)
             .is_err());
@@ -3049,7 +3077,7 @@ pub(crate) mod tests {
             .admits(&live, list, "doprava", &secret)
             .expect_err("Secret is in no segment");
         assert!(why.contains("on Secret"), "{why}");
-        assert!(live.admits(list, "doprava", &secret).is_err());
+        assert!(live.admits(list, "doprava", &secret, &|_, _| None).is_err());
     }
 
     /// T-6288: a steward's Subscription and ModelProjection manifests are project configuration
@@ -3073,8 +3101,16 @@ pub(crate) mod tests {
         )]);
         for kind in ["Subscription", "ModelProjection"] {
             let args = json!({ "kind": kind });
-            assert_eq!(context.admits(list, "doprava", &args), Ok(()), "{kind}");
-            assert_eq!(context.admits(plan, "doprava", &args), Ok(()), "{kind}");
+            assert_eq!(
+                context.admits(list, "doprava", &args, &|_, _| None),
+                Ok(()),
+                "{kind}"
+            );
+            assert_eq!(
+                context.admits(plan, "doprava", &args, &|_, _| None),
+                Ok(()),
+                "{kind}"
+            );
             assert_eq!(
                 open.admits(&context, list, "doprava", &args),
                 Ok(()),
@@ -3086,14 +3122,22 @@ pub(crate) mod tests {
                 "{kind}"
             );
             let why = reader
-                .admits(list, "doprava", &args)
+                .admits(list, "doprava", &args, &|_, _| None)
                 .expect_err("data-read reads no manifest of the kind");
             assert!(why.contains("read only"), "{why}");
         }
         let subscription = json!({ "kind": "Subscription" });
-        assert_eq!(pipeline.admits(plan, "doprava", &subscription), Ok(()));
+        assert_eq!(
+            pipeline.admits(plan, "doprava", &subscription, &|_, _| None),
+            Ok(())
+        );
         assert!(pipeline
-            .admits(list, "doprava", &json!({ "kind": "ModelProjection" }))
+            .admits(
+                list,
+                "doprava",
+                &json!({ "kind": "ModelProjection" }),
+                &|_, _| None
+            )
             .is_err());
         // The ceiling still decides per kind: a policy naming only Endpoint refuses both.
         let endpoints_only = Ceiling::of_policies(vec![(
