@@ -34,6 +34,8 @@ export interface GridState {
 export interface GridLabels {
   id: string;
   type: string;
+  /** The entity's scope column (NGSI-LD `scope`), last when a row carries one. */
+  scope: string;
   createdAt: string;
   modifiedAt: string;
   observedAt: string;
@@ -82,6 +84,11 @@ export interface GridLabels {
    * other brokers, CIM 009 4.23.1): `{count}` is the number of loaded rows the order is of (T-5618).
    */
   sortedLoaded: string;
+  /**
+   * Under the toolbar when the person may read only some of the type's attributes (T-6210): those
+   * are never rendered, the line says they exist. `{count}` is how many are not shown.
+   */
+  notReadable: string;
   /** Before the problem's title when the broker refused the grid's query (a 400). */
   queryRefused: string;
   /** The disclosure holding the broker's own sentence about a refused query. */
@@ -157,9 +164,6 @@ export interface GridLabels {
   locked: string;
   lockReadOnly: string;
   lockNotOffered: string;
-  /** The column of an attribute the person may not read, and the header button that removes it. */
-  hiddenNoAccess: string;
-  removeHidden: string;
   pasteTooLarge: string;
   /** A scrolling grid's footer (T-3097): "120 of 10 400 loaded". */
   loaded: string;
@@ -227,6 +231,7 @@ const MOVE_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 export const DEFAULT_LABELS: GridLabels = {
   id: "ID",
   type: "Type",
+  scope: "Scope",
   createdAt: "Created",
   modifiedAt: "Modified",
   observedAt: "Observed",
@@ -274,6 +279,7 @@ export const DEFAULT_LABELS: GridLabels = {
   sortPage: "Sort this page by",
   sortAll: "Sort all rows by",
   sortedLoaded: "Sorted within the {count} loaded rows: this view also reads other brokers, which do not sort.",
+  notReadable: "{count} more fields are not shown: your access does not include them.",
   queryRefused: "The broker refused this query",
   errorDetail: "What the broker said",
   matching: "matching",
@@ -320,8 +326,6 @@ export const DEFAULT_LABELS: GridLabels = {
   locked: "Read-only",
   lockReadOnly: "Your access lets you read it, not change it.",
   lockNotOffered: "This table does not offer it for editing.",
-  hiddenNoAccess: "hidden: no access",
-  removeHidden: "Remove this hidden column",
   pasteTooLarge: "The copied range is too large to paste at once; paste a smaller range, or import the rows from a file.",
   loaded: "loaded",
   of: "of",
@@ -525,6 +529,9 @@ const META_LABEL: Record<MetaKey, keyof GridLabels> = {
   modifiedAt: "modifiedAt",
 };
 
+/** The attribute that names an entity: always third, after id and type (T-6210). */
+export const NAME_COLUMN = "name";
+
 function buildColumns(
   config: ResolvedGridConfig,
   rows: RichRow[],
@@ -536,18 +543,10 @@ function buildColumns(
 ): VisibleColumn[] {
   const cols: VisibleColumn[] = [];
 
-  // The primary field (T-3097, ADR-N-042): the first column the config pins takes the identifier's
-  // place as the row's first, pinned column, and its value opens the row; without one the id does.
-  const primary = config.columns.find((c) => c.pinned)?.attr;
-  if (primary === undefined) {
-    cols.push({ key: "id", attr: null, meta: null, label: labels.id, pinned: true });
-  }
-
-  // entity timestamps
-  if (config.entityTimestamps) {
-    cols.push({ key: "entity:createdAt", attr: null, meta: null, label: labels.createdAt, pinned: false });
-    cols.push({ key: "entity:modifiedAt", attr: null, meta: null, label: labels.modifiedAt, pinned: false });
-  }
+  // What every entity has comes first and stays (T-6210, owner 2026-10-31): its id, pinned, then its
+  // type; the name follows when the type has one. Neither is hidden or moved.
+  cols.push({ key: "id", attr: null, meta: null, label: labels.id, pinned: true });
+  cols.push({ key: "entity:type", attr: null, meta: null, label: labels.type, pinned: false });
 
   // The model's relationship ends are columns even on a page where no entity holds one yet: an
   // empty end is what a person comes to fill, and a computed end is never in a row at all.
@@ -555,9 +554,15 @@ function buildColumns(
     config.columns.length > 0
       ? config.columns.map((c) => c.attr)
       : [...new Set([...attributesOf(rows), ...Object.keys(relations)])];
-  // The person's order first, then the rest as listed; the primary stays first, it names the row.
+  // The field the config pins (T-3097) leads the attributes after the name; then the person's
+  // order, then the rest as listed.
+  const primary = config.columns.find((c) => c.pinned)?.attr;
   const ordered = [...new Set([...(layout.order ?? []).filter((attr) => listed.includes(attr)), ...listed])];
-  const attrList = primary === undefined ? ordered : [primary, ...ordered.filter((attr) => attr !== primary)];
+  const attrList = [
+    ...(listed.includes(NAME_COLUMN) ? [NAME_COLUMN] : []),
+    ...(primary !== undefined && primary !== NAME_COLUMN ? [primary] : []),
+    ...ordered.filter((attr) => attr !== NAME_COLUMN && attr !== primary),
+  ];
   const colMap = new Map<string, GridColumn>();
   for (const c of config.columns) {
     colMap.set(c.attr, c);
@@ -565,19 +570,27 @@ function buildColumns(
 
   const left = new Set(hidden);
   for (const attr of attrList) {
-    if (left.has(attr) && attr !== primary) continue;
+    // Hidden covers what the person may not read, so even the name leaves when it is not theirs.
+    if (left.has(attr)) continue;
     const gridCol = colMap.get(attr);
     const label = layout.labels?.[attr] ?? gridCol?.label ?? readableName(attr);
     const width = layout.width?.[attr] ?? gridCol?.width;
-    // Only the primary is pinned: a second sticky column would sit over the first at the left edge.
-    const pinned = attr === primary;
     const symbol = unitSymbol(unitOfColumn(rows, attr));
-    cols.push({ key: attr, attr, meta: null, label: symbol ? `${label} (${symbol})` : label, pinned, ...(width ? { width } : {}) });
+    cols.push({ key: attr, attr, meta: null, label: symbol ? `${label} (${symbol})` : label, pinned: false, ...(width ? { width } : {}) });
 
     const metaKeys = shown[attr] ?? [];
     for (const meta of metaKeys) {
       cols.push({ key: `${attr}:${meta}`, attr, meta, label: `${label} · ${labels[META_LABEL[meta]]}`, pinned: false });
     }
+  }
+
+  // The entity's own system members close the row: its timestamps, then its scope where one is set.
+  if (config.entityTimestamps) {
+    cols.push({ key: "entity:createdAt", attr: null, meta: null, label: labels.createdAt, pinned: false });
+    cols.push({ key: "entity:modifiedAt", attr: null, meta: null, label: labels.modifiedAt, pinned: false });
+  }
+  if (rows.some((row) => row.scope !== undefined)) {
+    cols.push({ key: "entity:scope", attr: null, meta: null, label: labels.scope, pinned: false });
   }
 
   return cols;
@@ -983,6 +996,8 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
         if (column.key === "id") return { text: row.id };
         if (column.key === "entity:createdAt") return { text: row.createdAt ?? "" };
         if (column.key === "entity:modifiedAt") return { text: row.modifiedAt ?? "" };
+        if (column.key === "entity:type") return { text: row.type };
+        if (column.key === "entity:scope") return { text: [row.scope ?? []].flat().join(", ") };
         return { text: "" };
       }
       const cell = row.cells[column.attr];

@@ -896,6 +896,38 @@ describe("the space's own data", () => {
     });
   });
 
+  it("opens a saved view of a kind the page no longer has as the grid, with its query (T-6210)", async () => {
+    const view = {
+      id: "7f1c2a9e-4b1d-4a57-9a0e-2f6d1c3b8e09",
+      type: "AirQualityObserved",
+      kind: "kanban",
+      mode: "collaborative",
+      title: "Old board",
+      owner: "jana.kovacova",
+      config: { q: "no2>40" },
+      version: 1,
+      createdAt: "2026-10-06T19:00:00Z",
+      updatedAt: "2026-10-06T19:00:00Z",
+    };
+    const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200 }, { views: [view] });
+    // Only the grid and the API are offered.
+    const tabs = within(await screen.findByRole("tablist", { name: en.spaces.views.label })).getAllByRole("tab");
+    expect(tabs.map((tab) => tab.textContent)).toEqual([en.spaces.views.kind.grid, en.spaces.views.kind.api]);
+
+    const picker = await screen.findByLabelText(en.spaces.saved.view);
+    await waitFor(() => expect(within(picker).getAllByRole("option")).toHaveLength(2));
+    await userEvent.selectOptions(picker, view.id);
+
+    await waitFor(() => {
+      const asked = fetchMock.mock.calls
+        .map((call) => urlOf(call[0]))
+        .filter((url) => url.pathname.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities"));
+      expect(asked.some((url) => url.searchParams.get("q") === "no2>40")).toBe(true);
+    });
+    expect(screen.getByRole("tab", { name: en.spaces.views.kind.grid })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+  });
+
   it("marks the rows a view's colour rule matches, and hides the fields it hides (T-3099)", async () => {
     const rows = [
       { id: "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:1", type: "AirQualityObserved", pm10: { type: "Property", value: 52 }, no2: { type: "Property", value: 9 } },
@@ -957,7 +989,8 @@ describe("the space's own data", () => {
     renderInside({ status: 200, count: 1 }, { status: 200, rows: KPI_ROWS }, { source: KPI_MODEL });
 
     expect(await screen.findByRole("columnheader", { name: /Particulates/ })).toBeInTheDocument();
-    await waitFor(() => expect(headerNames().slice(0, 5)).toEqual(["Name", "Ref station", "Calculation period", "Particulates (µg/m³)", "Status"]));
+    // T-6210: id, type and name lead, then the model's order.
+    await waitFor(() => expect(headerNames().slice(0, 7)).toEqual(["ID", "Type", "Name", "Ref station", "Calculation period", "Particulates (µg/m³)", "Status"]));
     // DM-102: the model declares secretNote, the caller's answer does not carry it.
     expect(screen.queryByRole("columnheader", { name: /secret/i })).toBeNull();
     const grid = screen.getByRole("grid");
@@ -990,7 +1023,7 @@ describe("the space's own data", () => {
     await userEvent.click(screen.getByRole("button", { name: en.entityGrid.hideColumn }));
     await userEvent.click(screen.getByRole("button", { name: `${en.entityGrid.columnMenu}: Ref station` }));
     await userEvent.click(screen.getByRole("button", { name: en.entityGrid.moveRight }));
-    await waitFor(() => expect(headerNames().slice(0, 3)).toEqual(["Name", "Calculation period", "Ref station"]));
+    await waitFor(() => expect(headerNames().slice(0, 5)).toEqual(["ID", "Type", "Name", "Calculation period", "Ref station"]));
     expect(screen.queryByRole("columnheader", { name: /State/ })).toBeNull();
 
     // "All rows" keeps them in this browser: a reload reads them back (viewLayout.readLayout).
@@ -1016,9 +1049,10 @@ describe("the space's own data", () => {
     expect((body.config.order as string[]).indexOf("refStation")).toBeGreaterThan((body.config.order as string[]).indexOf("calculationPeriod"));
   });
 
-  // T-4264, T-4160 #6: the grid leads with the entity's name, its URN the button's tooltip, and the
-  // headers and the alerts button say what the model titles them.
-  it("leads the data with each entity's name and the model's titles, not the URN and the keys", async () => {
+  // T-4264, T-4160 #6, T-6210: the grid leads with the id, the type and the entity's name (owner
+  // 2026-10-31), the id cell opens the row by the name with the URN as its tooltip, and the headers
+  // and the alerts button say what the model titles them.
+  it("leads the data with id, type and the entity's name, and the model's titles for the keys", async () => {
     const rows = [
       {
         id: "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:1",
@@ -1042,14 +1076,15 @@ describe("the space's own data", () => {
     renderInside({ status: 200, count: 1 }, { status: 200, rows }, { source });
 
     const station = await screen.findByRole("columnheader", { name: /Station/ });
-    // First in the grid's own header row, where the URN used to lead; only the row-number column
-    // with its select-all checkbox comes before it (T-4883).
+    // After the row-number column with its select-all checkbox (T-4883): id, type, then the name.
     const row = station.closest("tr") as HTMLTableRowElement;
     const headers = within(row).getAllByRole("columnheader");
     expect(within(headers[0]!).getByRole("checkbox", { name: "Select all loaded rows" })).toBeInTheDocument();
-    expect(headers[1]).toBe(station);
+    expect(headers[1]).toHaveTextContent(/^ID/);
+    expect(headers[2]).toHaveTextContent(/^Type/);
+    expect(headers[3]).toBe(station);
     expect(within(row).getByRole("columnheader", { name: /Particles PM10/ })).toBeInTheDocument();
-    expect(within(row).queryByRole("columnheader", { name: /^(pm10|ID)$/ })).toBeNull();
+    expect(within(row).queryByRole("columnheader", { name: /^pm10$/ })).toBeNull();
     const open = screen.getByRole("button", { name: `${en.entityGrid.openRow}: Námestie SNP` });
     expect(open).toHaveAttribute("title", rows[0].id);
     expect(screen.getByRole("button", { name: en.alerts.forType.replace("{type}", "Air quality reading") })).toBeInTheDocument();

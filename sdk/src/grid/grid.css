@@ -74,19 +74,18 @@
   text-overflow: ellipsis;
 }
 
-/* The row's name may wrap anywhere, so the table's own sizing gave its column the width of one
-   letter and a long text column took the rest: names ran over four lines at 1440 (T-4992). It
-   keeps 180 px, or 40% of a phone's width, before the other columns share the rest. */
+/* The pinned column is the id (T-6210), shown by its last segment: 128 px, or a quarter of a
+   phone's width, keeps it readable without taking the row from the type and the name beside it. */
 .jc-grid :is(th, td).jc-grid-pinned {
-  min-width: min(11.25rem, 40vw);
+  min-width: min(8rem, 25vw);
 }
 
 .jc-grid td.jc-grid-pinned {
   position: sticky;
   left: 0;
   z-index: 1;
-  /* A URN is long: the pinned column keeps at most 40% of the grid, the rest scrolls (UI-70). */
-  max-width: min(40vw, 22rem);
+  /* A URN is long: the pinned column keeps at most 30% of the grid, the rest scrolls (UI-70). */
+  max-width: min(30vw, 16rem);
   overflow: hidden;
   text-overflow: ellipsis;
   background: var(--jc-color-surface, #ffffff);
@@ -96,9 +95,16 @@
   background: var(--jc-color-card, #f5f5f5);
 }
 
+/* An inset shadow, not an outline: it paints with the cell, so the frozen columns cover it where the
+   cell scrolls under them (T-6210). */
 .jc-grid td[data-active] {
-  outline: 2px solid var(--jc-color-accent, #0066cc);
-  outline-offset: -2px;
+  box-shadow: inset 0 0 0 2px var(--jc-color-accent, #0066cc);
+}
+
+/* Positioned (no z-index, so no new stacking context): the active cell's mark passes under the
+   frozen columns (T-6210). */
+.jc-grid td[data-active]:not(.jc-grid-pinned, .jc-grid-rownum) {
+  position: relative;
 }
 
 .jc-grid-meta-btn {
@@ -315,9 +321,28 @@
   border: 1px dashed currentColor;
 }
 
+/* One dashed frame round the refused row (T-6210), drawn as each cell's background image: it
+   paints with the cell, so a frozen cell carries its part and nothing draws over the frozen columns
+   (an outline did; a collapsed dashed border loses to the solid line of the row above). */
 .jc-grid-tbody tr[data-refused] td {
-  outline: 1px dashed currentColor;
-  outline-offset: -1px;
+  --jc-dash-x: linear-gradient(90deg, currentColor 50%, transparent 0);
+  --jc-dash-y: linear-gradient(180deg, currentColor 50%, transparent 0);
+  background-image: var(--jc-dash-x), var(--jc-dash-x);
+  background-size: 6px 1px;
+  background-position: 0 0, 0 100%;
+  background-repeat: repeat-x;
+}
+.jc-grid-tbody tr[data-refused] td:first-child,
+.jc-grid-tbody tr[data-refused] td:last-child {
+  background-image: var(--jc-dash-x), var(--jc-dash-x), var(--jc-dash-y);
+  background-size: 6px 1px, 6px 1px, 1px 6px;
+  background-repeat: repeat-x, repeat-x, repeat-y;
+}
+.jc-grid-tbody tr[data-refused] td:first-child {
+  background-position: 0 0, 0 100%, 0 0;
+}
+.jc-grid-tbody tr[data-refused] td:last-child {
+  background-position: 0 0, 0 100%, 100% 0;
 }
 
 .jc-grid-pending,
@@ -663,7 +688,7 @@
   text-decoration: underline;
   cursor: pointer;
   text-align: start;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   /* The row's name wraps inside the pinned column rather than being cut off at a phone's width:
      the column keeps its 40% and the whole name stays readable (T-2782). */
   white-space: normal;
@@ -863,11 +888,11 @@
   background: color-mix(in srgb, var(--jc-tone) 10%, transparent);
 }
 
-/* On a phone the pinned name keeps a column to read in: a name may wrap anywhere, so without a
-   floor the table squeezes it to a few letters a line (T-4162 #6); the other columns scroll. */
+/* On a phone the pinned id keeps a floor, so the table never squeezes it to a few letters a line
+   (T-4162 #6); the other columns scroll. */
 @media (width <= 640px) {
   .jc-grid td.jc-grid-pinned {
-    min-width: min(45vw, 12rem);
+    min-width: min(25vw, 7rem);
   }
 }
 
@@ -1026,6 +1051,7 @@ a.jc-cell--link:focus-visible {
 }
 
 .jc-grid .jc-grid-rownum {
+  text-overflow: clip;
   position: sticky;
   left: 0;
   z-index: 2;
@@ -1047,6 +1073,10 @@ a.jc-cell--link:focus-visible {
 .jc-grid[data-row-numbers] :is(td, th).jc-grid-pinned {
   left: var(--jc-grid-rownum-width);
   box-shadow: 1px 0 0 var(--jc-color-line, #e0e0e0);
+}
+
+.jc-grid[data-row-numbers] td.jc-grid-pinned[data-active] {
+  box-shadow: inset 0 0 0 2px var(--jc-color-accent, #0066cc), 1px 0 0 var(--jc-color-line, #e0e0e0);
 }
 
 .jc-grid-rownum-n {
@@ -1172,6 +1202,7 @@ a.jc-cell--link:focus-visible {
 
 .jc-grid-tfoot td.jc-grid-pinned {
   z-index: 3;
+  background: var(--jc-color-card, #f5f5f5);
 }
 
 @media (width <= 640px) {
@@ -1186,7 +1217,7 @@ a.jc-cell--link:focus-visible {
   }
 
   .jc-grid[data-row-size] td.jc-grid-pinned {
-    min-width: min(40vw, 10rem);
+    min-width: min(25vw, 7rem);
   }
 }
 
@@ -1205,9 +1236,19 @@ a.jc-cell--link:focus-visible {
   -webkit-line-clamp: 3;
   line-clamp: 3;
   overflow: hidden;
-  overflow-wrap: anywhere;
+  /* A word breaks only when it is longer than the cell: "anywhere" also lowered the column's
+     narrowest width, so a phone split "AirQualityObserved" and "Mannerheimintie" mid-word (T-6210). */
+  overflow-wrap: break-word;
 }
 .jc-grid-pinned > .jc-grid-cell { max-width: 40ch; }
+/* The id and the type are one line each, cut with "…"; the whole value is the cell's title. */
+.jc-grid td:is(.jc-grid-pinned, [data-col="entity:type"]) > .jc-grid-cell,
+.jc-grid td.jc-grid-pinned > .jc-grid-cell > .jc-grid-open {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 /* The cell's own wrapping, not the row's single line; the name's button wraps and clamps with it. */
 .jc-grid-cell, .jc-grid-cell > .jc-grid-open { white-space: normal; text-align: start; }
 .jc-grid-cell > .jc-grid-open { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
@@ -1274,7 +1315,7 @@ a.jc-cell--link:focus-visible {
   .jc-grid-filter-toggle[aria-expanded="true"]::after { content: "\25B4"; }
   .jc-grid-pages button { min-width: 2.75rem; min-height: 2.75rem; }
   .jc-grid:not([data-filters="open"]) .jc-grid-filter-row { display: none; }
-  .jc-grid :is(th, td).jc-grid-pinned { min-width: min(58vw, 15rem); }
+  .jc-grid :is(th, td).jc-grid-pinned { min-width: min(25vw, 7rem); }
 }
 
 /* T-5530: the review's copy button beside a row's name holds the URN the table no longer prints. */
@@ -1384,9 +1425,15 @@ a.jc-cell--link:focus-visible {
 .jc-grid-inspector-ask { color: var(--jc-color-accent, #0066cc); }
 
 /* The small "i" beside a cell's value: seen on hover and on the active cell, always clickable. */
+/* The button floats in a padding of its own (T-6210): a float inside the cell narrowed the text
+   below the width the table had sized the column for, so a phone split a word under it. */
+.jc-grid-td:has(> .jc-grid-info) {
+  padding-inline-end: calc(var(--jc-space-3, 12px) + 1.5rem);
+}
 .jc-grid-info {
   float: right;
   margin-inline-start: 0.25rem;
+  margin-inline-end: -1.5rem;
   width: 1.25rem;
   height: 1.25rem;
   padding: 0;
@@ -1424,46 +1471,6 @@ a.jc-cell--link:focus-visible {
   color: var(--jc-color-muted, #4b5563);
 }
 
-/* An attribute the person may not read: a narrow grey column that says so and holds no value. */
-.jc-grid-th--no-access,
-.jc-grid-td--no-access {
-  width: 7rem;
-  min-width: 7rem;
-  max-width: 7rem;
-  background: var(--jc-color-card, #f3f4f6);
-  color: var(--jc-color-muted, #4b5563);
-}
-
-.jc-grid-td--no-access {
-  background-image: repeating-linear-gradient(135deg, transparent 0 6px, var(--jc-color-line, #d0d7de) 6px 7px);
-}
-
-.jc-grid-th--no-access {
-  padding-inline-end: 1.75rem;
-}
-
-.jc-grid-no-access-name {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* The note wraps rather than cut: "hidden: no access" is the whole message of the column. */
-.jc-grid-no-access-note {
-  display: block;
-  white-space: normal;
-  font-size: var(--jc-font-size-sm, 12px);
-  font-weight: normal;
-  font-style: italic;
-}
-
-.jc-grid-th--no-access .jc-grid-meta-btn {
-  position: absolute;
-  inset-block-start: 0.25rem;
-  inset-inline-end: 0.25rem;
-}
-
 /* The Metadata tab (T-5529): a hidden field reads as withheld, never as an empty value. */
 .jc-grid-meta-hidden {
   color: var(--jc-color-muted, #57606a);
@@ -1487,3 +1494,18 @@ a.jc-cell--link:focus-visible {
 .jc-grid-hidden-list li { display: inline-flex; align-items: center; gap: var(--jc-space-2, 8px); padding-inline-start: var(--jc-space-3, 12px); border: 1px solid var(--jc-color-line, #e0e0e0); border-radius: var(--jc-radius-sm, 4px); }
 .jc-grid-hidden-list li:has(> button:only-child) { padding: 0; border: 0; }
 .jc-grid-hidden-list button { min-height: 2.75rem; padding: var(--jc-space-1, 4px) var(--jc-space-3, 12px); border: 0; border-radius: var(--jc-radius-sm, 4px); background: transparent; color: var(--jc-color-accent, #0066cc); font: inherit; text-decoration: underline; cursor: pointer; }
+
+/* On a phone the frozen lead (the checkbox) and the id together keep a quarter of the width, under
+   the 30% the id alone may take (T-6210): the checkbox cell loses its side padding, the id the rest. */
+@media (width <= 640px) {
+  .jc-grid .jc-grid-rownum {
+    padding-inline: 0.25rem;
+    text-align: center;
+  }
+
+  .jc-grid[data-row-numbers] :is(th, td).jc-grid-pinned {
+    box-sizing: border-box;
+    min-width: calc(25vw - var(--jc-grid-rownum-width));
+    max-width: calc(25vw - var(--jc-grid-rownum-width));
+  }
+}

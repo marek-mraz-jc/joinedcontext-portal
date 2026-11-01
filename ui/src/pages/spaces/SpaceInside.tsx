@@ -32,7 +32,6 @@ import { attributeAccessQuery, writableOf } from "../../api/access";
 import type { AttributeAccess } from "../../api/access";
 import type { GrantDocument } from "../../api/access";
 import { PortalEntityGrid, rememberedSort } from "../../components/entities/PortalEntityGrid";
-import { EntityFilters } from "../../components/entities/EntityFilters";
 import { enumsOfModel, filterSlotsOf, relationsOfModel, rulesOfModel, useModelSource } from "../../components/entities/filters";
 import type { FilterSlot } from "../../components/entities/filters";
 import { AddFieldDialog } from "../../components/entities/AddFieldDialog";
@@ -56,22 +55,8 @@ import { localId, textOf } from "../apps/QueryResultCard";
 import { TypeLink } from "../models/ModelLinks";
 import { useSourceOf } from "../models/ModelPage";
 import { ProposeLink } from "../models/ModelsList";
-import {
-  CalendarView,
-  deleteRow,
-  GalleryView,
-  KanbanView,
-  MapOfRows,
-  LiveNotice,
-  RowExtra,
-  TimelineView,
-  TrashPanel,
-  trashKey,
-  useLive,
-  useViewRows,
-} from "./DataViews";
+import { deleteRow, LiveNotice, TrashPanel, trashKey, useLive } from "./DataViews";
 import type { LiveChange } from "./DataViews";
-import type { EnumChoice } from "./DataViews";
 import { SpaceDrift } from "./SpaceDrift";
 import { TypeApi } from "./TypeApi";
 import { SharePanel } from "./SharePanel";
@@ -80,9 +65,7 @@ import { useWorkspace } from "../../components/layout/WorkspaceContext";
 import { CommentsPanel } from "./Comments";
 import { importSlotsOf, MAX_EXPORT_IDS } from "./importRows";
 import { useOrgDomain } from "../../api/projects";
-import { everyAttribute, FormSettingsEditor, FormSharePanel, FormView } from "./FormView";
-import type { FormSettings } from "./formView";
-import { AiFieldPanel } from "./AiField";
+import { FormView } from "./FormView";
 import { SpaceChecks } from "./SpaceChecks";
 import { SpaceQuality } from "./SpaceQuality";
 import { SpacePersonalData } from "./SpacePersonalData";
@@ -547,10 +530,6 @@ function SpaceData({
   // The view is in the address, so back, reload and a sent link open it (T-3239).
   const [view, setView] = useUrlParam<DataView>("view", "grid", DATA_VIEWS);
   const [q, setQ] = useState<string | undefined>(undefined);
-  // The columns the views beside the grid read (`attrs`), kept with the type they were chosen for,
-  // so another type starts with all of its attributes again (T-6092).
-  const [chosen, setChosen] = useState<{ type: string; attrs?: string[] }>({ type: "" });
-  const attrs = chosen.type === type ? chosen.attrs : undefined;
   // A field is a slot of the type's class: offered only when the space's model declares the type.
   const ownClass = useMemo(
     () => modelSource !== undefined && parseModel(modelSource).classes.some((c) => c.name === type),
@@ -576,7 +555,6 @@ function SpaceData({
   const [group, setGroup] = useState<string | null>(null);
   const [seen, setSeen] = useState<string[]>([]);
   // A form view's fields, conditions and prefill (T-3103, API/01 §30): its `settings`.
-  const [formSettings, setFormSettings] = useState<FormSettings>({});
   // The grid's toolbar (T-4883): the filter panel's conditions, the search, the row size and each
   // column's footer, all but the search kept in the view's settings.
   const [filters, setFilters] = useState<FilterGroup>(EMPTY_GROUP);
@@ -615,8 +593,9 @@ function SpaceData({
     setSearchText("");
     setSearch("");
     setSelectedRows([]);
-    // A saved view opens as the kind it was saved as, with its filter for the views beside the grid.
-    if (next && (DATA_VIEWS as readonly string[]).includes(next.kind)) setView(next.kind as DataView);
+    // A saved view opens as the kind it was saved as; one of a kind the page no longer has (a board,
+    // a calendar, T-6210) opens as the grid, its stored row untouched.
+    if (next) setView((DATA_VIEWS as readonly string[]).includes(next.kind) ? (next.kind as DataView) : "grid");
     setQ(next?.config.q ?? undefined);
     // "All rows" keeps the person's own columns in this browser; a saved view brings its own.
     const kept = next ? undefined : readLayout(project, space, forType);
@@ -628,7 +607,6 @@ function SpaceData({
       order: next ? next.config.order : kept?.order,
       labels: next ? next.config.labels : kept?.labels,
     });
-    setFormSettings(next?.kind === "form" ? ((next.config.settings ?? {}) as FormSettings) : {});
     setGroup(null);
     const first = next?.config.sort?.[0];
     setGridView({
@@ -677,12 +655,11 @@ function SpaceData({
       sort: sortKeys.map((key) => ({ attr: key.attr, desc: key.dir === "desc" })),
       // The outer group keeps the older `group` (the counts above the grid) where it is an enum.
       group: groupBy[0] !== undefined && enums[groupBy[0]] ? groupBy[0] : undefined,
-      ...(view === "form" ? { settings: formSettings as Record<string, never> } : {}),
       ...(view === "grid"
         ? { settings: { filters, rowSize, aggregations, ...(groupBy.length > 0 ? { groupBy } : {}) } as unknown as Record<string, never> }
         : {}),
     }),
-    [saved, extras, view, asked.q, panelQ, q, sortKeys, groupBy, enums, formSettings, filters, rowSize, aggregations],
+    [saved, extras, view, asked.q, panelQ, q, sortKeys, groupBy, enums, filters, rowSize, aggregations],
   );
   // The attributes a view can hide: the model's slots of the type and whatever the rows carry.
   const onRows = useCallback((rows: RichRow[]) => {
@@ -880,7 +857,7 @@ function SpaceData({
       </PermissionGuard>
     ) : null;
   const addRow =
-    view !== "form" && typeSlots.length > 0 ? (
+    typeSlots.length > 0 ? (
       // The same right as Import beside it; the space's Policy decides the write itself.
       <PermissionGuard project={project} kind="ContextSpace" verb="propose">
         <Button size="sm" onClick={() => setCreating(true)} disabled={!!copy} disabledReason={t("spaces.inside.copyLive")}>
@@ -916,8 +893,7 @@ function SpaceData({
       id="space-data-view"
       label={t("spaces.views.label")}
       variant="pill"
-      // Grid and API only (owner 2026-10-31); the other kinds' code goes with T-6210.
-      tabs={(["grid", "api"] as const).map((value) => ({ value, label: t(`spaces.views.kind.${value}`) }))}
+      tabs={DATA_VIEWS.map((value) => ({ value, label: t(`spaces.views.kind.${value}`) }))}
       value={view}
       onChange={setView}
     />
@@ -1011,7 +987,6 @@ function SpaceData({
               type={type}
               slots={typeSlots}
               enums={enums}
-              settings={formSettings}
               search={new URLSearchParams()}
               onCreated={() => setImported((n) => n + 1)}
             />
@@ -1236,47 +1211,6 @@ function SpaceData({
             q={andQ(asked.q, gridQuery?.q) ?? q}
           />
           <SharePanel key={type} project={project} space={space} type={type} attributes={slots.map((slot) => slot.name)} />
-        </div>
-      ) : null}
-      {readable && view === "form" ? (
-        <div {...tabPanelProps("space-data-view", view)} className="flex flex-col gap-3">
-          <FormSettingsEditor slots={typeSlots} value={formSettings} onChange={setFormSettings} />
-          {copy ? null : <FormView space={space} type={type} slots={typeSlots} enums={enums} settings={formSettings} />}
-          <FormSharePanel
-            key={type}
-            project={project}
-            space={space}
-            type={type}
-            attributes={everyAttribute(typeSlots.map((slot) => slot.name), attributes)}
-            asked={(formSettings.fields?.length ? formSettings.fields.map((field) => field.attr) : typeSlots.map((slot) => slot.name))}
-            relationships={typeSlots.filter((slot) => slot.kind === "Relationship").map((slot) => slot.name)}
-          />
-        </div>
-      ) : null}
-      {readable && view !== "grid" && view !== "api" && view !== "form" ? (
-        <div {...tabPanelProps("space-data-view", view)} className="flex flex-col gap-3">
-          <EntityFilters
-            id="space-view-filter"
-            types={[type]}
-            slots={slots}
-            value={{ type, q, attrs }}
-            onChange={(next) => {
-              setQ(next.q);
-              setChosen({ type, attrs: next.attrs });
-            }}
-          />
-          <OtherView
-            project={project}
-            source={gridSource}
-            editable={editing && writer ? writer.attrs : []}
-            space={space}
-            type={type}
-            q={q}
-            attrs={attrs}
-            view={view}
-            enums={enums}
-            endpoints={endpoints.map((endpoint) => endpoint.metadata.name)}
-          />
         </div>
       ) : null}
       {/* The grid is a view like the others: its tab names this panel (axe aria-valid-attr-value, T-3851). */}
@@ -1762,77 +1696,12 @@ function TypeList({
   );
 }
 
-/** The views of a space's entities (ADR-N-042 §3.2); the grid is the first. */
-const DATA_VIEWS = ["grid", "gallery", "kanban", "calendar", "timeline", "map", "form", "api"] as const;
+/**
+ * The views of a space's entities (ADR-N-042 §3.2): the grid and the API (owner 2026-10-31, T-6210:
+ * one grid for every page; the gallery, board, calendar, timeline, map and form views are gone).
+ */
+const DATA_VIEWS = ["grid", "api"] as const;
 type DataView = (typeof DATA_VIEWS)[number];
-
-/** One view other than the grid, over one page of the filtered type. */
-function OtherView({
-  project,
-  source,
-  space,
-  type,
-  q,
-  attrs,
-  view,
-  enums,
-  endpoints,
-  editable,
-}: {
-  project: string;
-  source: ReturnType<typeof sourceFor>;
-  /** The attributes the person's Endpoint grants let them write (T-4826): a board's move, a date's. */
-  editable: readonly string[];
-  space: string;
-  type: string;
-  q: string | undefined;
-  /** The attributes the person chose in Columns; none: every attribute. */
-  attrs: string[] | undefined;
-  view: Exclude<DataView, "grid" | "api" | "form">;
-  /** The enum slots of the type, by attribute, titled in the page's language (UI-86). */
-  enums: Record<string, EnumChoice[]>;
-  /** The names of the space's Endpoints, which the AI field writes through. */
-  endpoints: string[];
-}): JSX.Element {
-  const { t } = useTranslation();
-  const queryClient = useQueryClient();
-  const rows = useViewRows(source, space, type, q, attrs);
-  // Someone changed rows of this type, anywhere: the page is read again with this session (T-3105).
-  const [live, setLive] = useState<LiveChange | null>(null);
-  useLive(project, space, type, (change) => {
-    setLive(change);
-    void queryClient.invalidateQueries({ queryKey: ["space-view-rows", space, type] });
-  });
-  // A delete keeps the person's copy, then reads the page and the trash again (T-3107).
-  const onDelete = async (row: RichRow) => {
-    await deleteRow(project, space, source, row);
-    await queryClient.invalidateQueries({ queryKey: ["space-view-rows", space] });
-    await queryClient.invalidateQueries({ queryKey: trashKey(project, space) });
-  };
-  if (rows.isPending) return <p role="status">{t("app.loading")}</p>;
-  if (rows.isError) {
-    return (
-      <PageFailed error={rows.error} onRetry={() => void rows.refetch()} />
-    );
-  }
-  if (rows.data.rows.length === 0) {
-    return <p className="text-body text-fg-muted">{t("spaces.inside.dataEmpty")}</p>;
-  }
-  const shown = rows.data.rows;
-  return (
-    <RowExtra.Provider value={(row) => <CommentsPanel project={project} space={space} urn={row.id} />}>
-      <LiveNotice change={live} />
-      {view === "gallery" ? <GalleryView rows={shown} source={source} onDelete={onDelete} /> : null}
-      {view === "kanban" ? (
-        <KanbanView rows={shown} source={source} enums={enums} editable={editable} onDelete={onDelete} />
-      ) : null}
-      {view === "calendar" ? <CalendarView rows={shown} source={source} editable={editable} onDelete={onDelete} /> : null}
-      {view === "timeline" ? <TimelineView rows={shown} source={source} editable={editable} onDelete={onDelete} /> : null}
-      {view === "map" ? <MapOfRows project={project} rows={shown} source={source} onDelete={onDelete} /> : null}
-      <AiFieldPanel project={project} space={space} type={type} endpoints={endpoints} rows={shown} />
-    </RowExtra.Provider>
-  );
-}
 
 /**
  * What one endpoint answers, folded into one line (T-2280, UI-26, EP-51).
