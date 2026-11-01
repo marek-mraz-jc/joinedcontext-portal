@@ -806,7 +806,8 @@ impl Driver {
         .await?;
         let mut prose = share::prose_of(answer);
         if prose.is_empty() {
-            prose = format!("Opened the new data model '{name}' in the editor; review it and save it.");
+            prose =
+                format!("Opened the new data model '{name}' in the editor; review it and save it.");
         }
         self.thought(&prose).await?;
         let route = within(
@@ -2177,7 +2178,9 @@ mod model_create_tests {
             .await
             .expect("read")
             .expect("a draft is kept");
-        let source = draft.manifest["spec"]["linkml"].as_str().expect("the source");
+        let source = draft.manifest["spec"]["linkml"]
+            .as_str()
+            .expect("the source");
         let model: Value = serde_norway::from_str(source).expect("yaml");
         assert_eq!(model["name"], "bike-lanes");
         assert_eq!(model["classes"]["BikeLane"]["is_a"], "Entity");
@@ -2190,7 +2193,11 @@ mod model_create_tests {
             })]
         );
         let sent = tools.received_requests().await.unwrap_or_default();
-        assert_eq!(sent.len(), 1, "the source is compiled once before the editor opens");
+        assert_eq!(
+            sent.len(),
+            1,
+            "the source is compiled once before the editor opens"
+        );
     }
 
     #[tokio::test]
@@ -2211,7 +2218,10 @@ mod model_create_tests {
                 .await
                 .expect("worked");
             let failed = logged(&state, "tool").await;
-            let error = failed.last().and_then(|e| e["error"].as_str()).unwrap_or_default();
+            let error = failed
+                .last()
+                .and_then(|e| e["error"].as_str())
+                .unwrap_or_default();
             assert!(error.contains(says), "{error}");
         }
         assert!(logged(&state, "navigate").await.is_empty());
@@ -2236,6 +2246,10 @@ mod model_create_tests {
             .await
             .expect("worked");
         assert!(logged(&state, "navigate").await.is_empty());
-        assert!(tools.received_requests().await.unwrap_or_default().is_empty());
+        assert!(tools
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .is_empty());
     }
 }

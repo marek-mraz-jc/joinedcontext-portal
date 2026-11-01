@@ -164,7 +164,11 @@ const SET_FIELDS: [&str; 4] = ["range", "required", "multivalued", "description"
 /// organization's prefix, LinkML's types and `ngsi-ld-core`, so a class added `is_a: Entity` is an
 /// NGSI-LD entity type (DM-09, DM-13).
 pub fn blank(domain: &str, name: &str) -> Value {
-    let prefix = domain.split('.').next().filter(|p| !p.is_empty()).unwrap_or("org");
+    let prefix = domain
+        .split('.')
+        .next()
+        .filter(|p| !p.is_empty())
+        .unwrap_or("org");
     json!({
         "id": format!("https://{domain}/models/{name}"),
         "name": name,
