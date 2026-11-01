@@ -554,6 +554,15 @@ async fn propose_checked(
     workspace: Option<&str>,
     confirm: Option<&str>,
 ) -> Result<Response, ApiError> {
+    let mut body_val = body_val;
+    // The slug is the platform's to mint (EP-75); the Portal's own form brings the one it minted.
+    let typed_allowed = front != Front::Bearer && user.0.identity.client.is_none();
+    crate::endpoint_slug::settle_in(state, project, None, typed_allowed, &mut body_val)
+        .await
+        .map_err(|message| ApiError::Unprocessable {
+            detail: format!("the manifest is refused: {message}"),
+            errors: vec![format!("spec.slug: {message}")],
+        })?;
     let manifest = body_val.clone();
     if dry_run {
         let answer = propose_with_identity(
@@ -3293,6 +3302,62 @@ mod tests {
                 "spec": { "audience": "public" }
             })),
             None
+        );
+    }
+
+    /// EP-75 (T-6285): a raw manifest from a bearer caller names no slug of its own; the
+    /// Portal's form, which mints the slug in the browser, still brings it.
+    #[tokio::test]
+    async fn a_bearer_caller_cannot_type_a_new_endpoints_slug() {
+        let state = AppState::new(Config::for_tests(), None);
+        let user = dummy_user();
+        let typed = || {
+            json!({
+                "apiVersion": resource::API_VERSION,
+                "kind": "Endpoint",
+                "metadata": { "name": "t6242-probe", "namespace": "ovzdusie" },
+                "spec": { "contextSpaceRef": "air", "audience": "public",
+                          "slug": "aaaaaaaaaaaaaaaaaaaaaaaaaa" }
+            })
+        };
+        let answer = |front: Front, dry_run: bool| {
+            let (state, user) = (&state, &user);
+            async move {
+                propose_checked(
+                    user,
+                    front,
+                    state,
+                    "ovzdusie",
+                    "endpoints",
+                    None,
+                    Operation::Create,
+                    dry_run,
+                    typed(),
+                    None,
+                    None,
+                )
+                .await
+            }
+        };
+        for dry_run in [true, false] {
+            match answer(Front::Bearer, dry_run).await {
+                Err(ApiError::Unprocessable { errors, .. }) => {
+                    let first = errors.first().map(String::as_str).unwrap_or_default();
+                    assert!(first.starts_with("spec.slug: "), "{errors:?}");
+                    assert!(!first.contains("aaaa"), "{errors:?}");
+                }
+                other => panic!(
+                    "expected 422 at spec.slug, got {:?}",
+                    other.map(|r| r.status())
+                ),
+            }
+        }
+        assert!(
+            !matches!(
+                answer(Front::Portal, true).await,
+                Err(ApiError::Unprocessable { .. })
+            ),
+            "the Portal form brings the slug it minted"
         );
     }
 

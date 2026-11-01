@@ -421,7 +421,7 @@ async fn a_listing_answers_nothing_for_a_kind_or_a_project_the_caller_does_not_r
 
 /// A kind that lives in the organization's home as well as the project's is listed from both, and the
 /// rows are not de-duplicated: a Role of one name in the organization and a Role of that name in the
-/// project are two rows with one name (`src/ops/resources.rs:228`). That is today's behaviour and it is
+/// project are two rows with one name for a caller who reads Roles in both (`src/ops/resources.rs`). That is today's behaviour and it is
 /// arguably right — they are two different manifests — but a client that keys a list by name shows one
 /// and hides the other, so it is written down in `/workspace/chyby.md` and pinned here.
 #[tokio::test]
@@ -452,8 +452,9 @@ async fn a_kind_that_lives_in_two_homes_is_listed_from_both_without_de_duplicati
         "RoleBinding",
         "role-readers",
         ORG_NAMESPACE,
+        // Read in both homes: each home is judged by the grants held there (T-6273).
         json!({ "role": "analyst-reader", "subjects": [{ "user": "jana@hel.fi" }],
-                "scope": { "project": "ovzdusie" } }),
+                "scope": { "organization": "hel" } }),
     ));
 
     let list = ops::find("jc_resource_list").expect("registered");

@@ -273,6 +273,32 @@ async fn resolve_manifest_input(
     project: &str,
     input: &ManifestInput,
 ) -> Result<(Value, Option<DraftRef>), OpError> {
+    let (mut manifest, draft) = given_manifest(caller, state, project, input).await?;
+    settle_slug(caller, state, project, &mut manifest).await?;
+    Ok((manifest, draft))
+}
+
+/// The Endpoint slug of a manifest a caller sent, filled in or refused (EP-75).
+pub(crate) async fn settle_slug(
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+    manifest: &mut Value,
+) -> Result<(), OpError> {
+    crate::endpoint_slug::settle_in(state, project, None, caller.brings_its_own_slug(), manifest)
+        .await
+        .map_err(|message| OpError::InvalidInput {
+            path: format!("/manifest{}", crate::endpoint_slug::PATH),
+            message,
+        })
+}
+
+async fn given_manifest(
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+    input: &ManifestInput,
+) -> Result<(Value, Option<DraftRef>), OpError> {
     if let Some(d) = &input.draft {
         if let Some(m) = &input.manifest {
             same_draft(m, d)?;
@@ -731,10 +757,11 @@ pub(crate) async fn propose_with_optional_draft(
         }
         return Ok(out);
     }
-    let manifest = input.manifest.ok_or_else(|| OpError::InvalidInput {
+    let mut manifest = input.manifest.ok_or_else(|| OpError::InvalidInput {
         path: "/manifest".into(),
         message: "either manifest or draft is required".into(),
     })?;
+    settle_slug(caller, state, project, &mut manifest).await?;
     propose_bare(caller, state, project, plural, manifest).await
 }
 
@@ -878,15 +905,19 @@ pub fn operations() -> Vec<Operation> {
                                 .await
                         }
                     };
-                    let ok = res.valid;
                     let mut findings = Vec::new();
-                    if !ok {
+                    if !res.valid {
                         findings.push(Finding {
                             level: Level::Error,
                             path: "".into(),
                             message: "plan validation failed".into(),
                         });
                     }
+                    // A Policy attribute its space's model lacks narrows the grant to nothing
+                    // (T-6283): an error on its field, not a green plan.
+                    let unknown = super::policy_names::findings(state, project, &manifest).await;
+                    let ok = res.valid && unknown.is_empty();
+                    findings.extend(unknown);
                     // A reference an open change creates passes and names the change (MF-48).
                     findings.extend(res.awaited.iter().map(crate::references::Awaited::finding));
                     let mut verdict = Verdict::new(
