@@ -10838,6 +10838,11 @@
     "aboveCeiling": "Vaša organizácia zatiaľ nedovoľuje konektoru niesť túto predvoľbu.",
     "projectAboveCeiling": "Vaša organizácia zatiaľ nedovoľuje konektoru siahnuť na tento projekt: požiadajte administrátora, aby ho pridal do pravidiel vašej organizácie pre konektory.",
     "endpointsOnly": "Vaša organizácia dovoľuje konektoru siahnuť len na niektoré Endpointy tohto projektu: požiadajte administrátora, aby pridal ďalšie do pravidiel vašej organizácie pre konektory.",
+    "verbsOf": "Čo môže robiť s {kind}",
+    "readComes": "Čítanie prináša predvoľba.",
+    "verbsNone": "Zaškrtnite predvoľbu, ktorá navrhuje zmeny, napr. Kontext alebo Pipelines, a vyberte, čo môže meniť.",
+    "verbsGreyed": "Sivé slovesá najprv musí schváliť vaša organizácia; požiadajte správcu, aby ich povolil.",
+    "verb": {"read": "čítať", "create": "vytvoriť", "edit": "upraviť", "delete": "zmazať", "run": "spustiť", "propose": "vytvoriť, upraviť, zmazať"},
     "binds": "použiť ho môže len tento klient",
     "clientRefused": "politika vašej organizácie ho nedovoľuje",
     "intendedFor": "hovorí, pre koho je; uviesť ho môžu aj iné lokálne programy",
@@ -10867,7 +10872,8 @@
       "segments": "Predvoľby",
       "scope": "Na čo siaha",
       "expires": "Platí do",
-      "clients": "Povolení klienti"
+      "clients": "Povolení klienti",
+      "kinds": "Zmeny, ktoré môže navrhnúť"
     },
     "segment": {
       "data-read": "Čítanie údajov",
@@ -10918,7 +10924,8 @@
       "expires": "Posledný deň platnosti, najviac {days} dní odo dneška, napr. koniec tohto mesiaca.",
       "clients": "Nechajte prázdne pre ktoréhokoľvek klienta, alebo zaškrtnite napr. Claude Code, pre koho je.",
       "clientsListed": "Zaškrtnite klienta, ktorého použijete, napr. claude.ai: vaša organizácia dovolí konektoru odpovedať len klientom, ktorých uvádza jej politika.",
-      "nameStays": "Názov ostáva; podľa neho konektor zobrazuje váš AI klient."
+      "nameStays": "Názov ostáva; podľa neho konektor zobrazuje váš AI klient.",
+      "kinds": "Napr. vytvárať nové Endpointy, ale žiadne neupravovať. Riadky pridávajú len predvoľby, ktoré navrhujú zmeny; každú zmenu aj tak schvaľuje človek."
     },
     "problem": {
       "name": "Zadajte názov z malých písmen, číslic a pomlčiek, napr. doprava-v-claude.",

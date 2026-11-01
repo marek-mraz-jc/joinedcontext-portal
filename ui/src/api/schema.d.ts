@@ -7683,6 +7683,8 @@ export interface components {
             limit: number;
         };
         CeilingView: {
+            /** @description The verbs a connector may tick per kind of the presets; a verb left out is greyed. */
+            kinds: components["schemas"]["ConnectorKindVerbs"][];
             /**
              * Format: int64
              * @description The longest life a connector may get, in days.
@@ -8041,6 +8043,8 @@ export interface components {
             /** Format: date-time */
             expiresAt: string;
             id: string;
+            /** @description Verbs per kind (T-6302); absent: every change the segments reach. */
+            kinds?: components["schemas"]["ConnectorKindVerbs"][] | null;
             /** Format: date-time */
             lastUsedAt?: string | null;
             /** @description What the connector may spend; shown on My connectors. */
@@ -8063,6 +8067,23 @@ export interface components {
             /** @description The MCP address a client adds: `https://portal.{domain}/c/{id}`. */
             url: string;
             writes: boolean;
+        };
+        /**
+         * @description The verbs a connector carries on one kind (API/14 §1, T-6302): `read`, `create` (an object
+         *     the project does not hold yet), `edit` (`replace`, `patch`), `delete` and, on `Pipeline`, `run`;
+         *     `propose` stands for create, edit and delete.
+         */
+        ConnectorKindVerbs: {
+            /** @description A kind the segments reach, e.g. `Endpoint`. */
+            kind: string;
+            /**
+             * @description e.g. `["read", "create"]`.
+             * @example [
+             *       "read",
+             *       "create"
+             *     ]
+             */
+            verbs: string[];
         };
         /**
          * @description What one connector may spend (T-5968): its own calls a minute, calls at once and answer size.
@@ -8099,6 +8120,11 @@ export interface components {
             /** @description The realm's MCP clients a connector may be bound to, e.g. `mcp-local` (Claude Code). */
             clients: components["schemas"]["ClientChoice"][];
             projects: components["schemas"]["ProjectReach"][];
+            /**
+             * @description The kinds each preset that plans changes reaches, one row each in the dialog's verb table
+             *     (T-6302); `data-read` proposes nothing and has none.
+             */
+            segmentKinds: components["schemas"]["SegmentKinds"][];
             /** @description Every preset a connector may name; those outside `ceiling.segments` need approval. */
             segments: string[];
         };
@@ -8118,6 +8144,8 @@ export interface components {
              * @description RFC 3339, e.g. `2026-11-27T00:00:00Z`.
              */
             expiresAt?: string | null;
+            /** @description Verbs per kind, replacing the whole list (T-6302). */
+            kinds?: components["schemas"]["ConnectorKindVerbs"][] | null;
             scope?: components["schemas"]["ConnectorScopeItem"][] | null;
             segments?: string[] | null;
             writes?: boolean | null;
@@ -9496,6 +9524,11 @@ export interface components {
              * @description RFC 3339, e.g. `2026-11-27T00:00:00Z`.
              */
             expiresAt: string;
+            /**
+             * @description Verbs per kind, e.g. `[{"kind": "Endpoint", "verbs": ["read", "create"]}]`; a kind left
+             *     out is read only. Absent: every change the segments reach, as before T-6302.
+             */
+            kinds?: components["schemas"]["ConnectorKindVerbs"][] | null;
             /** @description A DNS-1123 label unique among the person's connectors, e.g. `doprava-in-claude`. */
             name: string;
             scope: components["schemas"]["ConnectorScopeItem"][];
@@ -11031,6 +11064,11 @@ export interface components {
             values: {
                 [key: string]: string;
             };
+        };
+        /** @description One preset and the kinds it reaches, e.g. `pipeline`: `Pipeline`, `DataSource`, ... */
+        SegmentKinds: {
+            kinds: string[];
+            segment: string;
         };
         /** @description One step or operator item and whether it is done. */
         SetupItem: {

@@ -12,7 +12,28 @@ const ID = "abcdefghijklmnopqrstuvwxyz";
 const URL_OF = `https://portal.dev.example/c/${ID}`;
 const OPTIONS = {
   segments: ["data-read", "context", "pipeline", "access", "publish", "apps", "operate", "knowledge", "admin"],
-  ceiling: { segments: ["data-read", "knowledge"], writes: false, maxDays: 30 },
+  segmentKinds: [
+    { segment: "context", kinds: ["ContextSpace", "DataModel", "Endpoint", "Policy", "ModelProjection", "Subscription"] },
+    { segment: "pipeline", kinds: ["Pipeline", "DataSource", "MqttBroker", "SyncSource", "ContextSpace", "DataModel", "Endpoint", "Subscription"] },
+    { segment: "access", kinds: ["Role", "RoleBinding", "ServiceAccount", "Policy", "Group"] },
+    { segment: "publish", kinds: ["Endpoint", "CkanInstance", "DataModel"] },
+    { segment: "apps", kinds: ["App", "Dashboard", "Layer"] },
+    { segment: "operate", kinds: ["Pipeline", "SyncSource"] },
+    { segment: "knowledge", kinds: ["KnowledgeSource", "AssistantDeployment"] },
+  ],
+  ceiling: {
+    segments: ["data-read", "knowledge", "context", "pipeline", "apps"],
+    writes: false,
+    maxDays: 30,
+    // The banskabystrica story (T-6302): new Endpoints and Pipelines, App edits, no Endpoint edit.
+    kinds: [
+      { kind: "Endpoint", verbs: ["read", "create"] },
+      { kind: "Pipeline", verbs: ["read", "create", "run"] },
+      { kind: "App", verbs: ["read", "edit"] },
+      { kind: "ContextSpace", verbs: ["read"] },
+      { kind: "DataModel", verbs: ["read"] },
+    ],
+  },
   projects: [
     { project: "doprava", spaces: ["parking", "traffic"], endpoints: ["bike-counters", "parking-lots"], pipelines: ["load-counters"], allowed: true },
     { project: "ovzdusie", spaces: ["air"], endpoints: ["air-quality"], pipelines: [], allowed: true },
@@ -41,6 +62,7 @@ const CLAUDE_ONLY = {
 
 interface Stub {
   refuse?: boolean;
+  refuseKinds?: boolean;
   options?: typeof CLAUDE_ONLY;
   refuseClient?: boolean;
 }
@@ -61,6 +83,12 @@ async function stubApi(page: Page, stub: Stub = {}) {
       if (path === "/api/v1/connectors/options") return json(stub.options ?? OPTIONS);
       if (path === "/api/v1/connectors" && request.method() === "GET") return json({ items });
       if (path === "/api/v1/connectors" && request.method() === "POST") {
+        if (stub.refuseKinds) {
+          return json(
+            { type: "https://docs.joinedcontext.com/problems/forbidden", title: "Forbidden", status: 403, detail: "kinds[2].verbs: DelegationPolicy creators does not let a connector create Endpoint in project doprava", errors: ["kinds[2].verbs"] },
+            403,
+          );
+        }
         if (stub.refuseClient) {
           return json(
             { type: "https://docs.joinedcontext.com/problems/forbidden", title: "Forbidden", status: 403, detail: `allowedClients[0]: ${LISTED} ${CLAUDE_CODE}`, errors: ["allowedClients[0]"] },
@@ -79,6 +107,7 @@ async function stubApi(page: Page, stub: Stub = {}) {
           owner: IDENTITY.subject,
           segments: body.segments,
           scope: body.scope,
+          kinds: body.kinds,
           writes: false,
           expiresAt: body.expiresAt,
           allowedClients: body.allowedClients,
@@ -179,7 +208,47 @@ for (const width of [1440, 400]) {
       await expect(dialog.getByText("project doprava has no Endpoint parking-lots you may read")).toBeVisible();
       await dialog.getByText("project doprava has no Endpoint parking-lots you may read").scrollIntoViewIfNeeded();
       await expect(dialog.getByRole("checkbox", { name: /Pipelines/ }).first()).toHaveAttribute("aria-disabled", "true");
+      await expect(dialog.getByRole("checkbox", { name: /^Access/ })).toHaveAttribute("aria-disabled", "true");
       await shot(page, `ai-connectors-refusal-${width}`);
+    });
+
+    test("a person ticks create on Endpoint and Pipeline and edit on App, read on the rest (T-6302)", async ({ page }) => {
+      const requests = await stubApi(page);
+      await page.goto("/ai-connectors?lang=en");
+      await page.getByRole("button", { name: "New AI connector" }).first().click();
+      const dialog = page.getByRole("dialog");
+      await dialog.getByRole("textbox", { name: /Name/ }).fill("banskabystrica-builder");
+      await dialog.getByRole("checkbox", { name: /^doprava: the whole project/ }).check();
+      await shot(page, `ai-connectors-verbs-empty-${width}`);
+      for (const segment of ["Pipelines", "Apps"]) await dialog.getByRole("checkbox", { name: new RegExp(`^${segment}`) }).first().check();
+      const verbs = (kind: string) => dialog.getByRole("group", { name: `What it may do on ${kind}` });
+      await expect(verbs("Endpoints").getByRole("checkbox", { name: /edit/ })).toHaveAttribute("aria-disabled", "true");
+      await shot(page, `ai-connectors-verbs-greyed-${width}`);
+      await verbs("Endpoints").getByRole("checkbox", { name: /create/ }).check();
+      await verbs("Pipelines").getByRole("checkbox", { name: /create/ }).check();
+      await verbs("Applications").getByRole("checkbox", { name: /edit/ }).check();
+      await shot(page, `ai-connectors-verbs-filled-${width}`);
+      await dialog.getByRole("button", { name: "Create" }).click();
+      await expect(page.getByRole("region", { name: "banskabystrica-builder" })).toContainText("Endpoint: create");
+      const sent = requests.find((one) => one.method === "POST")?.body as { kinds: { kind: string; verbs: string[] }[] };
+      const of = (kind: string) => sent.kinds.find((one) => one.kind === kind)?.verbs;
+      expect([of("Endpoint"), of("Pipeline"), of("App"), of("DataModel")]).toEqual([["read", "create"], ["read", "create"], ["read", "edit"], ["read"]]);
+    });
+
+    test("a verb the ceiling withholds is refused beside the verbs", async ({ page }) => {
+      await stubApi(page, { refuseKinds: true });
+      await page.goto("/ai-connectors?lang=en");
+      await page.getByRole("button", { name: "New AI connector" }).first().click();
+      const dialog = page.getByRole("dialog");
+      await dialog.getByRole("textbox", { name: /Name/ }).fill("too-wide");
+      await dialog.getByRole("checkbox", { name: /^doprava: the whole project/ }).check();
+      await dialog.getByRole("checkbox", { name: /^Context/ }).first().check();
+      await dialog.getByRole("group", { name: "What it may do on Endpoints" }).getByRole("checkbox", { name: /create/ }).check();
+      await dialog.getByRole("button", { name: "Create" }).click();
+      const refusal = dialog.getByText("does not let a connector create Endpoint in project doprava");
+      await expect(refusal).toBeVisible();
+      await refusal.scrollIntoViewIfNeeded();
+      await shot(page, `ai-connectors-verbs-refusal-${width}`);
     });
 
     test("under a ceiling of claude.ai clients the dialog offers them by name and greys the rest (T-6309)", async ({ page }) => {

@@ -10838,6 +10838,11 @@
     "aboveCeiling": "Vaše organizace zatím nedovoluje konektoru nést tuto předvolbu.",
     "projectAboveCeiling": "Vaše organizace zatím nedovoluje konektoru sáhnout na tento projekt: požádejte administrátora, aby ho přidal do pravidel vaší organizace pro konektory.",
     "endpointsOnly": "Vaše organizace dovoluje konektoru sáhnout jen na některé Endpointy tohoto projektu: požádejte administrátora, aby přidal další do pravidel vaší organizace pro konektory.",
+    "verbsOf": "Co může dělat s {kind}",
+    "readComes": "Čtení přináší předvolba.",
+    "verbsNone": "Zaškrtněte předvolbu, která navrhuje změny, např. Kontext nebo Pipelines, a vyberte, co může měnit.",
+    "verbsGreyed": "Šedá slovesa musí nejprve schválit vaše organizace; požádejte správce, aby je povolil.",
+    "verb": {"read": "číst", "create": "vytvořit", "edit": "upravit", "delete": "smazat", "run": "spustit", "propose": "vytvořit, upravit, smazat"},
     "binds": "použít ho může jen tento klient",
     "clientRefused": "politika vaší organizace ho nedovoluje",
     "intendedFor": "říká, pro koho je; uvést ho mohou i jiné lokální programy",
@@ -10867,7 +10872,8 @@
       "segments": "Předvolby",
       "scope": "Na co sahá",
       "expires": "Platí do",
-      "clients": "Povolení klienti"
+      "clients": "Povolení klienti",
+      "kinds": "Změny, které může navrhnout"
     },
     "segment": {
       "data-read": "Čtení dat",
@@ -10918,7 +10924,8 @@
       "expires": "Poslední den platnosti, nejvýše {days} dní ode dneška, např. konec tohoto měsíce.",
       "clients": "Nechte prázdné pro jakéhokoli klienta, nebo zaškrtněte např. Claude Code, pro koho je.",
       "clientsListed": "Zaškrtněte klienta, kterého použijete, např. claude.ai: vaše organizace dovolí konektoru odpovídat jen klientům, které uvádí její politika.",
-      "nameStays": "Název zůstává; podle něj konektor zobrazuje váš AI klient."
+      "nameStays": "Název zůstává; podle něj konektor zobrazuje váš AI klient.",
+      "kinds": "Např. vytvářet nové Endpointy, ale žádné neupravovat. Řádky přidávají jen předvolby, které navrhují změny; každou změnu stejně schvaluje člověk."
     },
     "problem": {
       "name": "Zadejte název z malých písmen, číslic a pomlček, např. doprava-v-claude.",
