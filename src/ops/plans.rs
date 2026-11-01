@@ -2138,7 +2138,10 @@ mod tests {
         .await;
         // (The test person holds no role, so the person's own check refuses it next.)
         if let Err(OpError::Api(ApiError::Denied(why))) = &fresh {
-            assert!(!why.contains("may not"), "a create was refused as a verb: {why}");
+            assert!(
+                !why.contains("may not"),
+                "a create was refused as a verb: {why}"
+            );
         }
         // A kind the list leaves out is read only.
         let why = denied(

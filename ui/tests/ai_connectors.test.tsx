@@ -18,7 +18,6 @@ const NOW = new Date("2026-10-28T12:00:00Z");
 const OPTIONS: ConnectorOptions = {
   segments: ["data-read", "context", "pipeline", "access", "publish", "apps", "operate", "knowledge", "admin"],
   segmentKinds: [
-    { segment: "data-read", kinds: ["Endpoint", "ContextSpace", "DataModel"] },
     { segment: "context", kinds: ["ContextSpace", "DataModel", "Endpoint", "Policy"] },
     { segment: "pipeline", kinds: ["Pipeline", "DataSource", "Endpoint"] },
     { segment: "apps", kinds: ["App", "Dashboard", "Layer"] },
@@ -89,7 +88,7 @@ describe("AI connector helpers", () => {
       { kind: "Dashboard", verbs: ["read"] },
       { kind: "Layer", verbs: ["read"] },
     ]);
-    expect(kindRows(OPTIONS, ["data-read", "context"]).map((row) => row.kinds)).toEqual([["Endpoint", "ContextSpace", "DataModel"], ["Policy"]]);
+    expect(kindRows(OPTIONS, ["data-read", "context", "pipeline"]).map((row) => row.kinds)).toEqual([["ContextSpace", "DataModel", "Endpoint", "Policy"], ["Pipeline", "DataSource"]]);
     expect(toForm(connector({ kinds: [{ kind: "Endpoint", verbs: ["read", "propose"] }] })).verbs).toEqual({ Endpoint: ["create", "edit", "delete"] });
     expect(refusedSection(["kinds[0].verbs"], "kinds[0].verbs: no")).toBe("kinds");
   });
@@ -210,11 +209,7 @@ describe("the AI connectors page (T-5951)", () => {
     const sent = requests.find((one) => one.method === "POST")?.body as { scope: unknown; segments: string[]; writes: boolean };
     expect(sent.scope).toEqual([{ project: "doprava", endpoint: "bike-counters", access: "read" }]);
     expect([sent.segments, sent.writes]).toEqual([["data-read"], false]);
-    expect((sent as unknown as { kinds: unknown }).kinds).toEqual([
-      { kind: "Endpoint", verbs: ["read"] },
-      { kind: "ContextSpace", verbs: ["read"] },
-      { kind: "DataModel", verbs: ["read"] },
-    ]);
+    expect((sent as unknown as { kinds: unknown }).kinds).toEqual([]);
 
     expect(await screen.findByText(`claude mcp add --transport http doprava-in-claude ${URL_OF}`)).toBeInTheDocument();
     expect(document.body.textContent).not.toMatch(/eyJ|Bearer|token=/);
@@ -346,15 +341,15 @@ describe("the scope tree", () => {
         <KindVerbsPicker options={options} form={{ ...emptyForm(OPTIONS, NOW), segments: ["pipeline"] }} onChange={verbs} />
       </I18nextProvider>,
     );
-    const endpoint = screen.getByRole("group", { name: "What it may do on Endpoint" });
-    expect(within(endpoint).getByText("reads")).toBeInTheDocument();
+    const endpoint = screen.getByRole("group", { name: "What it may do on Endpoints" });
+    expect(within(endpoint).getByRole("checkbox", { name: /read/ })).toBeChecked();
     expect(within(endpoint).getByRole("checkbox", { name: /edit/ })).toHaveAttribute("aria-disabled", "true");
     expect(within(endpoint).queryByRole("checkbox", { name: /run/ })).toBeNull();
     await user.click(within(endpoint).getByRole("checkbox", { name: /edit/ }));
     expect(verbs).not.toHaveBeenCalled();
     await user.click(within(endpoint).getByRole("checkbox", { name: /create/ }));
     expect(verbs).toHaveBeenLastCalledWith({ Endpoint: ["create"] });
-    const pipeline = screen.getByRole("group", { name: "What it may do on Pipeline" });
+    const pipeline = screen.getByRole("group", { name: "What it may do on Pipelines" });
     await user.click(within(pipeline).getByRole("checkbox", { name: /run/ }));
     expect(verbs).toHaveBeenLastCalledWith({ Pipeline: ["run"] });
   });
@@ -362,11 +357,11 @@ describe("the scope tree", () => {
   it("puts a server refusal of the list beside the kind it names", () => {
     render(
       <I18nextProvider i18n={i18n}>
-        <KindVerbsPicker options={OPTIONS} form={emptyForm(OPTIONS, NOW)} onChange={() => undefined} refusal={{ kind: "ContextSpace", message: "no edit on ContextSpace" }} />
+        <KindVerbsPicker options={OPTIONS} form={{ ...emptyForm(OPTIONS, NOW), segments: ["context"] }} onChange={() => undefined} refusal={{ kind: "ContextSpace", message: "no edit on ContextSpace" }} />
       </I18nextProvider>,
     );
     const alert = screen.getByText("no edit on ContextSpace");
-    expect(screen.getByRole("group", { name: "What it may do on ContextSpace" }).nextElementSibling).toContainElement(alert);
+    expect(screen.getByRole("group", { name: "What it may do on Context Spaces" }).nextElementSibling).toContainElement(alert);
   });
 
   it("says what to tick first when no preset is ticked", () => {
@@ -375,7 +370,7 @@ describe("the scope tree", () => {
         <KindVerbsPicker options={OPTIONS} form={{ ...emptyForm(OPTIONS, NOW), segments: [] }} onChange={() => undefined} />
       </I18nextProvider>,
     );
-    expect(screen.getByText(/Tick a preset above/)).toBeInTheDocument();
+    expect(screen.getByText(/Tick a preset that proposes changes/)).toBeInTheDocument();
   });
 
   it("says what to do when the person reads no project", () => {

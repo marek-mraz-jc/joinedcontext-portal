@@ -1073,6 +1073,17 @@ fn reach_of(carries: impl Fn(&str) -> bool) -> (Vec<&'static str>, Vec<&'static 
     (tools, kinds)
 }
 
+/// The kinds of the presets `carries` picks that plan changes (list `jc_change_plan`): the kinds
+/// a connector may hold a change verb on (T-6302). `data-read` plans nothing.
+fn proposing_reach(carries: impl Fn(&str) -> bool) -> (Vec<&'static str>, Vec<&'static str>) {
+    reach_of(|segment| {
+        carries(segment)
+            && SEGMENTS
+                .iter()
+                .any(|(name, tools, _)| *name == segment && tools.contains(&PLAN))
+    })
+}
+
 /// A tool whose call names one object by `name`: what a narrowed scope can hold it to.
 fn names_its_object(op: &Operation) -> bool {
     let input = (op.input)();
@@ -1319,7 +1330,9 @@ fn validate_kinds(new: &NewConnector) -> Result<(), ApiError> {
     {
         return Err(invalid(field, format!("kind {value}: {reason}")));
     }
-    let (_, reached) = reach_of(|segment| new.segments.iter().any(|s| s == segment || s == ADMIN));
+    let ticked = |segment: &str| new.segments.iter().any(|s| s == segment || s == ADMIN);
+    let (_, reached) = reach_of(ticked);
+    let (_, proposed) = proposing_reach(ticked);
     for (i, entry) in kinds.iter().enumerate() {
         if !reached.contains(&entry.kind.as_str()) {
             return Err(invalid(
@@ -1329,6 +1342,16 @@ fn validate_kinds(new: &NewConnector) -> Result<(), ApiError> {
                     new.segments.join(", "),
                     entry.kind,
                     reached.join(", ")
+                ),
+            ));
+        }
+        let changes = entry.verbs.iter().any(|v| *v != ConnectorVerb::Read);
+        if changes && !proposed.contains(&entry.kind.as_str()) {
+            return Err(invalid(
+                &format!("kinds[{i}].verbs"),
+                format!(
+                    "no ticked preset proposes changes of {}; tick one that does, such as context or pipeline, or keep it read",
+                    entry.kind
                 ),
             ));
         }
@@ -3012,6 +3035,10 @@ pub(crate) mod tests {
         let mut bad = new(&["data-read"], false, 1);
         bad.kinds = Some(vec![grant("Endpoint", &[Run])]);
         invalid(bad, "kinds[].verbs");
+        // data-read plans nothing: a change verb under it alone would be a dead tick.
+        let mut bad = new(&["data-read"], false, 1);
+        bad.kinds = Some(vec![grant("Endpoint", &[Read, Create])]);
+        invalid(bad, "kinds[0].verbs");
         let mut ok = new(&["data-read"], false, 1);
         ok.kinds = Some(vec![grant("Endpoint", &[Read])]);
         assert!(validate(&ok, &Ceiling::of_policies(vec![]), now).is_ok());

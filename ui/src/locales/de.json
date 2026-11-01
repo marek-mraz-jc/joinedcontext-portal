@@ -10833,9 +10833,9 @@
     "aboveCeiling": "Ihre Organisation erlaubt einem Konnektor diese Vorgabe noch nicht.",
     "verbsOf": "Was er mit {kind} tun darf",
     "readComes": "Lesen bringt die Vorlage mit.",
-    "verbsNone": "Wählen Sie oben eine Vorlage, um festzulegen, was er ändern darf.",
+    "verbsNone": "Haken Sie eine Vorlage an, die Änderungen vorschlägt, etwa Kontext oder Pipelines, um festzulegen, was er ändern darf.",
     "verbsGreyed": "Graue Verben muss Ihre Organisation erst freigeben; bitten Sie eine Administratorin oder einen Administrator darum.",
-    "verb": {"reads": "liest", "read": "lesen", "create": "anlegen", "edit": "bearbeiten", "delete": "löschen", "run": "ausführen", "propose": "anlegen, bearbeiten, löschen"},
+    "verb": {"read": "lesen", "create": "anlegen", "edit": "bearbeiten", "delete": "löschen", "run": "ausführen", "propose": "anlegen, bearbeiten, löschen"},
     "binds": "nur dieser Client kann ihn nutzen",
     "intendedFor": "sagt, für wen er ist; auch andere lokale Programme können ihn nennen",
     "state": {
@@ -10916,7 +10916,7 @@
       "expires": "Der letzte gültige Tag, höchstens {days} Tage ab heute, z. B. das Monatsende.",
       "clients": "Leer lassen für jeden Client, oder z. B. Claude Code ankreuzen, für wen er ist.",
       "nameStays": "Der Name bleibt; unter ihm listet Ihr KI-Client den Konnektor.",
-      "kinds": "Je Art, was der KI-Client außer Lesen vorschlagen darf, z. B. neue Endpoints anlegen, aber keine bearbeiten. Jede angehakte Vorlage fügt hier ihre Arten hinzu. Jede Änderung genehmigt weiterhin ein Mensch."
+      "kinds": "Z. B. neue Endpoints anlegen, aber keine bearbeiten. Zeilen fügen nur Vorlagen hinzu, die Änderungen vorschlagen; jede Änderung genehmigt weiterhin ein Mensch."
     },
     "problem": {
       "name": "Geben Sie einen Namen aus Kleinbuchstaben, Ziffern und Bindestrichen an, z. B. verkehr-in-claude.",

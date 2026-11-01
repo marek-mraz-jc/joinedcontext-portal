@@ -10833,9 +10833,9 @@
     "aboveCeiling": "Your organization does not let a connector carry this preset yet.",
     "verbsOf": "What it may do on {kind}",
     "readComes": "Reading comes with the preset.",
-    "verbsNone": "Tick a preset above to choose what it may change.",
+    "verbsNone": "Tick a preset that proposes changes, such as Context or Pipelines, to choose what it may change.",
     "verbsGreyed": "Greyed verbs need your organization's approval first; ask an administrator to allow them.",
-    "verb": {"reads": "reads", "read": "read", "create": "create", "edit": "edit", "delete": "delete", "run": "run", "propose": "create, edit, delete"},
+    "verb": {"read": "read", "create": "create", "edit": "edit", "delete": "delete", "run": "run", "propose": "create, edit, delete"},
     "binds": "only this client can use it",
     "intendedFor": "says whom it is for; other local programs can name it too",
     "state": {
@@ -10916,7 +10916,7 @@
       "expires": "The last day it works, at most {days} days from today, e.g. the end of this month.",
       "clients": "Leave empty for any client, or tick e.g. Claude Code to say whom it is for.",
       "nameStays": "The name stays; it is how your AI client lists the connector.",
-      "kinds": "Per kind, what the AI client may propose besides reading, e.g. create new Endpoints but edit none. Each ticked preset adds its kinds here. Every change still waits for a person to approve it."
+      "kinds": "E.g. create new Endpoints but edit none. Only presets that propose changes add rows; every change still waits for a person's approval."
     },
     "problem": {
       "name": "Give a name of lowercase letters, digits and dashes, e.g. doprava-in-claude.",

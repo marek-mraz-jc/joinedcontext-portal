@@ -418,21 +418,23 @@ export function KindVerbsPicker({
     onChange({ ...form.verbs, [kind]: on ? [...held, verb] : held.filter((one) => one !== verb) });
   };
   const greyed = rows.some((row) => row.kinds.some((kind) => verbsOf(kind).some((verb) => !ceilingAllows(options, kind, verb))));
+  const label = (kind: string) => {
+    const word = t(`kinds.${kind}.other`, { defaultValue: kind });
+    return word.charAt(0).toUpperCase() + word.slice(1);
+  };
   return (
-    <div className="flex flex-col gap-3">
-      {greyed ? <p className="text-caption text-fg-muted">{t("aiConnectors.verbsGreyed")}</p> : null}
+    <div className="flex flex-col gap-2">
       {rows.map((row) => (
-        <div key={row.segment} className="flex flex-col gap-1">
+        <div key={row.segment} className="flex flex-col">
           <p className="text-body font-semibold">{t(`aiConnectors.segment.${row.segment}`)}</p>
           {row.kinds.map((kind) => (
             <Fragment key={kind}>
-            <fieldset className="flex flex-col gap-1 border-t border-border py-1 sm:flex-row sm:items-center">
-              <legend className="sr-only">{t("aiConnectors.verbsOf", { kind })}</legend>
-              <span aria-hidden className="text-body font-medium sm:w-40 sm:shrink-0">
-                {kind}
-              </span>
-              <div className="grid grid-cols-4 gap-x-4 gap-y-1 sm:grid-cols-5">
-                <span className="hidden text-body sm:inline">{t("aiConnectors.verb.reads")}</span>
+              <fieldset className="flex flex-wrap items-center gap-x-3 border-t border-border py-0.5">
+                <legend className="sr-only">{t("aiConnectors.verbsOf", { kind: label(kind) })}</legend>
+                <span aria-hidden className="w-full text-body font-medium sm:w-36">
+                  {label(kind)}
+                </span>
+                <Checkbox label={t("aiConnectors.verb.read")} checked readOnly disabled disabledReason={t("aiConnectors.readComes")} />
                 {verbsOf(kind).map((verb) => {
                   const allowed = ceilingAllows(options, kind, verb);
                   return (
@@ -446,14 +448,14 @@ export function KindVerbsPicker({
                     />
                   );
                 })}
-              </div>
-            </fieldset>
-            {refusal?.kind === kind ? <Alert tone="danger">{refusal.message}</Alert> : null}
+              </fieldset>
+              {refusal?.kind === kind ? <Alert tone="danger">{refusal.message}</Alert> : null}
             </Fragment>
           ))}
         </div>
       ))}
       {refusal && !rows.some((row) => refusal.kind !== undefined && row.kinds.includes(refusal.kind)) ? <Alert tone="danger">{refusal.message}</Alert> : null}
+      {greyed ? <p className="text-caption text-fg">{t("aiConnectors.verbsGreyed")}</p> : null}
     </div>
   );
 }
@@ -573,15 +575,15 @@ export function CreateDialog({
           </fieldset>
           <fieldset className="flex flex-col gap-1" aria-describedby="ai-connector-kinds-help">
             <legend className="text-body font-semibold">{t("aiConnectors.field.kinds")}</legend>
-            <p id="ai-connector-kinds-help" className="text-caption text-fg-muted">
-              {t("aiConnectors.help.kinds")}
-            </p>
             <KindVerbsPicker
               options={options.data}
               form={current}
               onChange={(verbs) => set({ verbs })}
               refusal={refused?.section === "kinds" ? { kind: refusedKind(refused.field, current, options.data), message: withoutField(refused.message) } : undefined}
             />
+            <p id="ai-connector-kinds-help" className="text-caption text-fg-muted">
+              {t("aiConnectors.help.kinds")}
+            </p>
           </fieldset>
           <fieldset className="flex flex-col gap-1" aria-describedby="ai-connector-scope-help">
             <legend className="text-body font-semibold">{t("aiConnectors.field.scope")}</legend>

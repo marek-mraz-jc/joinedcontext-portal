@@ -8115,7 +8115,10 @@ export interface components {
             /** @description The realm's MCP clients a connector may be bound to, e.g. `mcp-local` (Claude Code). */
             clients: components["schemas"]["ClientChoice"][];
             projects: components["schemas"]["ProjectReach"][];
-            /** @description The kinds each preset reaches, one row each in the dialog's verb table (T-6302). */
+            /**
+             * @description The kinds each preset that plans changes reaches, one row each in the dialog's verb table
+             *     (T-6302); `data-read` proposes nothing and has none.
+             */
             segmentKinds: components["schemas"]["SegmentKinds"][];
             /** @description Every preset a connector may name; those outside `ceiling.segments` need approval. */
             segments: string[];

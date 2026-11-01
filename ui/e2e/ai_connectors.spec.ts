@@ -13,7 +13,6 @@ const URL_OF = `https://portal.dev.example/c/${ID}`;
 const OPTIONS = {
   segments: ["data-read", "context", "pipeline", "access", "publish", "apps", "operate", "knowledge", "admin"],
   segmentKinds: [
-    { segment: "data-read", kinds: ["Endpoint", "ContextSpace", "DataModel"] },
     { segment: "context", kinds: ["ContextSpace", "DataModel", "Endpoint", "Policy", "ModelProjection", "Subscription"] },
     { segment: "pipeline", kinds: ["Pipeline", "DataSource", "MqttBroker", "SyncSource", "ContextSpace", "DataModel", "Endpoint", "Subscription"] },
     { segment: "access", kinds: ["Role", "RoleBinding", "ServiceAccount", "Policy", "Group"] },
@@ -69,7 +68,7 @@ async function stubApi(page: Page, stub: Stub = {}) {
       if (path === "/api/v1/connectors" && request.method() === "POST") {
         if (stub.refuseKinds) {
           return json(
-            { type: "https://docs.joinedcontext.com/problems/forbidden", title: "Forbidden", status: 403, detail: "kinds[0].verbs: DelegationPolicy creators does not let a connector edit Endpoint", errors: ["kinds[0].verbs"] },
+            { type: "https://docs.joinedcontext.com/problems/forbidden", title: "Forbidden", status: 403, detail: "kinds[2].verbs: DelegationPolicy creators does not let a connector create Endpoint in project doprava", errors: ["kinds[2].verbs"] },
             403,
           );
         }
@@ -191,11 +190,11 @@ for (const width of [1440, 400]) {
       await shot(page, `ai-connectors-verbs-empty-${width}`);
       for (const segment of ["Pipelines", "Apps"]) await dialog.getByRole("checkbox", { name: new RegExp(`^${segment}`) }).first().check();
       const verbs = (kind: string) => dialog.getByRole("group", { name: `What it may do on ${kind}` });
-      await expect(verbs("Endpoint").getByRole("checkbox", { name: /edit/ })).toHaveAttribute("aria-disabled", "true");
+      await expect(verbs("Endpoints").getByRole("checkbox", { name: /edit/ })).toHaveAttribute("aria-disabled", "true");
       await shot(page, `ai-connectors-verbs-greyed-${width}`);
-      await verbs("Endpoint").getByRole("checkbox", { name: /create/ }).check();
-      await verbs("Pipeline").getByRole("checkbox", { name: /create/ }).check();
-      await verbs("App").getByRole("checkbox", { name: /edit/ }).check();
+      await verbs("Endpoints").getByRole("checkbox", { name: /create/ }).check();
+      await verbs("Pipelines").getByRole("checkbox", { name: /create/ }).check();
+      await verbs("Applications").getByRole("checkbox", { name: /edit/ }).check();
       await shot(page, `ai-connectors-verbs-filled-${width}`);
       await dialog.getByRole("button", { name: "Create" }).click();
       await expect(page.getByRole("region", { name: "banskabystrica-builder" })).toContainText("Endpoint: create");
@@ -211,8 +210,12 @@ for (const width of [1440, 400]) {
       const dialog = page.getByRole("dialog");
       await dialog.getByRole("textbox", { name: /Name/ }).fill("too-wide");
       await dialog.getByRole("checkbox", { name: /^doprava: the whole project/ }).check();
+      await dialog.getByRole("checkbox", { name: /^Context/ }).first().check();
+      await dialog.getByRole("group", { name: "What it may do on Endpoints" }).getByRole("checkbox", { name: /create/ }).check();
       await dialog.getByRole("button", { name: "Create" }).click();
-      await expect(dialog.getByText("does not let a connector edit Endpoint")).toBeVisible();
+      const refusal = dialog.getByText("does not let a connector create Endpoint in project doprava");
+      await expect(refusal).toBeVisible();
+      await refusal.scrollIntoViewIfNeeded();
       await shot(page, `ai-connectors-verbs-refusal-${width}`);
     });
 

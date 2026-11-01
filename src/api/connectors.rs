@@ -75,7 +75,8 @@ pub struct ConnectorCalls {
 pub struct ConnectorOptions {
     /// Every preset a connector may name; those outside `ceiling.segments` need approval.
     pub segments: Vec<String>,
-    /// The kinds each preset reaches, one row each in the dialog's verb table (T-6302).
+    /// The kinds each preset that plans changes reaches, one row each in the dialog's verb table
+    /// (T-6302); `data-read` proposes nothing and has none.
     pub segment_kinds: Vec<SegmentKinds>,
     pub ceiling: CeilingView,
     pub projects: Vec<ProjectReach>,
@@ -340,8 +341,10 @@ pub async fn connector_options(
         .collect();
     every_kind.sort_unstable();
     every_kind.dedup();
+    // Only presets that plan changes get verb rows: data-read reads, it proposes nothing.
     let mut segment_kinds: Vec<SegmentKinds> = connectors::SEGMENTS
         .iter()
+        .filter(|(_, tools, _)| tools.contains(&connectors::PLAN))
         .map(|(segment, _, kinds)| SegmentKinds {
             segment: (*segment).to_owned(),
             kinds: kinds.iter().map(|k| (*k).to_owned()).collect(),
