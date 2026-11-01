@@ -1014,9 +1014,9 @@ async fn plan(
 
 /// The manifests of a plan applied as one Change, `None` for a plan opened change by change.
 /// One Change holds two or more creates, replaces or patches of the project's own objects
-/// outside a workspace (T-6282); a removal, a model with its LinkML file and an object kept in
-/// another namespace each open a change request of their own, so their siblings are checked
-/// against the project as it is.
+/// outside a workspace (T-6282), a DataModel with its LinkML file among them (JC2-10); a removal
+/// and an object kept in another namespace each open a change request of their own, so their
+/// siblings are checked against the project as it is.
 fn together(state: &AppState, project: &str, input: &PlanInput) -> Option<Vec<Value>> {
     if input.workspace.is_some() || input.changes.len() < 2 {
         return None;
@@ -1026,7 +1026,7 @@ fn together(state: &AppState, project: &str, input: &PlanInput) -> Option<Vec<Va
         .iter()
         .enumerate()
         .map(|(n, change)| {
-            if change.op == Op::Delete || change.source.is_some() {
+            if change.op == Op::Delete {
                 return None;
             }
             let info = super::resources::kind_named(&change.kind).ok()?;
@@ -1045,9 +1045,10 @@ fn together(state: &AppState, project: &str, input: &PlanInput) -> Option<Vec<Va
 fn bundled(plan: &Plan) -> bool {
     plan.workspace.is_none()
         && plan.items.len() > 1
-        && plan.items.iter().all(|item| {
-            item.manifest.is_some() && item.model.is_none() && item.home == plan.project
-        })
+        && plan
+            .items
+            .iter()
+            .all(|item| item.manifest.is_some() && item.home == plan.project)
 }
 
 /// Opens a [`bundled`] plan as one Change (T-6282): every change through the propose engine's
@@ -1079,22 +1080,32 @@ async fn open_together(
             summary.update += 1;
             (ChangeOp::Update, "update")
         };
-        let written = mutate::propose_gated_onto(
-            &caller.identity,
-            state,
-            &item.home,
-            item.plural,
-            Some(&item.name),
-            op,
-            manifest.clone(),
-            &branch,
-        )
-        .await;
+        let written = match model_proposal(caller, state, item, manifest) {
+            // A model writes its manifest, source and artifacts onto the plan's branch (JC2-10).
+            Ok(Some(proposal)) => {
+                datamodels::propose_model_onto(state, &caller.identity, proposal, &branch)
+                    .await
+                    .map(|lane| (lane, Vec::new()))
+            }
+            Ok(None) => mutate::propose_gated_onto(
+                &caller.identity,
+                state,
+                &item.home,
+                item.plural,
+                Some(&item.name),
+                op,
+                manifest.clone(),
+                &branch,
+            )
+            .await
+            .map(|commit| (commit.lane, commit.waits_on)),
+            Err(err) => Err(err),
+        };
         super::forget_check(state, &item.home, manifest).await;
         match written {
-            Ok(commit) => {
-                lanes.push(commit.lane);
-                waits_on.extend(commit.waits_on);
+            Ok((lane, waits)) => {
+                lanes.push(lane);
+                waits_on.extend(waits);
                 lines.push(format!("- {word} {} `{}`", item.kind, item.name));
             }
             Err(err) => {
@@ -1650,10 +1661,22 @@ async fn propose_source(
     item: &Planned,
     manifest: &Value,
 ) -> Result<crate::change::Change, ApiError> {
-    let model = item
-        .model
-        .as_ref()
+    let proposal = model_proposal(caller, state, item, manifest)?
         .ok_or_else(|| ApiError::Internal("a model change without its source".into()))?;
+    datamodels::propose_model(state, &caller.identity, proposal).await
+}
+
+/// The model proposal of a DataModel planned with its LinkML file, once the caller may propose
+/// it; `None` for any other change.
+fn model_proposal<'a>(
+    caller: &Caller,
+    state: &AppState,
+    item: &'a Planned,
+    manifest: &Value,
+) -> Result<Option<datamodels::ModelProposal<'a>>, ApiError> {
+    let Some(model) = item.model.as_ref() else {
+        return Ok(None);
+    };
     crate::permissions::for_request(state, &caller.identity, &item.home).check(
         "DataModel",
         jc_core::kinds::Verb::Propose,
@@ -1666,28 +1689,23 @@ async fn propose_source(
     } else {
         ("update", "update")
     };
-    datamodels::propose_model(
-        state,
-        &caller.identity,
-        datamodels::ModelProposal {
-            namespace: &item.home,
-            name: &item.name,
-            envelope,
-            source: &model.source,
-            checked: model.checked.clone(),
-            next_val: model.next_val.clone(),
-            imports: model.imports.clone(),
-            creating: model.creating,
-            lane: datamodels::model_lane(&item.home, model.creating, &model.checked.severity),
-            title: format!("{verb} DataModel {}", item.name),
-            body: format!(
-                "Proposed {noun} of DataModel `{}` source, manifest and generated artifacts in \
-                 project `{}` through a plan (AG-149).",
-                item.name, item.home
-            ),
-        },
-    )
-    .await
+    Ok(Some(datamodels::ModelProposal {
+        namespace: &item.home,
+        name: &item.name,
+        envelope,
+        source: &model.source,
+        checked: model.checked.clone(),
+        next_val: model.next_val.clone(),
+        imports: model.imports.clone(),
+        creating: model.creating,
+        lane: datamodels::model_lane(&item.home, model.creating, &model.checked.severity),
+        title: format!("{verb} DataModel {}", item.name),
+        body: format!(
+            "Proposed {noun} of DataModel `{}` source, manifest and generated artifacts in \
+             project `{}` through a plan (AG-149).",
+            item.name, item.home
+        ),
+    }))
 }
 
 /// What an apply opened, as API/14 §4.3 names it; never an approval. `url` is the Portal page
@@ -1922,7 +1940,8 @@ mod tests {
     }
 
     /// T-6282: two or more creates of the project's own objects are checked and opened as one
-    /// Change; a single change, a workspace, a removal or a model with its file is not.
+    /// Change, a model with its LinkML file among them (JC2-10); a single change, a workspace or
+    /// a removal is not.
     #[test]
     fn a_plan_of_several_changes_is_checked_as_one_bundle() {
         let state = AppState::new(crate::config::Config::for_tests(), None);
@@ -1949,7 +1968,9 @@ mod tests {
         assert!(together(&state, "doprava", &plan(vec![space(), removal], None)).is_none());
         let mut model = create("DataModel", "parking");
         model.source = Some("id: x".into());
-        assert!(together(&state, "doprava", &plan(vec![space(), model], None)).is_none());
+        let bundle = together(&state, "doprava", &plan(vec![model, space()], None))
+            .expect("JC2-10: a model with its source stays in the bundle");
+        assert_eq!(bundle[0]["kind"], "DataModel");
     }
 
     /// EP-75 (T-6285): a connector planning an Endpoint with a slug it wrote is refused at the
