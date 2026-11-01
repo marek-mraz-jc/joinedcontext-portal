@@ -957,7 +957,7 @@ async fn apply(
         let mut opened = Vec::new();
         for item in &plan.items {
             match open_one(caller, state, item, workspace).await {
-                Ok(outcome) => opened.push(opened_row(outcome)),
+                Ok(outcome) => opened.push(opened_row(state, project, outcome)),
                 Err(err) if opened.is_empty() => return Err(OpError::Api(err)),
                 Err(err) => {
                     return Err(OpError::Api(ApiError::Conflict(format!(
@@ -990,7 +990,7 @@ async fn apply(
     };
     Ok(json!({
         key: opened,
-        "approve": "a person with approve on these kinds decides each change at its url in the Portal",
+        "approve": "a person with approve on these kinds decides each change at its url, its approval page in the Portal",
     }))
 }
 
@@ -1399,12 +1399,14 @@ async fn propose_source(
     .await
 }
 
-/// What an apply opened, as API/14 §4.3 names it; never an approval.
-fn opened_row(outcome: ProposeOutcome) -> Value {
+/// What an apply opened, as API/14 §4.3 names it; never an approval. `url` is the Portal page
+/// where a person decides the change, the forge's pull request only `mergeRequest` (T-6293).
+fn opened_row(state: &AppState, project: &str, outcome: ProposeOutcome) -> Value {
     match outcome {
         ProposeOutcome::Change(change) => json!({
+            "url": super::changes::approval_url(state, project, &change.metadata.name),
             "id": change.metadata.name,
-            "url": change.status.merge_request,
+            "mergeRequest": change.status.merge_request,
             "lane": change.status.lane,
             "state": change.status.phase,
         }),
