@@ -75,6 +75,9 @@ pub struct ConnectorCalls {
 pub struct ConnectorOptions {
     /// Every preset a connector may name; those outside `ceiling.segments` need approval.
     pub segments: Vec<String>,
+    /// The kinds each preset that plans changes reaches, one row each in the dialog's verb table
+    /// (T-6302); `data-read` proposes nothing and has none.
+    pub segment_kinds: Vec<SegmentKinds>,
     pub ceiling: CeilingView,
     pub projects: Vec<ProjectReach>,
     /// The realm's MCP clients a connector may be bound to, e.g. `mcp-local` (Claude Code).
@@ -94,6 +97,14 @@ pub struct ClientChoice {
     pub refused: Option<String>,
 }
 
+/// One preset and the kinds it reaches, e.g. `pipeline`: `Pipeline`, `DataSource`, ...
+#[derive(Debug, Serialize, ToSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SegmentKinds {
+    pub segment: String,
+    pub kinds: Vec<String>,
+}
+
 #[derive(Debug, Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct CeilingView {
@@ -103,6 +114,8 @@ pub struct CeilingView {
     pub writes: bool,
     /// The longest life a connector may get, in days.
     pub max_days: i64,
+    /// The verbs a connector may tick per kind of the presets; a verb left out is greyed.
+    pub kinds: Vec<connectors::KindGrant>,
 }
 
 /// One project the caller reads, with the objects of it they read, in name order.
@@ -131,6 +144,9 @@ pub struct ConnectorPatch {
     pub segments: Option<Vec<String>>,
     #[serde(default)]
     pub scope: Option<Vec<connectors::ScopeItem>>,
+    /// Verbs per kind, replacing the whole list (T-6302).
+    #[serde(default)]
+    pub kinds: Option<Vec<connectors::KindGrant>>,
     #[serde(default)]
     pub writes: Option<bool>,
     /// RFC 3339, e.g. `2026-11-27T00:00:00Z`.
@@ -345,12 +361,33 @@ pub async fn connector_options(
         .map(|(name, _, _)| (*name).to_owned())
         .collect();
     segments.push(connectors::ADMIN.to_owned());
+    let mut every_kind: Vec<&str> = connectors::SEGMENTS
+        .iter()
+        .flat_map(|(_, _, kinds)| kinds.iter().copied())
+        .collect();
+    every_kind.sort_unstable();
+    every_kind.dedup();
+    // Only presets that plan changes get verb rows: data-read reads, it proposes nothing.
+    let mut segment_kinds: Vec<SegmentKinds> = connectors::SEGMENTS
+        .iter()
+        .filter(|(_, tools, _)| tools.contains(&connectors::PLAN))
+        .map(|(segment, _, kinds)| SegmentKinds {
+            segment: (*segment).to_owned(),
+            kinds: kinds.iter().map(|k| (*k).to_owned()).collect(),
+        })
+        .collect();
+    segment_kinds.push(SegmentKinds {
+        segment: connectors::ADMIN.to_owned(),
+        kinds: every_kind.iter().map(|k| (*k).to_owned()).collect(),
+    });
     Ok(Json(ConnectorOptions {
         segments,
+        segment_kinds,
         ceiling: CeilingView {
             segments: ceiling.segments(),
             writes: ceiling.writes(),
             max_days: ceiling.max_days(),
+            kinds: ceiling.kind_verbs(&every_kind),
         },
         projects,
         clients: client_choices(&state.config.connector_clients, &ceiling),
@@ -495,6 +532,7 @@ pub async fn edit_connector(
         name: current.name,
         segments: patch.segments.unwrap_or(current.segments),
         scope: patch.scope.unwrap_or(current.scope),
+        kinds: patch.kinds.or(current.kinds),
         writes: patch.writes.unwrap_or(current.writes),
         expires_at: patch.expires_at.unwrap_or(current.expires_at),
         allowed_clients: patch.allowed_clients.unwrap_or(current.allowed_clients),

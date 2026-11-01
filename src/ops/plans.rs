@@ -27,6 +27,7 @@ use crate::connectors::{APPLY, PLAN, REVERT};
 use crate::error::ApiError;
 use crate::state::AppState;
 use crate::tools::model_tools::MAX_REQUEST_BYTES;
+use jc_core::kinds::ConnectorVerb;
 
 /// How long a plan may wait for its apply (AG-149).
 pub const TTL_MINUTES: i64 = 30;
@@ -255,6 +256,36 @@ fn through_connector(
     }
 }
 
+/// The connector's verb on one change (T-6302): its own `kinds` list, and for a `/c/{id}`
+/// connector the DelegationPolicy ceiling over the project, unless an approval stands for it.
+fn verb_through_connector(
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+    kind: &str,
+    name: &str,
+    verb: ConnectorVerb,
+) -> Result<(), OpError> {
+    let Some(connector) = caller.access.as_ref().and_then(|a| a.connector()) else {
+        return Ok(());
+    };
+    let denied = |why: String| OpError::Api(ApiError::Denied(why));
+    connector.may_verb(kind, name, verb).map_err(denied)?;
+    // A Portal conversation is no delegation: only the `/c/{id}` door carries the ceiling.
+    if !matches!(caller.via, super::Via::Mcp) {
+        return Ok(());
+    }
+    let ceiling = crate::connectors::Ceiling::of(&state.mirror, &caller.identity);
+    if ceiling.honours(connector) || ceiling.allows_verb(Some(project), kind, verb) {
+        return Ok(());
+    }
+    Err(denied(format!(
+        "{} does not let a connector {} {kind} in project {project}; an administrator widens the policy",
+        ceiling.named(),
+        verb.word()
+    )))
+}
+
 /// The manifest a change proposes: the one given, or the object now with the patch merged in.
 fn manifest_of(
     state: &AppState,
@@ -384,6 +415,14 @@ async fn checked(
     }
     through_connector(caller, project, info.kind, &change.name, false)?;
     let home = super::resources::home_holding(state, info, project, &change.name);
+    // Create or edit is the forge's answer, never the `op` the client sent (T-6302).
+    let exists = state.mirror.get(&home, info.kind, &change.name).is_some();
+    let verb = match (&change.op, exists) {
+        (Op::Delete, _) => ConnectorVerb::Delete,
+        (_, true) => ConnectorVerb::Edit,
+        (_, false) => ConnectorVerb::Create,
+    };
+    verb_through_connector(caller, state, project, info.kind, &change.name, verb)?;
     let mut manifest = manifest_of(state, at, &home, change)?;
     // The slug is the platform's to mint (EP-75): a typed one is refused under this change's own
     // path here, before the check below mints one and records it on the Endpoint's draft.
@@ -1146,6 +1185,12 @@ async fn apply(
         .ok_or_else(not_found)?;
     for item in &plan.items {
         through_connector(caller, project, &item.kind, &item.name, true)?;
+        let verb = match (&item.manifest, item.base.as_str()) {
+            (None, _) => ConnectorVerb::Delete,
+            (Some(_), "absent") => ConnectorVerb::Create,
+            (Some(_), _) => ConnectorVerb::Edit,
+        };
+        verb_through_connector(caller, state, project, &item.kind, &item.name, verb)?;
     }
     unchanged_and_gated(state, &plan.items).await?;
     let workspace = plan.workspace.as_deref();
@@ -1996,6 +2041,7 @@ mod tests {
             owner: "sub-jana".into(),
             segments: vec!["context".into()],
             scope: vec![],
+            kinds: None,
             writes: false,
             expires_at: Utc::now() + Duration::days(1),
             allowed_clients: vec![],
@@ -2026,5 +2072,87 @@ mod tests {
             .plans
             .take(&id, "sub-jana", "doprava", Some("c1"), Utc::now())
             .is_some());
+    }
+
+    /// T-6302: create or edit is judged from the forge, never from the client's `op`; a
+    /// connector holding only `create` on Endpoint cannot touch an existing one, by any op.
+    #[tokio::test]
+    async fn a_create_only_connector_is_refused_an_existing_object_whatever_op_it_sends() {
+        use crate::connectors::KindGrant;
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let held: crate::resource::ResourceEnvelope = serde_json::from_value(json!({
+            "apiVersion": crate::resource::API_VERSION,
+            "kind": "Endpoint",
+            "metadata": { "name": "counters", "namespace": "doprava" },
+            "spec": {}
+        }))
+        .expect("an envelope");
+        state.mirror.upsert(held);
+        let mut connector = crate::connectors::tests::sample();
+        connector.segments = vec!["context".into()];
+        connector.scope = vec![crate::connectors::ScopeItem {
+            project: "doprava".into(),
+            space: None,
+            endpoint: None,
+            pipeline: None,
+            access: crate::connectors::ItemAccess::Read,
+            personal_data: false,
+        }];
+        connector.kinds = Some(vec![KindGrant {
+            kind: "Endpoint".into(),
+            verbs: vec![ConnectorVerb::Read, ConnectorVerb::Create],
+        }]);
+        let through = caller(Some(connector.access()));
+        let denied = |answer: Result<Value, OpError>| match answer {
+            Err(OpError::Api(ApiError::Denied(why))) => why,
+            other => panic!("expected a refusal, got {other:?}"),
+        };
+        let plan_of = |change: ChangeInput| PlanInput {
+            changes: vec![change],
+            workspace: None,
+        };
+        // An `op: create` naming the existing Endpoint is an edit.
+        let why = denied(
+            plan(
+                &through,
+                &state,
+                "doprava",
+                plan_of(create("Endpoint", "counters")),
+            )
+            .await,
+        );
+        assert!(why.contains("may not edit Endpoint counters"), "{why}");
+        assert!(why.contains("read, create"), "{why}");
+        let mut removal = create("Endpoint", "counters");
+        removal.op = Op::Delete;
+        removal.manifest = None;
+        let why = denied(plan(&through, &state, "doprava", plan_of(removal)).await);
+        assert!(why.contains("may not delete Endpoint counters"), "{why}");
+        // A new Endpoint passes the verb check; what follows is the kind's own validation.
+        let fresh = plan(
+            &through,
+            &state,
+            "doprava",
+            plan_of(create("Endpoint", "fresh")),
+        )
+        .await;
+        // (The test person holds no role, so the person's own check refuses it next.)
+        if let Err(OpError::Api(ApiError::Denied(why))) = &fresh {
+            assert!(
+                !why.contains("may not"),
+                "a create was refused as a verb: {why}"
+            );
+        }
+        // A kind the list leaves out is read only.
+        let why = denied(
+            plan(
+                &through,
+                &state,
+                "doprava",
+                plan_of(create("ContextSpace", "parking")),
+            )
+            .await,
+        );
+        assert!(why.contains("may not create ContextSpace parking"), "{why}");
     }
 }
