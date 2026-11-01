@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import type { Manifest } from "../src/api/manifest";
-import { asSharedSees, revokeBundle, shareBundle, ShareFlow, shareState } from "../src/pages/endpoints/ShareFlow";
+import { asSharedSees, knownGroupNames, revokeBundle, shareBundle, ShareFlow, shareState } from "../src/pages/endpoints/ShareFlow";
 import { InRouter } from "./pageHarness";
 
 const endpoint = (spec: object): Manifest =>
@@ -65,6 +65,22 @@ describe("what a share is made of (T-3275)", () => {
     expect(shareState(undefined, now).state).toBe("noGrant");
     expect(asSharedSees({ id: "u", type: "T", pm10: 1, note: "x", secret: "s" }, ["pm10", "secret"], ["secret"])).toEqual({ id: "u", type: "T", pm10: 1 });
     expect(asSharedSees({ id: "u", type: "T", a: 1 }, [], [])).toEqual({ id: "u", type: "T", a: 1 });
+  });
+});
+
+describe("which Group names a share knows of (F-R2UI3-005, T-3852)", () => {
+  const group = (name: string) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "Group", metadata: { name, namespace: "x" }, spec: {} });
+  const list = (...names: string[]) => ({ hidden: false, data: { items: names.map(group) } });
+  it("joins the organization's and the project's groups once both are read", () => {
+    expect(knownGroupNames(list("org-a"), list("praha"))).toEqual(new Set(["org-a", "praha"]));
+  });
+  it("counts an organization list the person does not read as empty", () => {
+    expect(knownGroupNames({ hidden: true }, list("praha"))).toEqual(new Set(["praha"]));
+  });
+  it("knows nothing while a list loads or when the project's list is hidden", () => {
+    expect(knownGroupNames({ hidden: false }, list("praha"))).toBeUndefined();
+    expect(knownGroupNames(list("org-a"), { hidden: false })).toBeUndefined();
+    expect(knownGroupNames(list("org-a"), { hidden: true })).toBeUndefined();
   });
 });
 
@@ -150,6 +166,17 @@ describe("the share flow on an Endpoint's page (T-3275)", () => {
     expect(shared.spec).toMatchObject({ allowedProjects: ["bbsk"] });
     expect(grant.metadata.name).toBe("air-bbsk");
     expect((grant.spec as { validity: { to: string } }).validity.to).toMatch(/^2026-12-31T|^2027-01-01T/);
+  });
+
+  it("proposes no Group over one the person cannot see (F-R2UI3-005)", async () => {
+    show({ allowedProjects: [] }, [], { grants: [{ rule: { kinds: ["Endpoint", "Policy"], verbs: ["read", "propose"] } }] });
+    const pick = await screen.findByLabelText(en.endpoints.shareFlow.project);
+    await within(pick).findByRole("option", { name: "bbsk" });
+    await userEvent.selectOptions(pick, "bbsk");
+    await userEvent.click(screen.getByRole("button", { name: en.endpoints.shareFlow.propose }));
+    await waitFor(() => expect(imports).toHaveLength(2));
+    expect(imports[1].manifests.map((manifest) => manifest.kind)).not.toContain("Group");
+    expect(screen.queryByText(/does not exist yet/)).toBeNull();
   });
 
   it("asks for no group list the person does not read (T-3852)", async () => {

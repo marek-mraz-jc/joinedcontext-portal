@@ -20,11 +20,14 @@ pub mod data_views;
 pub mod drafts;
 pub mod endpoint_reach;
 pub mod feed_shape;
+pub mod knowledge;
+pub mod mqtt;
 pub mod people;
 pub mod pipeline_runs;
 pub mod pipeline_steps;
 pub mod pipeline_templates;
 pub mod plans;
+pub mod policy_names;
 pub mod previews;
 pub mod proposals;
 pub mod replace_check;
@@ -112,6 +115,13 @@ impl std::fmt::Debug for Bearer {
 }
 
 impl Caller {
+    /// A person at the Portal's own form, which mints a new Endpoint's slug in the browser and
+    /// shows its address before the change is proposed (EP-75); every other caller leaves the
+    /// slug to the platform.
+    pub fn brings_its_own_slug(&self) -> bool {
+        self.via == Via::Session && self.identity.client.is_none() && self.access.is_none()
+    }
+
     pub fn new(identity: Identity, via: Via) -> Self {
         Self {
             identity,
@@ -569,6 +579,9 @@ pub fn may_try(
     input: Option<&Value>,
 ) -> Result<(), OpError> {
     permitted(op, identity, state, project)?;
+    if let Some(input) = input {
+        named_subject(op.name, identity, state, project, input)?;
+    }
     if op.verb.is_some() || op.annotations.read_only_hint {
         return Ok(());
     }
@@ -589,6 +602,39 @@ pub fn may_try(
             op.title
         )))),
     }
+}
+
+/// For an operation that acts on one object named by the input's `name`, the route's 404 when
+/// that object is not there (T-6280): a person is not asked to confirm a run of a Pipeline that
+/// is only in an open change, which would then fail. A name that is no string is the input's 422,
+/// which the call answers.
+fn named_subject(
+    name: &str,
+    identity: &crate::auth::session::Identity,
+    state: &AppState,
+    project: &str,
+    input: &Value,
+) -> Result<(), OpError> {
+    let Some(subject) = input.get("name").and_then(Value::as_str) else {
+        return Ok(());
+    };
+    let found = match name {
+        "jc_pipeline_run" => {
+            crate::api::pipelines::readable_pipeline_for(state, identity, project, subject)
+                .map(|_| ())
+        }
+        "jc_syncsource_sync" | "jc_syncsource_pause" => {
+            crate::api::sync_sources::named(state, project, subject).map(|_| ())
+        }
+        _ => return Ok(()),
+    };
+    found.map_err(|missing| match missing {
+        ApiError::NotFound(why) => OpError::Api(ApiError::NotFound(format!(
+            "{why}; one still in an open change exists once that change is approved \
+             (jc_change_list lists the open changes)"
+        ))),
+        other => OpError::Api(other),
+    })
 }
 
 /// The route's check of an operation on the organization's people or projects (PF-91, PF-65),
@@ -686,6 +732,8 @@ pub struct EmptyInput {}
 /// checks an input against before the operation's own parse: a property says what it is, a
 /// string says how long it may be, and an object either names its properties or says how many
 /// it may carry.
+pub use bounds::PAGE_BYTES;
+
 pub(crate) mod bounds {
     use serde_json::{json, Value};
 
@@ -707,6 +755,26 @@ pub(crate) mod bounds {
     pub const MANIFEST_MEMBERS: u64 = 5;
     /// The members of one free-form record: an entity, a sample row, a parameter map.
     pub const RECORD_MEMBERS: u64 = 512;
+
+    /// The most one listing page of an operation carries, in bytes of its items' JSON (T-6291):
+    /// well under a connector's answer (`connectors::DEFAULT_LIMITS.result_bytes`) and a few
+    /// thousand tokens of a model's context, so a page reaches the client whole.
+    pub const PAGE_BYTES: usize = 32 * 1024;
+
+    /// How many of `items`, from the first, fit in `bytes` of their JSON: at least one when there
+    /// is one, so a single large item still pages on.
+    pub fn fitting<T: serde::Serialize>(items: &[T], bytes: usize) -> usize {
+        let mut used = 0;
+        items
+            .iter()
+            .take_while(|item| {
+                used += serde_json::to_vec(item).map_or(bytes, |b| b.len());
+                used <= bytes
+            })
+            .count()
+            .max(1)
+            .min(items.len())
+    }
 
     /// A string property with its description and its length bound.
     pub fn text(description: &str, max: u64) -> Value {
@@ -798,6 +866,8 @@ fn init_registry() -> Vec<Operation> {
     operations.extend(pipeline_runs::operations());
     operations.extend(admin::operations());
     operations.extend(sync_sources::operations());
+    operations.extend(knowledge::operations());
+    operations.extend(mqtt::operations());
     operations.extend(workspaces::operations());
     operations.extend(people::operations());
     operations.extend(schemas::operations());
@@ -1020,6 +1090,8 @@ mod tests {
             "jc_syncsource_sync",
             "jc_syncsource_pause",
             "jc_syncsource_detach",
+            "jc_knowledge_status",
+            "jc_knowledge_search",
         ] {
             assert!(find(name).is_some(), "missing operation {name}");
         }

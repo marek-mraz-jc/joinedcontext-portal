@@ -115,9 +115,16 @@ pub async fn person_names(
         });
     }
     let admin = super::people::people(&state)?.admin().await?;
-    let mut items = Vec::with_capacity(ids.len());
-    for id in ids {
-        match admin.get(id).await {
+    // At most `LAST_SEEN_AT_ONCE` realm reads in flight, in the order asked (F-R2POR3-021).
+    let lookups: Vec<_> = ids.iter().map(|id| admin.get(id)).collect();
+    let answers: Vec<_> = futures_util::StreamExt::collect(futures_util::StreamExt::buffered(
+        futures_util::stream::iter(lookups),
+        super::people::LAST_SEEN_AT_ONCE,
+    ))
+    .await;
+    let mut items = Vec::with_capacity(answers.len());
+    for answer in answers {
+        match answer {
             Ok(found) => items.push(PersonName {
                 id: found.id.clone(),
                 name: name_of(&found),
@@ -245,22 +252,43 @@ fn rewrite_lists(value: &mut Value, users: &[KcUser], unresolved: &mut BTreeSet<
     changed
 }
 
+/// A Policy assignee of kind `user`, its id rewritten as [`rewrite`] does.
+fn rewrite_assignee(
+    assignee: &mut Value,
+    users: &[KcUser],
+    unresolved: &mut BTreeSet<String>,
+) -> bool {
+    if assignee.get("kind").and_then(Value::as_str) != Some("user") {
+        return false;
+    }
+    assignee
+        .get_mut("id")
+        .is_some_and(|slot| rewrite(slot, users, unresolved))
+}
+
 /// The manifests of `mirror` that name a person other than by id, rewritten, grouped by the
 /// repository that holds them.
 pub fn plan(mirror: &Mirror, users: &[KcUser]) -> Plan {
     let mut plan = Plan::default();
     for mut envelope in mirror.matching(|candidate| NAMING.contains(&candidate.kind.as_str())) {
         let changed = if envelope.kind == "Policy" {
-            let assignee = envelope.spec.get_mut("assignee");
-            match assignee {
-                Some(assignee) if assignee.get("kind").and_then(Value::as_str) == Some("user") => {
-                    match assignee.get_mut("id") {
-                        Some(slot) => rewrite(slot, users, &mut plan.unresolved),
-                        None => false,
-                    }
-                }
-                _ => false,
+            // The single-rule `spec.assignee`, and each `spec.rules[].assignee` (ADR-N-057).
+            let mut changed = false;
+            if let Some(assignee) = envelope.spec.get_mut("assignee") {
+                changed |= rewrite_assignee(assignee, users, &mut plan.unresolved);
             }
+            for rule in envelope
+                .spec
+                .get_mut("rules")
+                .and_then(Value::as_array_mut)
+                .into_iter()
+                .flatten()
+            {
+                if let Some(assignee) = rule.get_mut("assignee") {
+                    changed |= rewrite_assignee(assignee, users, &mut plan.unresolved);
+                }
+            }
+            changed
         } else {
             rewrite_lists(&mut envelope.spec, users, &mut plan.unresolved)
         };
@@ -542,6 +570,25 @@ mod tests {
             vec!["helsinki"]
         );
         assert!(plan.unresolved.is_empty());
+    }
+
+    /// F-R2POR3-012: a Policy of `rules` (ADR-N-057) names its user assignees per rule.
+    #[test]
+    fn a_user_assignee_inside_rules_is_rewritten_too() {
+        let mirror = Mirror::new();
+        mirror.upsert(envelope(
+            "Policy",
+            "readers",
+            "helsinki",
+            json!({ "rules": [
+                { "assignee": { "kind": "user", "id": "jana@hel.fi" } },
+                { "assignee": { "kind": "group", "id": "leads" } }
+            ] }),
+        ));
+        let plan = plan(&mirror, &[user(JANA, "jana@hel.fi", "jana")]);
+        let policy = &plan.repositories["organization"][0];
+        assert_eq!(policy.spec["rules"][0]["assignee"]["id"], JANA);
+        assert_eq!(policy.spec["rules"][1]["assignee"]["id"], "leads");
     }
 
     fn caller(client: Option<&str>, groups: &[&str]) -> CurrentUser {

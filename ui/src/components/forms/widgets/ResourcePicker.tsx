@@ -5,7 +5,7 @@ import type { WidgetProps } from "@rjsf/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
-import { ApiError, api, queryKeys, unwrap } from "../../../api/client";
+import { api, queryKeys, unwrap, reasonOf } from "../../../api/client";
 import { asManifests, localized } from "../../../api/manifest";
 import { Button, InlineError, Select } from "../../ui";
 import { useShownErrors } from "../touched";
@@ -37,7 +37,7 @@ export function ResourcePicker(props: WidgetProps): JSX.Element {
   // A list that could not be asked for is not an empty project (UI-44, T-1486): a 403 or a 500
   // read as "No results" in every form that picks a resource, so nobody could tell the difference.
   const failed = query.isError;
-  const reason = listFailure(query.error);
+  const reason = reasonOf(query.error);
   const empty = placeholder(t, query.isLoading, failed, choices.length);
 
   // What an empty list asks the person to do next (T-5590): the page's own words, else the
@@ -122,14 +122,6 @@ function useResourceChoices(project: string | undefined, plural: string | undefi
     [query.data, language],
   );
   return { query, choices };
-}
-
-/** The words of a failed list read: the server's problem detail when it sent one. */
-function listFailure(error: unknown): string {
-  if (error instanceof ApiError) {
-    return error.problem?.detail ?? error.message;
-  }
-  return error instanceof Error ? error.message : "";
 }
 
 /** The empty option's text: loading, nothing to pick (or the read failed), or a prompt to choose. */

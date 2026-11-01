@@ -243,11 +243,15 @@ fn other_space<'a>(
 /// read in its project, or whose audience is the organization or the public. The form's list and
 /// the door's model check use this one rule, so neither tells the caller of an Endpoint, a type or
 /// an attribute they may not read (PF-59, PF-61).
+///
+/// `rights` keeps the caller's rights per owning project, so a list of every Endpoint reckons
+/// each project's once (F-R2POR1-018).
 fn requestable(
     state: &AppState,
     user: &CurrentUser,
     pipeline: (&str, Option<&str>),
     endpoint: &crate::resource::ResourceEnvelope,
+    rights: &mut std::collections::HashMap<String, crate::permissions::Effective>,
 ) -> Option<Requestable> {
     let owner = endpoint.metadata.namespace.as_deref().unwrap_or_default();
     let name = endpoint.metadata.name.as_str();
@@ -259,8 +263,10 @@ fn requestable(
         endpoint.spec["audience"].as_str(),
         Some("organization" | "public")
     );
-    let readable = || {
-        let effective = crate::permissions::for_request(state, &user.0.identity, owner);
+    let mut readable = || {
+        let effective = rights
+            .entry(owner.to_owned())
+            .or_insert_with(|| crate::permissions::for_request(state, &user.0.identity, owner));
         effective.may_read_project() && effective.may_read_in("Endpoint", Some(endpoint_space))
     };
     if !open && !readable() {
@@ -342,11 +348,20 @@ pub(crate) async fn list_requestable(
     Path((project, pipeline)): Path<(String, String)>,
 ) -> Result<Json<Value>, ApiError> {
     let space = proposable_pipeline(&state, &user, &project, &pipeline, true)?;
+    let mut rights = std::collections::HashMap::new();
     let mut items: Vec<Requestable> = state
         .mirror
         .matching(|env| env.kind == "Endpoint")
         .iter()
-        .filter_map(|endpoint| requestable(&state, &user, (&project, space.as_deref()), endpoint))
+        .filter_map(|endpoint| {
+            requestable(
+                &state,
+                &user,
+                (&project, space.as_deref()),
+                endpoint,
+                &mut rights,
+            )
+        })
         .collect();
     items.sort_by(|a, b| (&a.project, &a.name).cmp(&(&b.project, &b.name)));
     Ok(Json(json!({ "items": items })))
@@ -453,9 +468,15 @@ fn new_request(
             "endpoint.name: endpoint '{name}' serves the pipeline's own space; a pipeline writes and reads its own space without a request"
         )));
     }
-    let offered = held
-        .as_ref()
-        .and_then(|endpoint| requestable(state, user, (project, pipeline_space), endpoint));
+    let offered = held.as_ref().and_then(|endpoint| {
+        requestable(
+            state,
+            user,
+            (project, pipeline_space),
+            endpoint,
+            &mut std::collections::HashMap::new(),
+        )
+    });
     // T-4946: a name the form offers is checked against its model here. Any other typed name, an
     // Endpoint the caller may not read or one that does not exist, gets the same answer: the
     // request waits, unchecked, for an owner of the Endpoint's space, who judges its types and
@@ -655,8 +676,13 @@ pub(crate) async fn approve_request(
     {
         Ok(change) => change,
         Err(err) => {
-            if let Err(undo) =
-                requests::reopen(pool(&state)?, &request.id, &user.0.identity.username).await
+            if let Err(undo) = requests::take_back(
+                pool(&state)?,
+                &request,
+                "approved",
+                &user.0.identity.username,
+            )
+            .await
             {
                 tracing::error!(id = %request.id, error = %undo, "an approval whose proposal failed was not reopened");
             }
@@ -807,16 +833,38 @@ pub(crate) async fn revoke_request(
             "the grant of access request {id} is not on main yet; approve or close its Change first"
         )));
     }
-    let change = propose(&state, &user, &project, manifests).await?;
+    // Claimed before the Change is proposed, as an approval is: a second owner revoking at the
+    // same time gets the 409 before any Change of theirs is open (F-R2POR1-007).
     decided(
         &state,
         &user,
         &request,
         ("approved", "revoked"),
         Some(&reason),
-        change_name(&change),
+        None,
     )
     .await?;
+    let change = match propose(&state, &user, &project, manifests).await {
+        Ok(change) => change,
+        Err(err) => {
+            if let Err(undo) = requests::take_back(
+                pool(&state)?,
+                &request,
+                "revoked",
+                &user.0.identity.username,
+            )
+            .await
+            {
+                tracing::error!(id = %request.id, error = %undo, "a revoke whose proposal failed was not taken back");
+            }
+            return Err(err);
+        }
+    };
+    if let Some(name) = change_name(&change) {
+        requests::record_change(pool(&state)?, &request.id, name)
+            .await
+            .map_err(store_error)?;
+    }
     record(&state, &user, &request, "revoked access").await;
     Ok((StatusCode::ACCEPTED, Json(change)).into_response())
 }

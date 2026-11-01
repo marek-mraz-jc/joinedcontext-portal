@@ -351,16 +351,21 @@ function points(coordinates: unknown): Array<[number, number]> {
  * A geoQ drawn as its shape (T-3792): the geometry's points scaled into a small box, so "only
  * near the harbour" is seen, not read from coordinates. No basemap: the shape and its text.
  */
-function GeoPreview({ geoQ }: { geoQ: GeoQ }): JSX.Element {
+export function GeoPreview({ geoQ }: { geoQ: GeoQ }): JSX.Element {
   const { t } = useTranslation();
   const pts = points(geoQ.coordinates);
   const text = `${geoQ.georel ?? ""} ${geoQ.geometry ?? ""} ${JSON.stringify(geoQ.coordinates ?? [])}`.trim();
   if (pts.length === 0) {
     return <Constraint label="geoQ" value={text} />;
   }
-  const xs = pts.map((p) => p[0]);
-  const ys = pts.map((p) => p[1]);
-  const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  // A loop, not Math.min(...xs): spreading a large polygon's points overflows the call stack.
+  let [minX, maxX, minY, maxY] = [Infinity, -Infinity, Infinity, -Infinity];
+  for (const [x, y] of pts) {
+    minX = Math.min(minX, x);
+    maxX = Math.max(maxX, x);
+    minY = Math.min(minY, y);
+    maxY = Math.max(maxY, y);
+  }
   const span = Math.max(maxX - minX, maxY - minY) || 1;
   const at = ([x, y]: [number, number]) => `${(((x - minX) / span) * 80 + 10).toFixed(1)},${(90 - ((y - minY) / span) * 80).toFixed(1)}`;
   return (

@@ -20,9 +20,7 @@ use std::time::Duration;
 use super::services::{self, Quota};
 use crate::agents::profile::Profile;
 use crate::error::ApiError;
-use crate::permissions::ORG_NAMESPACE;
 use crate::state::AppState;
-use crate::store::ListOptions;
 
 pub const MAX_BODY_BYTES: usize = 256 * 1024;
 const MAX_MESSAGES: usize = 50;
@@ -110,16 +108,13 @@ enum NoModel {
 /// The model and the body shape: the profile's, held to the organization's list (AG-53). A model
 /// outside the list is refused, never swapped for the list's first one: that model may belong to
 /// another provider than the profile's (F-POR2-014).
-fn model(state: &AppState) -> Result<(String, String), NoModel> {
+fn model(state: &AppState, project: &str) -> Result<(String, String), NoModel> {
     let profile = Profile::load(&state.mirror, PROFILE).map_err(|_| NoModel::NoProfile)?;
-    let allowed: Option<Vec<String>> = state
-        .mirror
-        .list(ORG_NAMESPACE, "Organization", &ListOptions::default())
-        .items
-        .into_iter()
-        .next()
-        .and_then(|org| org.spec.pointer("/policies/agents/models").cloned())
-        .and_then(|models| serde_json::from_value(models).ok());
+    // The models the App's own Organization allows (ADR-N-058).
+    let allowed: Option<Vec<String>> =
+        crate::permissions::organization_manifest_of(&state.mirror, project)
+            .and_then(|org| org.spec.pointer("/policies/agents/models").cloned())
+            .and_then(|models| serde_json::from_value(models).ok());
     if allowed.is_some_and(|list| !list.contains(&profile.model_name)) {
         return Err(NoModel::NotAllowed(profile.model_name));
     }
@@ -224,11 +219,19 @@ async fn ask_model(
             "the Portal has no token to ask the model service with",
         ))
     })?;
-    let http = reqwest::Client::builder()
-        .redirect(reqwest::redirect::Policy::none())
-        .timeout(PROXY_TIMEOUT)
-        .build()
-        .map_err(|_| Box::new(unavailable("the model service cannot be reached")))?;
+    // One client for every App's calls, so they share its connection pool (F-R2POR3-022).
+    static HTTP: std::sync::OnceLock<reqwest::Client> = std::sync::OnceLock::new();
+    let http = match HTTP.get() {
+        Some(http) => http,
+        None => {
+            let built = reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .timeout(PROXY_TIMEOUT)
+                .build()
+                .map_err(|_| Box::new(unavailable("the model service cannot be reached")))?;
+            HTTP.get_or_init(|| built)
+        }
+    };
     let response = http
         .post(format!(
             "{}{path}",
@@ -318,7 +321,7 @@ pub(super) async fn complete(
     ) else {
         return unavailable("this installation answers no App's ai calls");
     };
-    let (model, provider) = match model(&state) {
+    let (model, provider) = match model(&state, &project) {
         Ok(model) => model,
         Err(NoModel::NoProfile) => {
             return unavailable(
@@ -410,6 +413,7 @@ pub(super) async fn complete(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::permissions::ORG_NAMESPACE;
 
     /// F-POR2-014: a profile model outside the organization's list is refused, never replaced
     /// by the list's first model.
@@ -448,7 +452,7 @@ mod tests {
             }),
         );
         assert!(
-            matches!(model(&state), Err(NoModel::NotAllowed(name)) if name == "deepseek/deepseek-v4.1-flash")
+            matches!(model(&state, "helsinki"), Err(NoModel::NotAllowed(name)) if name == "deepseek/deepseek-v4.1-flash")
         );
         put(
             "Organization",
@@ -459,7 +463,7 @@ mod tests {
             }),
         );
         assert!(
-            matches!(model(&state), Ok((name, provider)) if name == "deepseek/deepseek-v4.1-flash" && provider == "openai-compatible")
+            matches!(model(&state, "helsinki"), Ok((name, provider)) if name == "deepseek/deepseek-v4.1-flash" && provider == "openai-compatible")
         );
     }
 

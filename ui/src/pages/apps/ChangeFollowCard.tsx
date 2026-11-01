@@ -5,6 +5,7 @@ import { api, ApiError, forPeople, queryKeys, unwrap } from "../../api/client";
 import { approvalStanding, changedKind } from "../../api/approval";
 import { usePermissions } from "../../api/permissions";
 import { useIdentity } from "../../auth/AuthProvider";
+import { PlanDiffViewer } from "../../components/diff/PlanDiffViewer";
 import { Button, Card, InlineError } from "../../components/ui";
 import { Icon } from "../../components/ui/icons";
 import { PortalLink } from "./Prose";
@@ -13,7 +14,7 @@ import { isRecord, QueryAnswer, viewOf } from "./QueryResultCard";
 
 /**
  * A Change the assistant proposed, followed in the conversation to a result that works (T-2774,
- * AG-87): proposed, approved (by whom, and here when the person may), live, and for an endpoint
+ * AG-87): proposed, approved (by whom, and here, beside its field changes, when the person may), live, and for an endpoint
  * tested by reading a few of its rows with the person's own session. The assistant never
  * approves (AG-11); the button is the person's.
  */
@@ -260,9 +261,14 @@ export function ChangeFollowCard({
             ) : standing?.block ? (
               <p className="text-fg-muted">{forPeople(t(`approvals.${standing.block}`))}</p>
             ) : standing ? (
-              <Button variant="primary" size="xs" loading={approve.isPending} onClick={() => approve.mutate()}>
-                {t("agentRun.follow.approve")}
-              </Button>
+              // The agent wrote this Change, and text it read can steer what it wrote: what the
+              // Change does stands above the button, so nobody approves it unseen (F-R2UI2-005).
+              <div className="space-y-2">
+                <PlanDiffViewer fields={proposal.planFields} />
+                <Button variant="primary" size="sm" loading={approve.isPending} onClick={() => approve.mutate()}>
+                  {t("agentRun.follow.approve")}
+                </Button>
+              </div>
             ) : null}
             {approve.error ? (
               <InlineError>

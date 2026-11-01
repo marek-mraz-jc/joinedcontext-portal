@@ -37,8 +37,15 @@ fn the_tool_definitions_a_model_reads_stay_under_their_byte_ratchet() {
 
 /// 53,459 once `project` is said once in `initialize` and the descriptions lost what their names
 /// and bounds already say (T-6058); 50,592 once the four per-kind propose tools, whose input was
-/// `jc_resource_propose`'s, left the registry (T-6067).
-const RATCHET: usize = 50_600;
+/// `jc_resource_propose`'s, left the registry (T-6067); 50,747 once `jc_change_list` took
+/// `limit` and `cursor` (T-6291): 155 bytes a turn against answers of up to 49 KB that had no page;
+/// 50,875 once `jc_pipeline_sample_source` took `planId` (T-6269): 125 bytes a turn against an
+/// open-data import that stopped before its first sample; 51,809 with `jc_knowledge_status` (409)
+/// and `jc_knowledge_search` (562), the knowledge segment's two reads, which no other tool
+/// answers (T-6284); 52,379 once `jc_mqtt_captured` joined
+/// (T-6290, 570 bytes): the only door to a capture broker's messages, in the route's own words
+/// (route_coverage_tests).
+const RATCHET: usize = 52_380;
 
 /// The cut never opens a schema: every MCP input stays closed, and `project` stays bounded.
 #[test]

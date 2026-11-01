@@ -12,9 +12,8 @@ import {
   PermissionGuard,
 } from "../../components/ui";
 import { ManifestGrid } from "../../components/grid/ManifestGrid";
-import { ApiError } from "../../api/client";
+import { ApiError, reasonOf } from "../../api/client";
 import { usePermissions } from "../../api/permissions";
-import { reasonOf } from "./KnowledgePage";
 import { bytesText, knowledgeKeys, listFiles, removeFile, UPLOAD_ACCEPT, uploadFile } from "./knowledge";
 import type { UploadedFile } from "./knowledge";
 

@@ -168,6 +168,12 @@ pub struct AppState {
 const REVOCATION_TTL_SECS: i64 = 48 * 3600;
 
 impl AppState {
+    /// Whether this replica runs the work with side effects of a background loop (W-R2POR1-012):
+    /// the reconciler's leader, or the one replica there is when nothing elects one.
+    pub fn leads(&self) -> bool {
+        self.syncer.as_ref().is_none_or(|syncer| syncer.is_leader())
+    }
+
     /// The forge client for `project`'s own files (CC-87): in layout 2 its own repository,
     /// spoken to in render paths (`projects/{project}/…`); the organization repository
     /// otherwise. `None` when no forge is configured.
@@ -1253,11 +1259,17 @@ impl AppState {
     }
 
     pub fn is_revoked(&self, session: &Session) -> bool {
+        self.revoked_since(&session.identity.subject, session.issued_at)
+    }
+
+    /// Whether `subject` was logged out at or after `at` (unix seconds): what ends a session
+    /// issued then, and an agent run started then on that person's behalf (T-6226).
+    pub fn revoked_since(&self, subject: &str, at: i64) -> bool {
         self.revocations
             .read()
             .ok()
-            .and_then(|marks| marks.get(&session.identity.subject).copied())
-            .is_some_and(|mark| session.issued_at <= mark)
+            .and_then(|marks| marks.get(subject).copied())
+            .is_some_and(|mark| at <= mark)
     }
 
     /// The branding of this installation, loaded from `JC_BRANDING_FILE` or neutral defaults.
@@ -1307,6 +1319,30 @@ impl Drop for InFlight {
 mod tests {
     use super::*;
     use crate::auth::session::{now_unix, Identity};
+
+    /// F-R2POR1-011 (T-6225): a replica that does not hold the reconciler lock leads no
+    /// background loop; one with no election leads.
+    #[tokio::test]
+    async fn a_follower_replica_leads_no_background_loop() {
+        let alone = AppState::new(Config::for_tests(), None);
+        assert!(alone.leads());
+        let gitea = Arc::new(
+            GiteaClient::new(
+                "http://localhost:3000".parse().expect("a url"),
+                "test-owner",
+                "test-repo",
+                "token",
+            )
+            .expect("a client"),
+        );
+        let pool = sqlx::postgres::PgPoolOptions::new()
+            .connect_lazy("postgres://follower@localhost/none")
+            .expect("a lazy pool");
+        let follower = Syncer::new(gitea, Arc::new(Mirror::new()))
+            .with_leadership(Arc::new(Leadership::reconciler(pool)));
+        let state = AppState::new(Config::for_tests(), None).with_syncer(Arc::new(follower));
+        assert!(!state.leads());
+    }
 
     #[test]
     fn mcp_windows_count_together_refuse_with_the_wait_and_reset_after_a_minute() {

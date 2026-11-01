@@ -16,13 +16,12 @@ import {
   Checkbox,
   Dialog,
   InlineError,
-  PageHeader,
 } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { usePermissions } from "../../api/permissions";
 import { takePrefill } from "../../assistant/state";
 import { getDraft, putDraft } from "../../api/drafts";
-import { Link } from "@tanstack/react-router";
+import { setPageTitle } from "../../documentTitle";
 import { LinkmlEditor } from "./LinkmlEditor";
 import { replaceOwnSearch } from "../../assistant/HandOff";
 import { ModelFileDrop } from "./ModelFileDrop";
@@ -456,29 +455,39 @@ export function ModelsPage({
     }
   };
 
+  // The tab names the model the editor holds; the visible heading is the model's name (ModelIdentity).
+  useEffect(() => {
+    setPageTitle([displayName || t("models.editor.title"), project]);
+  }, [displayName, project, t]);
+
+  // Why Propose cannot be pressed now, in the order a person fixes it; undefined when it can.
+  const proposeBlocked =
+    saving || checking
+      ? t("app.busyReason")
+      : taken
+        ? t("models.source.nameTaken")
+        : blocking > 0
+          ? t("models.source.fixErrors", { count: blocking })
+          : !moved
+            ? t("models.source.unchanged")
+            : severity === "breaking" && !breakingConfirmed
+              ? t("models.source.confirmFirst", { version: nextVersion })
+              : undefined;
   return (
     <div className="flex flex-col gap-4">
-      <Link
-        to="/projects/$project/models"
-        params={{ project }}
-        className="focus-ring w-fit text-body text-primary-soft-fg underline hover:no-underline"
-      >
-        {t("models.page.back")}
-      </Link>
-      <PageHeader
-        title={t("models.editor.title")}
-        description={t("models.editor.lead")}
-        note={
-          <ModelIdentity
-            name={displayName}
-            id={targetName}
-            creating={creating}
-            version={published?.version}
-            readOnly={!mayPropose}
-            onRename={rename}
-          />
-        }
-        actions={
+      {/* One row: the model's name, Rename and version, then Check, Propose and Remove;
+          the breadcrumb leads back to the list (owner 2026-10-31). */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <ModelIdentity
+          name={displayName}
+          id={targetName}
+          creating={creating}
+          version={published?.version}
+          readOnly={!mayPropose}
+          onRename={rename}
+        />
+        <div className="flex flex-wrap items-center gap-2">
+          {
           targetName && !spaceTakenBy ? (
             <>
               {/* Refused where they stand for a person who may not propose (UI-44, T-2848). */}
@@ -504,21 +513,8 @@ export function ModelsPage({
                   size="sm"
                   variant="primary"
                   onClick={handleSave}
-                  disabled={
-                    saving ||
-                    checking ||
-                    taken ||
-                    !moved ||
-                    blocking > 0 ||
-                    (severity === "breaking" && !breakingConfirmed)
-                  }
-                  disabledReason={
-                    blocking > 0
-                      ? t("models.source.fixErrors", { count: blocking })
-                      : !moved
-                        ? t("models.source.unchanged")
-                        : undefined
-                  }
+                  disabled={proposeBlocked !== undefined}
+                  disabledReason={proposeBlocked}
                 >
                   {t("models.source.save", { version: nextVersion })}
                 </Button>
@@ -528,10 +524,16 @@ export function ModelsPage({
                   target={{ project, kind: "DataModel", plural: "datamodels", name: published.name }}
                 />
               ) : null}
+              {/* The reason a disabled Propose gives, in the open as the row menu shows it: a pale
+                  button alone read as broken (T-6254 judge). */}
+              {/* Only the reasons not already shown elsewhere: errors have their list, a taken name its alert. */}
+              {proposeBlocked && !saving && !checking && !taken && blocking === 0 ? (
+                <p className="basis-full text-right text-caption text-fg-muted max-sm:text-left">{proposeBlocked}</p>
+              ) : null}
             </>
-          ) : null
-        }
-      />
+          ) : null}
+        </div>
+      </div>
 
       {loadingSource ? (
         <p role="status" className="text-body text-fg-muted">
@@ -570,7 +572,8 @@ export function ModelsPage({
         </Alert>
       ) : null}
 
-      {published ? (
+      {/* Nothing to say until the text moved: no "No change" box (owner 2026-10-31). */}
+      {published && (moved || changes.length > 0 || refusal) ? (
         <section
           aria-labelledby="models-changes"
           className={

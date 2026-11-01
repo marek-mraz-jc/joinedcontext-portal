@@ -165,6 +165,8 @@ export function LinkmlSourceEditor({
     monacoRef.current = monaco;
     const provider: languages.CompletionItemProvider = {
       provideCompletionItems: (model: editor.ITextModel, position: Position) => {
+        // Monaco asks every provider of the language: another YAML editor of the page is not LinkML.
+        if (model !== editorRef.current?.getModel()) return { suggestions: [] };
         const line = model.getValueInRange({
           startLineNumber: position.lineNumber,
           startColumn: 1,

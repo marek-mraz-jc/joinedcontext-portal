@@ -169,7 +169,7 @@ export function ResourceFormDialogBody<T>({
   const guideHref = guideUrl(branding, arrangement.guide);
 
   const [view, setView] = useState<View>("form");
-  const yaml = useYamlEditor(source, project, onChange);
+  const yaml = useYamlEditor(source);
   const currentDigest = useMemo(() => digestOf(formData ? manifestOf(formData, source) : {}), [formData, source]);
   const draft = useResourceDraft({
     open,
@@ -479,8 +479,6 @@ export function ResourceFormDialogBody<T>({
           <ResourceYamlPanel
             editor={yaml}
             viewsId={viewsId}
-            disabled={disabled}
-            downloadName={extractName(formData) ?? kind?.toLowerCase() ?? "manifest"}
             footer={
               <ResourceFormFooter {...footer} className="justify-end" testId="form-footer">
                 {effectiveSubmitDisabledReason && !proposeReason ? (

@@ -25,7 +25,7 @@ export const PRESETS: readonly Preset[] = ["read", "propose", "build"];
  * `connectors::is_segment` has them: the assistant then calls that segment's registry tools
  * natively, each call checked as a connector's. None keeps the guided paths.
  */
-export const SEGMENTS = ["data-read", "context", "pipeline", "access", "publish", "apps", "operate", "admin"] as const;
+export const SEGMENTS = ["data-read", "context", "pipeline", "access", "publish", "apps", "operate", "knowledge", "admin"] as const;
 export type Segment = (typeof SEGMENTS)[number];
 
 function isSegment(value: unknown): value is Segment {

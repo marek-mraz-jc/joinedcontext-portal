@@ -62,15 +62,21 @@ const LISTS: Record<string, { plural: string; kind: string; scopes: ("project" |
 
 /**
  * Who a policy is granted to, by `assignee.kind` (T-3217): the roles, groups and service
- * accounts the person may read are offered by name, and the people when they may list them. A
- * DID, or a person outside the list, is still typed; the lists come narrowed to what the caller
- * may read, so nobody is offered a name they could not open.
+ * accounts the person may read are offered by name. A person is picked as every manifest names
+ * one, by their Keycloak user id (ADR-N-061, which jc-core's Policy check enforces): the e-mail
+ * this list once wrote was refused on Propose. A DID, or a name outside the list, is still typed;
+ * the lists come narrowed to what the caller may read, so nobody is offered a name they could not open.
  */
 export function AssigneePicker(props: WidgetProps): JSX.Element {
-  const { t } = useTranslation();
-  const project = useContext(FormProjectContext) ?? "";
   const root = useContext(FormDataContext) as { assignee?: { kind?: unknown } } | undefined;
   const kind = typeof root?.assignee?.kind === "string" ? root.assignee.kind : "role";
+  return kind === "user" ? <PersonPickerWidget {...props} /> : <GranteeSuggest {...props} kind={kind} />;
+}
+
+/** A role, group or service account by name, or a DID typed (AssigneePicker for every kind but `user`). */
+function GranteeSuggest({ kind, ...props }: WidgetProps & { kind: string }): JSX.Element {
+  const { t } = useTranslation();
+  const project = useContext(FormProjectContext) ?? "";
   const list = LISTS[kind];
   // A list the caller's role does not read is not asked for: the API answers it with a 404 (T-3852).
   const reads = { project: usePermissions(project), org: usePermissions(ORG_NAMESPACE) };
@@ -86,26 +92,13 @@ export function AssigneePicker(props: WidgetProps): JSX.Element {
       };
     }),
   });
-  const people = useQuery({
-    queryKey: ["organization", "people", "names"],
-    queryFn: async () => unwrap(await api.GET("/api/v1/organization/people", { params: { query: { max: 100 } } })),
-    enabled: kind === "user",
-    retry: false,
-  });
-  const choices =
-    kind === "user"
-      ? ((people.data as { items?: { email?: string | null; username?: string }[] } | undefined)?.items ?? [])
-          .map((person) => person.email ?? person.username ?? "")
-          .filter(Boolean)
-      : [...new Set(lists.flatMap((query) => names(query.data)))].sort();
+  const choices = [...new Set(lists.flatMap((query) => names(query.data)))].sort();
   const note =
     kind === "did"
       ? t("policies.assignee.didHint")
-      : kind === "user" && people.isError
-        ? t("policies.assignee.peopleHidden")
-        : choices.length === 0 && lists.every((query) => !query.isPending)
-          ? t("policies.assignee.noneYet", { kind: t(`choice.principalKind.${kind}`, { defaultValue: kind }) })
-          : undefined;
+      : choices.length === 0 && lists.every((query) => !query.isPending)
+        ? t("policies.assignee.noneYet", { kind: t(`choice.principalKind.${kind}`, { defaultValue: kind }) })
+        : undefined;
   return <Suggested {...props} choices={choices} note={note} />;
 }
 

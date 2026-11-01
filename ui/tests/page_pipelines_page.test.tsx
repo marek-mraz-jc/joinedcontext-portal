@@ -112,13 +112,11 @@ describe("the pipelines page", () => {
     add.focus();
     expect(add).toHaveFocus();
     await userEvent.keyboard("{Enter}");
-    // The form is a page now (T-2474): it takes the focus, its back control is the first stop,
-    // and leaving it gives the focus back to the button that opened it.
+    // The form is a page now (T-2474): it takes the focus, and leaving it (Escape; the breadcrumb
+    // and Cancel lead back, no back button since 2026-10-31) gives the focus back to the button.
     const form = await findFormPage();
     await waitFor(() => expect(form).toHaveFocus());
-    await userEvent.tab();
-    expect(within(form).getByRole("button", { name: en.form.backToList })).toHaveFocus();
-    await userEvent.keyboard("{Enter}");
+    await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(queryFormPage()).toBeNull());
     expect(await screen.findByRole("button", { name: en.pipelines.add })).toHaveFocus();
   });

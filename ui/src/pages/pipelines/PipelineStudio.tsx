@@ -29,6 +29,9 @@ import { RecordView,
 import { entityTypesOf, pickReadEndpoint, spaceOf } from "../spaces/spaceFacts";
 import type { PipelineForm, RouteForm } from "./PipelineEditor";
 import { endpointUrn } from "./PipelineEditor";
+import { kpiTargets } from "./kpiEditor";
+import { pathSegment } from "./outputMapper";
+import { endpointUrl } from "../../components/endpoints/links";
 import {
   OutputBlock,
   RouteBlock,
@@ -125,12 +128,12 @@ export function kpiBloblang(params: {
   const valueExpr =
     aggregate === "count"
       ? "this.length()"
-      : `if $stations.length() == 0 { 0 } else { $stations.map_each(s -> s.${attribute}.value).sum() / $stations.length() }`;
+      : `if $stations.length() == 0 { 0 } else { $stations.map_each(s -> s.${pathSegment(attribute)}.value).sum() / $stations.length() }`;
 
   const filterLine =
     aggregate === "count"
       ? ""
-      : `let stations = this.filter(s -> s.${attribute}.value.type() == "number")\n`;
+      : `let stations = this.filter(s -> s.${pathSegment(attribute)}.value.type() == "number")\n`;
 
   return [
     `let domain = env("JC_ORG_DOMAIN")`,
@@ -140,8 +143,8 @@ export function kpiBloblang(params: {
     `let now = now().ts_format("2006-01-02T15:04:05Z")`,
     `root.id = "urn:ngsi-ld:KeyPerformanceIndicator:%v:${project}-kpi:${kpiName}".format($domain)`,
     `root.type = "KeyPerformanceIndicator"`,
-    `root.name = { "type": "Property", "value": "${kpiName}" }`,
-    `root.calculationFormula = { "type": "Property", "value": "${formula}" }`,
+    `root.name = { "type": "Property", "value": ${JSON.stringify(kpiName)} }`,
+    `root.calculationFormula = { "type": "Property", "value": ${JSON.stringify(formula)} }`,
     `root.currentValue = {`,
     `  "type": "Property",`,
     `  "value": ${valueExpr},`,
@@ -164,14 +167,10 @@ export function findKpiTargetEndpoint(
   endpoints: Manifest[],
   orgDomain?: string,
 ): string | undefined {
-  const kpiSpace = `${project}-kpi`;
-  const ep = endpoints.find((e) => spaceOf(e) === kpiSpace || spaceOf(e)?.endsWith("-kpi"));
-  if (!ep) {
-    return undefined;
-  }
-  const space = spaceOf(ep) ?? kpiSpace;
-  const domain = orgDomain || "local";
-  return `urn:ngsi-ld:Endpoint:${domain}:${space}:${ep.metadata.name}`;
+  // The one target list the KPI editor offers: nothing before the organization's domain is known,
+  // never a made-up one written into the manifest (F-R2UI4-005).
+  const targets = kpiTargets(endpoints, spaceOf, orgDomain);
+  return (targets.find((target) => target.urn.includes(`:${project}-kpi:`)) ?? targets[0])?.urn;
 }
 
 /** Where the form's source points: a feed, a space, or nowhere yet. */
@@ -200,7 +199,9 @@ export function aggregateBloblang(
   input: { type: string; attribute: string; space: string; outputType: string },
 ): string {
   const { type, attribute, space, outputType } = input;
-  const values = `this.map_each(e -> e.${attribute}.value.number().catch(0))`;
+  // Every name is data, from a model or a sample's keys: a path segment or a string literal,
+  // never code (F-R2UI4-007).
+  const values = `this.map_each(e -> e.${pathSegment(attribute)}.value.number().catch(0))`;
   const value = {
     sum: `${values}.sum()`,
     average: `if this.length() == 0 { 0 } else { ${values}.sum() / this.length() }`,
@@ -208,13 +209,13 @@ export function aggregateBloblang(
   }[aggregate];
   const property = `${attribute}${aggregate[0].toUpperCase()}${aggregate.slice(1)}`;
   return [
-    `# ${aggregate} of ${attribute} over the ${type} entities the fetch returned (PL-41, PL-36)`,
+    `# ${aggregate} of ${JSON.stringify(attribute)} over the ${JSON.stringify(type)} entities the fetch returned (PL-41, PL-36)`,
     `let domain = env("JC_ORG_DOMAIN")`,
     `let seen = now().ts_format("2006-01-02T15:04:05Z")`,
     `root = [{`,
-    `  "id": "urn:ngsi-ld:%v:%v:%v:%v".format("${outputType}", $domain, "${space}", "${attribute}-${aggregate}"),`,
-    `  "type": "${outputType}",`,
-    `  "${property}": { "type": "Property", "value": ${value}, "observedAt": $seen },`,
+    `  "id": "urn:ngsi-ld:%v:%v:%v:%v".format(${JSON.stringify(outputType)}, $domain, ${JSON.stringify(space)}, ${JSON.stringify(`${attribute}-${aggregate}`)}),`,
+    `  "type": ${JSON.stringify(outputType)},`,
+    `  ${JSON.stringify(property)}: { "type": "Property", "value": ${value}, "observedAt": $seen },`,
     `  "derivedFrom": { "type": "Property", "value": this.map_each(e -> e.id) }`,
     `}]`,
     "",
@@ -286,7 +287,7 @@ export function sampleUrlOf(
   if (Array.isArray(attrs) && attrs.length > 0) {
     params.set("attrs", attrs.join(","));
   }
-  return `${window.location.origin}/api/endpoint/${slug}/ngsi-ld/v1/entities?${params.toString()}`;
+  return endpointUrl(slug, `/ngsi-ld/v1/entities?${params.toString()}`);
 }
 
 /**
@@ -522,8 +523,7 @@ export function PipelineStudio({
     setKpiTesting(true);
     setKpiTestError(null);
     try {
-      const origin = typeof window !== "undefined" ? window.location.origin : "";
-      const url = `${origin}/api/endpoint/${slug}/ngsi-ld/v1/entities?type=${encodeURIComponent(kpiType)}&attrs=${encodeURIComponent(kpiAttribute)}&limit=1000`;
+      const url = endpointUrl(slug, `/ngsi-ld/v1/entities?${new URLSearchParams({ type: kpiType, attrs: kpiAttribute, limit: "1000" }).toString()}`);
       const answered = await testPipeline(project, toManifest ? toManifest(kpiForm) : kpiForm, {
         url,
         format: "json",

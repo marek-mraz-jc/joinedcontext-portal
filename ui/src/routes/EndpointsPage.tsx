@@ -8,10 +8,10 @@ import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap, whilePending } from "../api/client";
 import { importManifests, proposeChecked } from "../api/proposal";
-import { asManifests, isChange, localized, ORG_NAMESPACE, overlay, plainTitle, refName } from "../api/manifest";
+import { asManifests, isChange, localized, overlay, plainTitle, refName } from "../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../api/manifest";
 import type { Verdict } from "../api/drafts";
-import { useProjects } from "../api/projects";
+import { useProjectOrganization, useProjects } from "../api/projects";
 import { takePrefill } from "../assistant/state";
 import { useProjectUsage } from "../components/ProjectQuota";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
@@ -784,23 +784,22 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       ),
   });
 
+  const formRoute = useFormRoute();
+  const routedNew = formRoute?.form?.mode === "new";
+  // What only the form reads waits for the form: the list shows none of it (F-R2UI4-012). A form
+  // address (`/endpoints/new`, `?edit=`) counts as open, so its prefill and pickers load at once.
+  const formOpen = editing !== null || Boolean(formRoute?.form) || edit !== undefined;
   // The Organization, whose name, domain and open-data desk a new endpoint's catalogue starts
   // from (EP-78, EP-80), and the pipelines a catalogue may name as the data's origin.
-  const organizationsQuery = useQuery({
-    queryKey: queryKeys.list(ORG_NAMESPACE, "organizations"),
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/{plural}", {
-          params: { path: { project: ORG_NAMESPACE, plural: "organizations" } },
-        }),
-      ),
-  });
+  // The project's own Organization: with several, the first of the list is another body's.
+  const organization = useProjectOrganization(project);
   const catalogPrefill = useMemo(
-    () => prefillFromOrganization(asManifests(organizationsQuery.data?.items ?? [])[0]),
-    [organizationsQuery.data],
+    () => prefillFromOrganization(organization.organization),
+    [organization.organization],
   );
   const pipelinesQuery = useQuery({
     queryKey: queryKeys.list(project, "pipelines"),
+    enabled: formOpen,
     queryFn: async () =>
       unwrap(
         await api.GET("/api/v1/projects/{project}/{plural}", {
@@ -813,6 +812,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
   // field free text, which is what a manifest written before the catalogue carries anyway.
   const cataloguesQuery = useQuery({
     queryKey: queryKeys.list(project, "ckaninstances"),
+    enabled: formOpen,
     queryFn: async () =>
       unwrap(
         await api.GET("/api/v1/projects/{project}/{plural}", {
@@ -823,6 +823,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
 
   const modelsQuery = useQuery({
     queryKey: queryKeys.list(project, "datamodels"),
+    enabled: formOpen,
     queryFn: async () =>
       unwrap(
         await api.GET("/api/v1/projects/{project}/{plural}", {
@@ -1150,20 +1151,18 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
 
   // `/endpoints/new`: the blank form once, after the spaces have answered, so the first space is
   // preselected as the button does it.
-  const formRoute = useFormRoute();
-  const routedNew = formRoute?.form?.mode === "new";
   const openedNew = useRef(false);
   useEffect(() => {
     if (!routedNew) {
       openedNew.current = false;
       return;
     }
-    if (openedNew.current || spacesQuery.isPending || organizationsQuery.isPending) {
+    if (openedNew.current || spacesQuery.isPending || !organization.settled) {
       return;
     }
     openedNew.current = true;
     startNew(asManifests(spacesQuery.data?.items ?? [])[0]?.metadata.name ?? "", catalogPrefill);
-  }, [routedNew, spacesQuery.isPending, organizationsQuery.isPending, spacesQuery.data, startNew, catalogPrefill]);
+  }, [routedNew, spacesQuery.isPending, organization.settled, spacesQuery.data, startNew, catalogPrefill]);
 
   // `?edit=<name>` from the endpoint's own settings page: the editor opens once, on the endpoint the
   // URL names, and only when the list has it — a name nobody publishes opens nothing rather than an
@@ -1300,7 +1299,8 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-caption font-medium text-fg">{t("endpoints.field.publicUrl")}</span>
         <code data-testid="endpoint-url" className="min-w-0 break-all font-mono text-caption text-fg-muted">
-          {`${window.location.origin}/api/endpoint/`}
+          {/* The copied address with the slug picked out: one builder for both (F-R2UI4-015). */}
+          {endpointUrl("", "")}
           <span data-testid="endpoint-slug" className="font-semibold text-fg">
             {activeSlug}
           </span>

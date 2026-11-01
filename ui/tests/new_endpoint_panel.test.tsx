@@ -67,10 +67,13 @@ interface Sent {
 let sent: Sent[] = [];
 /** What the project's endpoint list holds: the new one appears once its Change is merged. */
 let listed: unknown[] = [];
+/** The phase the followed Change answers with. */
+let phaseNow = "PendingApproval";
 
 function stubFetch(write: boolean) {
   sent = [];
   listed = [];
+  phaseNow = "PendingApproval";
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: RequestInfo | URL) => {
@@ -96,6 +99,9 @@ function stubFetch(write: boolean) {
           policies: write ? [POLICY] : [],
           prefill: {},
         });
+      }
+      if (url.pathname === `/api/v1/projects/${PROJECT}/changes/${CHANGE.metadata.name}`) {
+        return Response.json({ ...CHANGE, status: { ...CHANGE.status, phase: phaseNow } });
       }
       if (url.pathname === `/api/v1/projects/${PROJECT}/endpoints` && request.method === "GET") {
         return list(listed);
@@ -206,6 +212,23 @@ describe("New endpoint", () => {
     listed = [endpointManifest("bikes-app")];
     await waitFor(() => expect(onLive).toHaveBeenCalledWith("bikes-app", "read"), { timeout: 8000 });
     expect(onLive).toHaveBeenCalledTimes(1);
+  }, 15000);
+
+  // F-R2UI2-014: the wait polled the endpoint list for ever after a rejection.
+  it("stops waiting for the endpoint once its Change is rejected", async () => {
+    stubFetch(false);
+    const user = userEvent.setup();
+    renderPanel();
+    await screen.findAllByRole("radio");
+    await fillReadOnly(user);
+    phaseNow = "Rejected";
+    await user.click(screen.getByRole("button", { name: t.propose }));
+    expect(await screen.findByText(en.agentRun.follow.rejected)).toBeInTheDocument();
+    expect(screen.queryByText(/bikes-app is proposed/)).toBeNull();
+    const listReads = () => sent.filter((request) => request.method === "GET" && request.path === `/api/v1/projects/${PROJECT}/endpoints`).length;
+    const before = listReads();
+    await new Promise((resolve) => setTimeout(resolve, 6000));
+    expect(listReads()).toBe(before);
   }, 15000);
 
   it("proposes a write preset's Policy in the same Change, and sends nothing without a type", async () => {

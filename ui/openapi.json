@@ -14770,7 +14770,7 @@
           "resources"
         ],
         "summary": "Read An MQTT Broker's Capture",
-        "description": "The newest messages a broker in `capture` mode kept, newest first (API/01 §47, ADR-N-048 §2.10). Only a person who may approve MqttBrokers in the project; anybody else gets 404.",
+        "description": "The newest messages a capture broker kept; 404 to whoever may not approve MqttBrokers.",
         "operationId": "get_captured",
         "parameters": [
           {
@@ -15761,18 +15761,16 @@
         "requestBody": {
           "content": {
             "application/json": {
-              "example": {},
+              "example": {
+                "q": "example"
+              },
               "schema": {
                 "additionalProperties": false,
                 "properties": {
                   "q": {
-                    "description": "Keywords in names, titles and descriptions",
+                    "description": "Required keywords in names, titles and descriptions, e.g. bike",
                     "maxLength": 2048,
-                    "type": "string"
-                  },
-                  "query": {
-                    "description": "Alias of q; q wins",
-                    "maxLength": 2048,
+                    "pattern": "\\S",
                     "type": "string"
                   },
                   "scope": {
@@ -15781,6 +15779,9 @@
                     "type": "string"
                   }
                 },
+                "required": [
+                  "q"
+                ],
                 "type": "object"
               }
             }
@@ -15794,7 +15795,7 @@
                 "schema": {
                   "properties": {
                     "datasets": {
-                      "description": "Open-data catalogue datasets: title, url of the dataset page, publisher, formats",
+                      "description": "Open datasets: title, url, publisher, formats, resources (format, url), endpoint slug",
                       "items": {
                         "type": "object"
                       },
@@ -16284,6 +16285,10 @@
                     },
                     "summary": {
                       "type": "object"
+                    },
+                    "url": {
+                      "description": "The Portal page where a person decides it",
+                      "type": "string"
                     }
                   },
                   "required": [
@@ -16381,7 +16386,19 @@
               "example": {},
               "schema": {
                 "additionalProperties": false,
-                "properties": {},
+                "properties": {
+                  "cursor": {
+                    "description": "The last page's next",
+                    "maxLength": 253,
+                    "type": "string"
+                  },
+                  "limit": {
+                    "description": "Default 20",
+                    "maximum": 100,
+                    "minimum": 1,
+                    "type": "integer"
+                  }
+                },
                 "type": "object"
               }
             }
@@ -16422,6 +16439,10 @@
                           },
                           "title": {
                             "type": "string"
+                          },
+                          "url": {
+                            "description": "The Portal page where a person decides it",
+                            "type": "string"
                           }
                         },
                         "type": "object"
@@ -16432,6 +16453,10 @@
                       "enum": [
                         "ChangeList"
                       ],
+                      "type": "string"
+                    },
+                    "next": {
+                      "description": "Present when more changes follow: send it as cursor",
                       "type": "string"
                     }
                   },
@@ -17235,7 +17260,7 @@
     },
     "/api/v1/projects/{project}/ops/jc_data_query": {
       "post": {
-        "description": "Reads one Endpoint's entities as you, current or history (temporal), with type, id, q, attrs, a geo-query, count and paging",
+        "description": "Reads one Endpoint's entities, current or history (temporal), by type, id, q, attrs, geo-query, count and paging",
         "operationId": "jc_data_query",
         "parameters": [
           {
@@ -17279,7 +17304,7 @@
                     "type": "string"
                   },
                   "endpoint": {
-                    "description": "Endpoint name, e.g. doprava-counters",
+                    "description": "Endpoint name or public slug, e.g. city-counters",
                     "maxLength": 253,
                     "type": "string"
                   },
@@ -19286,6 +19311,270 @@
         }
       }
     },
+    "/api/v1/projects/{project}/ops/jc_knowledge_search": {
+      "post": {
+        "description": "Passages of one KnowledgeSource, best first, each with its page url and title",
+        "operationId": "jc_knowledge_search",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "q": "example",
+                "source": "example"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "limit": {
+                    "description": "default 5",
+                    "maximum": 10,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "q": {
+                    "description": "e.g. parking permit",
+                    "maxLength": 300,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "source": {
+                    "description": "e.g. city-web",
+                    "maxLength": 253,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "source",
+                  "q"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "hits": {
+                      "description": "Passages best first, each with its page url and title",
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "hits"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Search Knowledge",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "KnowledgeSource",
+          "verb": "read"
+        }
+      }
+    },
+    "/api/v1/projects/{project}/ops/jc_knowledge_status": {
+      "post": {
+        "description": "Each KnowledgeSource's crawl state and counts; with source, its last failed reads",
+        "operationId": "jc_knowledge_status",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {},
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "source": {
+                    "description": "e.g. city-web; absent: every source",
+                    "maxLength": 253,
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "errors": {
+                      "description": "The named source's last failed reads, for a caller who may propose a KnowledgeSource",
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "items": {
+                      "description": "Each source with its crawl state; state not-crawled before the first crawl",
+                      "items": {
+                        "type": "object"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "items"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Read Knowledge State",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "KnowledgeSource",
+          "verb": "read"
+        }
+      }
+    },
     "/api/v1/projects/{project}/ops/jc_kpi_compute": {
       "post": {
         "description": "Folds an attribute over context entities and renders a KeyPerformanceIndicator entity",
@@ -20448,6 +20737,202 @@
           "checkedBy": "registry",
           "kind": "DataModel",
           "verb": "propose"
+        }
+      }
+    },
+    "/api/v1/projects/{project}/ops/jc_mqtt_captured": {
+      "post": {
+        "description": "The newest messages a capture broker kept; 404 to whoever may not approve MqttBrokers",
+        "operationId": "jc_mqtt_captured",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "name": "example"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "limit": {
+                    "description": "Default 100",
+                    "maximum": 1000,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "name": {
+                    "description": "The MqttBroker's name",
+                    "maxLength": 253,
+                    "type": "string"
+                  },
+                  "topic": {
+                    "description": "One exact topic, no + or #",
+                    "maxLength": 65535,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "broker": {
+                      "type": "string"
+                    },
+                    "messages": {
+                      "items": {
+                        "properties": {
+                          "bytes": {
+                            "type": "integer"
+                          },
+                          "clientId": {
+                            "type": "string"
+                          },
+                          "encoding": {
+                            "enum": [
+                              "utf-8",
+                              "base64"
+                            ],
+                            "type": "string"
+                          },
+                          "payload": {
+                            "type": "string"
+                          },
+                          "receivedAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "topic": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "topic",
+                          "receivedAt",
+                          "bytes",
+                          "payload",
+                          "encoding"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "messagesPerTopic": {
+                      "type": "integer"
+                    },
+                    "mode": {
+                      "enum": [
+                        "ingest",
+                        "capture",
+                        "relay"
+                      ],
+                      "type": "string"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    },
+                    "window": {
+                      "type": "string"
+                    },
+                    "withheld": {
+                      "description": "Each personal field left out, as DataSource/{name}.{field}; a payload that is no JSON object is left out whole",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "broker",
+                    "mode",
+                    "messages",
+                    "truncated"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Read An MQTT Broker's Capture",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "MqttBroker",
+          "verb": "read"
         }
       }
     },
@@ -21765,6 +22250,11 @@
                     "maxLength": 253,
                     "type": "string"
                   },
+                  "planId": {
+                    "description": "The jc_change_plan planId adding dataSource, sampled before approval",
+                    "maxLength": 128,
+                    "type": "string"
+                  },
                   "sample": {
                     "additionalProperties": false,
                     "description": "The sample",
@@ -21833,6 +22323,13 @@
                     "truncated": {
                       "description": "Whether the source answered more than the records shown",
                       "type": "boolean"
+                    },
+                    "withheld": {
+                      "description": "Each personal field of the source left out, as DataSource/{name}.{field}",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
                     }
                   },
                   "type": "object"
@@ -22189,6 +22686,13 @@
                     },
                     "records": {
                       "description": "Each record as the pipeline would write it",
+                      "type": "array"
+                    },
+                    "withheld": {
+                      "description": "Each personal field of the source left out, as DataSource/{name}.{field}",
+                      "items": {
+                        "type": "string"
+                      },
                       "type": "array"
                     }
                   },

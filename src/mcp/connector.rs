@@ -20,7 +20,7 @@ use serde_json::{json, Value};
 
 use super::{
     call_result, dispatch, error, failure_result, json_response, result, too_large,
-    tool_definition, GROUNDING_META, MAX_REQUEST_BYTES, MAX_RESPONSE_BYTES,
+    tool_definition, GROUNDING_META, MAX_REQUEST_BYTES, MAX_RESPONSE_BYTES, WITHHELD_META,
 };
 use crate::agents::oneshot::ui_actions::{self, UI_TOOLS};
 use crate::connectors::{self, Call, Connector};
@@ -32,9 +32,6 @@ use crate::state::AppState;
 /// connector's scope check, so they stay the Portal MCP's (deny by default); the one resource a
 /// connector reads is the plan view, a static page that holds no data (T-5960).
 const METHODS: &[&str] = &["initialize", "ping", "tools/list", "tools/call"];
-
-/// The `_meta` key naming the attributes an answer left out as personal (`Type.attribute`).
-const WITHHELD_META: &str = "joinedcontext.com/withheld";
 
 pub fn router() -> Router<AppState> {
     Router::new()
@@ -311,7 +308,10 @@ async fn judge(
             "the request is {} bytes; this route reads at most {MAX_REQUEST_BYTES}",
             body.len()
         );
-        return (too_large(&why), "refused: too large".to_owned());
+        return (
+            too_large(&why, &Value::Null),
+            "refused: too large".to_owned(),
+        );
     }
     // The person's window first: it is the one their other connectors and `/api/v1/mcp` share.
     let (person, own, limits) = (
@@ -667,7 +667,13 @@ fn answered_without(mut output: Value, marks: &Marks) -> Value {
     let removed = personal_data::withhold(&mut output, marks);
     let mut answer = call_result(&output);
     if !removed.is_empty() {
-        answer["_meta"][WITHHELD_META] = json!(removed);
+        // Beside what a sample answer named of its source (AG-158).
+        let mut all: Vec<Value> = answer["_meta"][WITHHELD_META]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        all.extend(removed.into_iter().map(Value::String));
+        answer["_meta"][WITHHELD_META] = json!(all);
     }
     answer
 }

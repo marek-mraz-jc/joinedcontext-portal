@@ -364,7 +364,9 @@ impl Effective {
         let mut violation: Option<String> = None;
         for grant in &self.grants {
             let rule = &grant.rule;
-            if !rule.kinds.iter().any(|k| k == kind) || !rule.verbs.contains(&verb) {
+            // `Rule::grants`, so `propose` holds `read` here as `may` says it does: org-admin
+            // lists no `read` on RoleBinding and still reads a project's members (T-6266, PF-59).
+            if !rule.grants(kind, verb) {
                 continue;
             }
             // The build lane's rule writes `status.build` and authorizes no other proposal: its
@@ -536,6 +538,31 @@ pub fn organization_of(mirror: &Mirror, project: &str) -> Option<String> {
                 .map(str::to_owned)
         })
         .or_else(|| installation_organization(mirror))
+}
+
+/// The `Organization` manifest that owns `project` ([`organization_of`]): its policies, limits and
+/// domain are the ones that hold there, never another Organization's (ADR-N-058 section 2.3).
+pub fn organization_manifest_of(
+    mirror: &Mirror,
+    project: &str,
+) -> Option<crate::resource::ResourceEnvelope> {
+    mirror.get(
+        ORG_NAMESPACE,
+        "Organization",
+        &organization_of(mirror, project)?,
+    )
+}
+
+/// The installation's `Organization` manifest ([`installation_organization`]), whose settings
+/// hold for what belongs to no project yet, such as opening one (ADR-N-058 section 2.2).
+pub fn installation_organization_manifest(
+    mirror: &Mirror,
+) -> Option<crate::resource::ResourceEnvelope> {
+    mirror.get(
+        ORG_NAMESPACE,
+        "Organization",
+        &installation_organization(mirror)?,
+    )
 }
 
 /// Whether a binding scoped to `organization` applies in `project` (PF-123, ADR-N-058 section
@@ -1636,6 +1663,13 @@ fn is_subject(identity: &Identity, subject: &jc_core::kinds::Subject) -> bool {
     names(identity, subject.user.as_deref(), subject.group.as_deref())
 }
 
+/// Whether a `user` a manifest writes (a `Group` member, a binding subject) is `identity`: by
+/// Keycloak id (ADR-N-061), or by the e-mail or username an older manifest wrote. The one
+/// matcher for a person everywhere a manifest names one.
+pub fn names_user(identity: &Identity, user: &str) -> bool {
+    names(identity, Some(user), None)
+}
+
 /// [`is_subject`] over a subject's `user` and `group`.
 fn names(identity: &Identity, user: Option<&str>, group: Option<&str>) -> bool {
     if let Some(user) = user {
@@ -1986,5 +2020,38 @@ mod tests {
             serde_json::from_value(serde_json::json!([{ "group": "nobody" }, { "user": "  " }]))
                 .expect("subjects");
         assert!(people_of(&groups, &subjects).is_empty());
+    }
+
+    #[test]
+    fn a_project_scoped_administrator_reads_what_its_role_proposes_and_nothing_elsewhere() {
+        let mirror = Mirror::new();
+        mirror.upsert(org(
+            "Role",
+            "org-admin",
+            serde_json::json!({ "rules": [{ "kinds": ["RoleBinding", "Pipeline"],
+                                            "verbs": ["propose", "approve", "delete"] }] }),
+        ));
+        mirror.upsert(org(
+            "RoleBinding",
+            "owner",
+            serde_json::json!({ "subjects": [{ "user": "owner@hel.fi" }], "role": "org-admin",
+                                "scope": { "project": "t-full" } }),
+        ));
+        let owner = Identity {
+            client: None,
+            subject: "sub-owner".to_owned(),
+            username: "owner".to_owned(),
+            email: Some("owner@hel.fi".to_owned()),
+            name: None,
+            roles: Vec::new(),
+            groups: Vec::new(),
+            second_factor: false,
+        };
+        let at = |project: &str| effective(&mirror, "no-bootstrap", &owner, project, Utc::now());
+        // `jc_member_list` asks read on RoleBinding: propose implies it, as `may` already says.
+        assert!(at("t-full").check("RoleBinding", Verb::Read, None).is_ok());
+        assert!(at("t-full").check("Pipeline", Verb::Propose, None).is_ok());
+        assert!(at("t-full").check("Endpoint", Verb::Read, None).is_err());
+        assert!(at("espoo").check("RoleBinding", Verb::Read, None).is_err());
     }
 }

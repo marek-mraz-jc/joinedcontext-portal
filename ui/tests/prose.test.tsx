@@ -78,6 +78,20 @@ describe("an answer's Markdown", () => {
     expect(outside).toHaveAttribute("target", "_blank");
   });
 
+  // F-R2UI2-004: text the model read (a dataset, a web page) can write a label that hides its target.
+  it("names the host beside a labelled link that leaves the Portal, and only there", () => {
+    const { container } = prose("See [the Portal's endpoint](https://evil.example/x), [hel.fi](https://hel.fi/a), [hel.fi](https://el.fi/login) and [Explore](/projects/p/entities).");
+    const after = (name: RegExp) => screen.getByRole("link", { name }).nextSibling?.textContent ?? "";
+    expect(after(/the Portal's endpoint/)).toBe(" (evil.example)");
+    const [named, hiding] = screen.getAllByRole("link", { name: /^hel\.fi/ });
+    expect(named.nextSibling?.textContent).toBe(", ");
+    // A label that only contains the host as part of a word does not name it.
+    expect(hiding).toHaveAttribute("href", "https://el.fi/login");
+    expect(hiding.nextSibling?.textContent).toBe(" (el.fi)");
+    expect(after(/^Explore$/)).toBe(".");
+    expect(container.textContent).toContain("(evil.example)");
+  });
+
   it("shortens a long entity id, keeps it whole for a screen reader, and copies it whole", async () => {
     const writeText = vi.fn(async () => {});
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });

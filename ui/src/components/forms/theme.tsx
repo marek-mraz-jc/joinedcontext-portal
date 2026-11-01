@@ -39,7 +39,6 @@ import type {
 import { clsx } from "clsx";
 import { useTranslation } from "react-i18next";
 import { Button, Checkbox, CONTROL, Field, Icon, Input as UiInput, Select, Textarea } from "../ui";
-import { askAbout, formContext, inField } from "../../assistant/state";
 import { useShownErrors } from "./touched";
 
 /** What the form renders beside its submit: a cancel, a secondary action. */
@@ -87,57 +86,8 @@ const DefaultBaseInput = getDefaultRegistry().templates.BaseInputTemplate;
 export function BaseInputTemplate(props: WidgetProps): React.JSX.Element {
   const hasErrors = Boolean(useShownErrors(props.id, props.rawErrors));
   const isRange = props.type === "range";
-  const input = <Input {...props} hasErrors={hasErrors} isRange={isRange} />;
-  // The placeholder is an example the field accepts (Architecture/09 §2, T-1604), so the person
-  // may take it instead of retyping it. Offered only while the field is empty: filling a field
-  // that already holds something is an edit nobody asked for.
-  const example = typeof props.placeholder === "string" ? props.placeholder.trim() : "";
-  const empty = props.value === undefined || props.value === null || props.value === "";
-  if (example === "" || props.readonly || props.disabled || isRange) {
-    return input;
-  }
-  const numeric = props.schema.type === "number" || props.schema.type === "integer";
-  return (
-    <div className="flex items-start gap-1.5">
-      <div className="min-w-0 flex-1">{input}</div>
-      {/*
-        The action stays in the page for as long as the field has an example, and steps out of
-        sight and out of the accessibility tree once the field holds something. Unmounting it
-        instead moved the input into a different parent on the first keystroke, React built a new
-        one, and the person lost the caret after one character — measured on the endpoint form on
-        2026-09-19 (T-2251).
-      */}
-      <UseExample
-        available={empty}
-        onUse={() => props.onChange(numeric ? Number(example) : example)}
-      />
-    </div>
-  );
-}
-
-/** The one action that writes a field's example into it (T-1604). */
-function UseExample({
-  onUse,
-  available,
-}: {
-  onUse: () => void;
-  available: boolean;
-}): React.JSX.Element {
-  const { t } = useTranslation();
-  return (
-    <Button
-      type="button"
-      variant="secondary"
-      size="sm"
-      onClick={onUse}
-      disabled={!available}
-      aria-hidden={available ? undefined : true}
-      tabIndex={available ? undefined : -1}
-      className={clsx("shrink-0", !available && "invisible")}
-    >
-      {t("form.useExample")}
-    </Button>
-  );
+  // The placeholder is the example; no "Use the example" button beside it (owner 2026-10-31).
+  return <Input {...props} hasErrors={hasErrors} isRange={isRange} />;
 }
 
 function Input(
@@ -163,36 +113,6 @@ function Input(
       // control: the star in the label is drawn, not read (UI-15, T-1753).
       aria-required={required || undefined}
     />
-  );
-}
-
-/**
- * The one action beside a field's label: ask the assistant about this field (T-1611, UI-61).
- *
- * Offered only inside a form that named itself to the assistant, and it writes the question into the
- * composer rather than sending it — the person sends it, and the dock never asks on its own behalf
- * (AG-73). The path of the field travels with it, never the value.
- */
-function AskAboutField({ path, label }: { path: string; label: string }): React.JSX.Element | null {
-  const { t } = useTranslation();
-  const open = formContext();
-  if (!open?.kind || path === "" || label === "") {
-    return null;
-  }
-  return (
-    <Button
-      variant="ghost"
-      size="xs"
-      // The size's own padding stays, for the hit area; the margin takes it back so the words line
-      // up with the label they wrap under, and with the field's right edge beside it (T-4311).
-      className="-mx-2 text-fg-muted underline decoration-dotted hover:text-fg"
-      onClick={() => {
-        inField(path);
-        askAbout(t("form.askAboutFieldQuestion", { kind: open.kind, label }));
-      }}
-    >
-      {t("form.askAboutField")}
-    </Button>
   );
 }
 
@@ -284,11 +204,6 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
       // entries, where every other field has it (T-4311); a custom widget or field keeps it here.
       help={inWidget || (ownHeading && !custom) ? undefined : forPeople === undefined || ownHeading ? rawHelp : undefined}
       errors={errors}
-      aside={
-        ownHeading || lineEntry ? undefined : (
-          <AskAboutField path={pathOf(fieldPathId)} label={typeof shown === "string" ? shown : ""} />
-        )
-      }
     >
       {children}
     </Field>
@@ -296,24 +211,19 @@ export function FieldTemplate(props: FieldTemplateProps): React.JSX.Element {
 }
 
 /**
- * A list's heading laid out as a Field's label row: its name with the required mark, and "Ask
- * about this field" beside it (T-4314). The fieldset around it is a wrapping row
- * ([`LIST_FIELDSET`]) and its body a full line ([`LIST_BODY`]): a floated legend is laid out as
- * a plain box, so it shares the row with the link, while it still names the fieldset alone.
+ * A list's heading laid out as a Field's label row: its name with the required mark. The fieldset
+ * around it is a wrapping row ([`LIST_FIELDSET`]) and its body a full line ([`LIST_BODY`]).
  */
-export function ListLegend({ heading, required, path }: { heading: string; required?: boolean; path: string }): React.JSX.Element {
+export function ListLegend({ heading, required }: { heading: string; required?: boolean }): React.JSX.Element {
   return (
-    <>
-      <legend className="float-left min-w-0 grow basis-40 text-body font-medium text-fg">
-        {heading}
-        {required ? (
-          <span aria-hidden="true" className="ml-0.5 text-danger">
-            *
-          </span>
-        ) : null}
-      </legend>
-      <AskAboutField path={path} label={heading} />
-    </>
+    <legend className="float-left min-w-0 grow basis-40 text-body font-medium text-fg">
+      {heading}
+      {required ? (
+        <span aria-hidden="true" className="ml-0.5 text-danger">
+          *
+        </span>
+      ) : null}
+    </legend>
   );
 }
 
@@ -321,15 +231,6 @@ export function ListLegend({ heading, required, path }: { heading: string; requi
 export const LIST_FIELDSET = "flex min-w-0 flex-wrap items-baseline justify-between gap-x-2 gap-y-1.5";
 /** Everything under a [`ListLegend`]: one full line. */
 export const LIST_BODY = "flex min-w-0 basis-full flex-col gap-2";
-
-/**
- * The field's path as a manifest writes it: `spec.` and the names rjsf walked, with an array index
- * as rjsf numbered it. `root` itself is no field.
- */
-export function pathOf(fieldPathId: FieldTemplateProps["fieldPathId"]): string {
-  const steps = (fieldPathId?.path ?? []).map((step) => String(step)).filter((step) => step !== "root");
-  return steps.length === 0 ? "" : `spec.${steps.join(".")}`;
-}
 
 /** One visual grouping of a flat schema, as a UiSchema manifest describes it (UI-02). */
 interface RenderedGroup {
@@ -596,7 +497,7 @@ function ObjectFields(props: ObjectFieldTemplateProps): React.JSX.Element {
   if (title && isMap && itemTitle(props, t) === undefined) {
     return (
       <fieldset className={LIST_FIELDSET}>
-        <ListLegend heading={title} required={props.required} path={pathOf(fieldPathId)} />
+        <ListLegend heading={title} required={props.required} />
         <div className={LIST_BODY}>
           {description ? <p className="text-caption text-fg-muted">{description}</p> : null}
           {properties.map((prop) => prop.content)}
@@ -642,7 +543,7 @@ export function ArrayFieldTemplate(props: ArrayFieldTemplateProps): React.JSX.El
   return (
     <fieldset id={fieldPathId.$id} className={LIST_FIELDSET}>
       {heading && keyed ? <legend className="sr-only">{heading}</legend> : null}
-      {heading && !keyed ? <ListLegend heading={heading} required={required} path={pathOf(fieldPathId)} /> : null}
+      {heading && !keyed ? <ListLegend heading={heading} required={required} /> : null}
       <div className={LIST_BODY}>
       {description ? (
         <p id={`${fieldPathId.$id}__description`} className="text-caption text-fg-muted">

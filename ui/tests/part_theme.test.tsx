@@ -13,6 +13,7 @@ import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
 import { SchemaForm } from "../src/components/forms/SchemaForm";
+import { ListLegend } from "../src/components/forms/theme";
 import type { JsonSchema, UiSchema } from "../src/components/forms/types";
 import { expectDenied, expectNoRawKeys, expectNoViolations, expectTabOrder } from "./checks";
 
@@ -113,19 +114,6 @@ describe("the form theme against the UI contract", () => {
     expect(screen.getByText("What people will look for it by")).toBeInTheDocument();
     expect(screen.queryByText("The schema's own words")).toBeNull();
     expect(name).toHaveAccessibleDescription(/What people will look for it by/);
-  });
-
-  it("offers a field's example and never fills a field that already holds something", async () => {
-    const { user } = form();
-
-    const use = screen.getByRole("button", { name: i18n.t("form.useExample") });
-    await user.click(use);
-    expect((screen.getByLabelText("Period") as HTMLInputElement).value).toBe("30");
-    // The action stays in the page, out of the accessibility tree, so the caret is not lost
-    // on the first keystroke (T-2251).
-    expect(screen.queryByRole("button", { name: i18n.t("form.useExample") })).toBeNull();
-    expect(use).toHaveAttribute("aria-hidden", "true");
-    expect(use).toHaveAttribute("tabindex", "-1");
   });
 
   it("takes no focus of its own, and is walked in DOM order", async () => {
@@ -238,5 +226,17 @@ describe("the form theme against the UI contract", () => {
     const { container } = form({ formData: { name: "air", keywords: ["pm10"] } });
 
     expectNoRawKeys(container);
+  });
+});
+
+describe("a list's legend", () => {
+  it("names the fieldset and marks a required list for sight only", () => {
+    render(
+      <fieldset>
+        <ListLegend heading="Keywords" required />
+      </fieldset>,
+    );
+
+    expect(screen.getByRole("group", { name: "Keywords" })).toBeInTheDocument();
   });
 });

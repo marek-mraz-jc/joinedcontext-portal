@@ -24,14 +24,23 @@ import { usePermissions } from "../../api/permissions";
 import {
   EmptyState,
   Button,
+  Icon,
+  Menu,
+  MenuContent,
+  MenuItem,
+  MenuTrigger,
   PageHeader,
   buttonClass,
 } from "../../components/ui";
 import type { ButtonVariant } from "../../components/ui";
 import { OrganizationModels } from "./OrganizationModels";
 import { entityTypesOf } from "../spaces/spaceFacts";
+
 import { spaceOfModel, usageCounts, usesOfModel } from "./modelUsage";
 import type { ProjectManifests, UsingKind } from "./modelUsage";
+
+/** Types a row names before "+N": a model of 27 classes was a four-line wall (T-6254). */
+export const TYPES_SHOWN = 6;
 
 /** A list's manifests; a module function, so `select` keeps its answer while the list stands still. */
 function manifestsOf(list: { items?: Parameters<typeof asManifests>[0] }): Manifest[] {
@@ -111,6 +120,37 @@ export function ProposeLink({
   );
 }
 
+/** One New button; its menu holds every way to a model (owner 2026-10-31: one button, the ways as options). */
+function NewModelMenu({ project }: { project: string }): JSX.Element {
+  const { t } = useTranslation();
+  const { can } = usePermissions(project);
+  if (!can("DataModel", "propose")) {
+    return (
+      <Button size="sm" variant="primary" disabled disabledReason={t("permissions.denied", { verb: "propose", kind: "DataModel" })}>
+        {t("models.page.new.menu")}
+      </Button>
+    );
+  }
+  return (
+    <Menu>
+      <MenuTrigger asChild>
+        <Button size="sm" variant="primary" icon={<Icon name="plus" className="size-4" />}>
+          {t("models.page.new.menu")}
+        </Button>
+      </MenuTrigger>
+      <MenuContent align="end">
+        {(["blank", "file", "sdm"] as const).map((way) => (
+          <MenuItem key={way} asChild>
+            <Link to="/projects/$project/models" params={{ project }} search={{ new: way }}>
+              {t(`models.page.new.${way}`)}
+            </Link>
+          </MenuItem>
+        ))}
+      </MenuContent>
+    </Menu>
+  );
+}
+
 function text(value: unknown): string | undefined {
   return typeof value === "string" && value !== "" ? value : undefined;
 }
@@ -139,29 +179,22 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
   );
   const date = new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" });
 
-  const create = (
-    <div className="flex flex-wrap gap-2">
-      {(["blank", "file", "sdm"] as const).map((way, index) => (
-        <ProposeLink key={way} project={project} search={{ new: way }} variant={index === 0 ? "primary" : "secondary"}>
-          {t(`models.page.new.${way}`)}
-        </ProposeLink>
-      ))}
-    </div>
-  );
+  const create = <NewModelMenu project={project} />;
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={t("nav.models")} description={t("models.page.listLead")} actions={create} />
-
-      <section aria-labelledby="models-project" className="flex flex-col gap-4">
-        <h2 id="models-project" className="text-title font-semibold text-fg">
-          {t("models.page.projectSection")}
-        </h2>
-        {change ? <ChangeNotice change={change} project={project} /> : null}
+      <section aria-label={t("models.page.projectSection")} className="flex flex-col gap-4">
         <ManifestGrid
           caption={t("models.page.listCaption")}
           storageKey="datamodels"
           searchLabel={t("models.page.search")}
+          // One row: the title, the list's search and tools, and one New button (owner 2026-10-31).
+          header={(toolbar) => (
+            <>
+              <PageHeader compact title={t("nav.models")} description={t("models.page.listLead")} aside={toolbar} actions={create} />
+              {change ? <ChangeNotice change={change} project={project} /> : null}
+            </>
+          )}
           rows={rows}
           rowKey={(row) => row.model.metadata.name}
           query={models}
@@ -171,11 +204,12 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
             text: (row) => row.title,
             cell: (row) => (
               <>
+                {/* A floor under the name, so "Open data catalogue" keeps one line beside a long Types cell (T-6254). */}
                 <Link
                   data-row-link=""
                   to="/projects/$project/models/$name"
                   params={{ project, name: row.model.metadata.name }}
-                  className="focus-ring text-primary-soft-fg underline-offset-2 hover:underline"
+                  className="focus-ring inline-block text-primary-soft-fg underline-offset-2 hover:underline sm:min-w-48"
                 >
                   {row.title}
                 </Link>
@@ -228,7 +262,7 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
                   <span className="font-medium">{row.classes.length}</span>
                   {row.classes.length > 0 ? (
                     <span className="block text-caption text-fg-muted">
-                      {row.classes.map((klass, index) => (
+                      {row.classes.slice(0, TYPES_SHOWN).map((klass, index) => (
                         <Fragment key={klass}>
                           {index === 0 ? null : ", "}
                           <Link
@@ -241,6 +275,19 @@ export function ModelsList({ project }: { project: string }): JSX.Element {
                           </Link>
                         </Fragment>
                       ))}
+                      {row.classes.length > TYPES_SHOWN ? (
+                        <>
+                          {", "}
+                          <Link
+                            to="/projects/$project/models/$name"
+                            params={{ project, name: row.model.metadata.name }}
+                            aria-label={t("models.page.moreTypes", { count: row.classes.length - TYPES_SHOWN, model: row.title })}
+                            className="focus-ring font-medium underline-offset-2 hover:underline"
+                          >
+                            +{row.classes.length - TYPES_SHOWN}
+                          </Link>
+                        </>
+                      ) : null}
                     </span>
                   ) : null}
                 </>

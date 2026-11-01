@@ -772,10 +772,19 @@ pub async fn upload_file(
     State(state): State<AppState>,
     Path((project, source)): Path<(String, String)>,
     Query(file): Query<FileName>,
-    body: axum::body::Bytes,
+    request: axum::extract::Request,
 ) -> Result<(StatusCode, Json<Value>), ApiError> {
     writable(&state, &user, &project)?;
     named("source", &source)?;
+    // Read only once the caller may write here: a reader cannot make the Portal hold an upload
+    // of the largest size a source allows (F-R2POR2-008, as F-POR2-005 at the import).
+    let body = axum::body::to_bytes(request.into_body(), MAX_UPLOAD_BODY)
+        .await
+        .map_err(|_| {
+            ApiError::TooLarge(format!(
+                "the file is larger than {MAX_UPLOAD_BODY} bytes, the most a source takes"
+            ))
+        })?;
     let bytes = body.len();
     let name = file.name;
     let query = [("name", name.clone())];
@@ -1024,6 +1033,19 @@ pub(crate) fn counted(
         .get_or_init(Mutex::default)
         .lock()
         .unwrap_or_else(|p| p.into_inner());
+    let times = within_span(&mut all, key, now, span);
+    times.push(now);
+    times.len()
+}
+
+/// `key`'s times of `all` within `span` of `now`, every key with none left dropped first: a
+/// window keeps the callers of the last `span` alone (F-POR4-030). The feedback limit shares it.
+pub(crate) fn within_span<'a>(
+    all: &'a mut HashMap<String, Vec<Instant>>,
+    key: &str,
+    now: Instant,
+    span: Duration,
+) -> &'a mut Vec<Instant> {
     all.retain(|_, times| {
         times
             .last()
@@ -1031,8 +1053,7 @@ pub(crate) fn counted(
     });
     let times = all.entry(key.to_owned()).or_default();
     times.retain(|at| now.duration_since(*at) < span);
-    times.push(now);
-    times.len()
+    times
 }
 
 /// `429` once `subject` made [`TRANSCRIPT_CALLS_PER_MINUTE`] calls on the transcripts this minute.
@@ -1416,6 +1437,69 @@ mod tests {
     use super::{admitted, inclusion_body, probing, query_of, InclusionRequest, MAX_IDS};
     use super::{TRANSCRIPT_CALLS_PER_MINUTE, TRANSCRIPT_MISSES};
     use std::time::{Duration, Instant};
+
+    /// F-R2POR2-008 (T-6226): who may not write to the project's knowledge sources is refused
+    /// before a byte of the upload is read, so a reader cannot make the Portal hold one.
+    #[tokio::test]
+    async fn an_upload_by_a_caller_who_may_not_write_is_refused_before_its_body_is_read() {
+        use crate::auth::session::{Identity, Session};
+        use axum::extract::{Path, Query, State};
+        use std::sync::atomic::{AtomicBool, Ordering};
+        use std::sync::Arc;
+        let read = Arc::new(AtomicBool::new(false));
+        let flag = read.clone();
+        let body = axum::body::Body::from_stream(futures_util::stream::poll_fn(move |_| {
+            flag.store(true, Ordering::SeqCst);
+            std::task::Poll::Ready(None::<Result<axum::body::Bytes, std::io::Error>>)
+        }));
+        let request = axum::http::Request::post("/").body(body).expect("request");
+        let user = crate::auth::CurrentUser(Session {
+            identity: Identity {
+                client: None,
+                subject: "sub-viewer".into(),
+                username: "viewer@hel.fi".into(),
+                email: Some("viewer@hel.fi".into()),
+                name: None,
+                roles: Vec::new(),
+                groups: Vec::new(),
+                second_factor: false,
+            },
+            expires_at: 9_999_999_999,
+            issued_at: 1000,
+            id_token: "dummy".into(),
+            access_expires_at: 9_999_999_999,
+            refresh_token: None,
+        });
+        let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
+        let refused = super::upload_file(
+            user,
+            State(state),
+            Path(("helsinki".to_owned(), "docs".to_owned())),
+            Query(super::FileName {
+                name: "a.txt".into(),
+            }),
+            request,
+        )
+        .await;
+        assert!(refused.is_err(), "a caller with no grant uploaded");
+        assert!(
+            !read.load(Ordering::SeqCst),
+            "the body was read before the refusal"
+        );
+    }
+
+    /// F-POR4-030, F-R2POR2-017 (T-6226): a window drops every caller with no time left in its
+    /// span, so the feedback limit's map no longer keeps a key per person who ever sent one.
+    #[test]
+    fn a_window_drops_the_callers_whose_times_all_passed() {
+        let start = Instant::now();
+        let hour = Duration::from_secs(3600);
+        let mut all = std::collections::HashMap::new();
+        super::within_span(&mut all, "ana", start, hour).push(start);
+        let later = start + hour + Duration::from_secs(1);
+        assert!(super::within_span(&mut all, "bob", later, hour).is_empty());
+        assert_eq!(all.keys().collect::<Vec<_>>(), ["bob"]);
+    }
 
     #[test]
     fn the_sixty_first_call_in_a_minute_is_refused_and_the_next_minute_admits() {

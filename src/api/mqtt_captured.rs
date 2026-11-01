@@ -125,7 +125,7 @@ fn unavailable(error: sqlx::Error) -> ApiError {
     get,
     path = "/api/v1/projects/{project}/mqttbrokers/{name}/captured",
     summary = "Read An MQTT Broker's Capture",
-    description = "The newest messages a broker in `capture` mode kept, newest first (API/01 §47, ADR-N-048 §2.10). Only a person who may approve MqttBrokers in the project; anybody else gets 404.",
+    description = "The newest messages a capture broker kept; 404 to whoever may not approve MqttBrokers.",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name"),

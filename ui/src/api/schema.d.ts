@@ -3395,7 +3395,7 @@ export interface paths {
         };
         /**
          * Read An MQTT Broker's Capture
-         * @description The newest messages a broker in `capture` mode kept, newest first (API/01 §47, ADR-N-048 §2.10). Only a person who may approve MqttBrokers in the project; anybody else gets 404.
+         * @description The newest messages a capture broker kept; 404 to whoever may not approve MqttBrokers.
          */
         get: operations["get_captured"];
         put?: never;
@@ -3745,7 +3745,7 @@ export interface paths {
         put?: never;
         /**
          * Query Data
-         * @description Reads one Endpoint's entities as you, current or history (temporal), with type, id, q, attrs, a geo-query, count and paging
+         * @description Reads one Endpoint's entities, current or history (temporal), by type, id, q, attrs, geo-query, count and paging
          */
         post: operations["jc_data_query"];
         delete?: never;
@@ -3934,6 +3934,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/ops/jc_knowledge_search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Search Knowledge
+         * @description Passages of one KnowledgeSource, best first, each with its page url and title
+         */
+        post: operations["jc_knowledge_search"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/ops/jc_knowledge_status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read Knowledge State
+         * @description Each KnowledgeSource's crawl state and counts; with source, its last failed reads
+         */
+        post: operations["jc_knowledge_status"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/ops/jc_kpi_compute": {
         parameters: {
             query?: never;
@@ -4048,6 +4088,26 @@ export interface paths {
          * @description Writes one DataModel's LinkML and its generated artifacts as a change a person approves
          */
         post: operations["jc_model_source_put"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/ops/jc_mqtt_captured": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read An MQTT Broker's Capture
+         * @description The newest messages a capture broker kept; 404 to whoever may not approve MqttBrokers
+         */
+        post: operations["jc_mqtt_captured"];
         delete?: never;
         options?: never;
         head?: never;
@@ -23344,12 +23404,14 @@ export interface operations {
         };
         requestBody: {
             content: {
-                /** @example {} */
+                /**
+                 * @example {
+                 *       "q": "example"
+                 *     }
+                 */
                 "application/json": {
-                    /** @description Keywords in names, titles and descriptions */
-                    q?: string;
-                    /** @description Alias of q; q wins */
-                    query?: string;
+                    /** @description Required keywords in names, titles and descriptions, e.g. bike */
+                    q: string;
                     /** @description One kind only; Dataset is the open-data catalogue */
                     scope?: string;
                 };
@@ -23363,7 +23425,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        /** @description Open-data catalogue datasets: title, url of the dataset page, publisher, formats */
+                        /** @description Open datasets: title, url, publisher, formats, resources (format, url), endpoint slug */
                         datasets?: Record<string, never>[];
                         items?: Record<string, never>[];
                         q?: string;
@@ -23646,6 +23708,8 @@ export interface operations {
                         planFields?: Record<string, never>[];
                         status: Record<string, never>;
                         summary?: Record<string, never>;
+                        /** @description The Portal page where a person decides it */
+                        url?: string;
                     };
                 };
             };
@@ -23709,7 +23773,12 @@ export interface operations {
         requestBody: {
             content: {
                 /** @example {} */
-                "application/json": Record<string, never>;
+                "application/json": {
+                    /** @description The last page's next */
+                    cursor?: string;
+                    /** @description Default 20 */
+                    limit?: number;
+                };
             };
         };
         responses: {
@@ -23729,9 +23798,13 @@ export interface operations {
                             phase?: string;
                             proposedBy?: string;
                             title?: string;
+                            /** @description The Portal page where a person decides it */
+                            url?: string;
                         }[];
                         /** @enum {string} */
                         kind: "ChangeList";
+                        /** @description Present when more changes follow: send it as cursor */
+                        next?: string;
                     };
                 };
             };
@@ -24206,7 +24279,7 @@ export interface operations {
                     count?: boolean;
                     /** @description The nextCursor of the previous page */
                     cursor?: string;
-                    /** @description Endpoint name, e.g. doprava-counters */
+                    /** @description Endpoint name or public slug, e.g. city-counters */
                     endpoint: string;
                     /**
                      * @description keyValues answers plain values
@@ -25261,6 +25334,175 @@ export interface operations {
             };
         };
     };
+    jc_knowledge_search: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "q": "example",
+                 *       "source": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /** @description default 5 */
+                    limit?: number;
+                    /** @description e.g. parking permit */
+                    q: string;
+                    /** @description e.g. city-web */
+                    source: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description Passages best first, each with its page url and title */
+                        hits: Record<string, never>[];
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_knowledge_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /** @example {} */
+                "application/json": {
+                    /** @description e.g. city-web; absent: every source */
+                    source?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @description The named source's last failed reads, for a caller who may propose a KnowledgeSource */
+                        errors?: Record<string, never>[];
+                        /** @description Each source with its crawl state; state not-crawled before the first crawl */
+                        items: Record<string, never>[];
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     jc_kpi_compute: {
         parameters: {
             query?: never;
@@ -25842,6 +26084,109 @@ export interface operations {
                         url?: string;
                         /** @description Present when the draft was proposed without a fresh green verdict */
                         warning?: string;
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_mqtt_captured: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /** @description Default 100 */
+                    limit?: number;
+                    /** @description The MqttBroker's name */
+                    name: string;
+                    /** @description One exact topic, no + or # */
+                    topic?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        broker: string;
+                        messages: {
+                            bytes: number;
+                            clientId?: string;
+                            /** @enum {string} */
+                            encoding: "utf-8" | "base64";
+                            payload: string;
+                            /** Format: date-time */
+                            receivedAt: string;
+                            topic: string;
+                        }[];
+                        messagesPerTopic?: number;
+                        /** @enum {string} */
+                        mode: "ingest" | "capture" | "relay";
+                        truncated: boolean;
+                        window?: string;
+                        /** @description Each personal field left out, as DataSource/{name}.{field}; a payload that is no JSON object is left out whole */
+                        withheld?: string[];
                     };
                 };
             };
@@ -26767,6 +27112,8 @@ export interface operations {
                 "application/json": {
                     /** @description The DataSource to read; or sample */
                     dataSource?: string;
+                    /** @description The jc_change_plan planId adding dataSource, sampled before approval */
+                    planId?: string;
                     /** @description The sample */
                     sample?: {
                         /**
@@ -26803,6 +27150,8 @@ export interface operations {
                         streamed?: boolean;
                         /** @description Whether the source answered more than the records shown */
                         truncated?: boolean;
+                        /** @description Each personal field of the source left out, as DataSource/{name}.{field} */
+                        withheld?: string[];
                     };
                 };
             };
@@ -27016,6 +27365,8 @@ export interface operations {
                         input?: Record<string, never>;
                         /** @description Each record as the pipeline would write it */
                         records?: unknown[];
+                        /** @description Each personal field of the source left out, as DataSource/{name}.{field} */
+                        withheld?: string[];
                     };
                 };
             };

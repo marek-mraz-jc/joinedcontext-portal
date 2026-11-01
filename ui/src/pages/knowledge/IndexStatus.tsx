@@ -1,10 +1,11 @@
+import { reasonOf } from "../../api/client";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { usePermissions } from "../../api/permissions";
 import { startJob } from "../../jobs";
 import { Alert, Badge, Button, ExternalLink, PageFailed, PermissionGuard } from "../../components/ui";
-import { reasonOf, standing } from "./KnowledgePage";
+import { standing } from "./KnowledgePage";
 import { knowledgeKeys, listErrors, recrawl, timeText } from "./knowledge";
 import type { KnowledgeSourceRow } from "./knowledge";
 

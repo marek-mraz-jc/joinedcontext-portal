@@ -123,6 +123,9 @@ test("an editor reads every rule of a rules[] Policy, in the list and the summar
     await page.getByRole("link", { name: "Who reads and who writes parking" }).click();
     await expect(page.getByTestId("policy-summary-rules")).toContainText("This Policy grants through 2 rules");
     expect((await axeViolations(page)).filter((v) => /\((serious|critical)\)/.test(v))).toEqual([]);
+    // The form offers no grantee or operation beside the rules: a save would drop them (F-R2UI4-003).
+    await expect(page.getByRole("textbox", { name: /^Name/ })).toBeVisible();
+    await expect(page.locator("form").getByText("Granted to", { exact: true })).toHaveCount(0);
     await page.screenshot({ path: join(DIR, `rules-policy-summary-${width}.png`), fullPage: true });
   }
 });

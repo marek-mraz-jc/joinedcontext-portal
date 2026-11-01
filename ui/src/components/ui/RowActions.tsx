@@ -1,4 +1,4 @@
-import { Fragment } from "react";
+import { createContext, Fragment, useContext } from "react";
 import type { JSX, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from "./Menu";
@@ -22,6 +22,9 @@ export interface RowAction {
    */
   disabledReason?: string;
 }
+
+/** Set by a grid row: its details panel, offered as the menu's first item, so a row ends in one button. */
+export const RowDetails = createContext<{ label: string; onSelect: () => void } | null>(null);
 
 /**
  * The actions of one row: the obvious one in the open, the rest behind one menu at the end (T-2279,
@@ -48,6 +51,10 @@ export function RowActions({
   actions: RowAction[];
 }): JSX.Element {
   const { t } = useTranslation();
+  const details = useContext(RowDetails);
+  if (details) {
+    actions = [{ key: "details", ...details, separatorAfter: actions.length > 0 }, ...actions];
+  }
   if (actions.length === 0) {
     return <>{primary}</>;
   }

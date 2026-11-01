@@ -514,7 +514,7 @@ pub fn render(
         // title as a language map and the form's `title` is one string. Handing the map over
         // crashed the whole Portal to its error boundary — `s?.trim is not a function`, on
         // camera during the share take — because the page reads the draft's title as text.
-        prefill["title"] = json!(plain_title(title));
+        prefill["title"] = json!(crate::resource::title_text(title).unwrap_or_default());
     }
     if let Some(limits) = &params.rate_limits {
         prefill["rateLimits"] = serde_json::to_value(limits).unwrap_or(Value::Null);
@@ -650,7 +650,7 @@ pub fn edit(endpoints: &[Value], params: &EditEndpoint) -> Result<Edit, String> 
     {
         let before = endpoint["metadata"]
             .get("title")
-            .map(|t| json!(plain_title(t)))
+            .map(|t| json!(crate::resource::title_text(t).unwrap_or_default()))
             .unwrap_or(Value::Null);
         endpoint["metadata"]["title"] = json!(title);
         record("title", before, json!(title));
@@ -800,21 +800,6 @@ pub fn edit(endpoints: &[Value], params: &EditEndpoint) -> Result<Edit, String> 
     Ok(Edit { endpoint, changes })
 }
 
-/// A title as one string: the manifest's own string, or the English (else first) entry of the
-/// legacy map.
-fn plain_title(title: &Value) -> String {
-    match title {
-        Value::String(text) => text.clone(),
-        Value::Object(map) => map
-            .get("en")
-            .or_else(|| map.values().next())
-            .and_then(Value::as_str)
-            .unwrap_or_default()
-            .to_owned(),
-        _ => String::new(),
-    }
-}
-
 /// The values the endpoint form opens with for an endpoint that exists (`existing: true`).
 pub fn form_values(endpoint: &Value) -> Value {
     let spec = &endpoint["spec"];
@@ -829,7 +814,7 @@ pub fn form_values(endpoint: &Value) -> Value {
         "hiddenAttributes": spec["projection"].get("hiddenAttributes").cloned().unwrap_or_else(|| json!([])),
     });
     if let Some(title) = endpoint["metadata"].get("title") {
-        prefill["title"] = json!(plain_title(title));
+        prefill["title"] = json!(crate::resource::title_text(title).unwrap_or_default());
     }
     for field in ["rateLimits", "caching"] {
         if let Some(value) = spec.get(field) {

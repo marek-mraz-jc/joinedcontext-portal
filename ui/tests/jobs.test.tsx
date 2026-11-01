@@ -122,6 +122,17 @@ describe("the person's jobs (T-3245)", () => {
     expect(await screen.findByText(en.jobs.outcome.failed)).toBeInTheDocument();
   });
 
+  it("two building sources of one project are one list read, not one each (T-6230)", async () => {
+    startJob({ kind: "knowledgeCrawl", project: "helsinki", name: "city-web" });
+    startJob({ kind: "knowledgeCrawl", project: "helsinki", name: "other-web" });
+    serve({});
+    const fetched = vi.mocked(globalThis.fetch);
+    renderMenu();
+    await waitFor(() => expect(screen.getByRole("status")).toHaveTextContent("The crawl of city-web failed."));
+    const reads = fetched.mock.calls.filter(([input]) => String(input instanceof Request ? input.url : input).includes("/knowledge/sources"));
+    expect(reads).toHaveLength(1);
+  });
+
   it("another tab's job appears here", async () => {
     serve({ run: run({ number: 7 }), rebuild: { allowed: true } });
     const { container } = renderMenu();

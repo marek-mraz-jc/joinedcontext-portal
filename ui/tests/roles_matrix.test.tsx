@@ -3,7 +3,7 @@
  * tests/roles_matrix_tests.rs, the Portal offers a control exactly when the API takes the action.
  */
 import { describe, expect, it } from "vitest";
-import { approvalStanding, isAccessKind, needsSecondPerson, proposeStanding } from "../src/api/approval";
+import { approvalStanding, isAccessKind } from "../src/api/approval";
 import { allows } from "../src/api/permissions";
 import type { Effective, Verb } from "../src/api/permissions";
 import cs from "../src/locales/cs.json";
@@ -144,19 +144,8 @@ describe("approving a public endpoint", () => {
   });
 });
 
-// PF-58, PF-70: what proposing says before the click, for each role.
-describe("what proposing leads to for each role", () => {
-  it.each([
-    ["viewer", null],
-    ["editor", null],
-    ["steward", "approveNotDelete"],
-    ["admin", "approvedOnPropose"],
-  ] as const)("%s: %s", (role, expected) => {
-    for (const kind of KINDS) {
-      expect(proposeStanding(effective(role), kind), kind).toBe(expected && needsSecondPerson(kind) ? "secondApprover" : expected);
-    }
-  });
-
+// PF-58: a change to access or a data model waits for a second person, the administrator's own too.
+describe("what approving a change leads to for each role", () => {
   // PF-58, T-4833: access is approved by a second person, so even an administrator's own change
   // to a role, binding, group or service account waits, and the form and the approval page say so.
   it.each(["Role", "RoleBinding", "Group", "ServiceAccount"])("an administrator's own %s waits for a second person", (kind) => {
@@ -166,7 +155,6 @@ describe("what proposing leads to for each role", () => {
       grants: [{ binding: "admins", role: "admin", scope: "organization", rule: { kinds: [kind], verbs: ROLES.admin } as never }],
     };
     const permissions = { data, can: (k: string, verb: Verb) => allows(data, k, verb) };
-    expect(proposeStanding(data, kind)).toBe("secondApprover");
     expect(approvalStanding(permissions, "admin@hel.fi", change(kind, "admin@hel.fi"))).toEqual({
       block: "ownAccessChange",
       ownAsAdministrator: false,
@@ -182,7 +170,6 @@ describe("what proposing leads to for each role", () => {
       grants: [{ binding: "admins", role: "admin", scope: "organization", rule: { kinds: ["DataModel"], verbs: ROLES.admin } as never }],
     };
     const permissions = { data, can: (k: string, verb: Verb) => allows(data, k, verb) };
-    expect(proposeStanding(data, "DataModel")).toBe("secondApprover");
     expect(approvalStanding(permissions, "admin@hel.fi", change("DataModel", "admin@hel.fi"))).toEqual({
       block: "ownModelChange",
       ownAsAdministrator: false,
@@ -191,23 +178,9 @@ describe("what proposing leads to for each role", () => {
     for (const locale of [cs, de, en, sk]) expect(locale.approvals.ownModelChange).toBeTruthy();
   });
 
-  it("the copy names the second person in every language", () => {
+  it("the approval page names the second person in every language", () => {
     for (const [lang, messages] of Object.entries({ en, sk, cs, de })) {
-      expect(messages.changes.secondApprover, lang).toContain("{kind}");
       expect(messages.approvals.ownAccessChange, lang).toBeTruthy();
-      expect(messages.changes.approvedOnPropose, lang).toBeTruthy();
     }
-  });
-
-  it("a kind the admin's binding does not name waits like anyone's", () => {
-    expect(proposeStanding(effective("admin"), "Role")).toBeNull();
-  });
-
-  it("the bootstrap group is not a binding and is promised nothing", () => {
-    expect(proposeStanding({ bootstrap: true, project: "helsinki", grants: [] }, "Pipeline")).toBeNull();
-  });
-
-  it("no permissions document yet promises nothing", () => {
-    expect(proposeStanding(undefined, "Pipeline")).toBeNull();
   });
 });

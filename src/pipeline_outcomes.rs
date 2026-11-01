@@ -343,7 +343,7 @@ pub fn mask(record: &Value) -> Value {
         Value::Object(map) => Value::Object(
             map.iter()
                 .map(|(key, value)| {
-                    let secret_key = crate::api::mutate::SECRET_KEYS.contains(&key.as_str())
+                    let secret_key = crate::secret_scan::secret_name(key)
                         && !value.is_object()
                         && !value.is_array()
                         && !value.is_null()
@@ -516,6 +516,24 @@ mod tests {
         );
         assert_eq!(json_in_words("a {brace} stays"), "a {brace} stays");
         assert_eq!(json_in_words("{"), "");
+    }
+
+    /// F-R2POR4-006: a source spells a secret's key in any case and with `_` or `-`; each one
+    /// is masked in a rejected record and in a sample, the way the operations door refuses it.
+    #[test]
+    fn a_secret_key_in_any_spelling_is_masked() {
+        let record =
+            json!({ "Password": "x1", "API_KEY": "y2", "client-secret": "z3", "name": "n" });
+        let masked = mask(&record);
+        for key in ["Password", "API_KEY", "client-secret"] {
+            assert_eq!(masked[key], MASK, "{key}");
+        }
+        assert_eq!(masked["name"], "n");
+        let sampled = crate::pipeline_samples::redacted(record, &[]);
+        for key in ["Password", "API_KEY", "client-secret"] {
+            assert_eq!(sampled[key], "•••", "{key}");
+        }
+        assert_eq!(sampled["name"], "n");
     }
 
     /// Built from parts, so no literal in this file reads as a credential to a scanner.

@@ -200,8 +200,8 @@
     - proves: expect
       call: jc_change_apply
       args: { planId: '{planId}' }
-      contains: ['changeRequests', 'https://gitea.example.sk/pulls/77']
-      absent: ['"merged"']
+      contains: ['changeRequests', '"url":"https://portal.test/projects/{project}/approvals/chg-0000004d"', '"mergeRequest":"https://gitea.example.sk/pulls/77"']
+      absent: ['"merged"', '"url":"https://gitea']
     - proves: deny
       call: jc_change_apply
       args: { planId: '{planId}' }
@@ -319,6 +319,27 @@
       call: jc_change_apply
       args: { planId: '{planId}' }
       contains: ['changeRequests']
+    # A space, its Endpoint and its write Policy plan together, each check seeing its siblings,
+    # and apply as one change request (T-6282).
+    - proves: expect
+      as: project-admin
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: ContextSpace, name: parking, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: ContextSpace, metadata: { name: parking, namespace: '{project}' }, spec: { isSandbox: true } } }, { op: create, kind: Endpoint, name: '{project}-parking', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-parking', namespace: '{project}' }, spec: { contextSpaceRef: parking, audience: public, enabledRepresentations: [ngsi-ld] } } }, { op: create, kind: Policy, name: parking-writers, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Policy, metadata: { name: parking-writers, namespace: '{project}' }, spec: { contextSpaceRef: parking, assigner: 'did:web:hel.fi', assignee: { kind: group, id: scn-writers }, operations: [createEntity, updateAttrs], information: [{ entities: [{ type: BikeCounter }] }] } } }] }
+      keep: planId
+      contains: ['"planId"', '"ok":true']
+    - proves: expect
+      as: project-admin
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['"changeRequests":[{', 'pulls/77']
+      absent: ['},{"url"']
+    # A space neither in the plan nor in the project is still refused at the field naming it.
+    - proves: deny
+      as: project-admin
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: ContextSpace, name: parking-two, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: ContextSpace, metadata: { name: parking-two, namespace: '{project}' }, spec: { isSandbox: true } } }, { op: create, kind: Endpoint, name: '{project}-nowhere', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-nowhere', namespace: '{project}' }, spec: { contextSpaceRef: nowhere, audience: public, enabledRepresentations: [ngsi-ld] } } }] }
+      refused: true
+      contains: ['/changes/1/manifest/spec/contextSpaceRef', 'nowhere']
     - proves: deny
       call: jc_change_plan
       project: other
@@ -328,12 +349,12 @@
   segment: context
   as: steward
   says: "Create an Endpoint that serves BikeCounter from space Doprava, public read, NGSI-LD + OData + GeoJSON."
-  expect: 'Endpoint manifest with a valid slug (>= 26 chars, base32), representations as asked, Policy binding; after merge the Endpoint answers'
-  deny: 'a slug with digits 0/1/8/9 -> validation error naming the field'
+  expect: 'Endpoint manifest without a slug, the platform mints one (EP-75), representations as asked, Policy binding; after merge the Endpoint answers'
+  deny: 'a slug the caller typed -> refused naming /changes/0/manifest/spec/slug (EP-75, T-6285)'
   script:
     - proves: expect
       call: jc_change_plan
-      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-public', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-public', namespace: '{project}' }, spec: { slug: bikecounterspublicdopravazz, contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld, odata, ogc-features] } } }] }
+      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-public', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-public', namespace: '{project}' }, spec: { contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld, odata, ogc-features] } } }] }
       keep: planId
       contains: ['"planId"', '"ok":true', 'changes nothing live']
     - proves: expect
@@ -559,6 +580,24 @@
       call: jc_change_apply
       args: { planId: '{planId}' }
       contains: ['changeRequests']
+    # An Endpoint and the Pipeline writing into it plan together and open one change (T-6282).
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Pipeline, name: counters-bundled, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Pipeline, metadata: { name: counters-bundled, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', source: { dataSourceRef: { kind: DataSource, name: counters-csv } }, targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-bundled', output: { type: BikeCounter, mode: upsert }, quotas: { maxMemoryMb: 128, cpuMillicores: 100 } } } }, { op: create, kind: Endpoint, name: '{project}-bundled', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-bundled', namespace: '{project}' }, spec: { contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld] } } }] }
+      refused: true
+      contains: ['/changes/0/manifest', 'jc_pipeline_test']
+    - proves: expect
+      runner_tested: counters-bundled
+    - proves: expect
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Pipeline, name: counters-bundled, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Pipeline, metadata: { name: counters-bundled, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', source: { dataSourceRef: { kind: DataSource, name: counters-csv } }, targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-bundled', output: { type: BikeCounter, mode: upsert }, quotas: { maxMemoryMb: 128, cpuMillicores: 100 } } } }, { op: create, kind: Endpoint, name: '{project}-bundled', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-bundled', namespace: '{project}' }, spec: { contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld] } } }] }
+      keep: planId
+      contains: ['"planId"', '"ok":true']
+    - proves: expect
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['"changeRequests":[{', 'pulls/77']
+      absent: ['},{"url"']
     # The read Endpoint names its own Policy, so it binds no write of the Pipeline (PL-111).
     - proves: deny
       call: jc_change_plan
@@ -1054,7 +1093,7 @@
       absent: ['"merged"']
     - proves: deny
       call: jc_change_plan
-      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-internal', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-internal', namespace: '{project}' }, spec: { slug: countersinternaldopravazzzz, contextSpaceRef: doprava, audience: organization, enabledRepresentations: [ngsi-ld], publish: { ckan: { instanceRef: opendata, organization: doprava } } } } }] }
+      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-internal', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-internal', namespace: '{project}' }, spec: { contextSpaceRef: doprava, audience: organization, enabledRepresentations: [ngsi-ld], publish: { ckan: { instanceRef: opendata, organization: doprava } } } } }] }
       refused: true
       contains: ["spec.audience is 'organization'", 'EP-83']
 - id: S-34
@@ -1146,7 +1185,7 @@
   script:
     - proves: expect
       call: jc_change_plan
-      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-events', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-events', namespace: '{project}' }, spec: { slug: eventsdopravapublicfeedzzzz, contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld, ical], representations: { ical: [{ name: events, sources: [{ type: Event, preset: sdm-event }] }] } } } }] }
+      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-events', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-events', namespace: '{project}' }, spec: { contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld, ical], representations: { ical: [{ name: events, sources: [{ type: Event, preset: sdm-event }] }] } } } }] }
       keep: planId
       contains: ['"planId"', '"ok":true']
     - proves: expect
@@ -1155,7 +1194,7 @@
       contains: ['changeRequests']
     - proves: deny
       call: jc_change_plan
-      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-counter-feed', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-counter-feed', namespace: '{project}' }, spec: { slug: countersdopravacalendarzzzz, contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld, ical], representations: { ical: [{ name: counters, sources: [{ type: BikeCounter, mapping: { DTSTART: { attribute: count }, SUMMARY: { attribute: name } } }] }] } } } }] }
+      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-counter-feed', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-counter-feed', namespace: '{project}' }, spec: { contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld, ical], representations: { ical: [{ name: counters, sources: [{ type: BikeCounter, mapping: { DTSTART: { attribute: count }, SUMMARY: { attribute: name } } }] }] } } } }] }
       refused: true
       contains: ['DTSTART', 'BikeCounter', 'EP-125']
 
@@ -1311,7 +1350,7 @@
               apiVersion: joinedcontext.com/v1alpha1
               kind: Endpoint
               metadata: { name: '{project}-preview', namespace: '{project}' }
-              spec: { slug: bikecountersworkspacezzzzzz, contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld] }
+              spec: { contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld] }
       keep: planId
       contains: ['"planId"', 'bike-counter', '{project}-preview']
     - proves: expect
@@ -1741,3 +1780,173 @@
       refused: true
       contains: ['does not reach project']
       absent: ['"steps"']
+- id: S-87
+  segment: pipeline
+  as: steward
+  says: "Show me 5 sample rows of the bike trips source and try a mapping over it."
+  given: 'The source is DataSource trips-csv of the project; its rider column holds names, listed in spec.personalFields.'
+  expect: 'sample_source and a source-shaped try_mapping answer the rows without the rider values and name DataSource/trips-csv.rider as withheld (AG-158, T-6265)'
+  deny: 'the source in a project outside the connector scope -> refused, no rows'
+  script:
+    # The administrator's ceiling, as the reconciler loads it from Git once merged: the pipeline
+    # segment, with writes, for the project's pipeline people.
+    - proves: expect
+      manifest: { kind: Group, name: pipeliners, spec: { members: [{ user: scn.steward@hel.fi }, { user: scn.project-admin@hel.fi }] } }
+    - proves: expect
+      manifest: { kind: DelegationPolicy, name: pipeliners-doprava, spec: { subjects: [{ kind: Group, name: pipeliners }], projects: ['{project}'], segments: [pipeline], writes: true, maxExpiry: P90D } }
+    - proves: expect
+      manifest: { kind: DataSource, name: trips-csv, namespace: '{project}', spec: { type: http, http: { url: 'https://data.example.sk/trips.csv', format: csv }, personalFields: [rider] } }
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s87-pipeline, segments: [pipeline], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      via: connector
+      call: jc_pipeline_sample_source
+      args: { dataSource: trips-csv }
+      runner: [{ input: 'Jana Novakova,Most SNP,2026-10-27T10:00:00Z', output: { rider: Jana Novakova, station: Most SNP, startedAt: '2026-10-27T10:00:00Z' }, error: null }]
+      contains: ['"count":1', 'Most SNP', 'joinedcontext.com/withheld', 'DataSource/trips-csv.rider']
+      absent: ['Jana Novakova']
+    # A mapping that passes the row through answers the source's shape: the same field leaves.
+    - proves: expect
+      via: connector
+      call: jc_pipeline_try_mapping
+      args: { pipeline: { apiVersion: joinedcontext.com/v1alpha2, kind: Pipeline, metadata: { name: trips-try, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', sources: [{ dataSourceRef: { kind: DataSource, name: trips-csv } }], steps: [{ processor: { mapping: 'root = this' } }], outputs: [{ targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-intake' }] } }, sample: { text: "rider,station\nJana Novakova,Most SNP\n", format: csv }, steps: true }
+      runner: [{ input: '{"rider":"Jana Novakova","station":"Most SNP"}', output: { rider: Jana Novakova, station: Most SNP }, error: null, steps: ['{"rider":"Jana Novakova","station":"Most SNP"}'] }]
+      contains: ['Most SNP', 'DataSource/trips-csv.rider']
+      absent: ['Jana Novakova']
+    # The rows come only where the connector reaches.
+    - proves: deny
+      via: connector
+      call: jc_pipeline_sample_source
+      project: other
+      args: { dataSource: trips-csv }
+      refused: true
+      contains: ['does not reach project']
+      absent: ['Jana Novakova', 'Most SNP']
+- id: S-88
+  segment: knowledge
+  # project-admin: the steward's MCP minute (120 calls, shared by every scenario) is nearly full.
+  as: project-admin
+  says: 'Which knowledge sources does the project have, how far is the crawl of the city website, and what does it say about parking permits, with the pages it used?'
+  given: 'The project declares KnowledgeSource city-web, crawled last night with one failed page.'
+  expect: 'jc_knowledge_status lists city-web with its crawl state, counts and failed reads; jc_knowledge_search answers passages each with its page url and title; a new KnowledgeSource plans (T-6284)'
+  deny: 'a connector without the knowledge segment -> the knowledge tools are not there and KnowledgeSource is refused'
+  script:
+    - proves: expect
+      manifest: { kind: Group, name: knowledge-stewards, spec: { members: [{ user: scn.project-admin@hel.fi }] } }
+    - proves: expect
+      manifest: { kind: DelegationPolicy, name: knowledge-doprava, spec: { subjects: [{ kind: Group, name: knowledge-stewards }], projects: ['{project}'], segments: [knowledge, data-read], writes: false, maxExpiry: P90D } }
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s56-knowledge, segments: [knowledge], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      via: connector
+      contains: ['jc_knowledge_status', 'jc_knowledge_search', 'jc_change_plan']
+      absent: ['jc_data_query', 'jc_pipeline_logs']
+    - proves: expect
+      via: connector
+      call: jc_resource_list
+      args: { kind: KnowledgeSource }
+      contains: ['city-web']
+    - proves: expect
+      via: connector
+      call: jc_knowledge_status
+      contains: ['"source":"city-web"', '"state":"crawled"', '"pages":12', 'https://city.example/']
+    - proves: expect
+      via: connector
+      call: jc_knowledge_status
+      args: { source: city-web }
+      contains: ['"failed":1', 'https://city.example/old-fees', 'HTTP 404']
+    - proves: expect
+      via: connector
+      call: jc_knowledge_search
+      args: { source: city-web, q: parking permit }
+      contains: ['"title":"Parking permits"', '"url":"https://city.example/parking"', '30 EUR']
+    - proves: expect
+      via: connector
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: KnowledgeSource, name: news-web, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: KnowledgeSource, metadata: { name: news-web, namespace: '{project}' }, spec: { source: website, startUrls: ['https://city.example/news/'], maxDepth: 1 } } }] }
+      contains: ['"planId"', '"ok":true']
+    - proves: deny
+      via: connector
+      call: jc_knowledge_status
+      args: { source: nowhere }
+      refused: true
+      contains: ["KnowledgeSource 'nowhere' not found"]
+    - proves: deny
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s56-data, segments: [data-read], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: deny
+      via: connector
+      contains: ['jc_resource_list']
+      absent: ['jc_knowledge_status', 'jc_knowledge_search']
+    - proves: deny
+      via: connector
+      call: jc_knowledge_search
+      args: { source: city-web, q: parking permit }
+      refused: true
+    - proves: deny
+      via: connector
+      call: jc_resource_list
+      args: { kind: KnowledgeSource }
+      refused: true
+      contains: ['read only']
+- id: S-89
+  segment: pipeline
+  # org-admin and viewer: the project-admin's and steward's MCP minutes (120 calls each) are nearly full.
+  as: org-admin
+  says: "Which MQTT brokers does this project have, and what did the sensors broker capture lately? Then add an mqtt source reading it."
+  expect: 'the pipeline segment lists MqttBroker and reads the capture through jc_mqtt_captured; a DataSource naming a broker the project lacks is refused by spec.mqtt.brokerRef (T-6290)'
+  deny: 'a caller who may not approve brokers -> 404 as for a broker that is not there; a wildcard topic -> refused'
+  script:
+    # The administrator's ceiling, as the reconciler loads it from Git once merged.
+    - proves: expect
+      manifest: { kind: Group, name: devices, spec: { members: [{ user: scn.org-admin@hel.fi }] } }
+    - proves: expect
+      manifest: { kind: DelegationPolicy, name: devices-pipeline, spec: { subjects: [{ kind: Group, name: devices }], projects: ['{project}'], segments: [pipeline], writes: true, maxExpiry: P90D } }
+    - proves: expect
+      manifest: { kind: MqttBroker, name: sensors, namespace: '{project}', spec: { roles: [] } }
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s89-devices, segments: [pipeline], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      via: connector
+      call: jc_resource_list
+      args: { kind: MqttBroker }
+      contains: ['sensors']
+    - proves: expect
+      via: connector
+      call: jc_mqtt_captured
+      args: { name: sensors, limit: 10 }
+      contains: ['"broker":"sensors"', '"mode":"ingest"', '"messages":[]']
+    - proves: expect
+      via: connector
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: DataSource, name: air-mqtt, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: DataSource, metadata: { name: air-mqtt, namespace: '{project}' }, spec: { type: mqtt, mqtt: { brokerRef: { kind: MqttBroker, name: t6248-sensors }, topics: ['sensors/+/air'] } } } }] }
+      refused: true
+      contains: ['spec.mqtt.brokerRef', 't6248-sensors']
+    - proves: deny
+      via: connector
+      call: jc_mqtt_captured
+      args: { name: sensors, topic: 'sensors/#' }
+      refused: true
+      contains: ['without + or #']
+    - proves: deny
+      as: viewer
+      call: jc_mqtt_captured
+      args: { name: sensors }
+      refused: true
+      contains: ['not found']
+      absent: ['"messages"']

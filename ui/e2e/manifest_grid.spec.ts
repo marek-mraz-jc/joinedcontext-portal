@@ -126,7 +126,7 @@ for (const width of [1440, 400]) {
         await page.goto(`/projects/helsinki/${route}?lang=en`);
         await expect(page.getByRole("link", { name: first }).first()).toBeVisible();
         await expect(page.getByRole("toolbar")).toBeVisible();
-        await expect(page.getByRole("button", { name: /^Details of / }).first()).toBeVisible();
+        await expect(page.getByRole("button", { name: /^More actions for / }).first()).toBeVisible();
         await page.screenshot({ path: info.outputPath(`${route}-filled-${width}.png`), fullPage: true });
         expect(await axeViolations(page)).toEqual([]);
       });
@@ -168,7 +168,8 @@ for (const width of [1440, 400]) {
       await expect(page.getByRole("link", { name: "Air quality" })).toHaveCount(0);
       await page.screenshot({ path: info.outputPath(`endpoints-filtered-${width}.png`), fullPage: true });
       await page.getByRole("button", { name: "Remove filter Audience: Organization" }).click();
-      await page.getByRole("button", { name: "Details of Air quality" }).click();
+      await page.getByRole("button", { name: "More actions for Air quality" }).click();
+      await page.getByRole("menuitem", { name: "Details" }).click();
       const panel = page.getByRole("dialog", { name: "Air quality" });
       await expect(panel.getByRole("combobox", { name: "Audience" })).toHaveValue("public");
       await expect(panel.getByRole("group", { name: "Representations" })).toBeVisible();
@@ -183,13 +184,15 @@ for (const width of [1440, 400]) {
     test("the panel says in words when an Endpoint had no calls or is counted elsewhere (T-6186)", async ({ page }, info) => {
       await stub(page);
       await page.goto("/projects/helsinki/endpoints?lang=en");
-      await page.getByRole("button", { name: "Details of Parking occupancy" }).click();
+      await page.getByRole("button", { name: "More actions for Parking occupancy" }).click();
+      await page.getByRole("menuitem", { name: "Details" }).click();
       const zero = page.getByRole("dialog", { name: "Parking occupancy" });
       await zero.getByText("No answered calls in the last 7 days").scrollIntoViewIfNeeded();
       await expect(zero.getByText("No answered calls in the last 7 days")).toBeVisible();
       await page.screenshot({ path: info.outputPath(`endpoints-panel-calls-zero-${width}.png`) });
       await page.keyboard.press("Escape");
-      await page.getByRole("button", { name: "Details of City bikes in Espoo" }).click();
+      await page.getByRole("button", { name: "More actions for City bikes in Espoo" }).click();
+      await page.getByRole("menuitem", { name: "Details" }).click();
       const shared = page.getByRole("dialog", { name: "City bikes in Espoo" });
       const reason = shared.getByText("Usage is counted by the project that publishes this Endpoint.");
       await reason.scrollIntoViewIfNeeded();
@@ -201,7 +204,8 @@ for (const width of [1440, 400]) {
     test("the server's refusal shows on the field", async ({ page }, info) => {
       await stub(page, { refuse: true });
       await page.goto("/projects/helsinki/endpoints?lang=en");
-      await page.getByRole("button", { name: "Details of Air quality" }).click();
+      await page.getByRole("button", { name: "More actions for Air quality" }).click();
+      await page.getByRole("menuitem", { name: "Details" }).click();
       const panel = page.getByRole("dialog", { name: "Air quality" });
       await panel.getByRole("combobox", { name: "Audience" }).selectOption("organization");
       await panel.getByRole("button", { name: "Propose change" }).click();

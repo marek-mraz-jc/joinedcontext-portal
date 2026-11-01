@@ -239,12 +239,40 @@ describe("reading it without the picture", () => {
       // A frame a little narrower than the drawing: it fits the frame's width.
       const frame = Math.round(natural.width * 0.9);
       expect(widthAt(frame).width).toBeCloseTo(frame - 16, 0);
-      // A frame far narrower: the drawing stays at 75 % and scrolls.
+      // A frame just under the 60 % floor: the page's diagram shrinks to the frame's width, down to
+      // 50 %, rather than cut a box (T-6254 judge, model-catalog-400).
+      const snug = Math.round((natural.width * 0.55) + 16);
+      expect(widthAt(snug).width).toBeCloseTo(snug - 16, 0);
+      // A frame far narrower: the drawing stays at 60 %, the overview floor (owner 2026-10-31), and scrolls.
       const narrow = widthAt(216);
-      expect(narrow.level).toBe("Zoom 75 %");
-      expect(narrow.width).toBeCloseTo(natural.width * 0.75, 0);
+      expect(narrow.level).toBe("Zoom 60 %");
+      expect(narrow.width).toBeCloseTo(natural.width * 0.6, 0);
     } finally {
       if (wide) Object.defineProperty(HTMLElement.prototype, "clientWidth", wide);
+    }
+  });
+
+  // T-6254 judge: the page's overview cut its bottom row by the frame's own padding and sat in the
+  // frame's left third. It now fits the whole drawing inside the padding, centred.
+  it("opens fitted to the frame's height inside its padding, centred", () => {
+    const wide = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientWidth");
+    const high = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "clientHeight");
+    try {
+      Object.defineProperty(HTMLElement.prototype, "clientWidth", { configurable: true, get: () => 100000 });
+      const natural = renderPart(<LinkmlGraphView source={SCHOOLS} />);
+      const naturalHeight = Number(natural.container.querySelector("svg[role='group']")?.getAttribute("height"));
+      natural.unmount();
+      // A frame 80 % as high as the drawing, above the 60 % floor: the drawing takes the frame's inner height.
+      const frame = Math.round(naturalHeight * 0.8) + 16;
+      Object.defineProperty(HTMLElement.prototype, "clientHeight", { configurable: true, get: () => frame });
+      const view = renderPart(<LinkmlGraphView source={SCHOOLS} />);
+      const svg = view.container.querySelector("svg[role='group']") as SVGSVGElement;
+      expect(Number(svg.getAttribute("height"))).toBeCloseTo(frame - 16, 0);
+      expect(svg).toHaveClass("mx-auto", "block");
+      view.unmount();
+    } finally {
+      if (wide) Object.defineProperty(HTMLElement.prototype, "clientWidth", wide);
+      if (high) Object.defineProperty(HTMLElement.prototype, "clientHeight", high);
     }
   });
 

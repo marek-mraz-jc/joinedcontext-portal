@@ -10,6 +10,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
+import { BrandingProvider } from "../src/branding";
 import en from "../src/locales/en.json";
 import type { PipelineForm } from "../src/pages/pipelines/PipelineEditor";
 import type { Manifest } from "../src/api/manifest";
@@ -163,15 +164,19 @@ function renderStudio(options?: {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
+  // The installation's domain, which a KPI target URN names; without it no target is offered.
+  client.setQueryData(["branding"], { orgDomain: "hel.fi" });
   render(
     <QueryClientProvider client={client}>
       <I18nextProvider i18n={i18n}>
-        <Harness
-          initial={options?.initial}
-          onChange={onChange}
-          onVerdict={onVerdict}
-          endpoints={options?.endpoints ?? ENDPOINTS}
-        />
+        <BrandingProvider>
+          <Harness
+            initial={options?.initial}
+            onChange={onChange}
+            onVerdict={onVerdict}
+            endpoints={options?.endpoints ?? ENDPOINTS}
+          />
+        </BrandingProvider>
       </I18nextProvider>
     </QueryClientProvider>,
   );

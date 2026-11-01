@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::ToSchema;
 
+use crate::activity::{chrono_to_odt, odt_to_chrono};
 use crate::resource::Phase;
 use crate::store::Mirror;
 
@@ -213,14 +214,6 @@ enum Inner {
 
 type Stamp = time::OffsetDateTime;
 
-pub(crate) fn chrono_of(stamp: Stamp) -> DateTime<Utc> {
-    DateTime::from_timestamp(stamp.unix_timestamp(), stamp.nanosecond()).unwrap_or_default()
-}
-
-pub(crate) fn stamp_of(at: DateTime<Utc>) -> Stamp {
-    Stamp::from_unix_timestamp(at.timestamp()).unwrap_or(Stamp::UNIX_EPOCH)
-}
-
 pub(crate) fn rfc3339(at: DateTime<Utc>) -> String {
     at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
 }
@@ -252,8 +245,8 @@ type SubscriptionRow = (
 
 fn held_of(row: SubscriptionRow) -> Option<Held> {
     let (id, subject, project, scope, target, events, delivery, muted_until, digest_at) = row;
-    let muted_until = muted_until.map(chrono_of);
-    let digest_at = digest_at.map(chrono_of);
+    let muted_until = muted_until.map(odt_to_chrono);
+    let digest_at = digest_at.map(odt_to_chrono);
     Some(Held {
         subject,
         subscription: Subscription {
@@ -307,14 +300,32 @@ pub fn checked(new: &NewSubscription) -> Result<(Scope, Vec<Event>, Delivery), S
             other => return Err(format!("`{other}` is not portal or digest")),
         };
     if scope == Scope::Type
-        && new
-            .target
-            .split_once('/')
-            .is_none_or(|(space, kind)| space.is_empty() || kind.is_empty())
+        && new.target.split_once('/').is_none_or(|(space, kind)| {
+            space.is_empty() || !crate::ops::data_views::is_type_name(kind)
+        })
     {
-        return Err("a type is named `{space}/{Type}`".into());
+        return Err("a type is named `{space}/{Type}`, the Type as the gateway names it".into());
     }
     Ok((scope, events.into_iter().collect(), delivery))
+}
+
+/// The most subscriptions one person holds: each is scanned on every sync (F-R2POR1-014).
+pub const MAX_SUBSCRIPTIONS: usize = 200;
+
+/// Whether `held`, a person's subscriptions, leaves room for `new` in `scope`: a change to one
+/// they hold always does.
+pub fn room_for(held: &[Subscription], new: &NewSubscription, scope: Scope) -> Result<(), String> {
+    let changes_one = held
+        .iter()
+        .any(|s| s.project == new.project && s.scope == scope && s.target == new.target);
+    if changes_one || held.len() < MAX_SUBSCRIPTIONS {
+        Ok(())
+    } else {
+        Err(format!(
+            "you hold {MAX_SUBSCRIPTIONS} alerts, the most one person keeps; stop one you no \
+             longer read before adding another"
+        ))
+    }
 }
 
 impl AlertStore {
@@ -465,7 +476,7 @@ impl AlertStore {
                 )
                 .bind(id)
                 .bind(subject)
-                .bind(until.map(stamp_of))
+                .bind(until.map(chrono_to_odt))
                 .fetch_optional(pool)
                 .await?;
                 Ok(row.and_then(held_of).map(|held| held.subscription))
@@ -491,7 +502,7 @@ impl AlertStore {
             Inner::Postgres(pool) => {
                 sqlx::query("UPDATE alert_subscriptions SET digest_at = $2 WHERE id = $1")
                     .bind(id)
-                    .bind(stamp_of(at))
+                    .bind(chrono_to_odt(at))
                     .execute(pool)
                     .await?;
                 Ok(())
@@ -532,7 +543,7 @@ impl AlertStore {
                     "SELECT project, pipeline, event, detail, opened_at, recovered_at FROM alert_incidents \
                      WHERE ($1::timestamptz IS NULL AND recovered_at IS NULL) OR opened_at > $1 ORDER BY id",
                 )
-                .bind(since.map(stamp_of))
+                .bind(since.map(chrono_to_odt))
                 .fetch_all(pool)
                 .await?;
                 Ok(rows
@@ -543,9 +554,9 @@ impl AlertStore {
                                 Incident {
                                     key: (project, pipeline, Event::parse(&event)?),
                                     detail,
-                                    opened_at: chrono_of(opened_at),
+                                    opened_at: odt_to_chrono(opened_at),
                                 },
-                                recovered_at.map(chrono_of),
+                                recovered_at.map(odt_to_chrono),
                             ))
                         },
                     )
@@ -577,7 +588,7 @@ impl AlertStore {
                 .bind(&signal.key.1)
                 .bind(signal.key.2.as_str())
                 .bind(&signal.detail)
-                .bind(stamp_of(at))
+                .bind(chrono_to_odt(at))
                 .execute(pool)
                 .await?;
                 Ok(())
@@ -609,7 +620,7 @@ impl AlertStore {
                 .bind(&key.0)
                 .bind(&key.1)
                 .bind(key.2.as_str())
-                .bind(stamp_of(at))
+                .bind(chrono_to_odt(at))
                 .execute(pool)
                 .await?;
                 Ok(())
@@ -732,7 +743,7 @@ impl AlertStore {
                                 event: Event::parse(&event)?,
                                 change,
                                 detail,
-                                created_at: rfc3339(chrono_of(created_at)),
+                                created_at: rfc3339(odt_to_chrono(created_at)),
                                 read: read_at.is_some(),
                             })
                         },
@@ -847,7 +858,7 @@ pub fn read_pipelines(
                 .and_then(|e| {
                     e.spec
                         .get("contextSpaceRef")
-                        .and_then(Value::as_str)
+                        .and_then(crate::resource::reference_name)
                         .map(str::to_owned)
                 })
             {
@@ -1423,9 +1434,40 @@ mod tests {
         assert!(checked(&new("space", "bikes", &["boom"], "portal")).is_err());
         assert!(checked(&new("type", "Bikes", &["zero"], "portal")).is_err());
         assert!(checked(&new("type", "mobility/Bike", &["zero"], "digest")).is_ok());
+        // F-R2POR1-014 (T-6225): the type half is a type name, bounded as the gateway bounds it.
+        let long = format!("mobility/{}", "B".repeat(300));
+        assert!(checked(&new("type", &long, &["zero"], "portal")).is_err());
+        assert!(checked(&new("type", "mobility/Bike Station", &["zero"], "portal")).is_err());
         assert!(checked(&new("space", "bikes", &["zero"], "email"))
             .unwrap_err()
             .contains("no mail relay"));
+    }
+
+    /// F-R2POR1-014 (T-6225): a person holds at most MAX_SUBSCRIPTIONS; changing one they
+    /// hold still works at the cap.
+    #[test]
+    fn a_person_at_the_cap_adds_no_alert_and_still_changes_one() {
+        let held: Vec<Subscription> = (0..MAX_SUBSCRIPTIONS)
+            .map(|i| Subscription {
+                id: i64::try_from(i).expect("small"),
+                project: "helsinki".into(),
+                scope: Scope::Pipeline,
+                target: format!("p{i}"),
+                events: vec![Event::Failure],
+                delivery: Delivery::Portal,
+                muted_until: None,
+            })
+            .collect();
+        let ask = |target: &str| NewSubscription {
+            project: "helsinki".into(),
+            scope: "pipeline".into(),
+            target: target.into(),
+            events: vec!["zero".into()],
+            delivery: "portal".into(),
+        };
+        assert!(room_for(&held, &ask("p-new"), Scope::Pipeline).is_err());
+        assert!(room_for(&held, &ask("p7"), Scope::Pipeline).is_ok());
+        assert!(room_for(&held[1..], &ask("p-new"), Scope::Pipeline).is_ok());
     }
 
     #[test]
@@ -1676,6 +1718,26 @@ mod tests {
         let bikes = watched.iter().find(|w| w.name == "bikes").unwrap();
         assert_eq!(bikes.spaces, ["mobility".to_owned()].into());
         assert_eq!(bikes.types, ["BikeHireDockingStation".to_owned()].into());
+    }
+
+    /// F-R2POR1-010 (T-6225): an Endpoint may name its space as a typed reference; the pipeline
+    /// writing to it is still watched in that space.
+    #[test]
+    fn a_typed_space_reference_names_the_space_of_the_pipeline() {
+        let mirror = Arc::new(Mirror::new());
+        mirror.upsert(
+            serde_json::from_value(json!({
+                "apiVersion": "joinedcontext.com/v1alpha1",
+                "kind": "Endpoint",
+                "metadata": { "name": "bikes-write", "namespace": "helsinki" },
+                "spec": { "contextSpaceRef": { "kind": "ContextSpace", "name": "mobility" } },
+            }))
+            .expect("an endpoint"),
+        );
+        mirror.upsert(pipeline("bikes", json!({ "phase": "Live" })));
+        let (watched, _) = read_pipelines(&mirror, &crate::quality::Store::default());
+        let bikes = watched.iter().find(|w| w.name == "bikes").expect("watched");
+        assert_eq!(bikes.spaces, ["mobility".to_owned()].into());
     }
 
     #[tokio::test]

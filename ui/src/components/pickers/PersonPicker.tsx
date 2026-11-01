@@ -2,14 +2,14 @@ import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, queryKeys, unwrap } from "../../api/client";
+import { api, queryKeys, unwrap, reasonOf } from "../../api/client";
 import { mayRead, usePermissions } from "../../api/permissions";
 import { ORG_NAMESPACE } from "../../api/manifest";
 import { emailsIn } from "../../pages/apps/members";
 import { isPersonId, personLabel, usePersonNames } from "../../api/personNames";
 import { Combobox } from "./Combobox";
 import type { PickerOption } from "./Combobox";
-import { reasonOf, useDebounced } from "./organizationModels";
+import { useDebounced } from "./organizationModels";
 
 interface PersonPickerBase {
   id?: string;
@@ -142,23 +142,24 @@ export function PersonPicker(props: PersonPickerProps): JSX.Element {
   );
 }
 
-/** The ids of the people a pasted list names: each word is an id, or an e-mail the server lists. */
-async function idsOf(text: string, reads: boolean): Promise<{ ids: string[]; refused: string[] }> {
-  const ids: string[] = [];
-  const refused: string[] = [];
-  for (const word of text.split(/[\s,;]+/).filter(Boolean)) {
+/** The ids of the people a pasted list names: each word is an id, or an e-mail the server lists. Exported for its test. */
+export async function idsOf(text: string, reads: boolean): Promise<{ ids: string[]; refused: string[] }> {
+  const words = text.split(/[\s,;]+/).filter(Boolean);
+  const lookUp = async (word: string): Promise<string | undefined> => {
     const lower = word.toLowerCase();
-    if (isPersonId(lower)) {
-      ids.push(lower);
-      continue;
-    }
-    const found = reads
-      ? await api
-          .GET("/api/v1/organization/people", { params: { query: { search: lower, max: 5 } } })
-          .then((answer) => answer.data?.items.find((person) => person.email.toLowerCase() === lower))
-      : undefined;
-    if (found) ids.push(found.id);
-    else refused.push(word);
+    if (isPersonId(lower)) return lower;
+    if (!reads) return undefined;
+    const answer = await api.GET("/api/v1/organization/people", { params: { query: { search: lower, max: 5 } } });
+    return answer.data?.items.find((person) => person.email.toLowerCase() === lower)?.id;
+  };
+  // A few at a time, not one round trip after another (F-R2UI2-010), nor fifty at once at the edge.
+  const found: (string | undefined)[] = [];
+  for (let at = 0; at < words.length; at += LOOKUPS_AT_ONCE) {
+    found.push(...(await Promise.all(words.slice(at, at + LOOKUPS_AT_ONCE).map(lookUp))));
   }
+  const ids = found.filter((id): id is string => id !== undefined);
+  const refused = words.filter((_, index) => found[index] === undefined);
   return { ids: [...new Set(ids)], refused };
 }
+
+const LOOKUPS_AT_ONCE = 6;

@@ -46,12 +46,14 @@ pub(crate) fn is_candidate_manifest(path: &str) -> bool {
     // (PF-63); left out here, no Group reached the mirror (T-3031).
     // The builder profiles are organization-level too (AG-26): `agentprofiles/{name}.yaml`.
     // Each Organization of the installation has a file of its own beside the legacy `org.yaml`
-    // (PF-121, ADR-N-058).
+    // (PF-121, ADR-N-058). A DelegationPolicy lives in `users/delegation/` (AG-150); left out here,
+    // no policy reached the mirror and every connector was held to the data-read default (T-6025).
     clean.starts_with("projects/")
         || clean.starts_with("organizations/")
         || clean.starts_with("users/roles/")
         || clean.starts_with("users/groups/")
         || clean.starts_with("users/assignments/")
+        || clean.starts_with("users/delegation/")
         || clean.starts_with("agentprofiles/")
 }
 

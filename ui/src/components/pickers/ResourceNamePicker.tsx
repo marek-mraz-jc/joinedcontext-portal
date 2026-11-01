@@ -2,12 +2,11 @@ import { useMemo } from "react";
 import type { JSX } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, queryKeys, unwrap } from "../../api/client";
+import { api, queryKeys, unwrap, reasonOf } from "../../api/client";
 import { projectsQuery } from "../../api/projects";
 import { asManifests, localized } from "../../api/manifest";
 import { Combobox } from "./Combobox";
 import type { PickerOption } from "./Combobox";
-import { reasonOf } from "./organizationModels";
 
 export interface ResourceNamePickerProps {
   id?: string;

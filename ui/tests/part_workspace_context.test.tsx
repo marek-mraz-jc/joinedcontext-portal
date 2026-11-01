@@ -154,4 +154,26 @@ describe("the workspace provider against the UI contract", () => {
 
     expect(await through("/api/v1/projects/helsinki/pipelines?workspace=other")).toBe("?workspace=air-v2");
   });
+
+  it("puts every project kind jc-core writes inside the copy, the assistant's and MCP kinds too", async () => {
+    setActiveWorkspace("air-v2");
+
+    for (const plural of ["knowledgesources", "assistantdeployments", "mcpservers", "contextbrokers", "delegationpolicies"]) {
+      expect(await through(`/api/v1/projects/helsinki/${plural}`)).toBe("?workspace=air-v2");
+      expect(await through(`/api/v1/projects/helsinki/${plural}/one`)).toBe("?workspace=air-v2");
+    }
+  });
+
+  it("keeps the caller's abort signal on the request it rebuilds", async () => {
+    setActiveWorkspace("air-v2");
+    const controller = new AbortController();
+    const out = (await workspaceMiddleware.onRequest!({
+      request: new Request("http://localhost/api/v1/projects/helsinki/pipelines", { signal: controller.signal }),
+    } as never)) as Request;
+
+    controller.abort();
+
+    expect(out.url).toContain("?workspace=air-v2");
+    expect(out.signal.aborted).toBe(true);
+  });
 });

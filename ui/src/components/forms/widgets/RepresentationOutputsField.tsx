@@ -3,12 +3,12 @@ import type { JSX } from "react";
 import type { FieldProps } from "@rjsf/utils";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, queryKeys, unwrap } from "../../../api/client";
+import { api, queryKeys, unwrap, reasonOf } from "../../../api/client";
 import { asManifests, refName } from "../../../api/manifest";
 import { Button, Card, EmptyState, Field, InlineError, Input } from "../../ui";
-import { LIST_BODY, LIST_FIELDSET, ListLegend, pathOf } from "../theme";
+import { LIST_BODY, LIST_FIELDSET, ListLegend } from "../theme";
 import { FormDataContext } from "./EntitySelectorField";
-import { ListFailed, reasonOf } from "./ListFailed";
+import { ListFailed } from "./ListFailed";
 import { FormProjectContext } from "./ModelWidgets";
 import { FeedSourceEditor, IcalSourceEditor, MapSourceEditor } from "./OutputSourceEditors";
 import { duplicateNames, isSlug, MAX_OUTPUTS, newOutput, outputsOf, withText, written } from "./representationOutputs";
@@ -49,7 +49,7 @@ export function RepresentationOutputsField(props: FieldProps): JSX.Element {
 
   return (
     <fieldset id={id} data-testid="representation-outputs" className={LIST_FIELDSET}>
-      <ListLegend heading={schema.title ?? ""} path={pathOf(fieldPathId)} />
+      <ListLegend heading={schema.title ?? ""} />
       <div className={`${LIST_BODY} flex flex-col gap-6`}>
         <p id={`${id}__help`} className="text-caption text-fg-muted">
           {t("endpoints.outputs.help")}

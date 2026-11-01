@@ -69,11 +69,7 @@ pub(crate) fn spawn_periodic(state: AppState) {
         let mut seen = fingerprint(&state.mirror);
         loop {
             interval.tick().await;
-            if state
-                .syncer
-                .as_ref()
-                .is_some_and(|syncer| !syncer.is_leader())
-            {
+            if !state.leads() {
                 continue;
             }
             let now = fingerprint(&state.mirror);

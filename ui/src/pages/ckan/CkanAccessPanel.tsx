@@ -3,11 +3,11 @@ import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { api, queryKeys, unwrap, reasonOf } from "../../api/client";
 import { asManifests, isChange, ORG_NAMESPACE } from "../../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
 import { usePermissions } from "../../api/permissions";
-import { proposeChecked } from "../../api/proposal";
+import { importChecked, proposeChecked } from "../../api/proposal";
 import type { components } from "../../api/schema";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
@@ -30,11 +30,6 @@ function useList(project: string, plural: string, enabled = true) {
   });
 }
 
-function reasonOf(error: unknown, fallback: string): string {
-  if (error instanceof ApiError) return error.problem?.detail ?? error.message;
-  return fallback;
-}
-
 /** The Role and its binding as one Change when both are new, else each on its own route. */
 async function proposeGrant(project: string, grant: ReturnType<typeof grantManifests>): Promise<unknown> {
   if (grant.role && grant.create) {
@@ -42,15 +37,7 @@ async function proposeGrant(project: string, grant: ReturnType<typeof grantManif
     const body: components["schemas"]["ImportOptions"] = {
       manifests: [grant.role, grant.binding] as ResourceProposal[],
     };
-    unwrap<unknown>(
-      await api.POST("/api/v1/projects/{project}/import", {
-        params: { path: { project }, query: { dryRun: "All" } },
-        body,
-      }),
-    );
-    return unwrap<unknown>(
-      await api.POST("/api/v1/projects/{project}/import", { params: { path: { project } }, body }),
-    );
+    return importChecked(project, body);
   }
   if (grant.role) {
     await proposeChecked(ORG_NAMESPACE, "roles", grant.role as ResourceProposal, true);

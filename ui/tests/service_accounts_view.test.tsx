@@ -199,6 +199,9 @@ describe("the service accounts panel, mounted on its own", () => {
     );
     // Held by the listed account though no list names it: an edit must not lose it.
     expect(within(role).getByRole("option", { name: "space-writer" })).toBeInTheDocument();
+    // F-R2UI2-013: the new account starts owned by its creator's Keycloak id, as the owner
+    // picker writes it, never by their e-mail (ADR-N-061).
+    expect(within(dialog).getByRole("combobox", { name: /^Owner/ })).toHaveValue(IDENTITY.subject);
   });
 
   // T-2759: "space-reader, space-reader".

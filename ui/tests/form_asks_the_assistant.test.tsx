@@ -87,33 +87,6 @@ describe("a form asks the assistant", () => {
     });
   });
 
-  it("writes the question about one field into the composer, with that field's path", async () => {
-    const user = userEvent.setup();
-    const asked: string[] = [];
-    const stop = onAskRequest((question) => asked.push(question));
-    renderDialog();
-
-    await waitFor(() => expect(formContext()).toBeDefined());
-    const actions = await screen.findAllByRole("button", {
-      name: en.form.askAboutField,
-    });
-    // Every field the form asks for offers it; the URL field is the second one.
-    expect(actions.length).toBeGreaterThanOrEqual(2);
-    await user.click(actions[1]);
-
-    // The question is written for the person to send, and names the field as they read it.
-    expect(asked).toHaveLength(1);
-    expect(asked[0]).toContain("DataSource");
-    expect(asked[0]).toContain("URL");
-    // And the context now carries the path of the field that was asked about, not its value.
-    expect(formContext()).toEqual({
-      kind: "DataSource",
-      name: "hsl-citybikes",
-      field: "spec.url",
-    });
-    stop();
-  });
-
   it("offers to fill the whole form from a sentence, and asks nothing by itself", async () => {
     const user = userEvent.setup();
     const asked: string[] = [];

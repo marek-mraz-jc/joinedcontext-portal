@@ -32,6 +32,24 @@ describe("the secret form", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
+  it("names a key typed twice or left blank at its field and sends nothing (F-R2UI4-017)", async () => {
+    const sent: unknown[] = [];
+    mount(async (url, request) => {
+      if (!url.pathname.endsWith("/projects/helsinki/secrets")) return undefined;
+      if (request.method === "POST") sent.push(await request.json());
+      return json({ items: [] });
+    });
+    await userEvent.click(await screen.findByRole("button", { name: en.secrets.addKey }));
+    await userEvent.click(screen.getByRole("button", { name: en.secrets.addKey }));
+    const keys = screen.getAllByRole("textbox", { name: new RegExp(`^${en.secrets.key}`) });
+    await userEvent.type(keys[1], "apiKey");
+    await userEvent.click(screen.getByRole("button", { name: en.secrets.submit }));
+    expect(await screen.findByText(i18n.t("secrets.keyTwice", { key: "apiKey" }))).toBeInTheDocument();
+    expect(screen.getByText(en.secrets.keyMissing)).toBeInTheDocument();
+    expect(keys[1]).toHaveAttribute("aria-invalid", "true");
+    expect(sent).toEqual([]);
+  });
+
   it("sends the typed key once, clears it and shows the change to approve", async () => {
     const sent: unknown[] = [];
     const { container } = mount(async (url, request) => {

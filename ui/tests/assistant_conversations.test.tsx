@@ -279,6 +279,15 @@ describe("Asistent → Konverzácie", () => {
     expect(calls.filter((c) => c.url.pathname.includes("/conversations"))).toEqual([]);
   });
 
+  it("asks the recorded list once per typed search, not once per key (F-R2UI3-009)", async () => {
+    const user = userEvent.setup();
+    const calls = renderAs(["read", "approve"]);
+    await screen.findByRole("table");
+    await user.type(screen.getByLabelText(i18n.t("conversations.filter.q")), "parking");
+    await waitFor(() => expect(calls.some((c) => c.url.searchParams.get("q") === "parking")).toBe(true));
+    expect(calls.filter((c) => c.url.searchParams.has("q")).map((c) => c.url.searchParams.get("q"))).toEqual(["parking"]);
+  });
+
   it("the administrator filters, opens a conversation with its steps and copies a turn; erase needs delete", async () => {
     const user = userEvent.setup();
     const writeText = vi.fn(() => Promise.resolve());

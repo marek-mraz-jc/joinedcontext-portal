@@ -247,6 +247,8 @@ describe("ModelsPage save and source loading (DM-56)", () => {
     const closed = await screen.findByRole("button", { name: "Propose v1.0.0" });
     await waitFor(() => expect(closed).toHaveAttribute("aria-disabled", "true"));
     expect(closed).toHaveAccessibleDescription(en.models.source.unchanged);
+    // The reason is also in the open, not only in a tooltip: a pale button alone read as broken (T-6254).
+    expect(screen.getByText(en.models.source.unchanged, { selector: "p" })).toBeVisible();
     view.unmount();
 
     rememberPrefill("/", { source: EDITED_LINKML });
@@ -429,10 +431,12 @@ describe("ModelsPage save and source loading (DM-56)", () => {
       ).toBeInTheDocument();
       expect(screen.getByText("the slot was removed; a renamed slot is a removal and an addition", { exact: false })).toBeInTheDocument();
       const save = screen.getByRole("button", { name: PROPOSE });
-      expect(save).toBeDisabled();
+      // Closed with its reason (T-6254): aria-disabled, the reason in the open.
+      expect(save).toHaveAttribute("aria-disabled", "true");
+      expect(save).toHaveAccessibleDescription(en.models.source.confirmFirst.replace("{version}", "2.0.0"));
 
       await user.click(screen.getByRole("checkbox", { name: "Save it as version 2.0.0, a breaking change" }));
-      expect(save).toBeEnabled();
+      expect(save).not.toHaveAttribute("aria-disabled");
       await user.click(save);
       await waitFor(() => expect(puts).toHaveLength(1));
       expect(puts[0]).not.toContain("dateObserved");
@@ -515,7 +519,7 @@ describe("ModelsPage save and source loading (DM-56)", () => {
 
     // A name the project already carries would fork a second model under one name.
     expect(await screen.findByRole("alert")).toHaveTextContent(/already has a model named/i);
-    expect(screen.getByRole("button", { name: PROPOSE })).toBeDisabled();
+    expect(screen.getByRole("button", { name: PROPOSE })).toHaveAttribute("aria-disabled", "true");
 
     await user.clear(name);
     await user.type(name, "Bikes");

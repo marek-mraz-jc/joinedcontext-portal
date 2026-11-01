@@ -1,45 +1,10 @@
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
-import { useQuery } from "@tanstack/react-query";
 import { Alert, Button, ExternalLink, Icon, safeHref } from "../ui";
-import { queryKeys } from "../../api/client";
-import type { Effective } from "../../api/permissions";
-import { proposeStanding } from "../../api/approval";
 import type { Draft, Verdict } from "../../api/drafts";
 import { askAbout } from "../../assistant/state";
 import { kindPlural } from "../../kindWords";
 import { findingSentence } from "./resourceForm";
-
-/**
- * Before the click, whether proposing waits for another approver and why (PF-58, PF-70). A change
- * approved as soon as it is proposed is the normal case and says nothing (T-6105). It reads the permissions the page already holds and fetches nothing, so
- * opening a form never races its draft's load with a request of its own.
- */
-function ProposeStandingNote({ project, kind }: { project: string; kind: string }): JSX.Element | null {
-  const { t } = useTranslation();
-  const { data } = useQuery<Effective>({ queryKey: queryKeys.permissions(project), enabled: false });
-  const standing = proposeStanding(data, kind);
-  if (!standing || standing === "approvedOnPropose") return null;
-  return (
-    <p role="status" data-testid="propose-standing" className="text-caption text-fg-muted">
-      {t(`changes.${standing}`, { kind: kindPlural(kind, t) })}
-    </p>
-  );
-}
-
-/**
- * The draft's last writer, for a form that keeps a draft. Strict validation is the normal case and
- * says nothing here: the Propose button gives its reason, and a lax form warns in the footer (T-6163).
- */
-function DraftStatus({ draft }: { draft: Draft | null }): JSX.Element | null {
-  const { t } = useTranslation();
-  if (!draft) return null;
-  return (
-    <span data-testid="draft-status" className="text-caption text-fg-muted">
-      {t("drafts.touched", { who: draft.touchedBy, kind: draft.touchedKind, version: draft.version })}
-    </span>
-  );
-}
 
 const FINDING_TONE: Record<string, string> = { error: "text-danger", warning: "text-warning" };
 
@@ -123,7 +88,7 @@ export function FillFromSentence({ kind }: { kind: string }): JSX.Element {
 /** What a form says above its fields: the draft's state, and only what changes what happens. */
 export function ResourceFormNotes(props: ResourceFormNotesProps): JSX.Element {
   const { t } = useTranslation();
-  const { draftKind, project } = props;
+  const { draftKind } = props;
   return (
     <>
       {props.conflict ? (
@@ -136,10 +101,6 @@ export function ResourceFormNotes(props: ResourceFormNotesProps): JSX.Element {
           {t("drafts.saveRefused", { reason: props.saveRefused })}
         </Alert>
       ) : null}
-
-      {draftKind && project ? <ProposeStandingNote project={project} kind={draftKind} /> : null}
-
-      {draftKind ? <DraftStatus draft={props.draft} /> : null}
 
       {draftKind && props.verdict?.findings ? <Findings findings={props.verdict.findings} /> : null}
 

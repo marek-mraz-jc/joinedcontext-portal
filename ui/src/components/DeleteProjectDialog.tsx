@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, queryKeys, unwrap } from "../api/client";
-import { asManifests, ORG_NAMESPACE } from "../api/manifest";
+import { projectDetailQuery, useProjectOrganization } from "../api/projects";
 import type { Change } from "../api/manifest";
 import { ChangeNotice } from "./ChangeNotice";
 import { Alert, Button, Dialog, Field, Input } from "./ui";
@@ -14,27 +14,14 @@ const DEFAULT_COOLDOWN_DAYS = 30;
 
 /** What the deletion of `project` carries, counted from the project's own usage (PF-77). */
 function useCascade(project: string, enabled: boolean) {
-  const detail = useQuery({
-    queryKey: [...queryKeys.projects(), project, "detail"],
-    enabled,
-    queryFn: async () =>
-      unwrap(await api.GET("/api/v1/projects/{project}", { params: { path: { project } } })),
-  });
-  const organizations = useQuery({
-    queryKey: queryKeys.list(ORG_NAMESPACE, "organizations"),
-    enabled,
-    queryFn: async () =>
-      unwrap(
-        await api.GET("/api/v1/projects/{project}/{plural}", {
-          params: { path: { project: ORG_NAMESPACE, plural: "organizations" } },
-        }),
-      ),
-  });
+  const detail = useQuery({ ...projectDetailQuery(project), enabled });
+  // The project's own Organization: with several, the first of the list states another's cooldown.
+  const { organization } = useProjectOrganization(project);
   const usage = ((detail.data?.status as { usage?: Record<string, number> } | undefined)?.usage ?? {}) as Record<
     string,
     number
   >;
-  const policy = (asManifests(organizations.data?.items ?? [])[0]?.spec as
+  const policy = (organization?.spec as
     | { projects?: { nameCooldownDays?: number } }
     | undefined)?.projects;
   return {

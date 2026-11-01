@@ -13,6 +13,7 @@ import { columns, groups, layout, missingGrants, targets, targetUrn } from "../s
 import type { FlowMap, FlowNode } from "../src/pages/pipelines/flowMap";
 import { findFormPage } from "./formPage";
 import { expectAxeClean, jsonResponse, problem, renderRoute } from "./pageHarness";
+import { json, list, renderPage } from "./page_contract";
 
 const PATH = "/projects/helsinki/pipelines?view=map";
 
@@ -111,6 +112,36 @@ describe("the flow map layout", () => {
     expect(targets({ ...MAP, nodes: [...MAP.nodes, foreign] }).map((endpoint) => endpoint.name)).not.toContain(
       "ep-roads",
     );
+  });
+});
+
+describe("send to a space (F-R2UI3-004)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("names the target under the project's Organization domain, not the installation's", async () => {
+    const chosen: Record<string, unknown>[] = [];
+    renderPage(<SendToSpace project="helsinki" map={MAP} node={MAP.nodes[1]} onNewPipeline={(form) => chosen.push(form)} />, {
+      path: "/projects/helsinki/pipelines",
+      branding: { orgDomain: "installation.example" },
+      answer: (url) => {
+        if (url.pathname === "/api/v1/projects") {
+          return json({ items: [{ name: "helsinki", organization: "espoo" }], organizations: [{ name: "espoo" }] });
+        }
+        if (url.pathname === "/api/v1/projects/org/organizations") {
+          return json(list([{ apiVersion: "joinedcontext.com/v1alpha1", kind: "Organization", metadata: { name: "espoo" }, spec: { domain: "espoo.fi" } }]));
+        }
+        return undefined;
+      },
+    });
+    const target = await screen.findByLabelText(en.pipelines.map.sendTarget);
+    await userEvent.selectOptions(target, within(target).getAllByRole("option")[1]);
+    await waitFor(async () => {
+      chosen.length = 0;
+      await userEvent.click(screen.getByRole("button", { name: en.pipelines.map.send }));
+      expect(String(chosen[0]?.targetEndpoint)).toMatch(/^urn:ngsi-ld:Endpoint:espoo\.fi:/);
+    });
   });
 });
 

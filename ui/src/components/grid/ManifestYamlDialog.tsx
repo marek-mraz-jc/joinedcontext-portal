@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { stringify } from "yaml";
 import type { Manifest } from "../../api/manifest";
 import { CodeBlock, Dialog } from "../ui";
+import { withoutUserinfo } from "../ui/safeHref";
 
 const SECRET_KEY = /(password|passwd|secret|token|apikey|api_key|privatekey|private_key|credential)/i;
 export const MASK = "********";
@@ -21,8 +22,14 @@ function masked(value: unknown, key: string): unknown {
   if (typeof value === "object" && value !== null) {
     return Object.fromEntries(Object.entries(value).map(([inner, v]) => [inner, masked(v, inner)]));
   }
+  if (typeof value !== "string") return value;
   // `secretRef: {name, key}` names a secret; its strings are references, not values.
-  return typeof value === "string" && SECRET_KEY.test(key) && !/ref$/i.test(key) ? MASK : value;
+  if (SECRET_KEY.test(key) && !/ref$/i.test(key)) return MASK;
+  // A password can also sit inside an address under any key (`dsn`, `url`): its userinfo is masked.
+  const bare = withoutUserinfo(value);
+  if (bare === value) return value;
+  const scheme = /^[a-z][a-z0-9+.-]*:\/\//i.exec(value)?.[0] ?? "";
+  return `${scheme}${MASK}@${bare.slice(scheme.length)}`;
 }
 
 /** The text the dialog shows. Exported for its test. */

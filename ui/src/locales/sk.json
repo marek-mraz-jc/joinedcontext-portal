@@ -177,12 +177,10 @@
       "yaml": "YAML",
       "history": "História"
     },
-    "yamlHint": "Celý manifest tak, ako sa zapíše do Gitu. Prepnutie späť na formulár ho znova načíta; obe podoby kontroluje tá istá schéma.",
     "yamlError": "Opravte YAML: {message}",
-    "yamlDownload": "Stiahnuť YAML",
-    "yamlUpload": "Nahrať YAML",
-    "yamlUploadSecret": "Súbor obsahuje vypísané tajomstvo ({keys}). Odkážte naň cez secretRef a nahrajte znova; nič sa nenačítalo.",
-    "yamlUploadMoved": "Súbor pochádza z projektu {from}; načíta sa do {to} a pred navrhnutím na ňom prebehne kontrola.",
+    "yamlCopy": "Kopírovať YAML",
+    "yamlCopied": "Skopírované.",
+    "yamlCopyFailed": "Prehliadač nepovolil kopírovanie; označte text a skopírujte ho.",
     "yamlNotManifest": "dokument nie je manifest",
     "schemaErrors": "Manifest nezodpovedá schéme:",
     "exclusive": "Vyplniť možno len jedno z týchto polí",
@@ -466,9 +464,6 @@
   "changes": {
     "accepted": "Navrhnuté ako zmena:",
     "review": "Otvoriť v Schvaľovaní",
-    "approvedOnPropose": "Po navrhnutí sa schváli: {kind} môžete schvaľovať aj mazať.",
-    "approveNotDelete": "Počká na schvaľovateľa: {kind} môžete schvaľovať, ale nie mazať.",
-    "secondApprover": "Počká na druhého administrátora: vlastnú zmenu {kind} neschválite, schváli ju iná osoba, ktorá ich smie schvaľovať.",
     "approvedAsProposed": "Schválené pri navrhnutí, nasadzuje sa:",
     "open": "Otvoriť zmenu"
   },
@@ -557,8 +552,6 @@
       "historySize": "Veľkosť histórie"
     },
     "inside": {
-      "more": "Viac",
-      "less": "Menej",
       "total": "Priestor obsahuje {count, plural, one {# entitu} few {# entity} other {# entít}}.",
       "history": "Jeho história obsahuje {count, plural, one {# záznam} few {# záznamy} other {# záznamov}}.",
       "open": "Pozrieť obsah",
@@ -4257,6 +4250,9 @@
     "classUri": "IRI triedy",
     "description": "Popis",
     "titleIn": "Názov ({locale})",
+    "fieldsNeedType": "Polia patria typu: najprv pridajte typ v časti Typy, potom tu jeho polia.",
+    "titleHint": "Názov, ktorý ľudia čítajú pre tento typ v tomto jazyku; typ si ponechá vlastný názov.",
+    "titleTranslations": "Preklady: {languages}",
     "slotUri": "IRI atribútu",
     "slotUriHint": "Pod vlastnou predponou organizácie; prevzatý pojem sa cituje, nikdy nevytvára",
     "required": "Povinný",
@@ -4418,6 +4414,7 @@
       },
       "willBecome": "Uloží sa ako verzia {version}",
       "refused": "Zmena bola odmietnutá: {reason}",
+      "confirmFirst": "Najprv zaškrtnite „zásadná zmena“: verzia {version} rozbije Endpointy, ktoré čítajú tento model.",
       "fixErrors": "Pred uložením opravte chyby, ktoré editor uvádza. Zostáva: {count}.",
       "confirmBreaking": "Uložiť ako verziu {version}, nekompatibilná zmena",
       "handOffRefused": "Zmenu od asistenta sa do tohto modelu nepodarilo použiť:",
@@ -4564,16 +4561,19 @@
     },
     "page": {
       "listLead": "Všetky dátové modely tohto projektu: jeden pre každý kontextový priestor a čo je na ňom postavené.",
+      "modelLead": "Čo tento model opisuje a čo na ňom stavia.",
       "listCaption": "Dátové modely projektu",
       "new": {
-        "blank": "Nový prázdny model",
-        "file": "Nový model zo súboru",
-        "sdm": "Nový model zo Smart Data Models"
+        "menu": "Nový dátový model",
+        "blank": "Prázdny model",
+        "file": "Zo súboru s dátami (CSV, Excel, JSON, PDF)",
+        "sdm": "Zo Smart Data Models"
       },
       "emptyTitle": "Zatiaľ žiadny dátový model",
       "emptyLead": "Vytvorte ho pre priestor: začnite prázdny, odvoďte ho zo súboru alebo importujte Smart Data Model.",
       "search": "Hľadať podľa názvu, titulku alebo triedy",
       "everySpace": "Všetky priestory",
+      "moreTypes": "Ďalšie typy modelu {model}: {count}",
       "lastChange": "Posledná zmena",
       "usedBy": "Používa ho",
       "noMatch": "Hľadaniu a zvolenému priestoru nezodpovedá žiadny model.",
@@ -4605,7 +4605,7 @@
         "fields": "Polia",
         "diagram": "Diagram",
         "form": "Formulár",
-        "yaml": "YAML",
+        "yaml": "LinkML",
         "used": "Kde sa používa",
         "history": "História",
         "mappings": "Mapovania"
@@ -4626,8 +4626,8 @@
       },
       "asJson": "Zobrazené ako JSON.",
       "yaml": "Zdroj modelu (LinkML YAML)",
-      "copyYaml": "Kopírovať YAML",
-      "downloadYaml": "Stiahnuť YAML",
+      "copyYaml": "Kopírovať LinkML",
+      "downloadYaml": "Stiahnuť LinkML",
       "copied": "Skopírované.",
       "copyFailed": "Prehliadač kopírovanie nepovolil; označte text a skopírujte ho ručne.",
       "projectSection": "Modely tohto projektu",
@@ -4785,6 +4785,7 @@
       "idFixed": "Identifikátor je pevný: endpointy, priestory a importy podľa neho model menujú.",
       "file": "Súbor",
       "fileFixed": "Názov súboru je pevný: premenovanie mení len názov, ktorý ľudia čítajú.",
+      "details": "Podrobnosti",
       "version": "Verzia",
       "renameShort": "Premenovať",
       "renamed": "Premenované. Identifikátor {id} a jeho súbor zostávajú; Navrhnúť uloží nový názov."
@@ -6273,6 +6274,7 @@
     "close": "Zavrieť asistenta",
     "title": "Asistent",
     "open": "Otvoriť asistenta",
+    "openBusy": "Otvoriť asistenta, ešte pracuje na vašej otázke",
     "hide": "Skryť asistenta",
     "fullScreen": "Na celú obrazovku",
     "sideView": "Vedľa stránky",
@@ -6938,7 +6940,6 @@
     },
     "assignee": {
       "didHint": "Napíšte decentralizovaný identifikátor, napríklad did:web:example.org; zoznam na výber neexistuje.",
-      "peopleHidden": "Zoznam osôb vidí len správca organizácie; napíšte e-mail, ktorým sa osoba prihlasuje.",
       "noneYet": "Zatiaľ tu nie je nič tohto druhu na výber ({kind}); napíšte názov tak, ako ho píše poskytovateľ identity."
     },
     "summary": {
@@ -8166,6 +8167,9 @@
     "propose": "Navrhnúť"
   },
   "projectImport": {
+    "number": "Zadajte číslo.",
+    "wholeNumber": "Zadajte celé číslo.",
+    "notNumber": "{names}: zadajte číslo, napríklad 30, alebo pole nechajte prázdne pre predvolenú hodnotu.",
     "title": "Importovať projekt",
     "lead": "Vytvorí repozitáre projektu z git exportu a potom navrhne jeho záznam v registri.",
     "button": "Importovať projekt",
@@ -10967,16 +10971,18 @@
       "publish": "Publikovanie",
       "apps": "Aplikácie",
       "operate": "Prevádzka",
+      "knowledge": "Znalosti",
       "admin": "Všetko (správca)"
     },
     "segmentHint": {
       "data-read": "číta Endpointy, priestory a modely, napr. na otázky o údajoch",
-      "context": "číta modely, priestory, Endpointy a politiky",
+      "context": "číta modely, priestory, Endpointy, politiky, projekcie modelov a odbery",
       "pipeline": "číta pipelines, zdroje a ich metriky",
       "access": "číta roly, väzby, skupiny a servisné účty",
       "publish": "číta katalóg a stav CKAN",
       "apps": "číta aplikácie a ich behy",
       "operate": "číta aktivitu, zmeny a stav synchronizácie",
+      "knowledge": "číta zdroje znalostí, stav ich prehľadávania a pasáže",
       "admin": "všetky predvoľby vyššie"
     },
     "client": {
@@ -11035,7 +11041,9 @@
     "addKey": "Pridať kľúč",
     "addKept": "Pridať kľúče, ktoré zostávajú",
     "submit": "Zašifrovať a navrhnúť",
-    "sending": "Tajomstvo sa odosiela…"
+    "sending": "Tajomstvo sa odosiela…",
+    "keyMissing": "Pomenujte túto hodnotu, napr. apiKey.",
+    "keyTwice": "Kľúč {key} je už vyššie: každej hodnote dajte vlastný kľúč."
   },
   "pairedTab": {
     "region": "Karta pripojená ku konektoru",
@@ -11084,7 +11092,6 @@
     "removeFilter": "Odstrániť filter {column}: {value}",
     "clearFilters": "Zrušiť filtre",
     "details": "Podrobnosti",
-    "openDetails": "Podrobnosti {name}",
     "noMatch": "Hľadaniu a filtrom nezodpovedá žiadny riadok.",
     "clearAll": "Zrušiť hľadanie a filtre",
     "footer": "Zobrazených {shown} z {count}",
