@@ -95,7 +95,7 @@ describe("AI connector helpers", () => {
   });
 
   it("refuses a bad name, no preset, no tick and a day past the cap before the server is asked", () => {
-    const problems = formProblems({ name: "Bad Name", segments: [], picks: [], expires: "2027-01-01", clients: [] }, OPTIONS, NOW);
+    const problems = formProblems({ name: "Bad Name", segments: [], picks: [], verbs: {}, expires: "2027-01-01", clients: [] }, OPTIONS, NOW);
     expect(Object.keys(problems).sort()).toEqual(["expiresAt", "name", "scope", "segments"]);
     expect(formProblems({ ...emptyForm(OPTIONS, NOW), name: "ok", picks: [{ project: "doprava", kind: "project", access: "read" }] }, OPTIONS, NOW)).toEqual({});
   });
@@ -347,7 +347,7 @@ describe("the scope tree", () => {
       </I18nextProvider>,
     );
     const endpoint = screen.getByRole("group", { name: "What it may do on Endpoint" });
-    expect(within(endpoint).getByRole("checkbox", { name: /read/ })).toBeChecked();
+    expect(within(endpoint).getByText("reads")).toBeInTheDocument();
     expect(within(endpoint).getByRole("checkbox", { name: /edit/ })).toHaveAttribute("aria-disabled", "true");
     expect(within(endpoint).queryByRole("checkbox", { name: /run/ })).toBeNull();
     await user.click(within(endpoint).getByRole("checkbox", { name: /edit/ }));

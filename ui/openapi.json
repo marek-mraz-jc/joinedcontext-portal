@@ -39653,9 +39653,17 @@
         "required": [
           "segments",
           "writes",
-          "maxDays"
+          "maxDays",
+          "kinds"
         ],
         "properties": {
+          "kinds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ConnectorKindVerbs"
+            },
+            "description": "The verbs a connector may tick per kind of the presets; a verb left out is greyed."
+          },
           "maxDays": {
             "type": "integer",
             "format": "int64",
@@ -40586,6 +40594,16 @@
           "id": {
             "type": "string"
           },
+          "kinds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ConnectorKindVerbs"
+            },
+            "description": "Verbs per kind (T-6302); absent: every change the segments reach."
+          },
           "lastUsedAt": {
             "type": [
               "string",
@@ -40635,6 +40653,32 @@
           }
         }
       },
+      "ConnectorKindVerbs": {
+        "type": "object",
+        "description": "The verbs a connector carries on one kind (API/14 §1, T-6302): `read`, `create` (an object\nthe project does not hold yet), `edit` (`replace`, `patch`), `delete` and, on `Pipeline`, `run`;\n`propose` stands for create, edit and delete.",
+        "required": [
+          "kind",
+          "verbs"
+        ],
+        "properties": {
+          "kind": {
+            "type": "string",
+            "description": "A kind the segments reach, e.g. `Endpoint`."
+          },
+          "verbs": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "e.g. `[\"read\", \"create\"]`.",
+            "example": [
+              "read",
+              "create"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
       "ConnectorLimits": {
         "type": "object",
         "description": "What one connector may spend (T-5968): its own calls a minute, calls at once and answer size.\nThe person's own budget (`PERSON_LIMITS`) holds across all their connectors and `/api/v1/mcp`\ntogether, so a second connector adds no calls. Counted on the verified token's subject and the\nconnector id from the path, never on a header.",
@@ -40682,6 +40726,7 @@
         "description": "What the caller may put in a connector today: the ceiling, and per project they read the\nspaces, Endpoints and pipelines they read there (the \"My connectors\" tree, T-5951).",
         "required": [
           "segments",
+          "segmentKinds",
           "ceiling",
           "projects",
           "clients"
@@ -40702,6 +40747,13 @@
             "items": {
               "$ref": "#/components/schemas/ProjectReach"
             }
+          },
+          "segmentKinds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SegmentKinds"
+            },
+            "description": "The kinds each preset reaches, one row each in the dialog's verb table (T-6302)."
           },
           "segments": {
             "type": "array",
@@ -40752,6 +40804,16 @@
             ],
             "format": "date-time",
             "description": "RFC 3339, e.g. `2026-11-27T00:00:00Z`."
+          },
+          "kinds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ConnectorKindVerbs"
+            },
+            "description": "Verbs per kind, replacing the whole list (T-6302)."
           },
           "scope": {
             "type": [
@@ -44505,6 +44567,16 @@
             "type": "string",
             "format": "date-time",
             "description": "RFC 3339, e.g. `2026-11-27T00:00:00Z`."
+          },
+          "kinds": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/ConnectorKindVerbs"
+            },
+            "description": "Verbs per kind, e.g. `[{\"kind\": \"Endpoint\", \"verbs\": [\"read\", \"create\"]}]`; a kind left\nout is read only. Absent: every change the segments reach, as before T-6302."
           },
           "name": {
             "type": "string",
@@ -48724,6 +48796,25 @@
           "name": "counters-api",
           "values": {
             "apiKey": "typed-in-the-form"
+          }
+        }
+      },
+      "SegmentKinds": {
+        "type": "object",
+        "description": "One preset and the kinds it reaches, e.g. `pipeline`: `Pipeline`, `DataSource`, ...",
+        "required": [
+          "segment",
+          "kinds"
+        ],
+        "properties": {
+          "kinds": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "segment": {
+            "type": "string"
           }
         }
       },

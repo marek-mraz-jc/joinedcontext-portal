@@ -379,6 +379,11 @@ export function ScopeTree({
  * delete and (on Pipeline) run are ticked one by one, nothing by default; a verb the ceiling
  * withholds is greyed with the reason.
  */
+/** A refusal shown beside its section reads without the field path the server leads with (`kinds[2].verbs: `). */
+function withoutField(message: string): string {
+  return message.replace(/^[A-Za-z]+(\[\d+\])?(\.[A-Za-z]+)?: /, "");
+}
+
 /** `Endpoint: create`, one per kind with a verb beyond read; none for a connector without a list. */
 function changeLines(connector: AiConnector, word: (verb: string) => string): string[] {
   return (connector.kinds ?? [])
@@ -403,31 +408,35 @@ export function KindVerbsPicker({
     const held = form.verbs[kind] ?? [];
     onChange({ ...form.verbs, [kind]: on ? [...held, verb] : held.filter((one) => one !== verb) });
   };
+  const greyed = rows.some((row) => row.kinds.some((kind) => verbsOf(kind).some((verb) => !ceilingAllows(options, kind, verb))));
   return (
     <div className="flex flex-col gap-3">
+      {greyed ? <p className="text-caption text-fg-muted">{t("aiConnectors.verbsGreyed")}</p> : null}
       {rows.map((row) => (
         <div key={row.segment} className="flex flex-col gap-1">
-          <p className="text-caption font-semibold">{t(`aiConnectors.segment.${row.segment}`)}</p>
+          <p className="text-body font-semibold">{t(`aiConnectors.segment.${row.segment}`)}</p>
           {row.kinds.map((kind) => (
-            <fieldset key={kind} className="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border py-1">
+            <fieldset key={kind} className="flex flex-col gap-1 border-t border-border py-1 sm:flex-row sm:items-center">
               <legend className="sr-only">{t("aiConnectors.verbsOf", { kind })}</legend>
-              <span aria-hidden className="w-40 text-body">
+              <span aria-hidden className="text-body font-medium sm:w-40 sm:shrink-0">
                 {kind}
               </span>
-              <Checkbox label={t("aiConnectors.verb.read")} checked readOnly disabled disabledReason={t("aiConnectors.readComes")} />
-              {verbsOf(kind).map((verb) => {
-                const allowed = ceilingAllows(options, kind, verb);
-                return (
-                  <Checkbox
-                    key={verb}
-                    label={t(`aiConnectors.verb.${verb}`)}
-                    checked={allowed && (form.verbs[kind]?.includes(verb) ?? false)}
-                    disabled={!allowed}
-                    disabledReason={allowed ? undefined : t("aiConnectors.aboveCeiling")}
-                    onChange={(event) => toggle(kind, verb, event.target.checked)}
-                  />
-                );
-              })}
+              <div className="grid grid-cols-3 gap-x-4 gap-y-1 sm:grid-cols-5">
+                <span className="text-body text-fg-muted">{t("aiConnectors.verb.reads")}</span>
+                {verbsOf(kind).map((verb) => {
+                  const allowed = ceilingAllows(options, kind, verb);
+                  return (
+                    <Checkbox
+                      key={verb}
+                      label={t(`aiConnectors.verb.${verb}`)}
+                      checked={allowed && (form.verbs[kind]?.includes(verb) ?? false)}
+                      disabled={!allowed}
+                      disabledReason={allowed ? undefined : t("aiConnectors.aboveCeiling")}
+                      onChange={(event) => toggle(kind, verb, event.target.checked)}
+                    />
+                  );
+                })}
+              </div>
             </fieldset>
           ))}
         </div>
@@ -479,7 +488,7 @@ export function CreateDialog({
     },
   });
   const errorsOf = (section: string) =>
-    refused?.section === section ? [refused.message] : tried && problems[section] ? [t(problems[section])] : undefined;
+    refused?.section === section ? [withoutField(refused.message)] : tried && problems[section] ? [t(problems[section])] : undefined;
   const submit = () => {
     setTried(true);
     setRefused(null);
