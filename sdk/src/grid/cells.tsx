@@ -166,7 +166,7 @@ export function structuredText(value: unknown, locale: string, labels: CellLabel
   // A period reads as one range in the reader's language: 1. 1. 2012 – 31. 12. 2012 (T-6328).
   const range = rangeOf(record);
   // Non-breaking spaces keep the range on one line (T-6328).
-  if (range) return `${scalarText(range[0], locale, labels)} – ${scalarText(range[1], locale, labels)}`.trim().replace(/ /g, "\u00a0");
+  if (range) return `${scalarText(range[0], locale, labels)} – ${scalarText(range[1], locale, labels)}`.trim().replace(/ /g, "\u00a0").replace("–", "–\u2060");
   const shown = pairs.slice(0, MAX_PAIRS).map(([key, each]) => {
     const text =
       typeof each === "object" && each !== null && !Array.isArray(each)

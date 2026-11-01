@@ -307,7 +307,7 @@ export const DEFAULT_LABELS: GridLabels = {
   noFilter: "All",
   filterHintText: "Choose a test, then type the words, e.g. contains Espoo.",
   filterExampleText: "Bratislava",
-  filterExampleNumber: "40",
+  filterExampleNumber: "1500",
   filterExampleId: "station-12",
   filterHintNumber: "Choose a test, then type a number, e.g. greater than 40.",
   filterHintDate: "Choose a test, then pick a date, e.g. after 2026-10-01.",

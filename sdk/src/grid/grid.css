@@ -1884,3 +1884,10 @@ a.jc-cell--link:focus-visible {
   display: block;
   color: var(--jc-color-muted, #666);
 }
+
+.jc-grid-filter-ticked {
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

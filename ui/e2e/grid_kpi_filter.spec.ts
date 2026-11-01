@@ -80,7 +80,7 @@ for (const width of [1440, 400]) {
     const grid = page.getByRole("grid");
     await expect(grid).toBeVisible();
     // A period reads as one range, the id as its short end.
-    await expect(grid.getByText("1. 1. 2012 – 31. 12. 2012").first()).toBeVisible();
+    await expect(grid.getByText(/^1\.\s1\.\s2012\s–\u2060?\s31\.\s12\.\s2012$/).first()).toBeVisible();
     await page.screenshot({ path: join(dir, `kpi-filled-${width}.png`) });
 
     // On a phone the row folds under one Filters button (T-5415).
@@ -92,7 +92,7 @@ for (const width of [1440, 400]) {
     await expect.poll(() => asked.at(-1)?.searchParams.get("q")).toBe("dateIssued>=2018-01-01");
 
     await grid.getByRole("combobox", { name: /^Filter: Kategória/ }).selectOption("anyOf");
-    await grid.getByRole("listbox", { name: /^Hodnota: Kategória/ }).selectOption(["zdravie"]);
+    await grid.getByRole("combobox", { name: /^Hodnota: Kategória/ }).selectOption("zdravie");
     await expect.poll(() => asked.at(-1)?.searchParams.get("q")).toBe('category=="zdravie";dateIssued>=2018-01-01');
     await expect(page.getByRole("list", { name: "Aktívne filtre" })).toBeVisible();
     await page.screenshot({ path: join(dir, `kpi-row-filtered-${width}.png`) });

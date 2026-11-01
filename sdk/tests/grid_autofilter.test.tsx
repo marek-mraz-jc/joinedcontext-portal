@@ -98,7 +98,7 @@ describe("the header filter (T-6328)", () => {
 
   it("asks a number column's values as numbers, and its range condition by both ends", async () => {
     const { asked, source } = recording(entities);
-    render(<EntityGrid config={config} source={source} filterRow={false} />);
+    render(<EntityGrid config={config} source={source} />);
     await screen.findByText("Nehody 1");
     openFilter("Value");
     let dialog = screen.getByRole("dialog", { name: "Filter: Value" });
@@ -106,6 +106,9 @@ describe("the header filter (T-6328)", () => {
     fireEvent.click(within(list).getByRole("checkbox", { name: /^9/ }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Apply" }));
     await waitFor(() => expect(asked.at(-1)?.q).toBe("kpiValue==4,7"));
+    // The filter row under the header says the same.
+    expect(screen.getByRole("combobox", { name: "Filter: Value" })).toHaveValue("anyOf");
+    expect(screen.getByText("4, 7", { selector: ".jc-grid-filter-ticked" })).toBeInTheDocument();
 
     openFilter("Value");
     dialog = screen.getByRole("dialog", { name: "Filter: Value" });

@@ -192,17 +192,15 @@ describe("an enum column in the grid", () => {
     expect(screen.getByText(`1 ${DEFAULT_LABELS.pending}`)).toBeInTheDocument();
   });
 
-  it("filters with a multi-select that asks the endpoint for any of the picked values", async () => {
+  it("picks one value in the filter row, several from the header's list, and asks for any of them", async () => {
     const { asked } = grid("view");
     await screen.findByText(`roadworks (${DEFAULT_LABELS.notInList})`);
     fireEvent.change(screen.getByLabelText(`${DEFAULT_LABELS.filter}: Category`), { target: { value: "anyOf" } });
     const picker = screen.getByLabelText(`${DEFAULT_LABELS.value}: Category`) as HTMLSelectElement;
-    expect(picker.multiple).toBe(true);
-    expect(Array.from(picker.options, (option) => option.text)).toEqual(["Traffic", "Weather"]);
-    picker.options[0].selected = true;
-    picker.options[1].selected = true;
-    fireEvent.change(picker);
-    await waitFor(() => expect(asked).toContain('category=="traffic","weather"'));
+    expect(picker.multiple).toBe(false);
+    expect(Array.from(picker.options, (option) => option.text)).toEqual([DEFAULT_LABELS.noFilter, "Traffic", "Weather"]);
+    fireEvent.change(picker, { target: { value: "weather" } });
+    await waitFor(() => expect(asked).toContain('category=="weather"'));
   });
 });
 

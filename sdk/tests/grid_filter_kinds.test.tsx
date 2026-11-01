@@ -65,10 +65,9 @@ describe("the filter row, by field kind (T-6328)", () => {
   it("enum: picks from its values, asked as a quoted list", async () => {
     const asked = await grid();
     op("Category", "anyOf");
-    const pick = screen.getByRole("listbox", { name: "Value: Category" }) as HTMLSelectElement;
-    expect([...pick.options].map((o) => o.textContent)).toEqual(["Traffic", "Health"]);
-    pick.options[0].selected = true;
-    fireEvent.change(pick);
+    const pick = screen.getByRole("combobox", { name: "Value: Category" }) as HTMLSelectElement;
+    expect([...pick.options].map((o) => o.textContent)).toEqual(["All", "Traffic", "Health"]);
+    fireEvent.change(pick, { target: { value: "traffic" } });
     await waitFor(() => expect(asked.at(-1)?.q).toBe('category=="traffic"'));
   });
 
@@ -77,7 +76,7 @@ describe("the filter row, by field kind (T-6328)", () => {
     const select = screen.getByRole("combobox", { name: "Filter: Value" }) as HTMLSelectElement;
     expect([...select.options].map((o) => o.textContent)).toContain("is greater than");
     op("Value", "between");
-    expect(screen.getByRole("spinbutton", { name: "Value: Value" })).toHaveAttribute("placeholder", "40");
+    expect(screen.getByRole("spinbutton", { name: "Value: Value" })).toHaveAttribute("placeholder", "1500");
     fireEvent.change(screen.getByRole("spinbutton", { name: "Value: Value" }), { target: { value: "10" } });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Upper value: Value" }), { target: { value: "20" } });
     await waitFor(() => expect(asked.at(-1)?.q).toBe("kpiValue>=10;kpiValue<=20"));
@@ -124,10 +123,9 @@ describe("the filter row, by field kind (T-6328)", () => {
   it("Type: offered where the grid reads several types, the picked ones narrow its type list", async () => {
     const asked = await grid("KeyPerformanceIndicator,Alert");
     op("Type", "anyOf");
-    const pick = screen.getByRole("listbox", { name: "Value: Type" }) as HTMLSelectElement;
-    expect([...pick.options].map((o) => o.value)).toEqual(["KeyPerformanceIndicator", "Alert"]);
-    pick.options[1].selected = true;
-    fireEvent.change(pick);
+    const pick = screen.getByRole("combobox", { name: "Value: Type" }) as HTMLSelectElement;
+    expect([...pick.options].map((o) => o.value)).toEqual(["", "KeyPerformanceIndicator", "Alert"]);
+    fireEvent.change(pick, { target: { value: "Alert" } });
     await waitFor(() => expect(asked.at(-1)?.type).toBe("Alert"));
   });
 

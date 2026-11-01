@@ -2264,7 +2264,9 @@ function FilterCell({
 }): React.JSX.Element {
   const hintId = React.useId();
   const hint = filterHint(column, labels);
-  const ops = opsForKind(column.kind);
+  // Values ticked in the header's list stay readable here, whatever the column offers itself (T-6328).
+  const ticked = filter?.op === "anyOf" && column.kind !== "enum" && column.kind !== "type";
+  const ops = ticked ? [...opsForKind(column.kind), "anyOf" as const] : opsForKind(column.kind);
   const op = filter?.op ?? ops[0];
   const needed = valuesNeeded(op);
   const box = valueBox(column, labels);
@@ -2299,16 +2301,14 @@ function FilterCell({
           </option>
         ))}
       </select>
+      {/* One value picked in the row keeps it one line tall; the header's funnel picks several (T-6328). */}
       {filter && picking && (
         <select
-          multiple
           aria-label={`${labels.value}: ${label}`}
-          value={filter.values ?? []}
-          size={Math.min(5, column.options?.length ?? 1)}
-          onChange={(e) =>
-            onChange({ ...filter, values: Array.from(e.target.selectedOptions, (option) => option.value) })
-          }
+          value={(filter.values ?? []).length === 1 ? filter.values![0] : ""}
+          onChange={(e) => onChange({ ...filter, values: e.target.value === "" ? [] : [e.target.value] })}
         >
+          <option value="">{(filter.values ?? []).length > 1 ? `${filter.values!.length} ✓` : labels.noFilter}</option>
           {(column.options ?? []).map((option) => (
             <option key={option.value} value={option.value} title={option.description}>
               {optionLabel(option)}
@@ -2323,7 +2323,8 @@ function FilterCell({
           <option value="false">{labels.no}</option>
         </select>
       )}
-      {filter && needed >= 1 && !picking && !yesNo && (
+      {filter && ticked && <span className="jc-grid-filter-ticked" title={(filter.values ?? []).join(", ")}>{(filter.values ?? []).join(", ")}</span>}
+      {filter && needed >= 1 && !picking && !yesNo && !ticked && (
         <input
           aria-label={`${labels.value}: ${label}`}
           type={box.type}
