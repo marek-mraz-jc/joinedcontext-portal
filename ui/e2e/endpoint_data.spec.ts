@@ -6,7 +6,7 @@ import { attributeTable } from "./attributeAccess";
 
 // T-5082: an Endpoint's own page shows its rows, read with the person's own session through the
 // Endpoint. The endpoint orders the whole answer (`orderBy`), the address keeps the type, query and
-// order, the Fields name each column, and the rows download as CSV under the endpoint's limits.
+// order, the space grid's toolbar (T-6303) hides and filters, and the rows download as CSV under the endpoint's limits.
 
 const API = "joinedcontext.com/v1alpha1";
 const SLUG = "k7m2qz4tv6xh3n5jb2ryd3wcfa";
@@ -92,7 +92,7 @@ async function stub(page: Page, entities: "rows" | "empty" | "refused", asked: U
   });
 }
 
-const dir = join("test-results", "T-5082");
+const dir = join("test-results", "T-6303");
 mkdirSync(dir, { recursive: true });
 
 for (const width of [1440, 400]) {
@@ -124,9 +124,27 @@ for (const width of [1440, 400]) {
     const csv = section.getByRole("link", { name: "Download these rows as CSV" });
     expect(await csv.getAttribute("href")).toBe(`/api/endpoint/${SLUG}/file.csv?type=AirQualityObserved&orderBy=pm10%3Bdesc`);
 
-    await section.getByText("Columns", { exact: true }).first().click();
-    await expect(section.getByText("PM10 in µg/m³, the hourly mean")).toBeVisible();
-    await section.getByRole("list", { name: "Columns" }).screenshot({ path: join(dir, `data-fields-${width}.png`) });
+    // The space grid's own toolbar (T-6303): Hide fields names each column as the header does.
+    const toolbar = section.getByTestId("grid-toolbar");
+    await toolbar.getByText("Hide fields", { exact: true }).click();
+    await expect(section.getByRole("checkbox", { name: "PM10" })).toBeChecked();
+    await page.screenshot({ path: join(dir, `data-hide-${width}.png`) });
+    await page.keyboard.press("Escape");
+
+    // Filter: a condition of the panel reaches the endpoint as `q`, and the CSV downloads those rows.
+    await toolbar.getByText("Filter", { exact: true }).click();
+    const panel = toolbar.locator("details[open]");
+    await panel.getByRole("button", { name: "Add condition", exact: true }).click();
+    await panel.getByRole("combobox", { name: "Field" }).selectOption("pm10");
+    await panel.getByRole("combobox", { name: "Operator" }).selectOption("gt");
+    await panel.getByRole("spinbutton", { name: "Value", exact: true }).fill("40");
+    await expect.poll(() => asked.at(-1)?.searchParams.get("q")).toBe("pm10>40");
+    await page.screenshot({ path: join(dir, `data-filter-${width}.png`) });
+    await page.keyboard.press("Escape");
+    await expect(toolbar.locator("summary", { hasText: "Filter" })).toContainText("1");
+    await expect(page.getByRole("list", { name: "Active filters" })).toBeVisible();
+    expect(await csv.getAttribute("href")).toBe(`/api/endpoint/${SLUG}/file.csv?type=AirQualityObserved&q=pm10%3E40&orderBy=pm10%3Bdesc`);
+    await section.screenshot({ path: join(dir, `data-filtered-${width}.png`) });
 
     await section.getByRole("button", { name: "Full window" }).click();
     const full = page.getByRole("dialog", { name: "What this endpoint answers" });
