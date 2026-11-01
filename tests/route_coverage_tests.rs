@@ -90,7 +90,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/projects/{project}/mqtt/allowance", "a sum for the MQTT page of the Organization and Project manifests and the MqttBrokers jc_resource_get already reaches; it writes nothing (T-4859, API/01 §47)"),
 ("GET", "/projects/{project}/mqttbrokers/{name}/devices", "the Add device form's role and topic options for the brokers page; it writes nothing and an agent reads the broker with jc_resource_get (T-5532)"),
 ("POST", "/projects/{project}/mqttbrokers/{name}/devices", "a person adds a device whose key pair the browser made; an agent proposes the ServiceAccount and the MqttBroker with jc_resource_propose (T-5532)"),
-("GET", "/projects/{project}/mqttbrokers/{name}/captured", "a capture broker's kept messages for the stewards' mapping design; payloads may hold personal data, so no agent tool reads them (ADR-N-048 §2.10, T-4880)"),
+("GET", "/projects/{project}/mqttbrokers/{name}/captured", "jc_mqtt_captured"),
 ("DELETE", "/projects/{project}/mqttbrokers/{name}/captured", "a steward deletes a capture at once; no agent tool deletes what a person may need to see first (T-4880)"),
 ("GET", "/projects/{project}/mqttbrokers/{name}/measured", "what an MQTT broker measures, read from its own HTTP API for the brokers page; it writes nothing and an agent reads the broker with jc_resource_get (T-4043, API/01 §44)"),
 ("POST", "/projects/{project}/mqttbrokers/{name}/test-publish", "a dry run of one device message for the broker card's Test drawer: it publishes and writes nothing, and an agent tests a mapping with jc_pipeline_try_mapping (T-5534, API/01 §44a)"),

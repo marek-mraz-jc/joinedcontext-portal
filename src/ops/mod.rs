@@ -21,6 +21,7 @@ pub mod drafts;
 pub mod endpoint_reach;
 pub mod feed_shape;
 pub mod knowledge;
+pub mod mqtt;
 pub mod people;
 pub mod pipeline_runs;
 pub mod pipeline_steps;
@@ -866,6 +867,7 @@ fn init_registry() -> Vec<Operation> {
     operations.extend(admin::operations());
     operations.extend(sync_sources::operations());
     operations.extend(knowledge::operations());
+    operations.extend(mqtt::operations());
     operations.extend(workspaces::operations());
     operations.extend(people::operations());
     operations.extend(schemas::operations());

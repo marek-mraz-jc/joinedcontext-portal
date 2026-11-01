@@ -76,6 +76,8 @@ pub(super) fn offered(
         // T-6039: the project's members reach access connectors; this prompt keeps its 4k-token
         // turn (AG-72), and a person picks a subject from the RoleBinding form.
         .filter(|op| op.name != crate::ops::people::MEMBERS)
+        // T-6290: a capture reaches pipeline connectors; a person reads it on the broker's page.
+        .filter(|op| op.name != crate::ops::mqtt::CAPTURED)
         .collect()
 }
 
