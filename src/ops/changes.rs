@@ -9,6 +9,7 @@ use super::OperationAnnotations;
 use super::{empty_input_schema, resources};
 use crate::api::changes;
 use crate::change::Lane;
+use crate::state::AppState;
 use jc_core::kinds::Verb;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -111,6 +112,7 @@ fn change_list_output_schema() -> Value {
                         "lane": { "type": "string", "enum": ["green", "yellow", "red"] },
                         "phase": { "type": "string" },
                         "mergeRequest": { "type": "string" },
+                        "url": { "type": "string", "description": "The Portal page where a person decides it" },
                         "proposedBy": { "type": "string" }
                     }
                 }
@@ -118,6 +120,25 @@ fn change_list_output_schema() -> Value {
         },
         "required": ["apiVersion", "kind", "items"]
     })
+}
+
+/// The Portal page where a person decides change `id` (T-6293): the `url` every change tool
+/// answers, while the forge's merge request stays `mergeRequest`.
+pub(super) fn approval_url(state: &AppState, project: &str, id: &str) -> String {
+    let base = state.config.public_base_url.as_str().trim_end_matches('/');
+    format!("{base}/projects/{project}/approvals/{id}")
+}
+
+/// A `Change` document with its approval page as `url`.
+pub(super) fn with_approval_url(state: &AppState, project: &str, mut change: Value) -> Value {
+    let id = change
+        .pointer("/metadata/name")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    if let (Some(id), Some(doc)) = (id, change.as_object_mut()) {
+        doc.insert("url".into(), json!(approval_url(state, project, &id)));
+    }
+    change
 }
 
 /// The `Change` the approval answers: the resource itself, with no wrapper around it.
@@ -151,7 +172,13 @@ pub fn operations() -> Vec<Operation> {
                     let _: EmptyInput = parse_input(val)?;
                     let list =
                         changes::list_changes_readable(state, &caller.identity, project).await?;
-                    Ok(serde_json::to_value(list)?)
+                    let mut list = serde_json::to_value(list)?;
+                    if let Some(items) = list.get_mut("items").and_then(Value::as_array_mut) {
+                        for item in items.iter_mut() {
+                            *item = with_approval_url(state, project, item.take());
+                        }
+                    }
+                    Ok(list)
                 })
             },
         },
