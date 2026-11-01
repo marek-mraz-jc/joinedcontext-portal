@@ -317,8 +317,8 @@ pub async fn connector_options(
             rights.may_read_project().then(|| {
                 let endpoints = readable_names(&state, &rights, &project, "Endpoint");
                 let allowed = ceiling.allows_project_name(&project);
-                let allowed_endpoints = (allowed && !ceiling.allows_endpoint(&project, None))
-                    .then(|| {
+                let allowed_endpoints =
+                    (allowed && !ceiling.allows_endpoint(&project, None)).then(|| {
                         endpoints
                             .iter()
                             .filter(|e| ceiling.allows_endpoint(&project, Some(e)))
@@ -1520,8 +1520,14 @@ mod tests {
             "DelegationPolicy",
             "helsinki-air-only",
             ORG_NAMESPACE,
-            json!({ "subjects": [{ "kind": "User", "id": "f:1:reader@hel.fi" }],
+            json!({ "subjects": [{ "kind": "Group", "name": "readers" }],
                     "projects": ["helsinki"], "endpoints": ["helsinki-air"] }),
+        ));
+        state.mirror.upsert(envelope(
+            "Group",
+            "readers",
+            ORG_NAMESPACE,
+            json!({ "members": [{ "user": "reader@hel.fi" }] }),
         ));
         let Json(options) = connector_options(user("reader@hel.fi"), State(state.clone()))
             .await
@@ -1535,7 +1541,11 @@ mod tests {
             reach,
             vec![
                 ("espoo".to_owned(), false, None),
-                ("helsinki".to_owned(), true, Some(vec!["helsinki-air".to_owned()])),
+                (
+                    "helsinki".to_owned(),
+                    true,
+                    Some(vec!["helsinki-air".to_owned()])
+                ),
             ]
         );
         assert!(!options.ceiling.writes);

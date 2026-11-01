@@ -348,6 +348,11 @@ export function ScopeTree({
             <ul className="flex flex-col gap-1">
               {row(project.project, "project", undefined, t("aiConnectors.wholeProject", { project: project.project }), refused)}
             </ul>
+            {refused ? (
+              <p className="ml-6 text-caption text-fg-muted" aria-hidden>
+                {refused}
+              </p>
+            ) : null}
             {groups.map(([kind, names]) =>
               names.length > 0 ? (
                 <fieldset key={kind} className="ml-6 mt-2">
