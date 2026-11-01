@@ -1496,11 +1496,15 @@ async fn list_changes_for(state: &AppState, project: &str) -> Result<ChangeList,
     let gitea: &crate::git::GiteaClient = &gitea;
 
     let prs = gitea.list_pull_requests("open").await?;
-    // Each merge request costs a few forge reads: four at a time, in the forge's order.
-    let listed: Vec<Listed> = futures_util::stream::iter(
-        prs.into_iter()
-            .map(|pr| async move { listed(state, gitea, project, &pr).await }),
-    )
+    // Each merge request costs a few forge reads: four at a time, in the forge's order. One
+    // merged or closed between the list and its own reads answers 404 there: it is no longer
+    // open, so it leaves the list instead of failing it whole (T-6324).
+    let listed: Vec<Listed> = futures_util::stream::iter(prs.into_iter().map(|pr| async move {
+        match listed(state, gitea, project, &pr).await {
+            Err(ApiError::NotFound(_)) => Ok(Listed::Unlisted),
+            other => other,
+        }
+    }))
     .buffered(LISTED_AT_ONCE)
     .try_collect()
     .await?;
@@ -3258,6 +3262,69 @@ mod tests {
             Err(ApiError::Unavailable(msg)) => assert!(msg.contains("git forge")),
             other => panic!("expected ApiError::Unavailable, got {other:?}"),
         }
+    }
+
+    /// A merge request merged or closed between the forge's list and its own reads answers 404
+    /// there; the walker met the whole list as 404 (T-6324). It leaves the list, the rest stays.
+    #[tokio::test]
+    async fn a_change_closed_while_the_list_is_read_leaves_the_list_instead_of_failing_it() {
+        let server = MockServer::start().await;
+        let client =
+            GiteaClient::new(server.uri().parse().unwrap(), "test-owner", "test-repo", "token-xyz")
+                .unwrap();
+        let state = AppState::new(Config::for_tests(), None).with_gitea(Arc::new(client));
+        let pull = |number: u64, branch: &str| {
+            json!({
+                "number": number,
+                "html_url": format!("https://gitea.example.sk/pulls/{number}"),
+                "state": "open",
+                "title": "create ContextSpace mobility",
+                "head": { "ref": branch },
+                "base": { "ref": "main" },
+                "created_at": "2026-09-06T09:14:22Z",
+                "user": { "login": "author", "full_name": "Author", "email": "author@example.sk" }
+            })
+        };
+        Mock::given(method("GET"))
+            .and(path("/api/v1/repos/test-owner/test-repo/pulls"))
+            .and(query_param("state", "open"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                pull(1, "portal/create-contextspace-mobility-12345678"),
+                // Merged a moment ago: every read of its own answers 404 (wiremock's default).
+                pull(2, "portal/create-contextspace-traffic-87654321"),
+            ])))
+            .mount(&server)
+            .await;
+        let manifest = "apiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata:\n  name: mobility\n  namespace: ovzdusie\nspec:\n  isSandbox: true\n";
+        Mock::given(method("GET"))
+            .and(path(
+                "/api/v1/repos/test-owner/test-repo/contents/projects/ovzdusie/spaces/mobility/space.yaml",
+            ))
+            .and(query_param("ref", "portal/create-contextspace-mobility-12345678"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "sha": "blob-1",
+                "content": base64::engine::Engine::encode(
+                    &base64::engine::general_purpose::STANDARD,
+                    manifest.as_bytes(),
+                )
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api/v1/repos/test-owner/test-repo/pulls/1/files"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                { "filename": "projects/ovzdusie/spaces/mobility/space.yaml", "status": "added" }
+            ])))
+            .mount(&server)
+            .await;
+
+        let list = list_changes_for(&state, "ovzdusie").await.unwrap();
+        let names: Vec<_> = list
+            .items
+            .iter()
+            .map(|change| change.metadata.name.clone())
+            .collect();
+        assert_eq!(names, vec!["chg-00000001".to_owned()], "{names:?}");
     }
 
     #[tokio::test]
