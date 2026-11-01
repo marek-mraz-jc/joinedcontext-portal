@@ -28,6 +28,11 @@ use crate::error::ApiError;
 /// let anyone who holds it mint a token.
 const ALGORITHMS: [Algorithm; 2] = [Algorithm::ES256, Algorithm::RS256];
 
+/// The `typ` of a Keycloak access token.
+const ACCESS: &str = "Bearer";
+/// The `typ` of a Keycloak back-channel logout token.
+const LOGOUT: &str = "Logout";
+
 /// Whether a JWK's `alg` (or, absent one, its key type) is one of [`ALGORITHMS`].
 fn usable(jwk: &jsonwebtoken::jwk::Jwk) -> bool {
     match jwk.common.key_algorithm {
@@ -54,6 +59,9 @@ pub struct BearerVerifier {
 #[derive(Deserialize)]
 struct Claims {
     sub: String,
+    /// Keycloak's token type: `Bearer` for an access token, `ID` for an ID token, `Logout` for a
+    /// back-channel logout token. Each door takes one type alone (F-R2POR3-010).
+    typ: Option<String>,
     exp: i64,
     #[serde(default)]
     iat: i64,
@@ -232,7 +240,32 @@ impl BearerVerifier {
         Ok((session_of(claims).0, roles))
     }
 
+    /// A logout token the realm sends to `audience` back-channel: verified as an access token
+    /// is, and of type `Logout`, which no access or ID token carries (OIDC Back-Channel Logout
+    /// 1.0 section 2.4).
+    pub async fn verify_logout_token(
+        &self,
+        token: &str,
+        audience: &str,
+    ) -> Result<String, ApiError> {
+        self.claims_of_type(token, audience, LOGOUT)
+            .await
+            .map(|claims| claims.sub)
+    }
+
+    /// An access token's claims. An ID token is refused although the realm signs it with the
+    /// same key and for the Portal's own client: it travels in the open as `id_token_hint`, so
+    /// it is no credential (F-R2POR3-010).
     async fn claims(&self, token: &str, audience: &str) -> Result<Claims, ApiError> {
+        self.claims_of_type(token, audience, ACCESS).await
+    }
+
+    async fn claims_of_type(
+        &self,
+        token: &str,
+        audience: &str,
+        typ: &str,
+    ) -> Result<Claims, ApiError> {
         let header = decode_header(token).map_err(|_| ApiError::Unauthorized)?;
         if !ALGORITHMS.contains(&header.alg) {
             return Err(ApiError::Unauthorized);
@@ -259,7 +292,9 @@ impl BearerVerifier {
         validation.leeway = 30;
         decode::<Claims>(token, &key, &validation)
             .map(|data| data.claims)
-            .map_err(|_| ApiError::Unauthorized)
+            .ok()
+            .filter(|claims| claims.typ.as_deref() == Some(typ))
+            .ok_or(ApiError::Unauthorized)
     }
 }
 
@@ -381,7 +416,7 @@ mod tests {
 
     fn claims(exp: i64) -> serde_json::Value {
         json!({
-            "iss": ISSUER, "aud": "portal-api", "sub": "svc:smoke", "azp": "apisix-gateway",
+            "iss": ISSUER, "typ": "Bearer", "aud": "portal-api", "sub": "svc:smoke", "azp": "apisix-gateway",
             "exp": exp, "iat": now(), "realm_access": { "roles": ["viewer"] }
         })
     }
@@ -671,6 +706,43 @@ mod tests {
         assert!(session.id_token.is_empty());
         assert_eq!(session.refresh_token, None);
         assert_eq!(session.access_expires_at, session.expires_at);
+    }
+
+    /// F-R2POR3-010: an ID token for the Portal's own client, which travels in the open as
+    /// `id_token_hint`, and a logout token are no bearer credential; a logout token is taken at
+    /// the logout door alone, and an access token is not one there.
+    #[tokio::test]
+    async fn only_an_access_token_is_a_bearer_and_only_a_logout_token_logs_out() {
+        let v = verifier();
+        let (signer, set) = keypair("k1");
+        v.install(&set);
+        let typed = |typ: Option<&str>| {
+            let mut c = claims(now() + 60);
+            match typ {
+                Some(typ) => c["typ"] = json!(typ),
+                None => {
+                    c.as_object_mut().map(|c| c.remove("typ"));
+                }
+            }
+            sign(&signer, "k1", &c)
+        };
+        for refused in [Some("ID"), Some("Logout"), Some("Refresh"), None] {
+            assert!(
+                matches!(v.verify(&typed(refused)).await, Err(ApiError::Unauthorized)),
+                "{refused:?} passed as a bearer"
+            );
+        }
+        assert!(v.verify(&typed(Some("Bearer"))).await.is_ok());
+        assert_eq!(
+            v.verify_logout_token(&typed(Some("Logout")), "portal-api")
+                .await
+                .unwrap(),
+            "svc:smoke"
+        );
+        assert!(v
+            .verify_logout_token(&typed(Some("Bearer")), "portal-api")
+            .await
+            .is_err());
     }
 
     #[tokio::test]

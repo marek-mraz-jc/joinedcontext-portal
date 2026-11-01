@@ -651,8 +651,9 @@ async fn a_bearer_token_never_asks_for_access_to_an_endpoint() {
     }
 }
 
-/// AG-133, PF-58: a person's account, a consent of theirs and their second factor are removed
-/// only by a person in a Portal session; the token is refused before the realm is asked.
+/// AG-133, PF-58: a person's account, a consent of theirs and their second factor are removed,
+/// and a new password or invitation is handed out, only by a person in a Portal session; the
+/// token is refused before the realm is asked.
 #[tokio::test]
 async fn a_bearer_token_never_deletes_a_person_or_removes_their_second_factor() {
     let gitea = MockServer::start().await;
@@ -661,6 +662,9 @@ async fn a_bearer_token_never_deletes_a_person_or_removes_their_second_factor() 
     let doors = [
         ("DELETE", person.to_owned()),
         ("POST", format!("{person}/remove-second-factor")),
+        // F-R2POR3-009: both can answer a temporary password.
+        ("POST", format!("{person}/reset-password")),
+        ("POST", format!("{person}/resend-invitation")),
         ("DELETE", format!("{person}/consents/jc-hub")),
         ("POST", "/api/v1/organization/people/remove".to_owned()),
         // ADR-N-061: the move of people to ids is an administrator's, proposed in a session.

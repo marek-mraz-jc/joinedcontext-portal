@@ -210,16 +210,21 @@ export function ModelYaml({ source, name }: { source: string; name: string }): J
       </div>
       <CodeBlock
         label={t("models.page.yaml")}
-        className="max-h-96 rounded border border-border bg-surface-subtle p-3 font-mono text-caption text-fg"
+        // Down to near the page bottom: a model is any length (owner 2026-10-31).
+        className="h-[calc(100dvh-15rem)] min-h-64 rounded border border-border bg-surface-subtle p-3 font-mono text-caption text-fg"
       >
         {lines.map((line, index) => {
           const parts = yamlParts(line);
           return (
-            <span key={index} className="block">
-              {parts.indent}
-              {parts.key ? <span className="text-primary-soft-fg">{parts.key}</span> : null}
-              {parts.rest}
-              {parts.comment ? <span className="text-fg-muted italic">{parts.comment}</span> : null}
+            // A long line wraps inside the box under its own key, so nothing runs past the right
+            // border or needs a sideways scroll on a phone (T-6254 judge); the indent never wraps.
+            <span key={index} className="flex">
+              <span className="shrink-0 whitespace-pre">{parts.indent}</span>
+              <span className="min-w-0 whitespace-pre-wrap break-words">
+                {parts.key ? <span className="text-primary-soft-fg">{parts.key}</span> : null}
+                {parts.rest}
+                {parts.comment ? <span className="text-fg-muted italic">{parts.comment}</span> : null}
+              </span>
             </span>
           );
         })}

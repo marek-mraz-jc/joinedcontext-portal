@@ -143,6 +143,55 @@ pub fn stream_id(project: &str, name: &str) -> String {
     format!("{project}.{name}")
 }
 
+/// Every text of the pipeline the runner runs as Bloblang or as a processor passes the check it
+/// passed at write time (PL-16, PL-52): no read of the runner's environment but the pipeline's
+/// own variables, no refused processor. A manifest pushed to the forge past the Portal is
+/// loaded with only a warning (daemon.rs), and the runner holds every project's credentials,
+/// so the check runs again before anything is rendered. `bento.yaml` has its own in the render.
+fn reads_only_its_own(spec: &PipelineSpec) -> Result<(), String> {
+    let own = spec.own_variables();
+    let check = |field: &'static str, processor: Value| {
+        jc_core::kinds::pipeline::validate_processor_reading(field, &processor, &own)
+            .map_err(|err| err.to_string())
+    };
+    let mut steps = spec.steps();
+    steps.extend(spec.routes.iter().flat_map(|route| route.steps.clone()));
+    for step in &steps {
+        match step {
+            Step::Processor(step) => {
+                for (name, config) in &step.processor {
+                    check("spec.steps.processor", serde_json::json!({ name: config }))?;
+                }
+            }
+            Step::Compute(compute) => {
+                if let Some(text) = compute.mapping().map_err(|err| err.to_string())? {
+                    check(
+                        "spec.compute.bloblang",
+                        serde_json::json!({ "mapping": text }),
+                    )?;
+                }
+            }
+        }
+    }
+    for route in &spec.routes {
+        check(
+            "spec.routes.when",
+            serde_json::json!({ "mapping": route.when }),
+        )?;
+    }
+    if let Some(marker) = spec
+        .source_deletes
+        .as_ref()
+        .and_then(|rule| rule.deleted_when.as_deref())
+    {
+        check(
+            "spec.sourceDeletes.deletedWhen",
+            serde_json::json!({ "mapping": marker }),
+        )?;
+    }
+    Ok(())
+}
+
 /// The rendered config as one number, so two passes can tell an unchanged stream apart.
 fn config_hash(config: &Value) -> u64 {
     use std::hash::{Hash, Hasher};
@@ -520,7 +569,10 @@ impl StreamDeployer {
                     ));
                     continue;
                 }
-                let spec: PipelineSpec = match serde_json::from_value(envelope.spec.clone()) {
+                let spec = serde_json::from_value::<PipelineSpec>(envelope.spec.clone())
+                    .map_err(|err| err.to_string())
+                    .and_then(|spec| reads_only_its_own(&spec).map(|()| spec));
+                let spec = match spec {
                     Ok(s) => s,
                     Err(err) => {
                         outcomes.push((
@@ -3223,6 +3275,31 @@ output:
         assert!(outcomes
             .iter()
             .all(|(_, name, _)| !name.ends_with(".expiry")));
+    }
+
+    #[tokio::test]
+    async fn a_pipeline_failing_its_kinds_checks_never_reaches_the_runner() {
+        let server = runner().await;
+        wiremock::Mock::given(wiremock::matchers::method("PUT"))
+            .respond_with(wiremock::ResponseTemplate::new(200))
+            .expect(0)
+            .mount(&server)
+            .await;
+        let mirror = helsinki_test_mirror();
+        let mut pipeline = mirror
+            .get("helsinki", "Pipeline", "citybikes-free")
+            .expect("the pipeline");
+        pipeline.spec["compute"]["bloblang"] =
+            serde_json::json!("root = env(\"JC_CLIENT_SECRET_OTHER\")");
+        mirror.upsert(pipeline);
+        let outcomes = StreamDeployer::new(server.uri())
+            .converge(&mirror, &Bentos::new(), &Default::default())
+            .await;
+        assert_eq!(outcomes.len(), 1);
+        assert!(
+            matches!(&outcomes[0].2, StreamOutcome::Error(said) if said.contains("JC_CLIENT_SECRET_OTHER")),
+            "{outcomes:?}"
+        );
     }
 
     #[tokio::test]

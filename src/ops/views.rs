@@ -184,6 +184,7 @@ fn change_proposal_output_schema() -> Value {
             "kind": { "type": "string", "enum": ["Change"] },
             "metadata": { "type": "object" },
             "status": { "type": "object" },
+            "url": { "type": "string", "description": "The Portal page where a person decides it" },
             "summary": { "type": "object" },
             "author": { "type": "object" },
             "createdAt": { "type": "string", "format": "date-time" },
@@ -416,7 +417,10 @@ pub fn operations() -> Vec<Operation> {
                         .activity
                         .list(project, &filter)
                         .await
-                        .map_err(|err| crate::error::ApiError::Unavailable(err.to_string()))?;
+                        .map_err(|err| crate::error::ApiError::Unavailable(err.to_string()))?
+                        // The REST page keeps its rows whole; a model reads at most PAGE_BYTES
+                        // and pages on (T-6291).
+                        .within(super::bounds::PAGE_BYTES);
                     Ok(json!({ "items": page.items, "next": page.next }))
                 })
             },
@@ -526,7 +530,8 @@ pub fn operations() -> Vec<Operation> {
                         axum::extract::Path((project.to_owned(), input.id)),
                     )
                     .await?;
-                    Ok(serde_json::to_value(proposal)?)
+                    let proposal = serde_json::to_value(proposal)?;
+                    Ok(super::changes::with_approval_url(state, project, proposal))
                 })
             },
         },

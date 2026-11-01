@@ -254,7 +254,10 @@ describe("the drawing library", () => {
     await waitFor(() => expect(loadHandler).toBeTruthy());
     loadHandler?.();
     await waitFor(() => expect(drawing.start).toHaveBeenCalled());
+    // A drag's frames are not checked; the edit is, once, when it ends (T-6230).
     handlers.change?.();
+    expect(onChange).not.toHaveBeenCalled();
+    handlers.finish?.();
     expect(onChange).toHaveBeenCalledTimes(1);
     expect((onChange.mock.calls[0][0] as Geometry).type).toBe("Polygon");
     expect(screen.queryByRole("alert")).toBeNull();

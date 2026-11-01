@@ -15,7 +15,7 @@ import type { AiConnector, ConnectorOptions } from "../src/pages/mcp/aiConnector
 const IDENTITY = { subject: "b7c1e0f4", username: "eva.steward", name: "Eva Steward", roles: [] };
 const NOW = new Date("2026-10-28T12:00:00Z");
 const OPTIONS: ConnectorOptions = {
-  segments: ["data-read", "context", "pipeline", "access", "publish", "apps", "operate", "admin"],
+  segments: ["data-read", "context", "pipeline", "access", "publish", "apps", "operate", "knowledge", "admin"],
   ceiling: { segments: ["data-read"], writes: false, maxDays: 30 },
   projects: [{ project: "doprava", spaces: ["parking"], endpoints: ["bike-counters"], pipelines: ["load-counters"] }],
   clients: [

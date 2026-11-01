@@ -3,14 +3,14 @@ import type { JSX } from "react";
 import type { FieldProps } from "@rjsf/utils";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, queryKeys, unwrap } from "../../../api/client";
+import { api, queryKeys, unwrap, reasonOf } from "../../../api/client";
 import { projectsQuery } from "../../../api/projects";
 import { asManifests, localized } from "../../../api/manifest";
 import { Badge, Checkbox } from "../../ui";
 import { useShownErrors } from "../touched";
 import { FormDataContext } from "./EntitySelectorField";
-import { LIST_BODY, LIST_FIELDSET, ListLegend, pathOf } from "../theme";
-import { ListFailed, reasonOf } from "./ListFailed";
+import { LIST_BODY, LIST_FIELDSET, ListLegend } from "../theme";
+import { ListFailed } from "./ListFailed";
 import { FormProjectContext } from "./ModelWidgets";
 
 /** A `KnowledgeSource` as the picker offers it: its reference in the deployment, and whether a public channel may read it. */
@@ -93,7 +93,7 @@ export function KnowledgeSourcesField(props: FieldProps): JSX.Element {
 
   return (
     <fieldset id={id} data-testid="knowledge-sources" className={LIST_FIELDSET}>
-      <ListLegend heading={schema.title ?? ""} required={props.required} path={pathOf(fieldPathId)} />
+      <ListLegend heading={schema.title ?? ""} required={props.required} />
       <div className={LIST_BODY}>
       {help ? <p id={`${id}__help`} className="text-caption text-fg-muted">{help}</p> : null}
       {anonymous ? <p id={`${id}-hint`} className="text-caption text-fg-muted">{t("knowledge.sourcesPicker.publicOnly")}</p> : null}

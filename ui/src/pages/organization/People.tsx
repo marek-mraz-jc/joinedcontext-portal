@@ -3,7 +3,7 @@ import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { api, ApiError, queryKeys, unwrap, reasonOf } from "../../api/client";
 import { ORG_NAMESPACE } from "../../api/manifest";
 import type { Change } from "../../api/manifest";
 import { mayRead, usePermissions } from "../../api/permissions";
@@ -49,11 +49,6 @@ type PersonDetail = components["schemas"]["PersonDetail"];
 /** The languages a person may be given, the ones the Portal speaks (UI-09). */
 const LOCALES = ["en", "sk", "cs", "de"] as const;
 const PAGE = 50;
-
-/** What a failed request says, in the server's words when it gave any. */
-function reasonOf(error: unknown, fallback: string): string {
-  return error instanceof ApiError ? (error.problem?.detail ?? error.message) : fallback;
-}
 
 function fullName(person: Person): string {
   return `${person.firstName} ${person.lastName}`.trim() || person.email;

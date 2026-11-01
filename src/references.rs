@@ -69,6 +69,7 @@ const KINDS: &[&str] = &[
     "Dashboard",
     "App",
     "MqttBroker",
+    "DataSource",
 ];
 
 /// The fields of one kind that name a resource of this platform, in this project, with the kind a
@@ -93,6 +94,8 @@ fn fields(kind: &str) -> &'static [(&'static str, &'static str)] {
             ("spec.contextSpaceRef", "ContextSpace"),
             ("spec.projectionRef", "ModelProjection"),
             ("spec.viewMappingRef", "Mapping"),
+            // T-6292: an instance that is not there failed the project's whole CKAN pass later.
+            ("spec.publish.ckan.instanceRef", "CkanInstance"),
         ],
         "Mapping" => &[("spec.contextSpaceRef", "ContextSpace")],
         // Both shapes of a pipeline (PL-54): the door rewrites `source`/`compute` into
@@ -121,9 +124,11 @@ fn fields(kind: &str) -> &'static [(&'static str, &'static str)] {
         // The devices of a role sign in as these accounts (MF-54, T-5590): a name typed for an
         // account that is not there was accepted and only drew a red edge on the broker's page.
         "MqttBroker" => &[("spec.roles[].serviceAccounts[]", "ServiceAccount")],
-        // A `DataSource` names no resource of this platform — its `secretRef`s are resolved by the
-        // reconciler, not by the mirror. `SharedSpaceReference.endpointRef` names a resource of
-        // another organization and is resolved by what the Endpoint admits (T-1448).
+        // An `mqtt` source reading a broker of the project (T-6290): a broker that was not there
+        // planned green. Its `secretRef`s are resolved by the reconciler, not by the mirror.
+        "DataSource" => &[("spec.mqtt.brokerRef", "MqttBroker")],
+        // `SharedSpaceReference.endpointRef` names a resource of another organization and is
+        // resolved by what the Endpoint admits (T-1448).
         _ => &[],
     }
 }
@@ -500,6 +505,23 @@ mod tests {
         (detail, errors)
     }
 
+    /// T-6290: an `mqtt` DataSource naming a broker the project does not declare planned green.
+    #[test]
+    fn an_mqtt_source_naming_a_broker_that_is_not_there_is_refused_by_its_field() {
+        let mirror = mirror_with("MqttBroker", "sensors");
+        let source = |broker: &str| {
+            json!({
+                "type": "mqtt",
+                "mqtt": { "brokerRef": { "kind": "MqttBroker", "name": broker }, "topics": ["sensors/+/air"] }
+            })
+        };
+        let (detail, errors) = refusal(&mirror, "DataSource", source("t6248-sensors"));
+        assert_eq!(errors, vec!["spec.mqtt.brokerRef".to_owned()]);
+        assert!(detail.contains("MqttBroker 't6248-sensors'"), "{detail}");
+        check(&mirror, "helsinki", "DataSource", &source("sensors"))
+            .expect("a broker that is there resolves");
+    }
+
     /// T-2268: a pipeline's data source does not live at `spec.dataSourceRef` — it lives one level
     /// down, which is why this was checked green and only the reconciler found out.
     #[test]
@@ -523,6 +545,36 @@ mod tests {
             &json!({ "class": "auto", "source": { "dataSourceRef": "gbfs" } }),
         )
         .expect("a data source that is there resolves");
+    }
+
+    /// T-6292: an Endpoint publishing through a CkanInstance the project does not hold is
+    /// refused by that field, in both spellings; one the project holds resolves.
+    #[test]
+    fn an_endpoint_publishing_to_an_instance_that_is_not_there_is_refused_by_its_field() {
+        let mirror = mirror_with("CkanInstance", "open-data");
+        for instance_ref in [
+            json!("no-such-instance"),
+            json!({ "kind": "CkanInstance", "name": "no-such-instance" }),
+            json!({ "kind": "CkanInstance", "name": "no-such-instance", "namespace": "helsinki" }),
+        ] {
+            let (detail, errors) = refusal(
+                &mirror,
+                "Endpoint",
+                json!({ "publish": { "ckan": { "instanceRef": instance_ref } } }),
+            );
+            assert_eq!(errors, vec!["spec.publish.ckan.instanceRef".to_owned()]);
+            assert!(
+                detail.contains("CkanInstance 'no-such-instance'"),
+                "{detail}"
+            );
+        }
+        check(
+            &mirror,
+            "helsinki",
+            "Endpoint",
+            &json!({ "publish": { "ckan": { "instanceRef": "open-data" } } }),
+        )
+        .expect("an instance the project holds resolves");
     }
 
     /// The second shape (PL-54) is the one the door stores, and a pipeline may have several inputs:
@@ -715,6 +767,7 @@ mod tests {
             "Layer" => schemars::schema_for!(LayerSpec),
             "App" => schemars::schema_for!(AppSpec),
             "MqttBroker" => schemars::schema_for!(MqttBrokerSpec),
+            "DataSource" => schemars::schema_for!(DataSourceSpec),
             other => panic!("{other} is in KINDS with no schema beside it"),
         }
     }

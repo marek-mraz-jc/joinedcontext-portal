@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { api, queryKeys, unwrap, reasonOf } from "../../api/client";
 import { isChange, ORG_NAMESPACE, storedMetadata } from "../../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
 import { proposeChecked } from "../../api/proposal";
@@ -35,11 +35,6 @@ interface Proposal {
   project: string;
   plural: string;
   manifest: Manifest;
-}
-
-/** What a failed request says, in the server's words when it gave any. */
-function reasonOf(error: unknown, fallback: string): string {
-  return error instanceof ApiError ? (error.problem?.detail ?? error.message) : fallback;
 }
 
 /**

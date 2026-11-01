@@ -378,19 +378,36 @@ pub async fn run(
     }
 
     if let Some(files) = &input.files {
-        for file in files {
+        for (n, file) in files.iter().enumerate() {
             let name = file.name.as_str();
             if name.ends_with(".yaml") || name.ends_with(".yml") {
                 if name.ends_with(".linkml.yaml") {
                     linkml_source = Some(file.content.clone());
                     continue;
                 }
-                for doc in serde_norway::Deserializer::from_str(&file.content) {
-                    if let Ok(val) = Value::deserialize(doc) {
-                        if let Some(kind) = val.get("kind").and_then(Value::as_str) {
-                            found_kinds.push(kind.to_string());
-                            manifests.insert(kind.to_string(), val);
-                        }
+                // The parser is not Send: read every document before anything awaits.
+                let docs: Vec<Value> = serde_norway::Deserializer::from_str(&file.content)
+                    .filter_map(|doc| Value::deserialize(doc).ok())
+                    .collect();
+                for mut val in docs {
+                    // An uploaded Endpoint's slug is settled before its draft is kept: a draft's
+                    // slug is one the platform minted, which a later plan of the same manifest
+                    // takes as it is (EP-75).
+                    crate::endpoint_slug::settle_in(
+                        state,
+                        project,
+                        None,
+                        caller.brings_its_own_slug(),
+                        &mut val,
+                    )
+                    .await
+                    .map_err(|message| OpError::InvalidInput {
+                        path: format!("/files/{n}/content{}", crate::endpoint_slug::PATH),
+                        message,
+                    })?;
+                    if let Some(kind) = val.get("kind").and_then(Value::as_str) {
+                        found_kinds.push(kind.to_string());
+                        manifests.insert(kind.to_string(), val);
                     }
                 }
             } else if name.ends_with(".blobl") {
@@ -405,9 +422,11 @@ pub async fn run(
             {
                 if described_source_spec.is_none() {
                     described_source_spec = source_in_readme(&file.content);
+                    no_credential_in(described_source_spec.as_ref(), n)?;
                 }
             } else if name == ".env" || name.ends_with(".env") {
                 if let Some(described) = source_in_env(&file.content, &space_name) {
+                    no_credential_in(Some(&described), n)?;
                     described_source_spec = Some(described);
                 }
             }
@@ -581,7 +600,7 @@ pub async fn run(
                     .items
                     .into_iter()
                     .find(|ep| {
-                        ep.spec.get("contextSpaceRef").and_then(Value::as_str) == Some(&space_name)
+                        ep.spec.get("contextSpaceRef").and_then(crate::resource::reference_name) == Some(&space_name)
                     })
                     .map(|ep| ep.metadata.name)
             })
@@ -656,7 +675,12 @@ pub async fn run(
         .list(project, "Endpoint", &crate::store::ListOptions::default())
         .items
         .iter()
-        .any(|ep| ep.spec.get("contextSpaceRef").and_then(Value::as_str) == Some(&space_name));
+        .any(|ep| {
+            ep.spec
+                .get("contextSpaceRef")
+                .and_then(crate::resource::reference_name)
+                == Some(&space_name)
+        });
     if input.upload && sample_bytes.is_some() && endpoint_manifest.is_none() && !space_has_endpoint
     {
         endpoint_manifest = Some(json!({
@@ -691,7 +715,12 @@ pub async fn run(
             .list(project, "Endpoint", &crate::store::ListOptions::default())
             .items
             .iter()
-            .any(|ep| ep.spec.get("contextSpaceRef").and_then(Value::as_str) == Some(&space_name))
+            .any(|ep| {
+                ep.spec
+                    .get("contextSpaceRef")
+                    .and_then(crate::resource::reference_name)
+                    == Some(&space_name)
+            })
     {
         endpoint_manifest = Some(json!({
             "apiVersion": API_VERSION,
@@ -1287,6 +1316,25 @@ fn http_source(url: &str) -> (String, Value, Vec<Finding>) {
     )
 }
 
+/// A source address read out of file `n` goes into the drafted DataSource and so into Git: one
+/// carrying a credential (`user:pass@`, `?apikey=`) is refused, as the operations door refuses
+/// it in an argument (F-R2POR4-001). The message never repeats the address.
+fn no_credential_in(
+    described: Option<&(String, Value, Vec<Finding>)>,
+    n: usize,
+) -> Result<(), OpError> {
+    let address = described.and_then(|(_, spec, _)| spec.pointer("/http/url")?.as_str());
+    if address.is_some_and(crate::secret_scan::secret_text) {
+        return Err(OpError::InvalidInput {
+            path: format!("/files/{n}/content"),
+            message: "the source address in this file carries a user name and password or a key; \
+                      write it without, and keep the credential as a secret the DataSource names"
+                .into(),
+        });
+    }
+    Ok(())
+}
+
 /// The first http(s) address a README names, as the source it describes.
 fn source_in_readme(content: &str) -> Option<(String, Value, Vec<Finding>)> {
     content
@@ -1774,6 +1822,41 @@ mod tests {
         assert_eq!(name(json!({ "space": "  " })), "space");
     }
 
+    /// F-R2POR4-001: an address a README or a `.env` names with a credential in it is refused
+    /// at that file, before anything is drafted; one without, or naming a `${VAR}`, is kept.
+    #[test]
+    fn a_source_address_with_a_credential_in_a_file_is_refused() {
+        let user = ["sc", "ott"].concat();
+        let pass = ["tig", "er7"].concat();
+        let key = ["abcdef", "0123456789"].concat();
+        for (readme, env) in [
+            (
+                format!("Data at https://{user}:{pass}@x.example/feed"),
+                format!("URL=https://{user}:{pass}@x.example/feed\n"),
+            ),
+            (
+                format!("Data at https://x.example/feed?apikey={key}"),
+                format!("URL=\"https://x.example/feed?api_key={key}\"\n"),
+            ),
+        ] {
+            let refused = super::no_credential_in(super::source_in_readme(&readme).as_ref(), 2)
+                .expect_err("README");
+            assert!(
+                matches!(&refused, crate::ops::OpError::InvalidInput { path, message }
+                    if path == "/files/2/content" && !message.contains("x.example")),
+                "{refused}"
+            );
+            assert!(super::no_credential_in(super::source_in_env(&env, "b").as_ref(), 0).is_err());
+        }
+        for kept in [
+            "https://x.example/feed",
+            "https://x.example/feed?key=${FEED_KEY}",
+        ] {
+            assert!(super::no_credential_in(super::source_in_readme(kept).as_ref(), 0).is_ok());
+        }
+        assert!(super::no_credential_in(None, 0).is_ok());
+    }
+
     #[test]
     fn a_readme_or_an_env_describes_a_source_and_a_secret_stays_a_reference() {
         let (kind, spec, _) =
@@ -1819,6 +1902,47 @@ mod tests {
         let (text, findings, _) = super::infer_linkml(&state, "p", "Bike", None, None, None).await;
         assert!(text.is_empty());
         assert_eq!(findings[0].path, "linkml");
+    }
+
+    /// EP-75 (T-6285): an Endpoint uploaded with a slug the caller typed is refused before its
+    /// draft is kept, so the draft never vouches for that slug in a later plan or dry run.
+    #[tokio::test]
+    async fn an_uploaded_endpoints_typed_slug_is_refused_before_it_is_drafted() {
+        let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
+        let caller = crate::ops::Caller::new(
+            crate::auth::session::Identity {
+                client: None,
+                subject: "sub-jana".into(),
+                username: "jana".into(),
+                email: None,
+                name: None,
+                roles: vec![],
+                groups: vec![],
+                second_factor: false,
+            },
+            crate::ops::Via::Mcp,
+        );
+        let typed = "aaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let endpoint = format!(
+            "kind: Endpoint\nmetadata: {{name: bikes, namespace: doprava}}\n\
+             spec: {{contextSpaceRef: bikes, audience: public, slug: {typed}}}\n"
+        );
+        let input = json!({
+            "space": "bikes",
+            "files": [{ "name": "endpoint.yaml", "content": endpoint }]
+        });
+        match super::run(&caller, &state, "doprava", input).await {
+            Err(crate::ops::OpError::InvalidInput { path, message }) => {
+                assert_eq!(path, "/files/0/content/spec/slug");
+                assert!(!message.contains(typed), "{message}");
+            }
+            other => panic!("expected a refusal at the slug, got {other:?}"),
+        }
+        let drafted = crate::ops::drafts::draft_store(&state)
+            .get("doprava", "Endpoint", "bikes")
+            .await
+            .expect("the store answers");
+        assert!(drafted.is_none(), "nothing drafted");
     }
 
     #[test]

@@ -83,6 +83,16 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * The sentence a failed request leaves a person: the server's problem detail when it sent one,
+ * else the error's own words, else the page's fallback; never an object a person cannot read.
+ * The one copy every page reads (F-R2UI2-015): nine hand-written ones disagreed on the order.
+ */
+export function reasonOf(error: unknown, fallback = ""): string {
+  if (error instanceof ApiError) return error.problem?.detail ?? error.message;
+  return error instanceof Error && error.message.trim() !== "" ? error.message : fallback;
+}
+
 export function readCsrfToken(): string | undefined {
   if (typeof document === "undefined" || !document.cookie) {
     return undefined;

@@ -276,6 +276,11 @@ async fn the_trace_is_what_the_harness_posted_back_and_the_stream_is_deleted() {
     assert_eq!(body["validation"][0]["ok"], true);
     assert_eq!(body["errors"][0]["stage"], "mapping");
     assert_eq!(body["errors"][0]["line"], 3);
+    assert_eq!(
+        body["errors"].as_array().map(Vec::len),
+        Some(1),
+        "a run that captured messages carries no runner error: {body}"
+    );
 
     // The harness: the sample generated once, the author's mapping as its own processor, the
     // output pointed at the capture route; no secret, no target endpoint (MF-38).
@@ -787,6 +792,21 @@ async fn a_refused_delete_is_said_as_a_runner_error() {
             .unwrap_or_default();
         assert_eq!(runner_errors, usize::from(said), "{project}: {body}");
     }
+}
+
+/// T-6275: a runner that takes the stream and posts nothing back within the window is a runner
+/// error, never an empty trace that reads as "the mapping made nothing and nothing failed".
+#[tokio::test]
+async fn a_runner_that_posts_nothing_back_is_a_runner_error() {
+    let project = "t6275-a";
+    let runner = runner_answering(ResponseTemplate::new(200), ResponseTemplate::new(200)).await;
+    let state = AppState::new(config(Some(&runner)), None).with_mirror(mirror(project));
+    let (status, body) = post(&state, "dev@hel.fi", project, &request("root = this")).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["input"]["events"], 0, "{body}");
+    assert_eq!(body["errors"][0]["stage"], "runner", "{body}");
+    let message = body["errors"][0]["message"].as_str().unwrap_or_default();
+    assert!(message.contains("sent nothing back within 3 s"), "{body}");
 }
 
 // ---- T-2520: `run_harness`, one test stream per project, always removed (PL-43) -------------

@@ -27,7 +27,11 @@ describe("reachableEndpoints", () => {
   const all = [endpoint("ep-a", "a", "internal"), endpoint("ep-b", "b", "internal"), endpoint("ep-b-public", "b", "public"), endpoint("ep-b-default", "b")];
 
   it("keeps public Endpoints and those into a space the person reads", () => {
-    expect(reachableEndpoints(DEVELOPER, all).map((e) => e.metadata.name)).toEqual(["ep-a", "ep-b-public", "ep-b-default"]);
+    expect(reachableEndpoints(DEVELOPER, all).map((e) => e.metadata.name)).toEqual(["ep-a", "ep-b-public"]);
+  });
+
+  it("counts an Endpoint without an audience as closed, as jc-core requires one (F-R2UI3-001)", () => {
+    expect(reachableEndpoints(DEVELOPER, [endpoint("ep-b-default", "b")])).toEqual([]);
   });
 
   it("keeps every Endpoint while the permissions are unknown or for the bootstrap group", () => {

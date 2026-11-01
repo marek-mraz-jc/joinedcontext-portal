@@ -177,12 +177,10 @@
       "yaml": "YAML",
       "history": "History"
     },
-    "yamlHint": "The whole manifest as it is written to Git. Switching back to the form reads it again; the same schema checks both.",
     "yamlError": "Correct the YAML: {message}",
-    "yamlDownload": "Download YAML",
-    "yamlUpload": "Upload YAML",
-    "yamlUploadSecret": "The file holds a secret written out ({keys}). Reference it with a secretRef and upload again; nothing was read.",
-    "yamlUploadMoved": "The file came from project {from}; it is read into {to}, and Check runs on it before you propose it.",
+    "yamlCopy": "Copy YAML",
+    "yamlCopied": "Copied.",
+    "yamlCopyFailed": "The browser did not allow copying; select the text and copy it.",
     "yamlNotManifest": "the document is not a manifest",
     "schemaErrors": "The manifest does not match the schema:",
     "exclusive": "Only one of these fields may be set",
@@ -466,9 +464,6 @@
   "changes": {
     "accepted": "Proposed as a change:",
     "review": "Review it in Approvals",
-    "approvedOnPropose": "Approved as soon as you propose it: you may approve and remove {kind}.",
-    "approveNotDelete": "Waits for an approver: you may approve {kind} but not remove them.",
-    "secondApprover": "Waits for a second administrator: you cannot approve your own change to {kind}; another person who may approve them does.",
     "approvedAsProposed": "Approved as you proposed it, applying:",
     "open": "Open the change"
   },
@@ -557,8 +552,6 @@
       "historySize": "History size"
     },
     "inside": {
-      "more": "More",
-      "less": "Less",
       "total": "The space holds {count, plural, one {# entity} other {# entities}}.",
       "history": "Its history holds {count, plural, one {# record} other {# records}}.",
       "open": "Look inside",
@@ -4265,6 +4258,9 @@
     "classUri": "Class IRI",
     "description": "Description",
     "titleIn": "Title ({locale})",
+    "fieldsNeedType": "Fields belong to a type: add the first type under Types, then its fields here.",
+    "titleHint": "The name people read for this type in this language; the type keeps its own name.",
+    "titleTranslations": "Translations: {languages}",
     "slotUri": "Slot IRI",
     "slotUriHint": "Under the organisation's own prefix; an upstream term is cited, never minted",
     "required": "Required",
@@ -4323,6 +4319,7 @@
       },
       "willBecome": "Saves as version {version}",
       "refused": "The change was refused: {reason}",
+      "confirmFirst": "Tick the breaking-change box first: version {version} breaks the Endpoints that read this model.",
       "fixErrors": "Fix the errors the editor lists before saving. Left: {count}.",
       "confirmBreaking": "Save it as version {version}, a breaking change",
       "handOffRefused": "The assistant's change could not be applied to this model:",
@@ -4572,16 +4569,19 @@
     },
     "page": {
       "listLead": "Every data model of this project: one per Context Space, and what builds on it.",
+      "modelLead": "What this model describes, and what builds on it.",
       "listCaption": "The project's data models",
       "new": {
-        "blank": "New blank model",
-        "file": "New model from a file",
-        "sdm": "New model from Smart Data Models"
+        "menu": "New data model",
+        "blank": "Blank model",
+        "file": "From a data file (CSV, Excel, JSON, PDF)",
+        "sdm": "From Smart Data Models"
       },
       "emptyTitle": "No data model yet",
       "emptyLead": "Create one for a space: start blank, infer it from a file, or import a Smart Data Model.",
       "search": "Search by name, title or class",
       "everySpace": "Every space",
+      "moreTypes": "{count} more types of {model}",
       "lastChange": "Last change",
       "usedBy": "Used by",
       "noMatch": "No model matches the search and the space chosen.",
@@ -4613,7 +4613,7 @@
         "fields": "Fields",
         "diagram": "Diagram",
         "form": "Form",
-        "yaml": "YAML",
+        "yaml": "LinkML",
         "used": "Where used",
         "history": "History",
         "mappings": "Mappings"
@@ -4634,8 +4634,8 @@
       },
       "asJson": "Shown as JSON.",
       "yaml": "The model's source (LinkML YAML)",
-      "copyYaml": "Copy the YAML",
-      "downloadYaml": "Download the YAML",
+      "copyYaml": "Copy LinkML",
+      "downloadYaml": "Download LinkML",
       "copied": "Copied.",
       "copyFailed": "The browser did not allow copying; select the text and copy it instead.",
       "projectSection": "This project's models",
@@ -4650,7 +4650,8 @@
       "typeCaption": "Fields of {type}",
       "noFields": "No field yet.",
       "addType": "Add type",
-      "classesMore": "+{count} more"
+      "classesMore": "+{count} more",
+      "classCount": "Number of types"
     },
     "hints": {
       "title": "This model has no type yet. Three steps to start:",
@@ -4792,6 +4793,7 @@
       "idFixed": "The id is fixed: Endpoints, spaces and imports name the model by it.",
       "file": "File",
       "fileFixed": "The file name is fixed: a rename changes only the name people read.",
+      "details": "Details",
       "version": "Version",
       "renameShort": "Rename",
       "renamed": "Renamed. The id {id} and its file stay as they are; Propose saves the new name."
@@ -5224,7 +5226,8 @@
       },
       "inARow": "{count, plural, one {# failed run in a row} other {# failed runs in a row}}",
       "ms": "{count} ms",
-      "note": "A job runs as the App's own identity and writes only through the App's Endpoint. The list shows runs since the host last started."
+      "note": "A job runs as the App's own identity and writes only through the App's Endpoint. The list shows runs since the host last started.",
+      "failuresInARow": "Failures in a row"
     },
     "editWithAssistant": "Edit with the assistant",
     "share": {
@@ -6279,6 +6282,7 @@
     "close": "Close the assistant",
     "title": "Assistant",
     "open": "Open the assistant",
+    "openBusy": "Open the assistant, still working on your question",
     "hide": "Hide the assistant",
     "fullScreen": "Full screen",
     "sideView": "Beside the page",
@@ -6944,7 +6948,6 @@
     },
     "assignee": {
       "didHint": "Type the decentralised identifier, such as did:web:example.org; there is no list of them to pick from.",
-      "peopleHidden": "Only an administrator of the organization sees the list of people; type the person's e-mail as they sign in with it.",
       "noneYet": "Nothing of this kind to pick from yet ({kind}); type the name as the identity provider spells it."
     },
     "summary": {
@@ -7812,7 +7815,8 @@
         "up": "Up",
         "down": "Down",
         "unknown": "No address"
-      }
+      },
+      "none": "The organization has no broker yet. Declare one in the organization repository."
     },
     "costs": {
       "title": "Costs per project",
@@ -8025,7 +8029,7 @@
       "lead": "Every person's AI connectors: what each may reach, which clients it answers, and how much it was used and refused in the last day. Calls show here only as counts; what a call carried never does.",
       "hidden": "Only an organization administrator sees every person's connectors. Your own are on My connectors.",
       "caption": "Every person's connectors",
-      "filter": "Filter",
+      "filter": "Search connectors",
       "filterHelp": "A connector's name, its owner or a client, e.g. jana or claude.ai",
       "state": "State",
       "stateHelp": "Active connectors answer calls; Revoked shows what an administrator or offboarding ended",
@@ -8058,7 +8062,9 @@
       "empty": "Nobody holds a connector yet",
       "emptyHint": "A person creates one on My connectors to use the platform from Claude, ChatGPT or Claude Code; it shows here with its scope and usage.",
       "noMatch": "No connector matches the filter",
-      "noMatchHint": "Clear the filter or pick Every state to see revoked and expired connectors."
+      "noMatchHint": "Clear the filter or pick Every state to see revoked and expired connectors.",
+      "callsPerDay": "Calls, last 24 hours",
+      "denialsPerDay": "Refused, last 24 hours"
     }
   },
   "projectDelete": {
@@ -8169,6 +8175,9 @@
     "propose": "Propose"
   },
   "projectImport": {
+    "number": "Type a number.",
+    "wholeNumber": "Type a whole number.",
+    "notNumber": "{names}: type a number, such as 30, or leave the field empty for its default.",
     "title": "Import a project",
     "lead": "Creates the project's repositories from a git export, then proposes its registry entry.",
     "button": "Import project",
@@ -10970,16 +10979,18 @@
       "publish": "Publishing",
       "apps": "Apps",
       "operate": "Operations",
+      "knowledge": "Knowledge",
       "admin": "Everything (admin)"
     },
     "segmentHint": {
       "data-read": "reads Endpoints, spaces and models, e.g. to answer questions about data",
-      "context": "reads models, spaces, Endpoints and Policies",
+      "context": "reads models, spaces, Endpoints, Policies, model projections and subscriptions",
       "pipeline": "reads pipelines, sources and their metrics",
       "access": "reads roles, bindings, groups and service accounts",
       "publish": "reads the catalogue and CKAN status",
       "apps": "reads Apps and their runs",
       "operate": "reads activity, changes and sync status",
+      "knowledge": "reads knowledge sources, their crawl state and passages",
       "admin": "every preset above"
     },
     "client": {
@@ -11038,7 +11049,9 @@
     "addKey": "Add a key",
     "addKept": "Add the keys it keeps",
     "submit": "Encrypt and propose",
-    "sending": "Sending the secret…"
+    "sending": "Sending the secret…",
+    "keyMissing": "Name this value, e.g. apiKey.",
+    "keyTwice": "The key {key} is already above: give each value its own key."
   },
   "pairedTab": {
     "region": "Tab connected to a connector",
@@ -11087,7 +11100,6 @@
     "removeFilter": "Remove filter {column}: {value}",
     "clearFilters": "Clear filters",
     "details": "Details",
-    "openDetails": "Details of {name}",
     "noMatch": "No rows match the search and filters.",
     "clearAll": "Clear search and filters",
     "footer": "Showing {shown} of {count}",

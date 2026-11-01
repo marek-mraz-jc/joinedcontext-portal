@@ -35,10 +35,3 @@ export function ListFailed({
   );
 }
 
-/** The sentence an API error carries, or the generic one: never an object a person cannot read. */
-export function reasonOf(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message.trim() !== "") {
-    return error.message;
-  }
-  return fallback;
-}

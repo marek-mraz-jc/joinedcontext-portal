@@ -8,6 +8,7 @@ import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { api, unwrap } from "../../api/client";
+import { importChecked } from "../../api/proposal";
 import { writeModelSource } from "../../api/datamodelSource";
 import { isChange } from "../../api/manifest";
 import type { Change, Manifest } from "../../api/manifest";
@@ -152,8 +153,7 @@ export function AddFieldDialog({ project, modelName, source, type, open, onOpenC
       );
       const body = { manifests, conflictPolicy: "replace" as const };
       try {
-        await unwrap(await api.POST("/api/v1/projects/{project}/import", { params: { path: { project }, query: { dryRun: "All" } }, body }));
-        const pipeline: unknown = await unwrap(await api.POST("/api/v1/projects/{project}/import", { params: { path: { project } }, body }));
+        const pipeline = await importChecked(project, body);
         if (isChange(pipeline)) onProposed(pipeline);
         close(false);
       } catch (error) {

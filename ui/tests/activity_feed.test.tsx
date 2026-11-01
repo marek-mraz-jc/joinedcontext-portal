@@ -7,6 +7,15 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { ActivityFeed } from "../src/components/ActivityFeed";
 import { mergeActivity, objectOf, TAIL_WINDOW } from "../src/api/activity";
+
+// The links are the router's; its address is what a test reads (T-6230).
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ to, params, children, ...rest }: { to: string; params: Record<string, string>; children: React.ReactNode }) => (
+    <a href={to.replace(/\$(\w+)/g, (_, key: string) => params[key])} {...rest}>
+      {children}
+    </a>
+  ),
+}));
 import { summarise } from "../src/components/ActivitySummary";
 import type { ActivityEvent } from "../src/api/activity";
 

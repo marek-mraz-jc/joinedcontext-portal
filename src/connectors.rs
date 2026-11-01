@@ -69,7 +69,14 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_resource_get",
             "jc_model_source_get",
         ],
-        &["ContextSpace", "DataModel", "Endpoint", "Policy"],
+        &[
+            "ContextSpace",
+            "DataModel",
+            "Endpoint",
+            "Policy",
+            "ModelProjection",
+            "Subscription",
+        ],
     ),
     (
         "pipeline",
@@ -85,14 +92,17 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_pipeline_try_mapping",
             "jc_pipeline_test",
             "jc_syncsource_status",
+            "jc_mqtt_captured",
         ],
         &[
             "Pipeline",
             "DataSource",
+            "MqttBroker",
             "SyncSource",
             "ContextSpace",
             "DataModel",
             "Endpoint",
+            "Subscription",
         ],
     ),
     (
@@ -147,6 +157,19 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_change_get",
         ],
         &["Pipeline", "SyncSource"],
+    ),
+    (
+        "knowledge",
+        &[
+            "jc_change_plan",
+            "jc_change_revert_plan",
+            "jc_schema_get",
+            "jc_resource_list",
+            "jc_resource_get",
+            "jc_knowledge_status",
+            "jc_knowledge_search",
+        ],
+        &["KnowledgeSource", "AssistantDeployment"],
     ),
 ];
 
@@ -239,6 +262,17 @@ fn default_policy() -> DelegationPolicySpec {
     }
 }
 
+/// The resource kind a call works on: the operation's own, or for a `kind: "*"` operation the
+/// `kind` its arguments name. `jc_activity_list`'s `kind` filters event kinds
+/// (`pipeline.error`), which no policy or segment lists: its ceiling is the project (T-6281).
+fn resource_kind<'a>(op: &Operation, args: &'a Value) -> Option<&'a str> {
+    match op.kind {
+        "*" if op.name == "jc_activity_list" => None,
+        "*" => args.get("kind").and_then(Value::as_str),
+        kind => Some(kind),
+    }
+}
+
 /// The tools and kinds `connector` reaches under one policy: the segments both allow, and
 /// `jc_change_apply` when both let it write.
 fn reach_under(
@@ -271,13 +305,7 @@ impl Ceiling {
     /// or a `Group` subject names a group of its token or a `Group` manifest listing the person.
     pub fn of(mirror: &crate::store::Mirror, identity: &crate::auth::session::Identity) -> Self {
         let options = crate::store::ListOptions::default();
-        let person = |user: &str| {
-            user.eq_ignore_ascii_case(&identity.username)
-                || identity
-                    .email
-                    .as_deref()
-                    .is_some_and(|e| user.eq_ignore_ascii_case(e))
-        };
+        let person = |user: &str| crate::permissions::names_user(identity, user);
         let mut groups: Vec<String> = identity.groups.clone();
         for env in mirror.list(ORG_NAMESPACE, "Group", &options).items {
             if serde_json::from_value::<jc_core::kinds::GroupSpec>(env.spec)
@@ -420,11 +448,7 @@ impl Ceiling {
         project: &str,
         args: &Value,
     ) -> Result<(), String> {
-        let kind = if op.kind == "*" {
-            args.get("kind").and_then(Value::as_str)
-        } else {
-            Some(op.kind)
-        };
+        let kind = resource_kind(op, args);
         let named = args.get("name").and_then(Value::as_str);
         let endpoint = match kind {
             Some("Endpoint") => named,
@@ -848,11 +872,7 @@ impl Connector {
             ));
         }
         let text = |key: &str| args.get(key).and_then(Value::as_str);
-        let kind = if op.kind == "*" {
-            text("kind")
-        } else {
-            Some(op.kind)
-        };
+        let kind = resource_kind(op, args);
         if matches!(op.name, "jc_resource_list" | "jc_resource_get") {
             let (_, kinds) = self.reach();
             match kind {
@@ -1952,6 +1972,32 @@ pub(crate) mod tests {
         }
     }
 
+    /// T-6290: the pipeline segment reaches the project's MQTT brokers and reads a capture; a
+    /// connector without the segment, or narrowed to one pipeline, reads none.
+    #[test]
+    fn the_pipeline_segment_reaches_mqtt_brokers_and_their_capture() {
+        let captured = op(crate::ops::mqtt::CAPTURED);
+        let list = json!({ "kind": "MqttBroker" });
+        let c = connector(&["pipeline"], vec![item("doprava", None)]);
+        assert!(c.access().names(captured));
+        assert_eq!(
+            c.admits(captured, "doprava", &json!({ "name": "sensors" })),
+            Ok(())
+        );
+        assert_eq!(c.admits(op("jc_resource_list"), "doprava", &list), Ok(()));
+        let read = connector(&["data-read"], vec![item("doprava", None)]);
+        assert!(!read.access().names(captured));
+        assert!(read
+            .admits(op("jc_resource_list"), "doprava", &list)
+            .is_err());
+        let mut one = item("doprava", None);
+        one.pipeline = Some("counters".into());
+        let narrow = connector(&["pipeline"], vec![one]);
+        assert!(narrow
+            .admits(captured, "doprava", &json!({ "name": "sensors" }))
+            .is_err());
+    }
+
     /// T-5956, AG-149: a segment that proposes plans; only `writes` brings the apply, and an
     /// apply needs `write` on the item; a plan stays within the segments' kinds and the scope.
     #[test]
@@ -2410,6 +2456,28 @@ pub(crate) mod tests {
         ask
     }
 
+    /// F-R2POR3-005: a Group member written as a Keycloak id (ADR-N-061) is the person whose
+    /// `sub` it is, so the group's narrower policy binds them, not the wider default.
+    #[test]
+    fn a_group_member_written_as_an_id_binds_its_person() {
+        const ID: &str = "0b6f0e4c-1d2e-4f00-9a7b-3c4d5e6f7a8b";
+        let (mirror, mut jana) = analysts("refuse");
+        mirror.upsert(crate::resource::ResourceEnvelope {
+            api_version: crate::resource::API_VERSION.to_owned(),
+            kind: "Group".into(),
+            metadata: crate::resource::ObjectMeta::new("analysts", ORG_NAMESPACE),
+            spec: json!({ "members": [{ "user": ID }] }),
+            status: None,
+        });
+        jana.subject = ID.into();
+        let ceiling = Ceiling::of(&mirror, &jana);
+        assert!(
+            ceiling.named().contains("analysts-doprava"),
+            "{}",
+            ceiling.named()
+        );
+    }
+
     #[test]
     fn a_delegation_policy_binds_by_group_and_bounds_each_field() {
         let now = Utc::now();
@@ -2503,6 +2571,98 @@ pub(crate) mod tests {
             validate(&bad, &ceiling, Utc::now()),
             Err(ApiError::Invalid { .. })
         ));
+    }
+
+    /// T-6281: an event-kind filter on the activity list is no resource kind, so the operate
+    /// segment reads `pipeline.error` events; a resource kind outside the segments stays refused.
+    #[test]
+    fn an_activity_kind_filter_is_held_to_the_project_alone() {
+        let ceiling = Ceiling::of_policies(vec![(
+            "operators-doprava".into(),
+            serde_json::from_value(json!({
+                "subjects": [{ "kind": "Group", "name": "operators" }],
+                "projects": ["doprava"],
+                "segments": ["operate", "data-read"],
+            }))
+            .expect("policy"),
+        )]);
+        let live = connector(&["operate", "data-read"], vec![item("doprava", None)]);
+        let events = json!({ "kind": "pipeline.error,pipeline.run", "severity": "error" });
+        let activity = op("jc_activity_list");
+        assert_eq!(ceiling.admits(&live, activity, "doprava", &events), Ok(()));
+        assert_eq!(live.admits(activity, "doprava", &events), Ok(()));
+        assert!(ceiling
+            .admits(&live, activity, "skolstvo", &events)
+            .is_err());
+        let secret = json!({ "kind": "Secret" });
+        let list = op("jc_resource_list");
+        let why = ceiling
+            .admits(&live, list, "doprava", &secret)
+            .expect_err("Secret is in no segment");
+        assert!(why.contains("on Secret"), "{why}");
+        assert!(live.admits(list, "doprava", &secret).is_err());
+    }
+
+    /// T-6288: a steward's Subscription and ModelProjection manifests are project configuration
+    /// the context segment lists and plans (pipeline too for Subscription); data-read still reads
+    /// neither, and a policy whose kinds leave them out refuses them.
+    #[test]
+    fn context_reaches_subscriptions_and_model_projections_within_the_ceiling() {
+        let list = op("jc_resource_list");
+        let plan = op(PLAN);
+        let context = connector(&["context"], vec![item("doprava", None)]);
+        let pipeline = connector(&["pipeline"], vec![item("doprava", None)]);
+        let reader = connector(&["data-read"], vec![item("doprava", None)]);
+        let open = Ceiling::of_policies(vec![(
+            "stewards-doprava".into(),
+            serde_json::from_value(json!({
+                "subjects": [{ "kind": "Group", "name": "stewards" }],
+                "projects": ["doprava"],
+                "segments": ["context", "pipeline", "data-read"],
+            }))
+            .expect("policy"),
+        )]);
+        for kind in ["Subscription", "ModelProjection"] {
+            let args = json!({ "kind": kind });
+            assert_eq!(context.admits(list, "doprava", &args), Ok(()), "{kind}");
+            assert_eq!(context.admits(plan, "doprava", &args), Ok(()), "{kind}");
+            assert_eq!(
+                open.admits(&context, list, "doprava", &args),
+                Ok(()),
+                "{kind}"
+            );
+            assert_eq!(
+                open.admits(&context, plan, "doprava", &args),
+                Ok(()),
+                "{kind}"
+            );
+            let why = reader
+                .admits(list, "doprava", &args)
+                .expect_err("data-read reads no manifest of the kind");
+            assert!(why.contains("read only"), "{why}");
+        }
+        let subscription = json!({ "kind": "Subscription" });
+        assert_eq!(pipeline.admits(plan, "doprava", &subscription), Ok(()));
+        assert!(pipeline
+            .admits(list, "doprava", &json!({ "kind": "ModelProjection" }))
+            .is_err());
+        // The ceiling still decides per kind: a policy naming only Endpoint refuses both.
+        let endpoints_only = Ceiling::of_policies(vec![(
+            "stewards-endpoints".into(),
+            serde_json::from_value(json!({
+                "subjects": [{ "kind": "Group", "name": "stewards" }],
+                "projects": ["doprava"],
+                "segments": ["context"],
+                "kinds": [{ "kind": "Endpoint", "verbs": ["read", "propose"] }],
+            }))
+            .expect("policy"),
+        )]);
+        for kind in ["Subscription", "ModelProjection"] {
+            let why = endpoints_only
+                .admits(&context, list, "doprava", &json!({ "kind": kind }))
+                .expect_err("kind outside the policy");
+            assert!(why.contains(&format!("on {kind}")), "{why}");
+        }
     }
 
     #[test]

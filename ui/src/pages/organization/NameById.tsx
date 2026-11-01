@@ -3,12 +3,11 @@ import type { JSX } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { api, unwrap } from "../../api/client";
+import { api, unwrap, reasonOf } from "../../api/client";
 import { ORG_NAMESPACE } from "../../api/manifest";
 import { allows, usePermissions } from "../../api/permissions";
 import type { components } from "../../api/schema";
 import { Alert, Button } from "../../components/ui";
-import { reasonOf } from "../../components/pickers/organizationModels";
 
 type Plan = components["schemas"]["MigrationPlan"];
 

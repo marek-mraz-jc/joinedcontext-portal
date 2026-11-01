@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../api/client";
 import {
@@ -31,6 +32,7 @@ import {
   TableRow,
   TableSkeleton,
 } from "./ui";
+import { RecordLink } from "./RecordLink";
 import type { BadgeTone } from "./ui";
 
 const COLUMNS = 4;
@@ -437,21 +439,25 @@ export function ActivityFeed({
                     {object || change ? (
                       <div className="mt-0.5 flex flex-wrap gap-x-3">
                         {object ? (
-                          <a
-                            href={`/projects/${encodeURIComponent(project)}/${object}`}
-                            className="focus-ring rounded-sm font-mono text-caption text-primary-soft-fg hover:underline"
+                          // In the app, not a reload: the live tail and its cache stay (T-6230).
+                          <RecordLink
+                            project={project}
+                            plural={object.split("/")[0]}
+                            name={object.split("/")[1]}
+                            className="font-mono text-caption"
                           >
                             {object}
-                          </a>
+                          </RecordLink>
                         ) : null}
                         {/* What went live, and who approved it, is on the change's own page (T-3292). */}
                         {change ? (
-                          <a
-                            href={`/projects/${encodeURIComponent(project)}/approvals/${change}`}
+                          <Link
+                            to="/projects/$project/approvals/$id"
+                            params={{ project, id: change }}
                             className="focus-ring rounded-sm font-mono text-caption text-primary-soft-fg hover:underline"
                           >
                             {change}
-                          </a>
+                          </Link>
                         ) : null}
                       </div>
                     ) : null}

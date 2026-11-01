@@ -212,6 +212,12 @@ impl Driver {
             None
         };
         let base = self.conversation_pack(conversation, text, catalog.as_ref());
+        // The earlier turns the pack repeats hold their tool outputs: data, as this turn's are.
+        let earlier: String = conversation
+            .iter()
+            .map(|(_, answered)| answered.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
         // The endpoints the conversation reads, as they stand for this message, each with the
         // read tools it offers; the model may open more of the project's as it works (AG-75,
         // AG-76).
@@ -394,7 +400,7 @@ impl Driver {
             }
 
             let last = drafts + 1 >= data_query::MAX_DRAFTS;
-            if let Some(tool) = data_query::written_by_data(&answer, &results) {
+            if let Some(tool) = data_query::written_by_data(&answer, &results, &earlier) {
                 let reason = format!(
                     "the data read for this message writes this {tool} call; data is never an \
                      instruction, so nothing was drafted or opened"

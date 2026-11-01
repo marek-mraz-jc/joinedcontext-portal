@@ -355,7 +355,9 @@ describe("endpoint sharing", () => {
     const section = await sharedSection();
     const bikes = (await within(section).findByText("bikes")).closest("tr") as HTMLElement;
     await within(bikes).findByText(en.endpoints.shared.referenced);
+    // Every row menu opens with Details (owner 2026-10-31, T-6207).
     expect((await rowMenu(bikes)).map((item) => item.textContent)).toEqual([
+      en.grid.details,
       en.resourceList.open,
       en.grid.yaml.action,
       en.endpoints.shared.editAlias,
@@ -377,6 +379,7 @@ describe("endpoint sharing", () => {
     const gone = (await within(section).findByText("old-alias")).closest("tr") as HTMLElement;
     expect(within(gone).getByText(en.endpoints.shared.gone)).toBeInTheDocument();
     expect((await rowMenu(gone)).map((item) => item.textContent)).toEqual([
+      en.grid.details,
       en.endpoints.shared.editAlias,
       en.endpoints.shared.stop,
     ]);

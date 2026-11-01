@@ -136,18 +136,23 @@ impl PlanStore {
         plans.insert(id, plan);
     }
 
-    /// Takes the plan out, so it is applied once: only for its own caller and connector, before
-    /// it expires. Anyone else is told it is not there, which tells them nothing about it.
+    /// Takes the plan out, so it is applied once: only for its own caller, connector and
+    /// project, before it expires. Anyone else is told it is not there, which tells them nothing
+    /// about it, and a call naming another project leaves it in place (F-R2POR4-017).
     fn take(
         &self,
         id: &str,
         owner: &str,
+        project: &str,
         connector: Option<&str>,
         now: DateTime<Utc>,
     ) -> Option<Plan> {
         let mut plans = self.plans.lock().unwrap_or_else(|p| p.into_inner());
         let mine = plans.get(id).is_some_and(|p| {
-            p.owner == owner && p.connector.as_deref() == connector && p.expires_at > now
+            p.owner == owner
+                && p.project == project
+                && p.connector.as_deref() == connector
+                && p.expires_at > now
         });
         mine.then(|| plans.remove(id)).flatten()
     }
@@ -379,7 +384,10 @@ async fn checked(
     }
     through_connector(caller, project, info.kind, &change.name, false)?;
     let home = super::resources::home_holding(state, info, project, &change.name);
-    let manifest = manifest_of(state, at, &home, change)?;
+    let mut manifest = manifest_of(state, at, &home, change)?;
+    // The slug is the platform's to mint (EP-75): a typed one is refused under this change's own
+    // path here, before the check below mints one and records it on the Endpoint's draft.
+    slug_settled(caller, state, at, &home, manifest.clone().as_mut()).await?;
     let base = etag(state, &home, info.kind, &change.name);
     let answer = match &manifest {
         Some(m) => {
@@ -392,6 +400,9 @@ async fn checked(
         }
         None => removal_dry_run(caller, state, &home, info.plural, &change.name, workspace).await?,
     };
+    // The slug the check minted, from the draft it recorded, so the change proposes what was
+    // checked.
+    slug_settled(caller, state, at, &home, manifest.as_mut()).await?;
     let mut answer = answer;
     if let (Some(m), "Pipeline") = (&manifest, info.kind) {
         let warnings = super::replace_check::warnings(state, project, &home, m).await;
@@ -457,6 +468,27 @@ async fn checked(
         model,
     };
     Ok((diff, planned))
+}
+
+async fn slug_settled(
+    caller: &Caller,
+    state: &AppState,
+    at: &str,
+    home: &str,
+    manifest: Option<&mut Value>,
+) -> Result<(), OpError> {
+    let Some(manifest) = manifest else {
+        return Ok(());
+    };
+    // The check records its draft outside every workspace, so the slug is read there.
+    crate::endpoint_slug::settle_in(state, home, None, caller.brings_its_own_slug(), manifest)
+        .await
+        .map_err(|message| {
+            invalid(
+                format!("{at}/manifest{}", crate::endpoint_slug::PATH),
+                message,
+            )
+        })
 }
 
 /// A LinkML source rides only on a DataModel change that is no removal and no workspace commit.
@@ -781,28 +813,58 @@ async fn plan(
             ),
         ));
     }
+    // Changes applied as one Change are checked as one (T-6282): a reference to a sibling
+    // resolves and a write a sibling Endpoint binds is made, as in `jc_space_complete`.
     for (n, change) in input.changes.iter().enumerate() {
-        let at = format!("/changes/{n}");
         if !seen.insert((change.kind.clone(), change.name.clone())) {
             return Err(invalid(
-                at,
+                format!("/changes/{n}"),
                 format!("{} '{}' is in this plan twice", change.kind, change.name),
             ));
         }
-        let (diff, planned) = checked(
+    }
+    let mut bundle = together(state, project, &input);
+    // In a bundle the Endpoints go first: the slug their check mints joins the bundle, so a
+    // Pipeline or Policy beside them reads a whole Endpoint whatever order the plan lists.
+    let mut order: Vec<usize> = (0..input.changes.len()).collect();
+    if bundle.is_some() {
+        order.sort_by_key(|&n| input.changes[n].kind != "Endpoint");
+    }
+    let mut results: Vec<Option<(Value, Planned, Vec<String>)>> =
+        (0..input.changes.len()).map(|_| None).collect();
+    for n in order {
+        let change = &input.changes[n];
+        let at = format!("/changes/{n}");
+        let check = checked(
             caller,
             state,
             project,
             &at,
             change,
             input.workspace.as_deref(),
-        )
-        .await?;
+        );
+        let (diff, planned) = match &mut bundle {
+            Some(manifests) => {
+                let checked = crate::references::BUNDLE
+                    .scope(manifests.clone(), check)
+                    .await?;
+                if let (Some(slot), Some(m)) = (manifests.get_mut(n), &checked.1.manifest) {
+                    *slot = m.clone();
+                }
+                checked
+            }
+            None => check.await?,
+        };
+        let mut found = Vec::new();
         if diff.pointer("/verdict/ok") != Some(&json!(true)) {
-            errors.extend(findings_of(&at, &diff));
+            found.extend(findings_of(&at, &diff));
         } else if let Some(refusal) = gate_refusal(state, &planned).await? {
-            errors.push(format!("{at}/manifest: {refusal}"));
+            found.push(format!("{at}/manifest: {refusal}"));
         }
+        results[n] = Some((diff, planned, found));
+    }
+    for (diff, planned, found) in results.into_iter().flatten() {
+        errors.extend(found);
         diffs.push(diff);
         items.push(planned);
     }
@@ -876,6 +938,145 @@ async fn plan(
     }))
 }
 
+/// The manifests of a plan applied as one Change, `None` for a plan opened change by change.
+/// One Change holds two or more creates, replaces or patches of the project's own objects
+/// outside a workspace (T-6282); a removal, a model with its LinkML file and an object kept in
+/// another namespace each open a change request of their own, so their siblings are checked
+/// against the project as it is.
+fn together(state: &AppState, project: &str, input: &PlanInput) -> Option<Vec<Value>> {
+    if input.workspace.is_some() || input.changes.len() < 2 {
+        return None;
+    }
+    input
+        .changes
+        .iter()
+        .enumerate()
+        .map(|(n, change)| {
+            if change.op == Op::Delete || change.source.is_some() {
+                return None;
+            }
+            let info = super::resources::kind_named(&change.kind).ok()?;
+            let home = super::resources::home_holding(state, info, project, &change.name);
+            if home != project {
+                return None;
+            }
+            manifest_of(state, &format!("/changes/{n}"), &home, change)
+                .ok()
+                .flatten()
+        })
+        .collect()
+}
+
+/// Whether a kept plan opens one Change: the plan [`together`] checked as one.
+fn bundled(plan: &Plan) -> bool {
+    plan.workspace.is_none()
+        && plan.items.len() > 1
+        && plan.items.iter().all(|item| {
+            item.manifest.is_some() && item.model.is_none() && item.home == plan.project
+        })
+}
+
+/// Opens a [`bundled`] plan as one Change (T-6282): every change through the propose engine's
+/// checks onto one branch, then one merge request a person approves whole. A change refused on
+/// the way removes the branch, so nothing of the plan is left open.
+async fn open_together(
+    caller: &Caller,
+    state: &AppState,
+    plan_id: &str,
+    plan: &Plan,
+) -> Result<Vec<Value>, OpError> {
+    let project = plan.project.as_str();
+    let gitea = state
+        .forge_for(project)
+        .ok_or_else(|| ApiError::Unavailable("git forge is not configured".into()))?;
+    let branch = format!("portal/import-plan-{plan_id}");
+    let mut lanes = Vec::new();
+    let mut waits_on = std::collections::BTreeSet::new();
+    let mut lines = Vec::new();
+    let mut summary = crate::change::PlanSummary::default();
+    for item in &plan.items {
+        let Some(manifest) = &item.manifest else {
+            continue;
+        };
+        let (op, word) = if item.base == "absent" {
+            summary.create += 1;
+            (ChangeOp::Create, "create")
+        } else {
+            summary.update += 1;
+            (ChangeOp::Update, "update")
+        };
+        let written = mutate::propose_gated_onto(
+            &caller.identity,
+            state,
+            &item.home,
+            item.plural,
+            Some(&item.name),
+            op,
+            manifest.clone(),
+            &branch,
+        )
+        .await;
+        super::forget_check(state, &item.home, manifest).await;
+        match written {
+            Ok(commit) => {
+                lanes.push(commit.lane);
+                waits_on.extend(commit.waits_on);
+                lines.push(format!("- {word} {} `{}`", item.kind, item.name));
+            }
+            Err(err) => {
+                if !lanes.is_empty() {
+                    if let Err(gone) = gitea.delete_branch(&branch).await {
+                        tracing::warn!(%branch, error = %gone, "a refused plan left its branch");
+                    }
+                }
+                return Err(OpError::Api(ApiError::Conflict(format!(
+                    "{} {} was refused ({err}); nothing of the plan was opened",
+                    item.kind, item.name
+                ))));
+            }
+        }
+    }
+    let lane = lanes
+        .into_iter()
+        .reduce(crate::api::import::riskiest)
+        .unwrap_or(Lane::Green);
+    let mut body = format!(
+        "Proposed through plan {plan_id} (AG-149) in project `{project}`, approved as one \
+         change:\n\n{}",
+        lines.join("\n")
+    );
+    for line in &waits_on {
+        body.push_str("\n\n");
+        body.push_str(line);
+    }
+    let title = format!("apply {} changes in {project}", plan.items.len());
+    let pull = gitea
+        .create_pull_request(
+            &branch,
+            &gitea.default_branch().await.map_err(ApiError::from)?,
+            &title,
+            &body,
+        )
+        .await
+        .map_err(ApiError::from)?;
+    let change = crate::change::Change::new(
+        crate::api::changes::change_meta(state, &gitea, pull.number, project),
+        crate::change::ChangeStatus::new(
+            lane,
+            crate::change::ChangePhase::PendingApproval,
+            summary,
+        )
+        .in_repository(&pull.repository)
+        .proposed_through(&pull.body)
+        .with_merge_request(pull.url),
+    );
+    Ok(vec![opened_row(
+        state,
+        project,
+        ProposeOutcome::Change(change),
+    )])
+}
+
 /// Every `secretRef` the plan's manifests name that the repository's encrypted files do not hold,
 /// with the Portal form a person enters it in (MF-24, T-5971). A forge that cannot be read counts
 /// every reference as missing: the form replaces a secret whole, so entering it again is safe.
@@ -938,23 +1139,34 @@ async fn apply(
         .take(
             &input.plan_id,
             &caller.identity.subject,
+            project,
             connector.map(|c| c.id.as_str()),
             now,
         )
         .ok_or_else(not_found)?;
-    if plan.project != project {
-        return Err(not_found());
-    }
     for item in &plan.items {
         through_connector(caller, project, &item.kind, &item.name, true)?;
     }
     unchanged_and_gated(state, &plan.items).await?;
     let workspace = plan.workspace.as_deref();
     let opening = async {
+        if bundled(&plan) {
+            let manifests = plan
+                .items
+                .iter()
+                .filter_map(|i| i.manifest.clone())
+                .collect();
+            return crate::references::BUNDLE
+                .scope(
+                    manifests,
+                    open_together(caller, state, &input.plan_id, &plan),
+                )
+                .await;
+        }
         let mut opened = Vec::new();
         for item in &plan.items {
             match open_one(caller, state, item, workspace).await {
-                Ok(outcome) => opened.push(opened_row(outcome)),
+                Ok(outcome) => opened.push(opened_row(state, project, outcome)),
                 Err(err) if opened.is_empty() => return Err(OpError::Api(err)),
                 Err(err) => {
                     return Err(OpError::Api(ApiError::Conflict(format!(
@@ -987,7 +1199,7 @@ async fn apply(
     };
     Ok(json!({
         key: opened,
-        "approve": "a person with approve on these kinds decides each change at its url in the Portal",
+        "approve": "a person with approve on these kinds decides each change at its url, its approval page in the Portal",
     }))
 }
 
@@ -1205,6 +1417,11 @@ async fn revert(
             ));
             continue;
         };
+        // A change touching a kind this caller may not read is not there for them, its paths
+        // included: the rule `change_readable` holds on the REST and MCP reads (F-R2POR4-007).
+        if !effective.may_read(&kind) {
+            return Err(missing());
+        }
         // A narrowed connector hears of nothing outside its scope, a conflict included.
         through_connector(caller, project, &kind, &name, false)?;
         if now != made {
@@ -1391,12 +1608,14 @@ async fn propose_source(
     .await
 }
 
-/// What an apply opened, as API/14 §4.3 names it; never an approval.
-fn opened_row(outcome: ProposeOutcome) -> Value {
+/// What an apply opened, as API/14 §4.3 names it; never an approval. `url` is the Portal page
+/// where a person decides the change, the forge's pull request only `mergeRequest` (T-6293).
+fn opened_row(state: &AppState, project: &str, outcome: ProposeOutcome) -> Value {
     match outcome {
         ProposeOutcome::Change(change) => json!({
+            "url": super::changes::approval_url(state, project, &change.metadata.name),
             "id": change.metadata.name,
-            "url": change.status.merge_request,
+            "mergeRequest": change.status.merge_request,
             "lane": change.status.lane,
             "state": change.status.phase,
         }),
@@ -1407,6 +1626,7 @@ fn opened_row(outcome: ProposeOutcome) -> Value {
             "lane": commit.lane,
         }),
         ProposeOutcome::DryRun(result) => serde_json::to_value(result).unwrap_or_default(),
+        ProposeOutcome::Bundled(commit) => serde_json::to_value(commit).unwrap_or_default(),
     }
 }
 
@@ -1603,6 +1823,85 @@ mod tests {
         }
     }
 
+    fn create(kind: &str, name: &str) -> ChangeInput {
+        ChangeInput {
+            op: Op::Create,
+            kind: kind.into(),
+            name: name.into(),
+            manifest: Some(json!({
+                "apiVersion": crate::resource::API_VERSION,
+                "kind": kind,
+                "metadata": { "name": name, "namespace": "doprava" },
+                "spec": {}
+            })),
+            patch: None,
+            source: None,
+        }
+    }
+
+    /// T-6282: two or more creates of the project's own objects are checked and opened as one
+    /// Change; a single change, a workspace, a removal or a model with its file is not.
+    #[test]
+    fn a_plan_of_several_changes_is_checked_as_one_bundle() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let plan = |changes: Vec<ChangeInput>, workspace: Option<&str>| PlanInput {
+            changes,
+            workspace: workspace.map(str::to_owned),
+        };
+        let space = || create("ContextSpace", "parking");
+        let endpoint = || create("Endpoint", "doprava-parking");
+        let bundle = together(&state, "doprava", &plan(vec![space(), endpoint()], None))
+            .expect("two creates are one bundle");
+        assert_eq!(bundle.len(), 2);
+        assert_eq!(bundle[1]["metadata"]["name"], "doprava-parking");
+        assert!(together(&state, "doprava", &plan(vec![space()], None)).is_none());
+        assert!(together(
+            &state,
+            "doprava",
+            &plan(vec![space(), endpoint()], Some("w"))
+        )
+        .is_none());
+        let mut removal = endpoint();
+        removal.op = Op::Delete;
+        removal.manifest = None;
+        assert!(together(&state, "doprava", &plan(vec![space(), removal], None)).is_none());
+        let mut model = create("DataModel", "parking");
+        model.source = Some("id: x".into());
+        assert!(together(&state, "doprava", &plan(vec![space(), model], None)).is_none());
+    }
+
+    /// EP-75 (T-6285): a connector planning an Endpoint with a slug it wrote is refused at the
+    /// change's own path, before anything is checked or kept; so is an update moving the slug.
+    #[tokio::test]
+    async fn a_planned_endpoint_slug_the_caller_wrote_is_refused() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let typed = "aaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let input = PlanInput {
+            changes: vec![ChangeInput {
+                op: Op::Create,
+                kind: "Endpoint".into(),
+                name: "t6242-probe".into(),
+                manifest: Some(json!({
+                    "apiVersion": crate::resource::API_VERSION,
+                    "kind": "Endpoint",
+                    "metadata": { "name": "t6242-probe", "namespace": "doprava" },
+                    "spec": { "contextSpaceRef": "air", "audience": "public", "slug": typed }
+                })),
+                patch: None,
+                source: None,
+            }],
+            workspace: None,
+        };
+        match plan(&caller(None), &state, "doprava", input).await {
+            Err(OpError::InvalidInput { path, message }) => {
+                assert_eq!(path, "/changes/0/manifest/spec/slug");
+                assert!(message.contains("leave spec.slug out"), "{message}");
+                assert!(!message.contains(typed), "{message}");
+            }
+            other => panic!("expected a refusal at the slug, got {other:?}"),
+        }
+    }
+
     fn kept(store: &PlanStore, owner: &str, connector: Option<&str>, minutes: i64) -> String {
         let id = new_id();
         store.keep(
@@ -1620,19 +1919,24 @@ mod tests {
         id
     }
 
-    /// A plan answers only its own caller and connector, before it expires, and once.
+    /// A plan answers only its own caller, connector and project, before it expires, and once.
     #[test]
     fn a_plan_is_taken_once_by_its_owner_through_its_connector() {
         let store = PlanStore::default();
         let now = Utc::now();
         let id = kept(&store, "sub-jana", Some("c1"), TTL_MINUTES);
-        assert!(store.take(&id, "sub-eva", Some("c1"), now).is_none());
-        assert!(store.take(&id, "sub-jana", Some("c2"), now).is_none());
-        assert!(store.take(&id, "sub-jana", None, now).is_none());
-        assert!(store.take(&id, "sub-jana", Some("c1"), now).is_some());
-        assert!(store.take(&id, "sub-jana", Some("c1"), now).is_none());
+        let take = |id: &str, owner: &str, project: &str, connector: Option<&str>| {
+            store.take(id, owner, project, connector, now).is_some()
+        };
+        assert!(!take(&id, "sub-eva", "doprava", Some("c1")));
+        assert!(!take(&id, "sub-jana", "doprava", Some("c2")));
+        assert!(!take(&id, "sub-jana", "doprava", None));
+        // F-R2POR4-017: another project is not there, and the plan stays for its own.
+        assert!(!take(&id, "sub-jana", "espoo", Some("c1")));
+        assert!(take(&id, "sub-jana", "doprava", Some("c1")));
+        assert!(!take(&id, "sub-jana", "doprava", Some("c1")));
         let stale = kept(&store, "sub-jana", None, -1);
-        assert!(store.take(&stale, "sub-jana", None, now).is_none());
+        assert!(!take(&stale, "sub-jana", "doprava", None));
     }
 
     /// A LinkML source rides only with a DataModel, never with a delete or into a workspace, and a
@@ -1720,7 +2024,7 @@ mod tests {
         // The plan stays for the Portal.
         assert!(state
             .plans
-            .take(&id, "sub-jana", Some("c1"), Utc::now())
+            .take(&id, "sub-jana", "doprava", Some("c1"), Utc::now())
             .is_some());
     }
 }

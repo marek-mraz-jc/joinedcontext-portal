@@ -362,7 +362,7 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
         .and_then(|id| by_id(&document, "upstreams", id).ok())
         .and_then(first_node);
 
-    let taken: Vec<String> = ["routes", "upstreams", "plugin_configs"]
+    let mut taken: Vec<String> = ["routes", "upstreams", "plugin_configs"]
         .iter()
         .flat_map(|list| ids(&document, list))
         .collect();
@@ -409,10 +409,20 @@ pub fn compose(base: &str, apps: &[EdgeApp], rates: &EdgeLimits) -> Result<Compo
         {
             skipped.push((
                 name.to_owned(),
-                format!("the base already has an entry {id}"),
+                format!("the base or another App already has an entry {id}"),
             ));
             continue;
         }
+        // App `foo-endpoint`'s route is App `foo`'s endpoint route by name: the first App by
+        // name keeps its ids, so one App's login never replaces another's.
+        taken.extend(
+            hosts
+                .iter()
+                .flat_map(|[_, route, endpoint, services]| [route, endpoint, services])
+                .chain(&server_routes)
+                .chain([&moved, &server])
+                .cloned(),
+        );
 
         // A pod App's server and a wasm App's shard serve whoever passes the login, so the edge
         // asks the Portal first whether the App's visibility admits the caller (T-4922).
@@ -1028,6 +1038,32 @@ routes:
 
     fn parsed(file: &str) -> Value {
         serde_norway::from_str(file).expect("the composed file is YAML")
+    }
+
+    #[test]
+    fn an_app_whose_ids_another_app_takes_is_skipped_and_every_id_stays_unique() {
+        let composed = compose(
+            BASE,
+            &[
+                app("foo-endpoint", false, pod("jc-helsinki-apps")),
+                app("foo", false, pod("jc-helsinki-apps")),
+            ],
+            &EdgeLimits::default(),
+        )
+        .expect("composes");
+        assert_eq!(
+            composed.skipped,
+            vec![(
+                "foo-endpoint".to_owned(),
+                "the base or another App already has an entry app-foo-endpoint".to_owned()
+            )]
+        );
+        let file = parsed(&composed.file);
+        for list in ["routes", "upstreams", "plugin_configs"] {
+            let all = ids(&file, list);
+            let unique: std::collections::BTreeSet<&String> = all.iter().collect();
+            assert_eq!(unique.len(), all.len(), "{list}: {all:?}");
+        }
     }
 
     #[test]

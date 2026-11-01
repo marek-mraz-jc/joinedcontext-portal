@@ -173,6 +173,24 @@ describe("rollout-walk apply during the walk", () => {
     notFiled(root);
   });
 
+  // T-6263: the 21:15Z walk of 5fb4aa4 began 1-3 min after a full sync under the same Portal commit
+  // and met one 502 document load; the walk waits until the last apply is WALK_SETTLE_S old too.
+  it("defers the walk while dev's last apply is younger than the settle time", () => {
+    const root = setup();
+    const now = Math.floor(Date.now() / 1000);
+    const iso = (s: number) => new Date(s * 1000).toISOString().replace(/\.\d+Z$/, "Z");
+    writeFileSync(join(root, "evidence/first-seen"), `${sha} ${now - 3600}\n`);
+    writeFileSync(join(root, "release"), `dfa8139a94d0c5b1e2f3a4b5c6d7e8f9a0b1c2d3 ${iso(now - 60)}`);
+    const young = walk(root, { WALK_SETTLE_S: "300" });
+    expect(young.status).toBe(1);
+    expect(young.stderr).toContain(`walk of ${sha} deferred until the apply settles`);
+    expect(existsSync(join(root, "evidence", sha))).toBe(false);
+    writeFileSync(join(root, "release"), `dfa8139a94d0c5b1e2f3a4b5c6d7e8f9a0b1c2d3 ${iso(now - 301)}`);
+    const settled = walk(root, { WALK_SETTLE_S: "300" });
+    expect(settled.stderr).not.toContain("deferred");
+    expect(settled.stdout).toContain("journeys skipped");
+  });
+
   it("judges a walk when dev stayed as it was, or its apply record cannot be read", () => {
     const kept = walk(setup());
     expect(kept.stderr).not.toContain("during the walk");

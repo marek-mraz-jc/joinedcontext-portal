@@ -197,6 +197,17 @@ function OrganizationSwitcher({ active, inSidebar = false }: { active: string; i
   );
 }
 
+/** The sections with a route of their own: the generic `$plural` template would resolve to it anyway, with a router warning. */
+const OWN_ROUTES = {
+  home: "/projects/$project/home",
+  approvals: "/projects/$project/approvals",
+  assistant: "/projects/$project/assistant",
+} as const;
+
+function ownRoute(plural: string): (typeof OWN_ROUTES)[keyof typeof OWN_ROUTES] | undefined {
+  return Object.hasOwn(OWN_ROUTES, plural) ? OWN_ROUTES[plural as keyof typeof OWN_ROUTES] : undefined;
+}
+
 function UserMenu() {
   const { t } = useTranslation();
   const { identity, signOut } = useAuth();
@@ -450,12 +461,140 @@ function decodedSegment(segment: string): string {
  * Context Spaces is named in words (`spacePage`, an i18n key): `/spaces/complete` is no space
  * called "complete" in a monospace crumb.
  */
-export function addressItem(pathname: string): { itemName?: string; spacePage?: string } {
+export function addressItem(pathname: string): { itemName?: string; spacePage?: string; creating?: boolean } {
   const segments = pathname.split("/").filter(Boolean).map(decodedSegment);
   if (segments[0] !== "projects" || segments.length < 4) return {};
   const spacePage = segments[2] === "spaces" && segments.length === 4 ? SPACE_PAGES[segments[3] ?? ""] : undefined;
   if (spacePage) return { spacePage };
-  return segments[3] === "new" ? {} : { itemName: segments[3] };
+  return segments[3] === "new" ? { creating: true } : { itemName: segments[3] };
+}
+
+/**
+ * The crumb of a section page: an approval or a copy, a Context Spaces page of its own, an item
+ * named by the address, or a create form lead back to the section's list; the list itself is
+ * named without a link.
+ */
+export function SectionCrumb({
+  project,
+  plural,
+  label,
+  detail,
+  spacePage,
+  itemName,
+  creating,
+}: {
+  project: string;
+  plural: string;
+  label: string;
+  detail: { to: "/projects/$project/approvals" | "/projects/$project/workspaces"; name: string } | null;
+  spacePage?: string;
+  itemName?: string;
+  creating?: boolean;
+}) {
+  const { t } = useTranslation();
+  const list = (
+    <Link
+      to="/projects/$project/$plural"
+      params={{ project, plural }}
+      className="focus-ring touch-target rounded-sm hover:text-fg hover:underline"
+    >
+      {label}
+    </Link>
+  );
+  const chevron = <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />;
+  if (detail) {
+    return (
+      <>
+        <Link
+          to={detail.to}
+          params={{ project }}
+          className="focus-ring touch-target rounded-sm hover:text-fg hover:underline"
+        >
+          {label}
+        </Link>
+        {chevron}
+        <span aria-current="page" className="font-mono font-medium text-fg">
+          {detail.name}
+        </span>
+      </>
+    );
+  }
+  if (spacePage) {
+    return (
+      <>
+        {list}
+        {chevron}
+        <span aria-current="page" className="font-medium text-fg">
+          {t(spacePage)}
+        </span>
+      </>
+    );
+  }
+  if (itemName && plural !== "settings") {
+    return (
+      <>
+        {list}
+        {chevron}
+        <Link
+          to="/projects/$project/$plural/$name"
+          params={{ project, plural, name: itemName }}
+          aria-current="page"
+          className="focus-ring rounded-sm font-mono font-medium text-fg hover:underline"
+        >
+          {itemName}
+        </Link>
+      </>
+    );
+  }
+  // A create form: the section leads back to its list (owner 2026-10-31, no "Back to the list").
+  if (creating) return list;
+  return (
+    <span aria-current="page" className="font-medium text-fg">
+      {label}
+    </span>
+  );
+}
+
+/**
+ * The model the Data models crumb names: the model of the address or of the editor's `?edit=`,
+ * "" for a new model, undefined off the models pages or on the list itself.
+ */
+export function crumbModel(modelsActive: boolean, itemName: string | undefined, editingModel: string | undefined): string | undefined {
+  if (!modelsActive) return undefined;
+  return itemName ?? editingModel;
+}
+
+/**
+ * The crumb of a page outside the sections; one model's page (or its editor) links back to Data
+ * models and names the model (owner 2026-10-31). `model` is "" for a new model, undefined elsewhere.
+ */
+export function OtherPageCrumb({ project, label, model }: { project: string; label: string; model: string | undefined }) {
+  if (model === undefined) {
+    return (
+      <span aria-current="page" className="font-medium text-fg">
+        {label}
+      </span>
+    );
+  }
+  return (
+    <>
+      <Link
+        to="/projects/$project/models"
+        params={{ project }}
+        className="focus-ring touch-target rounded-sm hover:text-fg hover:underline"
+      >
+        {label}
+      </Link>
+      {model ? (
+        <>
+          <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
+          <span aria-current="page" className="font-mono font-medium text-fg">
+            {model}
+          </span>
+        </>
+      ) : null}
+    </>
+  );
 }
 
 export function Shell({
@@ -496,6 +635,13 @@ export function Shell({
   // Which page is in hand, so a panel left by a page that threw is cleared by walking away
   // from it (T-2426).
   const pathname = useRouterState({ select: (state) => state.location.pathname });
+  // The model editor lives at /models?edit=<id> or ?new=…: its crumb leads back to the list too.
+  const editingModel = useRouterState({
+    select: (state) => {
+      const search = state.location.search as { edit?: unknown; new?: unknown };
+      return typeof search.edit === "string" ? search.edit : search.new !== undefined ? "" : undefined;
+    },
+  });
   // The sidebar is a drawer on a phone; a navigation closes it.
   const [navOpen, setNavOpen] = useState(false);
   // Where the closed assistant's button goes on a phone; the dock renders after the header.
@@ -535,7 +681,7 @@ export function Shell({
     matchRoute({ to: "/projects/$project/workspaces/$name/bring-back" }) ||
     matchRoute({ to: "/projects/$project/workspaces/$name/try-it" });
   // The one thing the page is about: an approval, a copy, or an item named by the address.
-  const { itemName, spacePage } = addressItem(pathname);
+  const { itemName, spacePage, creating } = addressItem(pathname);
   const detail = approvalDetail
     ? { to: "/projects/$project/approvals" as const, name: approvalDetail.id }
     : copyDetail
@@ -712,41 +858,20 @@ export function Shell({
             {NAV_SECTIONS.filter((section) => !isHiddenSection(section.plural, hiddenSections)).map((section) => {
               const isActive = section === activeSection;
               const body = <NavLabel icon={section.icon} label={t(section.labelKey)} />;
+              const own = ownRoute(section.plural);
               return (
                 <Fragment key={section.plural}>
                 <li>
-                  {/* Approvals and Assistant have routes of their own; linking them through the generic
-                      template would resolve to that route anyway, with a router warning. */}
-                  {section.plural === "home" ? (
+                  {own ? (
                     <Link
-                      to="/projects/$project/home"
+                      to={own}
                       params={{ project }}
                       onClick={closeNav}
                       aria-current={isActive ? "page" : undefined}
                       className={navLinkClass(isActive)}
                     >
                       {body}
-                    </Link>
-                  ) : section.plural === "approvals" ? (
-                    <Link
-                      to="/projects/$project/approvals"
-                      params={{ project }}
-                      onClick={closeNav}
-                      aria-current={isActive ? "page" : undefined}
-                      className={navLinkClass(isActive)}
-                    >
-                      {body}
-                      <PendingBadge project={project} />
-                    </Link>
-                  ) : section.plural === "assistant" ? (
-                    <Link
-                      to="/projects/$project/assistant"
-                      params={{ project }}
-                      onClick={closeNav}
-                      aria-current={isActive ? "page" : undefined}
-                      className={navLinkClass(isActive)}
-                    >
-                      {body}
+                      {section.plural === "approvals" ? <PendingBadge project={project} /> : null}
                     </Link>
                   ) : (
                     <Link
@@ -914,66 +1039,25 @@ export function Shell({
                   {activeSection ? (
                     <li className="flex items-center gap-1">
                       <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
-                      {detail ? (
-                        <>
-                          <Link
-                            to={detail.to}
-                            params={{ project }}
-                            className="focus-ring touch-target rounded-sm hover:text-fg hover:underline"
-                          >
-                            {t(activeSection.labelKey)}
-                          </Link>
-                          <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
-                          <span aria-current="page" className="font-mono font-medium text-fg">
-                            {detail.name}
-                          </span>
-                        </>
-                      ) : spacePage ? (
-                        <>
-                          <Link
-                            to="/projects/$project/$plural"
-                            params={{ project, plural: activeSection.plural }}
-                            className="focus-ring touch-target rounded-sm hover:text-fg hover:underline"
-                          >
-                            {t(activeSection.labelKey)}
-                          </Link>
-                          <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
-                          <span aria-current="page" className="font-medium text-fg">
-                            {t(spacePage)}
-                          </span>
-                        </>
-                      ) : itemName && activeSection.plural !== "settings" ? (
-                        <>
-                          <Link
-                            to="/projects/$project/$plural"
-                            params={{ project, plural: activeSection.plural }}
-                            className="focus-ring touch-target rounded-sm hover:text-fg hover:underline"
-                          >
-                            {t(activeSection.labelKey)}
-                          </Link>
-                          <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
-                          <Link
-                            to="/projects/$project/$plural/$name"
-                            params={{ project, plural: activeSection.plural, name: itemName }}
-                            aria-current="page"
-                            className="focus-ring rounded-sm font-mono font-medium text-fg hover:underline"
-                          >
-                            {itemName}
-                          </Link>
-                        </>
-                      ) : (
-                        <span aria-current="page" className="font-medium text-fg">
-                          {t(activeSection.labelKey)}
-                        </span>
-                      )}
+                      <SectionCrumb
+                        project={project}
+                        plural={activeSection.plural}
+                        label={t(activeSection.labelKey)}
+                        detail={detail}
+                        spacePage={spacePage}
+                        itemName={itemName}
+                        creating={creating}
+                      />
                     </li>
                   ) : null}
                   {!activeSection && otherPage ? (
                     <li className="flex items-center gap-1">
                       <Icon name="chevronRight" className="size-3.5 text-fg-subtle" />
-                      <span aria-current="page" className="font-medium text-fg">
-                        {t(otherPage)}
-                      </span>
+                      <OtherPageCrumb
+                        project={project}
+                        label={t(otherPage)}
+                        model={crumbModel(modelsActive, itemName, editingModel)}
+                      />
                     </li>
                   ) : null}
                 </ol>

@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import type { JSX } from "react";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { api, unwrap } from "../api/client";
 import type { components } from "../api/schema";
 import { dismissJob, finishJob, markJobsSeen, progressOf, useJobs } from "../jobs";
 import type { Job, JobOutcome } from "../jobs";
-import { listSources } from "../pages/knowledge/knowledge";
+import { knowledgeKeys, listSources } from "../pages/knowledge/knowledge";
 import { Button, Icon, Menu, MenuContent, MenuItem, MenuLabel, MenuTrigger } from "./ui";
 
 type AppBuild = components["schemas"]["AppBuild"];
@@ -49,6 +49,7 @@ function buildStanding(job: Job, build: AppBuild): Standing {
 export function JobsMenu(): JSX.Element | null {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const jobs = useJobs();
   const running = jobs.filter((job) => !job.outcome);
   const [said, setSaid] = useState("");
@@ -69,7 +70,14 @@ export function JobsMenu(): JSX.Element | null {
           )) as AppBuild;
           return buildStanding(job, build);
         }
-        const row = (await listSources(job.project)).find((source) => source.source === job.name);
+        // One list per project and interval, however many of its sources are building: the
+        // jobs of one project share the read, and the knowledge page its cache (T-6230).
+        const sources = await queryClient.fetchQuery({
+          queryKey: knowledgeKeys.sources(job.project),
+          queryFn: () => listSources(job.project),
+          staleTime: 5_000,
+        });
+        const row = sources.find((source) => source.source === job.name);
         const state = row?.job?.state;
         if (state === "done") return { outcome: "succeeded" };
         if (state === "failed") return { outcome: "failed" };

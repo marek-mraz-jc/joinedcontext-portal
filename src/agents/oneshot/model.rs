@@ -582,7 +582,7 @@ impl Driver {
             .await
             .map_err(|err| err.to_string())?;
         let status = response.status();
-        let body = response.text().await.unwrap_or_default();
+        let body = crate::capped::text(response, crate::capped::ANSWER_BYTES).await?;
         if !status.is_success() {
             return Err(format!(
                 "{status}: {}",

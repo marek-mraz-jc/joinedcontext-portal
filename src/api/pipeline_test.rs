@@ -544,7 +544,14 @@ async fn create_and_trace(
 
     if status.is_success() {
         let (captured, limited) = collect(receiver, window).await;
-        Ok((trace(&captured), limited))
+        let mut result = trace(&captured);
+        // A request source answers at least one message; an empty trace with no error read as
+        // "the mapping made nothing and nothing failed" while the runner never answered (T-6275).
+        // A streamed window (no quiet) may hear a silent topic, which is no failure.
+        if captured.is_empty() && window.quiet.is_some() {
+            result.errors.push(silent_runner(window));
+        }
+        Ok((result, limited))
     } else if status.is_client_error() {
         let refused = TestTrace {
             errors: lint_errors(&refusal),
@@ -556,6 +563,19 @@ async fn create_and_trace(
         Err(ApiError::Unavailable(
             "the pipeline runner did not answer".into(),
         ))
+    }
+}
+
+/// The runner error of a request-window run that captured nothing.
+fn silent_runner(window: Window) -> TestError {
+    TestError {
+        stage: "runner".into(),
+        step: None,
+        line: None,
+        message: format!(
+            "the runner sent nothing back within {} s: the sample did not reach the steps, or a step dropped every message; try again, and if it repeats ask an operator to check the project's pipeline runner",
+            window.deadline.as_secs()
+        ),
     }
 }
 

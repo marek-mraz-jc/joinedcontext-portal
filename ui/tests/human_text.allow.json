@@ -374,10 +374,6 @@
       "count": 1,
       "reason": "a locked view mode's own description says why"
     },
-    "src/components/forms/theme.tsx": {
-      "count": 1,
-      "reason": "the button is hidden and out of the tab order whenever it is disabled"
-    },
     "src/components/pickers/Combobox.tsx": {
       "count": 1,
       "reason": "passes the caller's disabled state; the caller says why"

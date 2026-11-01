@@ -85,11 +85,14 @@ const KINDS: &[&str] = &[
     "RoleBinding",
     "ServiceAccount",
     "SyncSource",
+    "MqttBroker",
     "Project",
     "Workspace",
     "CkanInstance",
     "Layer",
     "Dashboard",
+    "KnowledgeSource",
+    "AssistantDeployment",
     // The data itself: a steward's pipeline writes only into a space whose entities the steward
     // reads (PL-94).
     "Entity",
@@ -355,6 +358,13 @@ fn seed_project(mirror: &Mirror, project: &str, catalogue: &str) {
             "conflictPolicy": "replace"
         }),
     ));
+    // The city's website the knowledge assistant crawls (S-88); its store answers on the mock.
+    mirror.upsert(envelope(
+        "KnowledgeSource",
+        "city-web",
+        project,
+        json!({ "source": "website", "startUrls": ["https://city.example/"], "maxDepth": 2 }),
+    ));
     mirror.upsert(envelope(
         "ContextSpace",
         "doprava",
@@ -497,7 +507,8 @@ fn bind_personas(mirror: &Mirror, projects: &[String]) {
         "Organization",
         "hel",
         ORG_NAMESPACE,
-        json!({ "domain": "hel.fi", "projects": { "quota": { "minPipelinePeriodSeconds": 900 } } }),
+        json!({ "domain": "hel.fi", "projects": { "quota": { "minPipelinePeriodSeconds": 900 } },
+                "limits": { "mqtt": { "enabled": true } } }),
     ));
     let kinds = json!(KINDS);
     for (role, verbs) in [
@@ -1211,6 +1222,38 @@ fn forge_views(
 /// The open-data catalogue's search, holding one public school dataset whose description carries
 /// an injected instruction and one private dataset (S-08), and the gateway's `access/simulate`,
 /// which grants group `scn-writers` writes on BikeCounter and everybody else reads (S-30).
+/// jc-assistant's store of every project's sources (S-88): the crawl state, the failed reads and
+/// one search, as the assistant answers them. The Portal never reaches a crawled page itself.
+async fn knowledge_assistant(server: &MockServer) {
+    use wiremock::matchers::path_regex;
+    let sources = "^/internal/v1/projects/[a-z0-9-]+/knowledge/sources";
+    Mock::given(method("GET"))
+        .and(path_regex(format!("{sources}$")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "items": [{
+            "source": "city-web", "state": "crawled", "lastCrawl": "2026-10-31T22:00:00Z",
+            "pages": 12, "pagesIncluded": 12, "documents": 2, "passages": 40, "embedded": 40,
+            "pending": 0, "failed": 1, "languages": ["sk"], "job": null
+        }] })))
+        .mount(server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path_regex(format!("{sources}/city-web/errors$")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "items": [
+            { "url": "https://city.example/old-fees", "kind": "page", "reason": "HTTP 404" }
+        ] })))
+        .mount(server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path_regex(format!("{sources}/city-web/search$")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "hits": [{
+            "title": "Parking permits", "url": "https://city.example/parking",
+            "publisher": "city", "text": "A resident parking permit costs 30 EUR a year.",
+            "score": 0.82, "chunkId": 7, "page": 3
+        }] })))
+        .mount(server)
+        .await;
+}
+
 async fn catalogue_and_pdp(server: &MockServer) {
     use wiremock::matchers::{body_string_contains, path_regex, query_param};
     Mock::given(method("GET"))
@@ -1335,6 +1378,7 @@ impl Harness {
         data_plane(server).await;
         realm_admin(server).await;
         catalogue_and_pdp(server).await;
+        knowledge_assistant(server).await;
         let gateway = public_gateway(server, &issuer).await;
         let csv_url = format!("http://localhost:{}/counters.csv", server.address().port());
         let runner: &'static MockServer = Box::leak(Box::new(MockServer::start().await));
@@ -1364,6 +1408,7 @@ impl Harness {
         std::fs::write(&token_file, BROKER_TOKEN).expect("broker token file");
         config.broker_admin_token_file = Some(token_file.clone());
         config.gateway_url = Some(server.uri());
+        config.knowledge_url = Some(server.uri());
         config.pipeline_runner_url = Some(format!("{}/{{project}}", runner.uri()));
         config.pipeline_test_capture_url = Some("http://portal-internal:9090".to_owned());
         config.pipeline_runner_client_id = Some(RUNNER_CLIENT.to_owned());
@@ -1485,6 +1530,7 @@ impl Harness {
             None => (json!(audience), String::new()),
         };
         self.signed(json!({
+            "typ": "Bearer",
             "iss": self.issuer,
             "aud": audience,
             "scope": scope,
@@ -1859,7 +1905,7 @@ impl Harness {
                     .ok_or("runner: no internal path")?..];
                 let now = joinedcontext_portal::auth::session::now_unix();
                 let token = self.signed(json!({
-                    "iss": self.issuer, "aud": "portal-internal", "azp": RUNNER_CLIENT,
+                    "typ": "Bearer", "iss": self.issuer, "aud": "portal-internal", "azp": RUNNER_CLIENT,
                     "sub": "service-account-scn-pipelines", "exp": now + 600, "iat": now,
                 }));
                 for message in messages {
@@ -2000,8 +2046,8 @@ fn the_catalogue_holds_the_connector_scenarios_well_formed() {
     let scenarios = catalogue();
     // S-01..S-50 of the owner's order and S-51..S-55 added with T-5971..T-5976; the UI
     // scenarios S-56..S-85 are browser journeys of the user agent (T-5981), not MCP calls, and
-    // S-86 (T-6082) follows them.
-    assert_eq!(scenarios.len(), 56);
+    // S-86 (T-6082), S-87 (T-6265), S-88 (T-6284) and S-89 (T-6290) follow them.
+    assert_eq!(scenarios.len(), 59);
     for (n, s) in scenarios.iter().enumerate() {
         // The MCP ids skip S-56..S-85, the UI journeys' ids (T-6082).
         let number = if n < 55 { n + 1 } else { n + 31 };
@@ -2120,7 +2166,7 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
     };
     let portal = |persona: &str| harness.token_for(persona, AUDIENCE, AUDIENCE);
     let (status, a) = harness
-        .send(
+        .send_edge(
             "POST",
             "/api/v1/connectors",
             portal("viewer"),
@@ -2129,7 +2175,7 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
         .await;
     assert_eq!(status, StatusCode::CREATED, "{a}");
     let (_, b) = harness
-        .send(
+        .send_edge(
             "POST",
             "/api/v1/connectors",
             portal("viewer"),
@@ -2148,7 +2194,7 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
     let (status, body) = harness
-        .send(
+        .send_edge(
             "POST",
             "/api/v1/connectors?dryRun=All",
             portal("viewer"),
@@ -2221,7 +2267,7 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
     let now = joinedcontext_portal::auth::session::now_unix();
     let forged = |aud: &str, scope: String| {
         Some(harness.signed(json!({
-            "iss": harness.issuer, "aud": aud, "azp": CLIENT, "sub": "sub-scn-viewer",
+            "typ": "Bearer", "iss": harness.issuer, "aud": aud, "azp": CLIENT, "sub": "sub-scn-viewer",
             "preferred_username": user_of("viewer"), "scope": scope, "exp": now + 600, "iat": now,
         })))
     };
@@ -2375,7 +2421,7 @@ async fn the_connector_door_refuses_in_order_and_audits_without_secrets() {
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
     let (status, _) = harness
-        .send(
+        .send_edge(
             "DELETE",
             &format!("/api/v1/connectors/{a}"),
             portal("steward"),
@@ -2440,6 +2486,33 @@ async fn a_revert_plans_the_inverse_of_a_merged_change_and_opens_it_for_approval
     assert_eq!(harness.run(&scenario(script), &own).await, Ok(()));
 }
 
+/// A change tool sends the person to the Portal page that decides the change, never to the
+/// forge's sign-in (T-6293): list and get answer `url` = its approval page, the pull request only
+/// as `mergeRequest`. Another project's change is no link at all.
+#[tokio::test]
+async fn the_change_tools_link_the_portal_approval_page() {
+    let harness = Harness::start(42).await;
+    let own = project_of(42);
+    let page = format!("\"url\":\"https://portal.test/projects/{own}/approvals/chg-0000002a\"");
+    let step = |call: &str, args: Value| {
+        json!({ "proves": "expect", "call": call, "args": args,
+            "contains": [page, "\"mergeRequest\":\"https://gitea.example.sk/pulls/42\""],
+            "absent": ["\"url\":\"https://gitea"] })
+    };
+    let script = json!([
+        step("jc_change_list", json!({})),
+        step("jc_change_get", json!({ "id": "chg-0000002a" })),
+        { "proves": "deny", "call": "jc_change_get", "args": { "id": "chg-0000002a" },
+          "project": "other", "refused": true, "absent": ["approvals/chg-0000002a"] }
+    ]);
+    let scenario: Scenario = serde_json::from_value(json!({
+        "id": "S-00", "segment": "operate", "as": "steward", "says": "selftest",
+        "expect": "selftest", "deny": "selftest", "script": script
+    }))
+    .expect("scenario");
+    assert_eq!(harness.run(&scenario, &own).await, Ok(()));
+}
+
 /// The "My connectors" tree lists only what the person reads, and create asks again per item
 /// (T-5951): a reader bound to one space sees that space's objects, and naming another space's
 /// Endpoint is refused with the field named, the same answer as an Endpoint that is not there.
@@ -2490,7 +2563,7 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
         options["ceiling"],
         json!({ "segments": ["data-read"], "writes": false, "maxDays": 30 })
     );
-    assert_eq!(options["segments"].as_array().map(Vec::len), Some(8));
+    assert_eq!(options["segments"].as_array().map(Vec::len), Some(9));
     assert_eq!(
         options["clients"][2],
         json!({ "id": "mcp-local", "isBoundary": false })
@@ -2504,7 +2577,7 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
     let mut refusals = Vec::new();
     for endpoint in [format!("{own}-counters"), "no-such-endpoint".to_owned()] {
         let (status, body) = harness
-            .send(
+            .send_edge(
                 "POST",
                 "/api/v1/connectors",
                 portal.clone(),
@@ -2524,7 +2597,7 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
         "an unreadable Endpoint reads like a missing one"
     );
     let (status, body) = harness
-        .send(
+        .send_edge(
             "POST",
             "/api/v1/connectors",
             portal.clone(),
@@ -2538,7 +2611,7 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
     // An edit is checked as a create is: another space's Endpoint is refused naming the field,
     // a whole project the owner reads and a later expiry pass; the name stays.
     let (status, refused) = harness
-        .send(
+        .send_edge(
             "PATCH",
             &door,
             portal.clone(),
@@ -2548,7 +2621,7 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{refused}");
     assert_eq!(refused["errors"][0]["path"], json!("scope[0].endpoint"));
     let (status, refused) = harness
-        .send(
+        .send_edge(
             "PATCH",
             &door,
             portal.clone(),
@@ -2557,7 +2630,7 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "{refused}");
     let (status, refused) = harness
-        .send(
+        .send_edge(
             "PATCH",
             &door,
             portal.clone(),
@@ -2567,7 +2640,7 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
     assert_eq!(status, StatusCode::BAD_REQUEST, "{refused}");
     let later = (chrono::Utc::now() + chrono::Duration::days(20)).to_rfc3339();
     let (status, edited) = harness
-        .send(
+        .send_edge(
             "PATCH",
             &door,
             portal.clone(),
@@ -2584,7 +2657,7 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
     );
     // Another person's connector is the same 404 as none; a revoked one is not edited.
     let (status, _) = harness
-        .send(
+        .send_edge(
             "PATCH",
             &door,
             harness.token_for("steward", AUDIENCE, AUDIENCE),
@@ -2592,10 +2665,12 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
         )
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
-    let (status, _) = harness.send("DELETE", &door, portal.clone(), None).await;
+    let (status, _) = harness
+        .send_edge("DELETE", &door, portal.clone(), None)
+        .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     let (status, _) = harness
-        .send(
+        .send_edge(
             "PATCH",
             &door,
             portal.clone(),
@@ -2896,7 +2971,7 @@ async fn an_apply_through_a_connector_signs_its_commit_and_the_activity_filters_
     let ask = json!({ "name": "doprava-in-claude", "segments": ["context"], "writes": true,
                       "scope": [{ "project": own, "access": "write" }], "expiresAt": expires });
     let (status, made) = harness
-        .send("POST", "/api/v1/connectors", portal.clone(), Some(ask))
+        .send_edge("POST", "/api/v1/connectors", portal.clone(), Some(ask))
         .await;
     assert_eq!(status, StatusCode::CREATED, "{made}");
     let id = made["id"].as_str().expect("id").to_owned();
@@ -3011,7 +3086,7 @@ async fn a_flood_hits_429_at_the_connector_and_then_the_person_limit() {
         let ask = json!({ "name": name, "segments": ["data-read"],
                           "scope": [{ "project": own, "access": "read" }], "expiresAt": expires });
         let (status, made) = harness
-            .send("POST", "/api/v1/connectors", portal.clone(), Some(ask))
+            .send_edge("POST", "/api/v1/connectors", portal.clone(), Some(ask))
             .await;
         assert_eq!(status, StatusCode::CREATED, "{made}");
         assert_eq!(
@@ -3209,7 +3284,7 @@ async fn the_overview_flags_a_refused_connector_and_an_administrator_alone_revok
     let portal = |persona: &str| harness.token_for(persona, AUDIENCE, AUDIENCE);
     let expires = (chrono::Utc::now() + chrono::Duration::days(7)).to_rfc3339();
     let (status, made) = harness
-        .send(
+        .send_edge(
             "POST",
             "/api/v1/connectors",
             portal("viewer"),

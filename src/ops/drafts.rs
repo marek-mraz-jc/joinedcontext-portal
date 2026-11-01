@@ -26,6 +26,7 @@ use super::Caller;
 use super::OpError;
 use super::Operation;
 use super::OperationAnnotations;
+use crate::activity::{chrono_to_odt, odt_to_chrono};
 use crate::change::Lane;
 use crate::error::ApiError;
 use crate::ops::verdict::Verdict;
@@ -784,17 +785,6 @@ fn row_to_draft(row: sqlx::postgres::PgRow) -> Result<Draft, DraftError> {
     })
 }
 
-pub(crate) fn odt_to_chrono(odt: time::OffsetDateTime) -> DateTime<Utc> {
-    let secs = odt.unix_timestamp();
-    let nsecs = odt.nanosecond();
-    DateTime::from_timestamp(secs, nsecs).unwrap_or_else(Utc::now)
-}
-
-pub(crate) fn chrono_to_odt(dt: DateTime<Utc>) -> time::OffsetDateTime {
-    time::OffsetDateTime::from_unix_timestamp(dt.timestamp())
-        .unwrap_or_else(|_| time::OffsetDateTime::now_utc())
-}
-
 // ---------------------------------------------------------------------------------------------
 // The registry's operations on drafts (AG-61).
 // ---------------------------------------------------------------------------------------------
@@ -1043,7 +1033,21 @@ pub fn operations() -> Vec<Operation> {
             validate: |val| parse_input::<DraftPutInput>(val.clone()).map(|_| ()),
             run: |caller, state, project, val| {
                 Box::pin(async move {
-                    let input: DraftPutInput = parse_input(val)?;
+                    let mut input: DraftPutInput = parse_input(val)?;
+                    // A draft holds a slug only this platform minted, or the Portal form did:
+                    // a proposal of the draft takes it as it is (EP-75).
+                    crate::endpoint_slug::settle_in(
+                        state,
+                        project,
+                        input.workspace.as_deref(),
+                        caller.brings_its_own_slug(),
+                        &mut input.manifest,
+                    )
+                    .await
+                    .map_err(|message| OpError::InvalidInput {
+                        path: format!("/manifest{}", crate::endpoint_slug::PATH),
+                        message,
+                    })?;
                     // A draft of one kind holding another's manifest would be judged by the
                     // wrong kind's grants; the manifest itself is judged so a space-bound grant
                     // admits it only in its own space (F-POR3-019).

@@ -7,18 +7,19 @@
 // making the module throw and watching this file go red.
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { narrowsAndOrders } from "./grid_checks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
 import { bytesText, dataChart, embedSnippet, readEvents, timeText, topLanguages } from "../src/pages/knowledge/knowledge";
-import { reasonOf } from "../src/pages/knowledge/KnowledgePage";
 import { InclusionBadge } from "../src/pages/knowledge/SourcePage";
 import { UploadedFiles } from "../src/pages/knowledge/UploadedFiles";
 import { sum } from "../src/pages/knowledge/IndexStatus";
 import { EmbedSnippet } from "../src/pages/knowledge/AssistantChat";
-import { ApiError } from "../src/api/client";
+import { ApiError, reasonOf } from "../src/api/client";
+import { standing } from "../src/pages/knowledge/KnowledgePage";
 import { assistantDeploymentSchema, fromKindManifest, knowledgeSourceSchema, toKindManifest } from "../src/schemas/knowledge";
 
 const IDENTITY = { subject: "b7c1e0f4", username: "jana.kovacova", name: "Jana Kováčová", roles: [] };
@@ -564,7 +565,7 @@ describe("the files of an upload source (T-4185)", () => {
   it("lists the files, uploads the chosen ones as they are and removes one", async () => {
     const { writes } = renderAt("/projects/banskabystrica/knowledge/bb-files", { sources: { code: 200, body: FILES } });
     const table = await screen.findByRole("table", { name: "Files" });
-    expect(within(table).getByText("rozpocet-2026.xlsx")).toBeInTheDocument();
+    expect(await within(table).findByText("rozpocet-2026.xlsx")).toBeInTheDocument();
     expect(within(table).getByText("48 kB")).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: "Pages" })).toBeNull();
 
@@ -574,6 +575,25 @@ describe("the files of an upload source (T-4185)", () => {
 
     await userEvent.click(within(table).getByRole("button", { name: "Remove rozpocet-2026.xlsx" }));
     await waitFor(() => expect(writes.at(-1)).toEqual({ path: `${base}/7`, body: null }));
+  });
+
+  it("searches, sorts by passages and filters by state on the shared grid (T-6205)", async () => {
+    const files = {
+      items: [
+        { id: 7, name: "rozpocet-2026.xlsx", mime: "application/xlsx", bytes: 48_000, passages: 12, status: "fetched" },
+        { id: 8, name: "zapisnica.pdf", mime: "application/pdf", bytes: 9_000, passages: 0, status: "failed" },
+        { id: 9, name: "uznesenia.docx", mime: "application/docx", bytes: 20_000, passages: 40, status: "fetched" },
+      ],
+    };
+    renderAt("/projects/banskabystrica/knowledge/bb-files", { sources: { code: 200, body: FILES }, files: { code: 200, body: files } });
+    const table = await screen.findByRole("table", { name: "Files" });
+    await within(table).findByText("zapisnica.pdf");
+    const fewestFirst = [1, 0, 2].map((at) => files.items[at].name);
+    await narrowsAndOrders(table, {
+      search: { label: "Search Files", text: "uznes", kept: ["uznesenia.docx"] },
+      sort: { column: "Passages", ascending: fewestFirst },
+      filter: { value: /^Could not be read/, kept: ["zapisnica.pdf"] },
+    });
   });
 
   it("names the file a refusal is about, in the Portal's words", async () => {
@@ -949,9 +969,14 @@ describe("the knowledge helpers", () => {
   });
 
   it("reads the reason of a refusal, and falls back to the generic sentence", () => {
-    expect(reasonOf(new Error("x"), "generic")).toBe("generic");
+    expect(reasonOf(new Error(""), "generic")).toBe("generic");
     const refused = new ApiError(409, "Conflict", { type: "about:blank", status: 409, title: "Conflict", detail: "already queued" });
     expect(reasonOf(refused, "generic")).toBe("already queued");
+  });
+
+  it("says an upload source without files holds none, and one with files waiting is indexing", () => {
+    expect(standing({ type: "upload" } as Parameters<typeof standing>[0]).key).toBe("knowledge.files.none");
+    expect(standing({ type: "upload", documents: 2, pending: 1 } as Parameters<typeof standing>[0]).key).toBe("knowledge.state.indexing");
   });
 
   it("formats sizes and times in the person's locale, a dash for none", () => {

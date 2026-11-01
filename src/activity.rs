@@ -106,6 +106,13 @@ pub struct ActivityEvent {
     pub details: Value,
 }
 
+/// The longest summary a record stores.
+const MAX_SUMMARY_CHARS: usize = 2_000;
+/// The longest correlationId: a W3C trace id is 32 hex characters, a request id fewer.
+const MAX_CORRELATION_BYTES: usize = 128;
+/// The largest `details` object, as JSON.
+const MAX_DETAILS_BYTES: usize = 4_096;
+
 impl ActivityEvent {
     /// The object an event belongs to, as an object page asks for it.
     pub fn object(&self) -> Option<&str> {
@@ -131,8 +138,29 @@ impl ActivityEvent {
         if self.summary.trim().is_empty() {
             return Err("an event with no summary says nothing to a person".into());
         }
+        // Every list serves each row for seven days: a record is a sentence and a few named
+        // values, never a payload (OPS-48, F-R2POR1-013).
+        if self.summary.chars().count() > MAX_SUMMARY_CHARS {
+            return Err(format!(
+                "a summary is one sentence of at most {MAX_SUMMARY_CHARS} characters"
+            ));
+        }
+        if self
+            .correlation_id
+            .as_ref()
+            .is_some_and(|id| id.len() > MAX_CORRELATION_BYTES)
+        {
+            return Err(format!(
+                "a correlationId is at most {MAX_CORRELATION_BYTES} bytes"
+            ));
+        }
         if !self.details.is_null() && !self.details.is_object() {
             return Err("details is an object of named values".into());
+        }
+        if self.details.to_string().len() > MAX_DETAILS_BYTES {
+            return Err(format!(
+                "details are a few named values of at most {MAX_DETAILS_BYTES} bytes in all"
+            ));
         }
         Ok(())
     }
@@ -237,6 +265,26 @@ impl Cursor {
 pub struct Page {
     pub items: Vec<ActivityEvent>,
     pub next: Option<String>,
+    /// Where each item sits, so a page cut short still names the cursor past its last item.
+    keys: Vec<Cursor>,
+}
+
+impl Page {
+    /// The first items that fit in `bytes` of their JSON, and the cursor past the last one kept
+    /// when the cut dropped any (T-6291): an operation's answer stays small enough for a model to
+    /// read, and `next` reads on from the cut.
+    pub fn within(mut self, bytes: usize) -> Self {
+        let kept = crate::ops::bounds::fitting(&self.items, bytes);
+        if kept < self.items.len() {
+            self.next = kept
+                .checked_sub(1)
+                .and_then(|last| self.keys.get(last))
+                .map(Cursor::encode);
+            self.items.truncate(kept);
+            self.keys.truncate(kept);
+        }
+        self
+    }
 }
 
 /// The live half: what a connected browser is handed as the events arrive, while the store is
@@ -395,16 +443,18 @@ impl ActivityStore {
     fn page_of(mut rows: Vec<(i64, ActivityEvent)>, limit: i64) -> Page {
         let more = rows.len() as i64 > limit;
         rows.truncate(limit as usize);
-        let next = more.then(|| rows.last()).flatten().map(|(id, event)| {
-            Cursor {
+        let keys: Vec<Cursor> = rows
+            .iter()
+            .map(|(id, event)| Cursor {
                 time: event.time,
                 id: *id,
-            }
-            .encode()
-        });
+            })
+            .collect();
+        let next = more.then(|| keys.last()).flatten().map(Cursor::encode);
         Page {
             items: rows.into_iter().map(|(_, event)| event).collect(),
             next,
+            keys,
         }
     }
 
@@ -802,6 +852,24 @@ mod tests {
         assert!(silent.validate().is_err());
 
         assert!(event("access.denied", "info", 0).validate().is_ok());
+    }
+
+    /// F-R2POR1-013 (T-6225): a record past its bounds is refused, not stored.
+    #[test]
+    fn a_record_past_its_bounds_is_refused() {
+        let mut long = event("access.denied", "info", 0);
+        long.summary = "x".repeat(MAX_SUMMARY_CHARS + 1);
+        assert!(long.validate().is_err());
+        let mut traced = event("access.denied", "info", 0);
+        traced.correlation_id = Some("c".repeat(MAX_CORRELATION_BYTES + 1));
+        assert!(traced.validate().is_err());
+        let mut payload = event("access.denied", "info", 0);
+        payload.details = json!({ "body": "d".repeat(MAX_DETAILS_BYTES) });
+        assert!(payload.validate().is_err());
+        let mut fits = event("access.denied", "info", 0);
+        fits.summary = "x".repeat(MAX_SUMMARY_CHARS);
+        fits.correlation_id = Some("0af7651916cd43dd8448eb211c80319c".into());
+        assert!(fits.validate().is_ok());
     }
 
     #[test]

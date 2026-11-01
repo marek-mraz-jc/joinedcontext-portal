@@ -45,7 +45,7 @@ const calls: Call[] = [];
 function stubFetch(status = 204, body: unknown = null) {
   vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
     calls.push({ url, init });
-    return { ok: status < 300, status, json: async () => body };
+    return new Response(body === null ? null : JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
   }));
 }
 

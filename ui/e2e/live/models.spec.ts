@@ -245,7 +245,7 @@ test("a steward proposes removing a model, and the rejected removal keeps it", a
 
 test("a viewer meets the model buttons refused with the reason, and the source route refuses a save", async ({ browser }) => {
   const { page, context } = await signIn(browser, VIEWER, `/projects/${PROJECT}/models?lang=en`);
-  const create = page.getByRole("button", { name: "New blank model" }).first();
+  const create = page.getByRole("button", { name: "New data model" }).first();
   await expect(create).toHaveAttribute("aria-disabled", "true", { timeout: 60_000 });
   await expect(create).toHaveAccessibleDescription(/does not permit 'propose' on 'DataModel'/);
 

@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import { useIsFetching, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { Alert, Button, Card, Dialog, Icon, PageHeader, PageLoading } from "../ui";
+import { Alert, Button, Card, Dialog, PageHeader, PageLoading } from "../ui";
 import type { DialogSize } from "../ui";
 import { failureKind } from "../ui/PageState";
 import { proposesAnything, usePermissions } from "../../api/permissions";
@@ -210,7 +210,6 @@ export function FormFrame({
   footer,
   children,
 }: FormFrameProps): JSX.Element | null {
-  const { t } = useTranslation();
   const route = useFormRoute();
 
   // The address left the form (the browser's back button, a link in the sidebar's section): the
@@ -284,13 +283,8 @@ export function FormFrame({
         }
       }}
     >
-      <div>
-        <Button variant="ghost" size="sm" onClick={() => onOpenChange(false)}>
-          <Icon name="chevronLeft" className="size-4" />
-          {t("form.backToList")}
-        </Button>
-      </div>
-      <PageHeader title={title} description={description} titleAction={help} />
+      {/* The breadcrumb and Cancel lead back; the lead waits behind the title's info mark (owner 2026-10-31). */}
+      <PageHeader compact title={title} description={description} titleAction={help} />
       <Card>
         <FormPageContext.Provider value>{children}</FormPageContext.Provider>
       </Card>

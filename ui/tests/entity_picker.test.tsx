@@ -83,6 +83,8 @@ describe("EntityPicker", () => {
     );
 
     const input = screen.getByRole("combobox");
+    // F-R2UI2-023: aria-controls names the list only while it is in the page.
+    expect(input).not.toHaveAttribute("aria-controls");
     await user.type(input, "foo");
 
     // The picker fires once with an empty term on mount, then again after the 250 ms debounce;
@@ -96,6 +98,7 @@ describe("EntityPicker", () => {
 
     const option = await screen.findByRole("option", { name: "Temperature Sensor" });
     expect(option).toBeInTheDocument();
+    expect(document.getElementById(input.getAttribute("aria-controls") ?? "")).toHaveAttribute("role", "listbox");
     expect(screen.queryByText("urn:ngsi-ld:Sensor:001")).not.toBeInTheDocument();
 
     await user.click(option);

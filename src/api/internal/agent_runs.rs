@@ -368,9 +368,24 @@ pub async fn internal_mcp(
                 run.id
             ))
         })?;
+    if signed_out_since(&state, &identity.subject, &run.created_at) {
+        return Err(ApiError::Denied(format!(
+            "run '{}' acts for a person who signed out since it started; start it again",
+            run.id
+        )));
+    }
     let profile = Profile::load(&state.mirror, &run.profile)?;
     let caller = crate::ops::Caller::for_run(identity, profile.access.clone());
     Ok(crate::mcp::dispatch_for(state, caller, body).await)
+}
+
+/// Whether the person a run acts for logged out (themselves, or an administrator signing them out)
+/// since `started` (RFC 3339): that takes back what the run does in their name (T-6226). A start
+/// time that does not parse counts as the oldest.
+fn signed_out_since(state: &AppState, subject: &str, started: &str) -> bool {
+    let started =
+        chrono::DateTime::parse_from_rfc3339(started).map_or(i64::MIN, |at| at.timestamp());
+    state.revoked_since(subject, started)
 }
 
 /// The routes the credential proxy calls (a run, its MCP, events, inbox and diagnostics), served
@@ -394,8 +409,25 @@ pub fn router() -> Router<AppState> {
 
 #[cfg(test)]
 mod tests {
-    use super::navigate_route;
+    use super::{navigate_route, signed_out_since, AppState};
     use serde_json::json;
+
+    /// T-6226 (F-R2POR2-007): a run's calls stop once the person it acts for signs out; a run
+    /// started after that sign-out, and another person's, go on.
+    #[tokio::test]
+    async fn a_run_stops_acting_for_a_person_who_signed_out_since_it_started() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let started = "2026-10-31T10:00:00Z";
+        let at = chrono::DateTime::parse_from_rfc3339(started)
+            .expect("time")
+            .timestamp();
+        assert!(!signed_out_since(&state, "sub-ana", started));
+        state.revoke_subject("sub-ana", at + 60).await;
+        assert!(signed_out_since(&state, "sub-ana", started));
+        assert!(!signed_out_since(&state, "sub-ana", "2026-10-31T11:00:00Z"));
+        assert!(!signed_out_since(&state, "sub-bob", started));
+        assert!(signed_out_since(&state, "sub-ana", "not a time"));
+    }
 
     #[test]
     fn a_portal_path_with_a_prefill_passes() {

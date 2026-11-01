@@ -67,7 +67,8 @@ const NUMBERS: Record<string, FieldKind> = {
   double: "number",
   decimal: "number",
 };
-const URN = /^urn:ngsi-ld:[A-Za-z][A-Za-z0-9_-]*:\S+$/;
+/** An NGSI-LD entity id, `urn:ngsi-ld:{Type}:{nss}`: no segment of the nss says where it lives (ADR-N-041). */
+export const ENTITY_ID = /^urn:ngsi-ld:[A-Za-z][A-Za-z0-9_-]*:\S+$/;
 
 function kindOf(slot: LinkmlSlot, options: FieldOption[] | undefined): FieldKind {
   if (slot.kind === "Relationship") return "relationship";
@@ -187,7 +188,7 @@ export function problemsOf(fields: FormField[], answers: Answers): Record<string
     const text = (value as string).trim();
     if (field.kind === "integer" && !/^-?\d+$/.test(text)) problems[field.attr] = "integer";
     if (field.kind === "number" && !Number.isFinite(Number(text))) problems[field.attr] = "number";
-    if (field.kind === "relationship" && !URN.test(text)) problems[field.attr] = "urn";
+    if (field.kind === "relationship" && !ENTITY_ID.test(text)) problems[field.attr] = "urn";
     if (field.kind === "date" && !/^\d{4}-\d{2}-\d{2}$/.test(text)) problems[field.attr] = "date";
     if (field.kind === "datetime" && Number.isNaN(Date.parse(text))) problems[field.attr] = "date";
   }

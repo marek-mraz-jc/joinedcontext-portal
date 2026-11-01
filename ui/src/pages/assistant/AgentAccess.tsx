@@ -4,7 +4,7 @@ import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
-import { api, ApiError, unwrap } from "../../api/client";
+import { api, ApiError, unwrap, reasonOf } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
 import { isChange, ORG_NAMESPACE } from "../../api/manifest";
 import type { Change, Manifest, ResourceProposal } from "../../api/manifest";
@@ -15,7 +15,7 @@ import { Button } from "../../components/ui/Button";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 import { Field } from "../../components/ui/Field";
 import { EmptyState } from "../../components/ui/EmptyState";
-import { ListFailed, reasonOf } from "../../components/forms/widgets/ListFailed";
+import { ListFailed } from "../../components/forms/widgets/ListFailed";
 import { Textarea } from "../../components/ui/Input";
 import {
   Table,

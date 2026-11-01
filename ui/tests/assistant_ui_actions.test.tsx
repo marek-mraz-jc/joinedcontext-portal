@@ -52,6 +52,22 @@ describe("assistant browser actions", () => {
     expect(control.hasAttribute("data-assistant-highlight")).toBe(true);
   });
 
+  it("moves the note: the field pointed at before is described by it no more, nor twice (T-6230)", async () => {
+    render(
+      <>
+        <input id="root_name" aria-label="Name" aria-describedby="name-hint" />
+        <input id="root_title" aria-label="Title" />
+      </>,
+    );
+    await runUiAction({ action: "highlight", field: "spec.name", message: "one" }, 0);
+    await runUiAction({ action: "highlight", field: "spec.name", message: "again" }, 0);
+    const note = screen.getByRole("status");
+    expect(screen.getByLabelText("Name").getAttribute("aria-describedby")).toBe(`name-hint ${note.id}`);
+    await runUiAction({ action: "highlight", field: "spec.title", message: "two" }, 0);
+    expect(screen.getByLabelText("Name").getAttribute("aria-describedby")).toBe("name-hint");
+    expect(screen.getByLabelText("Title").getAttribute("aria-describedby")).toBe(screen.getByRole("status").id);
+  });
+
   it("types a filter into the page's search box without submitting", async () => {
     const onSubmit = vi.fn();
     render(<Filter onSubmit={onSubmit} />);

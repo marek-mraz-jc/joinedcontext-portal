@@ -21,6 +21,7 @@ import { proposeChecked } from "../../api/proposal";
 import { ResourceNamePicker } from "../pickers/ResourceNamePicker";
 import { ToolbarPopover } from "../entities/GridToolbar";
 import { PageFailed } from "../ui/PageState";
+import { RowActions, RowDetails } from "../ui/RowActions";
 import {
   Button,
   Card,
@@ -87,6 +88,8 @@ export interface ManifestGridProps<T> {
   search?: string;
   onSearchChange?: (text: string) => void;
   searchLabel: string;
+  /** The page's header around the toolbar, so search, Filter, Columns and Sort share the title's row (owner 2026-10-31). */
+  header?: (toolbar: ReactNode) => ReactNode;
   /** Where cell edits go; without it the cell panel only reads. */
   edit?: {
     project: string;
@@ -117,8 +120,6 @@ type Sort = { column: string; desc: boolean } | null;
 
 const PAGE = 50;
 
-/** The actions column, pinned to the frame's right edge over the scrolled cells; on a phone the row is a card (`stack`). */
-const STICKY = "sm:sticky sm:right-0 sm:border-l sm:border-border sm:bg-surface";
 
 /** The browser key a grid keeps its chosen columns under: a view preference (UI-09). */
 function columnsKey(storageKey: string): string {
@@ -228,22 +229,25 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
     );
   };
 
+  const toolbar = (
+    <GridToolbar
+      caption={caption}
+      rows={rows}
+      all={all}
+      columns={columns}
+      ownSearch={props.search === undefined ? { value: ownSearch, set: typeSearch, label: searchLabel } : undefined}
+      filters={filters}
+      setFilters={setFilters}
+      shown={shown}
+      choose={choose}
+      sort={sort}
+      setSort={setSort}
+      sortId={`${storageKey}-sort`}
+    />
+  );
   return (
     <div className="flex flex-col gap-3" data-manifest-grid={storageKey}>
-      <GridToolbar
-        caption={caption}
-        rows={rows}
-        all={all}
-        columns={columns}
-        ownSearch={props.search === undefined ? { value: ownSearch, set: typeSearch, label: searchLabel } : undefined}
-        filters={filters}
-        setFilters={setFilters}
-        shown={shown}
-        choose={choose}
-        sort={sort}
-        setSort={setSort}
-        sortId={`${storageKey}-sort`}
-      />
+      {props.header ? props.header(toolbar) : toolbar}
 
       {!query.isPending && rows.length === 0 && !(server && search.trim()) ? (
         <Card padding="md">{empty}</Card>
@@ -252,7 +256,7 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
         <TableHead>
           {header(name, true)}
           {visibleColumns.map((column) => header(column))}
-          <TableHeaderCell align="right" className={clsx(STICKY, "bg-surface-subtle")}>
+          <TableHeaderCell align="right">
             <span className="sr-only">{t("approvals.actions")}</span>
           </TableHeaderCell>
         </TableHead>
@@ -459,26 +463,18 @@ export function GridRow<T>({
           <div className="min-w-0">{column.cell ? column.cell(row) : column.text(row) || <span className="text-fg-subtle">—</span>}</div>
         </TableCell>
       ))}
-      {/* Sticky at the frame's right edge: on a phone the row's ways in stay in view (T-6115 judge). */}
-      {/* A click in the cell itself is no row click; a click in a dialog the row menu opened reaches
+      {/* One menu ends the row, Details first (owner 2026-10-31: no pinned column, no second button).
+          A click in the cell itself is no row click; a click in a dialog the row menu opened reaches
           this handler through React's portal bubbling and keeps its default, or its submit never
           fires (T-6169). */}
       <TableCell
         align="right"
-        className={clsx("align-middle sm:w-px sm:whitespace-nowrap", STICKY)}
+        className="align-middle sm:w-px sm:whitespace-nowrap"
         onClick={(event) => (event.currentTarget.contains(event.target as Node) ? event.preventDefault() : undefined)}
       >
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            variant="secondary"
-            size="sm"
-            aria-label={t("grid.openDetails", { name: name.text(row) })}
-            title={t("grid.details")}
-            icon={<Icon name="sidebar" className="size-4" />}
-            onClick={onDetails}
-          />
-          {actions ? actions(row) : null}
-        </div>
+        <RowDetails.Provider value={{ label: t("grid.details"), onSelect: onDetails }}>
+          {actions ? actions(row) : <RowActions label={name.text(row)} actions={[]} />}
+        </RowDetails.Provider>
       </TableCell>
     </TableRow>
   );
@@ -665,9 +661,16 @@ function FieldEditor({
   const changed = JSON.stringify(held) !== JSON.stringify(controlValue(widget, before));
   const propose = useMutation({
     mutationFn: async () => {
-      const next = withSpecValue(manifest, path, storedValue(widget, held, before));
+      // The row is the list as it was read: a Change merged since then would be undone by a
+      // manifest rebuilt from it (F-R2UI2-007). The edit goes onto the manifest as it is now, and
+      // its ETag makes the server refuse it with 412 if it moves again before the write.
+      const read = await api.GET("/api/v1/projects/{project}/{plural}/{name}", {
+        params: { path: { project: edit.project, plural: edit.plural, name: manifest.metadata.name } },
+      });
+      const current = (await unwrap(read)) as unknown as Manifest;
+      const next = withSpecValue(current, path, storedValue(widget, held, specValue(current, path)));
       const { status: _status, ...body } = next as Manifest & { status?: unknown };
-      return proposeChecked(edit.project, edit.plural, body as unknown as ResourceProposal, false);
+      return proposeChecked(edit.project, edit.plural, body as unknown as ResourceProposal, false, read.response.headers.get("ETag") ?? undefined);
     },
     onSuccess: (result) => {
       if (isChange(result)) edit.onChange(result);

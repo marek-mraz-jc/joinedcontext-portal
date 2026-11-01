@@ -151,6 +151,7 @@ mod keys {
         header.kid = Some(kid.into());
         let mut claims = json!({
             "iss": issuer,
+            "typ": "Bearer",
             "aud": "joinedcontext-portal",
             "sub": format!("f:1:{username}"),
             "preferred_username": username,
@@ -170,6 +171,7 @@ mod keys {
         header.kid = Some("realm-rs256".into());
         let mut claims = json!({
             "iss": issuer,
+            "typ": "Bearer",
             "aud": "joinedcontext-portal",
             "sub": format!("f:1:{username}"),
             "preferred_username": username,
@@ -193,6 +195,7 @@ mod keys {
             &header,
             &json!({
                 "iss": issuer,
+                "typ": "ID",
                 "aud": "joinedcontext-portal",
                 "azp": "joinedcontext-portal",
                 "sub": format!("f:1:{username}"),
@@ -216,6 +219,7 @@ mod keys {
         let name = client.unwrap_or("anonymous-client");
         let mut claims = json!({
             "iss": issuer,
+            "typ": "Bearer",
             "aud": "joinedcontext-portal",
             "sub": format!("sa:{name}"),
             "preferred_username": format!("service-account-{name}"),
@@ -245,6 +249,7 @@ mod keys {
     ) -> String {
         let mut claims = json!({
             "iss": issuer,
+            "typ": "Logout",
             "aud": aud,
             "sub": format!("f:1:{username}"),
             "iat": now(),
@@ -433,6 +438,11 @@ async fn callback_reports_a_provider_side_error() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    // F-R2POR3-014: no login of this browser is in flight, so the text is the link's, not the
+    // provider's, and the Portal does not repeat it.
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let body = String::from_utf8_lossy(&body);
+    assert!(!body.contains("said no"), "{body}");
 }
 
 #[tokio::test]
@@ -1527,9 +1537,9 @@ async fn login_parks_the_return_path_in_the_cookie_and_never_in_the_url() {
 ///
 /// Every way of failing — no login in flight, a state that is not the one started, a login the
 /// provider refused, a code with no state, a state with no code — answers problem+json and leaves the
-/// caller exactly as anonymous as they were. The provider's `error_description` is echoed, because it
-/// is the provider's own text and a person needs it, so this case also proves it is escaped into the
-/// JSON body rather than into a header or as markup.
+/// caller exactly as anonymous as they were. The provider's `error_description` is echoed only to
+/// the login in flight, because a person needs the provider's own text; this case also proves a
+/// description reaches no header and no markup.
 #[tokio::test]
 async fn a_refused_callback_never_mints_a_session() {
     let realm = realm().await;

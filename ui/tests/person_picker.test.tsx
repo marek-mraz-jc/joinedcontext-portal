@@ -12,7 +12,7 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
-import { PersonPicker } from "../src/components/pickers/PersonPicker";
+import { idsOf, PersonPicker } from "../src/components/pickers/PersonPicker";
 
 const PEOPLE = [
   { id: "00000000-0000-4000-8000-000000000001", email: "Jana@Hel.fi", firstName: "Jana", lastName: "K", enabled: true, emailVerified: true, requiredActions: [] },
@@ -109,5 +109,28 @@ describe("the person picker (T-4947)", () => {
     await user.clear(box);
     await user.type(box, "2F1C6B1E-7A4D-4C55-9E0E-3B8F1A2D4C6E{Enter}");
     expect(chosen).toEqual(["2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e"]);
+  });
+
+  // F-R2UI2-010: a pasted list was looked up one address after the other.
+  it("looks the addresses of a pasted list up together, and names the ones that found nobody", async () => {
+    let started = 0;
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL((input as Request).url);
+        started += 1;
+        if (started === 3) release();
+        await gate;
+        const search = url.searchParams.get("search") ?? "";
+        return new Response(JSON.stringify({ items: PEOPLE.filter((p) => p.email.toLowerCase() === search), total: 1 }), {
+          headers: { "Content-Type": "application/json" },
+        });
+      }),
+    );
+    const found = await idsOf("jana@hel.fi, petra@hel.fi nobody@hel.fi", true);
+    expect(started).toBe(3);
+    expect(found).toEqual({ ids: [PEOPLE[0].id, PEOPLE[1].id], refused: ["nobody@hel.fi"] });
   });
 });

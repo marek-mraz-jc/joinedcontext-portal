@@ -204,7 +204,7 @@ pub fn audiences(
             endpoint
                 .spec
                 .get("contextSpaceRef")
-                .and_then(Value::as_str)
+                .and_then(crate::resource::reference_name)
                 .is_some_and(|space| spaces.contains(space))
         })
         .filter_map(|endpoint| {

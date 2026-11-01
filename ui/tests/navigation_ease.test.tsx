@@ -233,6 +233,32 @@ describe("the shortcuts (T-3242)", () => {
     expect(available()).toEqual(["palette", "save", "new", "close", "help"]);
   });
 
+  // F-R2UI2-003: the page's form comes first in the document, the portaled dialog after it.
+  it("saves the open dialog's form with Ctrl+S, never the page's form behind it", () => {
+    page(`<main><form id="page"></form></main><div role="dialog"><button id="in-dialog">x</button><form id="dialog"></form></div>`);
+    const submitted: string[] = [];
+    for (const form of document.querySelectorAll("form")) {
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        submitted.push(form.id);
+      });
+    }
+    (document.getElementById("in-dialog") as HTMLButtonElement).focus();
+    expect(shortcut(key({ key: "s", ctrlKey: true }))).toBe(true);
+    expect(submitted).toEqual(["dialog"]);
+  });
+
+  it("saves nothing behind an open dialog that holds no form", () => {
+    page(`<main><form id="page"></form></main><div role="dialog"><button>x</button></div>`);
+    const submitted: string[] = [];
+    document.getElementById("page")?.addEventListener("submit", (event) => {
+      event.preventDefault();
+      submitted.push("page");
+    });
+    shortcut(key({ key: "s", ctrlKey: true }));
+    expect(submitted).toEqual([]);
+  });
+
   it("? lists the page's shortcuts, and does nothing typed into a field", async () => {
     stub({});
     showPalette();

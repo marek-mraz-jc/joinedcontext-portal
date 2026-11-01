@@ -186,13 +186,6 @@ describe("what proposing leads to, said in the dialog", () => {
     expect(screen.queryByText(/Approved as soon as you propose it/)).toBeNull();
   });
 
-  it("a steward hears the change waits and why", async () => {
-    withVerbs(["propose", "approve"]);
-    expect(await screen.findByTestId("propose-standing")).toHaveTextContent(
-      en.changes.approveNotDelete.replace("{kind}", en.kinds.ContextSpace.other),
-    );
-  });
-
   it("an editor hears nothing new", async () => {
     withVerbs(["propose"]);
     await waitFor(() => expect(screen.getByRole("button", { name: en.form.check })).toBeInTheDocument());

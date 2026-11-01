@@ -89,7 +89,7 @@ pub const COMPUTE_LABEL: &str = "compute";
 pub const HISTORY_LABEL: &str = "history";
 
 /// A page whose read failed is dropped; a kpi source keeps it as an error instead (PL-104).
-pub(super) const DROP_ERRORED: &str = "root = if errored() { deleted() }";
+pub(crate) const DROP_ERRORED: &str = "root = if errored() { deleted() }";
 
 /// The label of the step `spec.lifetime` compiles to (PL-82).
 pub const LIFETIME_LABEL: &str = "lifetime";
@@ -645,7 +645,7 @@ pub(super) fn datasource_input(
             }]
         });
         let p2 = serde_json::json!({
-            "mutation": "root = if errored() { deleted() }"
+            "mutation": DROP_ERRORED
         });
         // Each tick is one run of the pipeline's log (PL-62).
         let inp = serde_json::json!({

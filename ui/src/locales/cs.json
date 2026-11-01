@@ -177,12 +177,10 @@
       "yaml": "YAML",
       "history": "Historie"
     },
-    "yamlHint": "Celý manifest tak, jak se zapíše do Gitu. Přepnutí zpět na formulář jej znovu načte; obě podoby kontroluje totéž schéma.",
     "yamlError": "Opravte YAML: {message}",
-    "yamlDownload": "Stáhnout YAML",
-    "yamlUpload": "Nahrát YAML",
-    "yamlUploadSecret": "Soubor obsahuje vypsané tajemství ({keys}). Odkažte na něj přes secretRef a nahrajte znovu; nic nebylo načteno.",
-    "yamlUploadMoved": "Soubor pochází z projektu {from}; načte se do {to} a před navržením na něm proběhne kontrola.",
+    "yamlCopy": "Kopírovat YAML",
+    "yamlCopied": "Zkopírováno.",
+    "yamlCopyFailed": "Prohlížeč nepovolil kopírování; označte text a zkopírujte ho.",
     "yamlNotManifest": "dokument není manifest",
     "schemaErrors": "Manifest neodpovídá schématu:",
     "exclusive": "Vyplnit lze jen jedno z těchto polí",
@@ -466,9 +464,6 @@
   "changes": {
     "accepted": "Navrženo jako změna:",
     "review": "Otevřít ve Schvalování",
-    "approvedOnPropose": "Po navržení se schválí: {kind} můžete schvalovat i mazat.",
-    "approveNotDelete": "Počká na schvalovatele: {kind} můžete schvalovat, ale ne mazat.",
-    "secondApprover": "Počká na druhého administrátora: vlastní změnu {kind} neschválíte, schválí ji jiná osoba, která je smí schvalovat.",
     "approvedAsProposed": "Schváleno při navržení, nasazuje se:",
     "open": "Otevřít změnu"
   },
@@ -557,8 +552,6 @@
       "historySize": "Velikost historie"
     },
     "inside": {
-      "more": "Více",
-      "less": "Méně",
       "total": "Prostor obsahuje {count, plural, one {# entitu} few {# entity} other {# entit}}.",
       "history": "Jeho historie obsahuje {count, plural, one {# záznam} few {# záznamy} other {# záznamů}}.",
       "open": "Prohlédnout obsah",
@@ -4265,6 +4258,9 @@
     "classUri": "IRI třídy",
     "description": "Popis",
     "titleIn": "Název ({locale})",
+    "fieldsNeedType": "Pole patří typu: nejprve přidejte typ v části Typy, potom zde jeho pole.",
+    "titleHint": "Název, který lidé čtou pro tento typ v tomto jazyce; typ si ponechá vlastní název.",
+    "titleTranslations": "Překlady: {languages}",
     "slotUri": "IRI atributu",
     "slotUriHint": "Pod vlastní předponou organizace; převzatý pojem se cituje, nikdy nevytváří",
     "required": "Povinný",
@@ -4426,6 +4422,7 @@
       },
       "willBecome": "Uloží se jako verze {version}",
       "refused": "Změna byla odmítnuta: {reason}",
+      "confirmFirst": "Nejprve zaškrtněte „zásadní změna“: verze {version} rozbije Endpointy, které čtou tento model.",
       "fixErrors": "Před uložením opravte chyby, které editor uvádí. Zbývá: {count}.",
       "confirmBreaking": "Uložit jako verzi {version}, nekompatibilní změna",
       "handOffRefused": "Změnu od asistenta se do tohoto modelu nepodařilo použít:",
@@ -4572,16 +4569,19 @@
     },
     "page": {
       "listLead": "Všechny datové modely tohoto projektu: jeden pro každý kontextový prostor a co je na něm postaveno.",
+      "modelLead": "Co tento model popisuje a co na něm staví.",
       "listCaption": "Datové modely projektu",
       "new": {
-        "blank": "Nový prázdný model",
-        "file": "Nový model ze souboru",
-        "sdm": "Nový model ze Smart Data Models"
+        "menu": "Nový datový model",
+        "blank": "Prázdný model",
+        "file": "Ze souboru s daty (CSV, Excel, JSON, PDF)",
+        "sdm": "Ze Smart Data Models"
       },
       "emptyTitle": "Zatím žádný datový model",
       "emptyLead": "Vytvořte ho pro prostor: začněte prázdný, odvoďte ho ze souboru nebo importujte Smart Data Model.",
       "search": "Hledat podle názvu, titulku nebo třídy",
       "everySpace": "Všechny prostory",
+      "moreTypes": "Další typy modelu {model}: {count}",
       "lastChange": "Poslední změna",
       "usedBy": "Používá ho",
       "noMatch": "Hledání a zvolenému prostoru neodpovídá žádný model.",
@@ -4613,7 +4613,7 @@
         "fields": "Pole",
         "diagram": "Diagram",
         "form": "Formulář",
-        "yaml": "YAML",
+        "yaml": "LinkML",
         "used": "Kde se používá",
         "history": "Historie",
         "mappings": "Mapování"
@@ -4634,8 +4634,8 @@
       },
       "asJson": "Zobrazeno jako JSON.",
       "yaml": "Zdroj modelu (LinkML YAML)",
-      "copyYaml": "Kopírovat YAML",
-      "downloadYaml": "Stáhnout YAML",
+      "copyYaml": "Kopírovat LinkML",
+      "downloadYaml": "Stáhnout LinkML",
       "copied": "Zkopírováno.",
       "copyFailed": "Prohlížeč kopírování nepovolil; označte text a zkopírujte ho ručně.",
       "projectSection": "Modely tohoto projektu",
@@ -4650,7 +4650,8 @@
       "typeCaption": "Pole typu {type}",
       "noFields": "Zatím žádné pole.",
       "addType": "Přidat typ",
-      "classesMore": "+{count} dalších"
+      "classesMore": "+{count} dalších",
+      "classCount": "Počet typů"
     },
     "hints": {
       "title": "Tento model zatím nemá třídu. Tři kroky na začátek:",
@@ -4792,6 +4793,7 @@
       "idFixed": "Identifikátor je pevný: endpointy, prostory a importy podle něj model jmenují.",
       "file": "Soubor",
       "fileFixed": "Název souboru je pevný: přejmenování mění jen název, který lidé čtou.",
+      "details": "Podrobnosti",
       "version": "Verze",
       "renameShort": "Přejmenovat",
       "renamed": "Přejmenováno. Identifikátor {id} a jeho soubor zůstávají; Navrhnout uloží nový název."
@@ -5224,7 +5226,8 @@
       },
       "inARow": "{count, plural, one {# neúspěšný běh za sebou} few {# neúspěšné běhy za sebou} other {# neúspěšných běhů za sebou}}",
       "ms": "{count} ms",
-      "note": "Úloha běží pod vlastní identitou aplikace a zapisuje jen přes její Endpoint. Seznam ukazuje běhy od posledního spuštění hostitele."
+      "note": "Úloha běží pod vlastní identitou aplikace a zapisuje jen přes její Endpoint. Seznam ukazuje běhy od posledního spuštění hostitele.",
+      "failuresInARow": "Selhání za sebou"
     },
     "editWithAssistant": "Upravit pomocí asistenta",
     "share": {
@@ -6279,6 +6282,7 @@
     "close": "Zavřít asistenta",
     "title": "Asistent",
     "open": "Otevřít asistenta",
+    "openBusy": "Otevřít asistenta, ještě pracuje na vaší otázce",
     "hide": "Skrýt asistenta",
     "fullScreen": "Na celou obrazovku",
     "sideView": "Vedle stránky",
@@ -6944,7 +6948,6 @@
     },
     "assignee": {
       "didHint": "Napište decentralizovaný identifikátor, například did:web:example.org; seznam k výběru neexistuje.",
-      "peopleHidden": "Seznam osob vidí jen správce organizace; napište e-mail, kterým se osoba přihlašuje.",
       "noneYet": "Zatím tu není nic tohoto druhu k výběru ({kind}); napište název tak, jak jej píše poskytovatel identity."
     },
     "summary": {
@@ -7812,7 +7815,8 @@
         "up": "Běží",
         "down": "Nedostupný",
         "unknown": "Bez adresy"
-      }
+      },
+      "none": "Organizace zatím nemá žádný broker. Deklarujte ho v repozitáři organizace."
     },
     "costs": {
       "title": "Náklady podle projektů",
@@ -8025,7 +8029,7 @@
       "lead": "AI konektory všech lidí: kam každý dosáhne, kterým klientům odpovídá a kolik volání měl a kolik bylo odmítnuto za poslední den. Volání se zde zobrazují jen jako počty, jejich obsah nikdy.",
       "hidden": "Konektory všech lidí vidí jen administrátor organizace. Vaše vlastní jsou v Moje konektory.",
       "caption": "Konektory všech lidí",
-      "filter": "Filtr",
+      "filter": "Hledat konektory",
       "filterHelp": "Název konektoru, jeho vlastník nebo klient, např. jana nebo claude.ai",
       "state": "Stav",
       "stateHelp": "Aktivní konektory odpovídají na volání; Odvolaný ukazuje, co ukončil administrátor nebo odchod člověka",
@@ -8058,7 +8062,9 @@
       "empty": "Zatím nikdo nemá konektor",
       "emptyHint": "Člověk si jej vytvoří v Moje konektory, aby používal platformu z Claude, ChatGPT nebo Claude Code; pak se zde zobrazí s rozsahem a používáním.",
       "noMatch": "Filtru neodpovídá žádný konektor",
-      "noMatchHint": "Vymažte filtr nebo zvolte Každý stav a uvidíte i odvolané a vypršelé konektory."
+      "noMatchHint": "Vymažte filtr nebo zvolte Každý stav a uvidíte i odvolané a vypršelé konektory.",
+      "callsPerDay": "Volání za 24 hodin",
+      "denialsPerDay": "Odmítnuté za 24 hodin"
     }
   },
   "projectDelete": {
@@ -8169,6 +8175,9 @@
     "propose": "Navrhnout"
   },
   "projectImport": {
+    "number": "Zadejte číslo.",
+    "wholeNumber": "Zadejte celé číslo.",
+    "notNumber": "{names}: zadejte číslo, například 30, nebo pole nechte prázdné pro výchozí hodnotu.",
     "title": "Importovat projekt",
     "lead": "Vytvoří repozitáře projektu z git exportu a poté navrhne jeho záznam v registru.",
     "button": "Importovat projekt",
@@ -10970,16 +10979,18 @@
       "publish": "Publikování",
       "apps": "Aplikace",
       "operate": "Provoz",
+      "knowledge": "Znalosti",
       "admin": "Vše (správce)"
     },
     "segmentHint": {
       "data-read": "čte Endpointy, prostory a modely, např. pro otázky o datech",
-      "context": "čte modely, prostory, Endpointy a politiky",
+      "context": "čte modely, prostory, Endpointy, politiky, projekce modelů a odběry",
       "pipeline": "čte pipelines, zdroje a jejich metriky",
       "access": "čte role, vazby, skupiny a servisní účty",
       "publish": "čte katalog a stav CKAN",
       "apps": "čte aplikace a jejich běhy",
       "operate": "čte aktivitu, změny a stav synchronizace",
+      "knowledge": "čte zdroje znalostí, stav jejich procházení a pasáže",
       "admin": "všechny předvolby výše"
     },
     "client": {
@@ -11038,7 +11049,9 @@
     "addKey": "Přidat klíč",
     "addKept": "Přidat klíče, které zůstávají",
     "submit": "Zašifrovat a navrhnout",
-    "sending": "Tajemství se odesílá…"
+    "sending": "Tajemství se odesílá…",
+    "keyMissing": "Pojmenujte tuto hodnotu, např. apiKey.",
+    "keyTwice": "Klíč {key} je už výše: každé hodnotě dejte vlastní klíč."
   },
   "pairedTab": {
     "region": "Karta připojená ke konektoru",
@@ -11087,7 +11100,6 @@
     "removeFilter": "Odebrat filtr {column}: {value}",
     "clearFilters": "Zrušit filtry",
     "details": "Podrobnosti",
-    "openDetails": "Podrobnosti {name}",
     "noMatch": "Hledání a filtrům neodpovídá žádný řádek.",
     "clearAll": "Zrušit hledání a filtry",
     "footer": "Zobrazeno {shown} z {count}",

@@ -3,7 +3,7 @@ import type { JSX, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge, Button } from "../ui";
 import type { BadgeTone } from "../ui";
-import { ago } from "../../pages/apps/CatalogCards";
+import { ago } from "../ago";
 import type { Verdict } from "../../api/drafts";
 
 export type VerdictState = "none" | "green" | "waiting" | "red" | "stale";

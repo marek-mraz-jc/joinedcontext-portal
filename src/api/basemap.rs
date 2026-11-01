@@ -390,11 +390,11 @@ pub async fn get_tile(
     let cache_key = format!("{style}_{z}_{x}_{y}.{ext}");
     let cache_path = basemap.cache_dir.join(&cache_key);
 
-    if let Ok(metadata) = std::fs::metadata(&cache_path) {
+    if let Ok(metadata) = tokio::fs::metadata(&cache_path).await {
         if let Ok(modified) = metadata.modified() {
             if let Ok(elapsed) = modified.elapsed() {
                 if elapsed.as_secs() < basemap.cache_ttl_secs {
-                    if let Ok(bytes) = std::fs::read(&cache_path) {
+                    if let Ok(bytes) = tokio::fs::read(&cache_path).await {
                         metrics::counter!("jc_basemap_tiles_total", "result" => "hit").increment(1);
                         let content_type = if ext == "jpg" || ext == "jpeg" {
                             "image/jpeg"

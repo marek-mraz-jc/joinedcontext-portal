@@ -5,6 +5,7 @@
  */
 import { cleanup, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { names } from "./grid_checks";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
@@ -111,8 +112,10 @@ describe("Administration → Connectors", () => {
 
     await user.click(screen.getByLabelText(en.organization.connectors.flaggedOnly, { exact: false }));
     await user.selectOptions(screen.getByLabelText(en.organization.connectors.state), "revoked");
-    expect(await within(table).findByText("jana-claude-code")).toBeInTheDocument();
-    expect(within(table).getByText("ola-old")).toBeInTheDocument();
+    // The grid drew its empty card while nothing matched: the rows come back in a table of their own.
+    const revoked = await screen.findByRole("table", { name: en.organization.connectors.caption });
+    expect(await within(revoked).findByText("jana-claude-code")).toBeInTheDocument();
+    expect(within(revoked).getByText("ola-old")).toBeInTheDocument();
     await expectNoAxeViolations(container);
   });
 
@@ -125,5 +128,20 @@ describe("Administration → Connectors", () => {
     const alone = renderConnectors(VIEWER, true);
     expect(await screen.findByText(en.organization.connectors.hidden)).toBeInTheDocument();
     expect(alone.requests.filter((r) => r.includes("/organization/connectors"))).toEqual([]);
+  });
+
+  it("sorts by refusals and filters by owner on the shared grid (T-6205)", async () => {
+    const user = userEvent.setup();
+    renderConnectors(ADMIN);
+    const table = await screen.findByRole("table", { name: en.organization.connectors.caption });
+    await within(table).findByText("jana-claude-code");
+    const sort = within(table).getByRole("button", { name: `Sort by ${en.organization.connectors.denialsPerDay}` });
+    await user.click(sort);
+    expect(names(table)).toEqual(["pia-chatgpt", "jana-claude-code"]);
+    await user.click(sort);
+    expect(names(table)).toEqual(["jana-claude-code", "pia-chatgpt"]);
+    await user.click(within(table.closest<HTMLElement>("[data-manifest-grid]")!).getByText(en.grid.filter));
+    await user.click(screen.getByRole("checkbox", { name: /^pia/i }));
+    expect(names(table)).toEqual(["pia-chatgpt"]);
   });
 });
