@@ -160,10 +160,7 @@ fn cap(text: &str, limit: usize) -> String {
     if text.len() <= limit {
         return text.to_owned();
     }
-    let mut end = limit;
-    while !text.is_char_boundary(end) {
-        end -= 1;
-    }
+    let end = text.floor_char_boundary(limit);
     format!("{}\n… ({} more bytes)", &text[..end], text.len() - end)
 }
 

@@ -462,18 +462,19 @@ impl Driver {
                     "assistant",
                 )
                 .await;
+            if let Err(err) = kept {
+                return self
+                    .draft_not_kept(TOOL, started, &input, kind, named, &err)
+                    .await;
+            }
             let verdict = crate::ops::verdict::Verdict::green(manifest, None);
-            let checked = match kept {
-                Ok(_) => self
-                    .state
-                    .drafts
-                    .set_verdict(&self.project, kind, named, verdict)
-                    .await
-                    .map(|_| ()),
-                Err(err) => Err(err),
-            };
-            if let Err(err) = checked {
-                tracing::warn!(run = %self.run_id, kind, name = named, error = %err, "dashboard draft not kept");
+            if let Err(err) = self
+                .state
+                .drafts
+                .set_verdict(&self.project, kind, named, verdict)
+                .await
+            {
+                tracing::warn!(run = %self.run_id, kind, name = named, error = %err, "dashboard verdict not kept");
             }
         }
         // The dashboard is drafted last, so it is the one the editor opens on.
@@ -1103,7 +1104,9 @@ impl Driver {
             )
             .await
         {
-            tracing::warn!(run = %self.run_id, kind = %info.kind, error = %err, "change draft not kept");
+            return self
+                .draft_not_kept(tool, started, &input, info.kind, name, &err)
+                .await;
         }
         // The draft carries the check it passed, so the form proposes it without a second one
         // while the person leaves it as it is (AG-77). A new resource whose test is not green
@@ -1330,6 +1333,38 @@ impl Driver {
             return Ok(Worked::Done(prose));
         }
         Ok(Worked::Again(reason))
+    }
+
+    /// A draft the store refused or could not keep ends the tool, since the card and the form
+    /// would open on a draft that is not there (JC1-30). The person reads what to do; a database
+    /// error's own text stays in the log.
+    pub(super) async fn draft_not_kept(
+        &self,
+        tool: &str,
+        started: std::time::Instant,
+        input: &Value,
+        kind: &str,
+        name: &str,
+        err: &crate::ops::drafts::DraftError,
+    ) -> Result<Worked, String> {
+        use crate::ops::drafts::DraftError;
+        tracing::warn!(run = %self.run_id, kind, name, error = %err, "draft not kept");
+        let reason = match err {
+            DraftError::Secret(field) => format!(
+                "the {kind} '{name}' holds a literal secret in '{field}'; name it by secretRef"
+            ),
+            DraftError::Conflict { .. } => {
+                format!("the draft of {kind} '{name}' changed meanwhile; open it again")
+            }
+            DraftError::Db(_) | DraftError::NotFound { .. } => {
+                format!("the draft of {kind} '{name}' could not be saved; try again in a moment")
+            }
+        };
+        self.event("tool", failed_step(tool, started, input, &reason))
+            .await?;
+        let prose = format!("Nothing was opened: {reason}.");
+        self.thought(&prose).await?;
+        Ok(Worked::Done(prose))
     }
 
     /// The project's endpoints as manifests, from the Portal's mirror of the repository.

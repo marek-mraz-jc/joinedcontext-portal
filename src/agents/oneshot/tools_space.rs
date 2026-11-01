@@ -398,7 +398,9 @@ impl Driver {
                 )
                 .await
             {
-                tracing::warn!(run = %self.run_id, kind = %drafted.kind, error = %err, "draft not kept");
+                return self
+                    .draft_not_kept(TOOL, started, &input, &drafted.kind, &drafted.name, &err)
+                    .await;
             }
         }
         if let Err(err) = self
@@ -415,7 +417,9 @@ impl Driver {
             )
             .await
         {
-            tracing::warn!(run = %self.run_id, error = %err, "pipeline draft not kept");
+            return self
+                .draft_not_kept(TOOL, started, &input, "Pipeline", &name, &err)
+                .await;
         }
 
         // The test runs on a page of the source when this run reads that endpoint, and on an
@@ -434,9 +438,21 @@ impl Driver {
             if let Some(q) = params.q.as_deref().filter(|q| !q.trim().is_empty()) {
                 url.push_str(&format!("&q={}", urlencoding(q)));
             }
-            self.read_text(&url)
-                .await
-                .unwrap_or_else(|_| "[]".to_owned())
+            match self.read_text(&url).await {
+                Ok(page) => page,
+                // A failed read is no empty page: the test would pass on nothing (JC1-29).
+                Err(reason) => {
+                    let reason = format!("the source page could not be read: {reason}");
+                    self.event("tool", failed(&input, &reason)).await?;
+                    return self
+                        .again(
+                            last,
+                            format!("error: {reason}"),
+                            format!("The pipeline is drafted but not tested: {reason}"),
+                        )
+                        .await;
+                }
+            }
         } else {
             "[]".to_owned()
         };
@@ -723,5 +739,158 @@ mod tests {
         let mut bare = json!({ "space": "x" });
         without_traces(&mut bare);
         assert_eq!(bare, json!({ "space": "x" }));
+    }
+
+    /// A steward's run in `helsinki` whose source Endpoint answers `answer`, with an indicator
+    /// space already there, so the pipeline plan holds and the test reads the source page.
+    async fn kpi_run(answer: u16) -> (super::Driver, crate::state::AppState, wiremock::MockServer) {
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        let source = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .respond_with(wiremock::ResponseTemplate::new(answer).set_body_string("[]"))
+            .mount(&source)
+            .await;
+        let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
+        let put = |kind: &str, name: &str, spec: serde_json::Value| {
+            state.mirror.upsert(ResourceEnvelope {
+                api_version: API_VERSION.to_owned(),
+                kind: kind.to_owned(),
+                metadata: ObjectMeta {
+                    name: name.to_owned(),
+                    namespace: Some("helsinki".to_owned()),
+                    ..Default::default()
+                },
+                spec,
+                status: None,
+            })
+        };
+        put("ContextSpace", "helsinki", json!({}));
+        put("ContextSpace", "helsinki-kpi", json!({}));
+        put(
+            "Endpoint",
+            "helsinki-all",
+            json!({ "contextSpaceRef": "helsinki", "slug": "allslug" }),
+        );
+        put(
+            "Endpoint",
+            "helsinki-kpi",
+            json!({ "contextSpaceRef": "helsinki-kpi", "slug": "kpislug" }),
+        );
+        put(
+            "Policy",
+            "kpi-pipelines-write",
+            json!({
+                "contextSpaceRef": { "kind": "ContextSpace", "name": "helsinki-kpi" },
+                "assignee": { "kind": "serviceAccount", "id": "pipelines" },
+                "operations": ["upsertBatch"]
+            }),
+        );
+        let mut driver = super::Driver::for_tests(state.clone(), "helsinki");
+        driver.proxy_base = source.uri();
+        driver.identity.roles = vec![state.config.bootstrap_admins.clone()];
+        let operations: Vec<&str> = crate::ops::registry().iter().map(|op| op.name).collect();
+        driver.access = crate::agents::access::Access::from_spec(&json!({ "access": {
+            "operations": operations,
+            "kinds": [{ "kind": "Pipeline", "verbs": ["read", "propose"] }],
+        } }));
+        (driver, state, source)
+    }
+
+    async fn tool_events(state: &crate::state::AppState) -> Vec<serde_json::Value> {
+        state
+            .agents
+            .events_since("test-run", 0)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|event| event.kind == "tool")
+            .map(|event| event.payload)
+            .collect()
+    }
+
+    fn bikes() -> crate::agents::kpi_pipeline::DraftKpiPipeline {
+        serde_json::from_value(json!({
+            "name": "bikes-available-avg", "type": "BikeHireDockingStation",
+            "attribute": "availableBikeNumber", "agg": "avg", "every": "15m"
+        }))
+        .expect("a call")
+    }
+
+    /// JC1-29: a source page that cannot be read fails the step; the pipeline is never tested
+    /// on an empty page standing in for it.
+    #[tokio::test]
+    async fn a_source_page_that_cannot_be_read_fails_the_step_and_tests_nothing() {
+        let (driver, state, _source) = kpi_run(503).await;
+        let mut chosen = vec![crate::agents::endpoints::RunEndpoint {
+            name: "helsinki-all".into(),
+            slug: "allslug".into(),
+            space: "helsinki".into(),
+        }];
+        let worked = driver
+            .kpi_pipeline(Ok(bikes()), "", &mut chosen, &mut Vec::new(), true)
+            .await
+            .expect("the run goes on");
+        let super::Worked::Done(prose) = worked else {
+            panic!("the last draft ends the tool");
+        };
+        assert!(
+            prose.contains("not tested") && prose.contains("503"),
+            "{prose}"
+        );
+        let events = tool_events(&state).await;
+        let last = events.last().expect("a tool event");
+        assert_eq!(last["status"], "failed", "{last}");
+        assert!(
+            last.get("output").is_none(),
+            "no verdict on a page never read: {last}"
+        );
+    }
+
+    /// JC1-30: a draft the store cannot keep ends the tool with what to do, and a database
+    /// error's own text never reaches the person.
+    #[tokio::test]
+    async fn a_draft_the_store_cannot_keep_ends_the_tool_without_its_database_text() {
+        use crate::ops::drafts::DraftError;
+        let (driver, state, _source) = kpi_run(200).await;
+        let worked = driver
+            .draft_not_kept(
+                "draft_kpi_pipeline",
+                std::time::Instant::now(),
+                &json!({}),
+                "Pipeline",
+                "bikes",
+                &DraftError::Db("connection to 10.0.0.7:5432 refused".into()),
+            )
+            .await
+            .expect("the run goes on");
+        let super::Worked::Done(prose) = worked else {
+            panic!("a lost draft ends the tool");
+        };
+        assert!(
+            prose.contains("could not be saved") && !prose.contains("10.0.0.7"),
+            "{prose}"
+        );
+        let events = tool_events(&state).await;
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0]["status"], "failed");
+        assert!(!events[0].to_string().contains("10.0.0.7"), "{}", events[0]);
+        let secret = driver
+            .draft_not_kept(
+                "t",
+                std::time::Instant::now(),
+                &json!({}),
+                "DataSource",
+                "feed",
+                &DraftError::Secret("spec.auth.password".into()),
+            )
+            .await
+            .expect("the run goes on");
+        let super::Worked::Done(prose) = secret else {
+            panic!("a refused draft ends the tool");
+        };
+        assert!(
+            prose.contains("spec.auth.password") && prose.contains("secretRef"),
+            "{prose}"
+        );
     }
 }

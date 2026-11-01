@@ -426,10 +426,7 @@ async fn dispatch(state: AppState, caller: crate::ops::Caller, body: Bytes) -> R
                     }));
                 }
             }
-            let drafts = crate::ops::drafts::draft_store(&state)
-                .list(&project)
-                .await
-                .unwrap_or_default();
+            let drafts = state.drafts.list(&project).await.unwrap_or_default();
             // A draft is readable exactly where its manifest would be (PF-59, T-1455).
             for draft in drafts
                 .into_iter()
@@ -1012,7 +1009,8 @@ async fn read_resource(
         }
         [project, "drafts", kind, name] if may_read_kind(state, caller, project, kind) => {
             let effective = crate::permissions::for_request(state, &caller.identity, project);
-            let draft = crate::ops::drafts::draft_store(state)
+            let draft = state
+                .drafts
                 .get(project, kind, name)
                 .await
                 .ok()
@@ -1369,13 +1367,19 @@ pub(crate) fn call_result(output: &Value) -> Value {
 /// `text` under [`UNTRUSTED_PREFACE`], in a fence longer than any backtick run in it, so no value
 /// can close the fence early.
 fn fenced(text: &str) -> String {
+    let fence = fence_for(text);
+    format!("{UNTRUSTED_PREFACE}\n{fence}json\n{text}\n{fence}")
+}
+
+/// A backtick fence longer than any backtick run in `text`, at least three: no value inside
+/// can close it early.
+pub(crate) fn fence_for(text: &str) -> String {
     let longest = text
         .split(|c| c != '`')
         .map(str::len)
         .max()
         .unwrap_or_default();
-    let fence = "`".repeat(longest.saturating_add(1).max(3));
-    format!("{UNTRUSTED_PREFACE}\n{fence}json\n{text}\n{fence}")
+    "`".repeat(longest.saturating_add(1).max(3))
 }
 
 /// A conflict the caller resolves: the document says which and what to do.

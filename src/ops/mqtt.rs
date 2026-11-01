@@ -14,7 +14,7 @@ use serde_json::{json, Value};
 
 use super::bounds::{text, NAME};
 use super::runs::as_user;
-use super::{parse_input, Annotations, Caller, Operation, Via};
+use super::{parse_input, Caller, Operation, OperationAnnotations, Via};
 use crate::api::mqtt_captured::{Captured, CapturedQuery};
 use crate::change::Lane;
 use crate::state::AppState;
@@ -242,7 +242,7 @@ pub fn operations() -> Vec<Operation> {
         description: "Dry-runs one device message on a topic through the broker's ACL and limits, the bound DataSource and Pipeline, the mapping and the Endpoint's record check; publishes and writes nothing",
         input: test_input_schema,
         output: test_output_schema,
-        annotations: Annotations {
+        annotations: OperationAnnotations {
             read_only_hint: true,
             destructive_hint: false,
             idempotent_hint: true,
@@ -261,7 +261,7 @@ pub fn operations() -> Vec<Operation> {
             "The newest messages a capture broker kept; 404 to whoever may not approve MqttBrokers",
         input: input_schema,
         output: output_schema,
-        annotations: Annotations {
+        annotations: OperationAnnotations {
             read_only_hint: true,
             destructive_hint: false,
             idempotent_hint: true,

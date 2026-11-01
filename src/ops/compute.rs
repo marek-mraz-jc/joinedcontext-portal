@@ -261,6 +261,22 @@ async fn catalog_search(
     Ok(answer)
 }
 
+/// The indicator's value over `rows`. A fold over no number is refused at `/rows`, so an
+/// empty or numberless page never reads as a measured zero; `count` of no rows is a true 0.
+fn kpi_value(rows: &[Value], params: &kpi::ComputeKpi) -> Result<f64, OpError> {
+    kpi::compute(rows, &params.attribute, params.agg)
+        .0
+        .ok_or_else(|| OpError::InvalidInput {
+            path: "/rows".into(),
+            message: format!(
+                "no {} carries a number in '{}' ({} read)",
+                params.entity_type,
+                params.attribute,
+                rows.len()
+            ),
+        })
+}
+
 /// This module's operations in the registry (`super::init_registry`).
 pub fn operations() -> Vec<Operation> {
     vec![        Operation {
@@ -313,8 +329,7 @@ pub fn operations() -> Vec<Operation> {
                         q: input.q,
                         endpoint: None,
                     };
-                    let rows = input.rows.unwrap_or_default();
-                    let (computed_val, _) = kpi::compute(&rows, &params.attribute, params.agg);
+                    let value = kpi_value(&input.rows.unwrap_or_default(), &params)?;
                     let org_domain = assistant::org_domain(state, project);
                     let (ep_slug, ep_name) = kpi::kpi_endpoint(state, project)
                         .unwrap_or_else(|| (format!("{project}-kpi"), format!("{project}-kpi")));
@@ -327,7 +342,7 @@ pub fn operations() -> Vec<Operation> {
                         run_id: "ops",
                         now: &now,
                     };
-                    let entity = kpi::entity(&params, computed_val.unwrap_or(0.0), &prov)
+                    let entity = kpi::entity(&params, value, &prov)
                         .map_err(ApiError::BadRequest)?;
                     Ok(entity.to_json())
                 })
@@ -557,25 +572,54 @@ async fn infer_from_url(
 /// Whether an address carries a credential: a user name or password before the host, or a query
 /// parameter named like one (`token`, `apiKey`, `key`, `sig`, …) or holding a credential-shaped
 /// value.
+/// Unlike [`crate::secret_scan::secret_text`], a named parameter is refused even empty or as a
+/// `${VAR}`: nothing resolves a variable in an address sampled once.
 fn credential_in_address(url: &url::Url) -> bool {
-    const ALSO: [&str; 6] = ["key", "apikey", "sig", "signature", "auth", "credential"];
-    let named = |name: &str| {
-        let bare: String = name
-            .chars()
-            .filter(|c| *c != '_' && *c != '-')
-            .collect::<String>()
-            .to_ascii_lowercase();
-        ALSO.contains(&bare.as_str())
-            || crate::api::mutate::SECRET_KEYS.iter().any(|key| {
-                key.chars()
-                    .filter(|c| *c != '_')
-                    .collect::<String>()
-                    .eq_ignore_ascii_case(&bare)
-            })
-    };
     !url.username().is_empty()
         || url.password().is_some()
         || url.query_pairs().any(|(name, value)| {
-            named(&name) || crate::pipeline_outcomes::credential_shaped(&value)
+            crate::secret_scan::secret_param(&name)
+                || crate::pipeline_outcomes::credential_shaped(&value)
         })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn params(agg: kpi::Agg) -> kpi::ComputeKpi {
+        kpi::ComputeKpi {
+            name: "n".into(),
+            title: None,
+            entity_type: "BikeCounter".into(),
+            attribute: "count".into(),
+            agg,
+            unit: None,
+            q: None,
+            endpoint: None,
+        }
+    }
+
+    #[test]
+    fn a_fold_over_no_number_is_refused_at_rows_not_a_zero() {
+        for rows in [vec![], vec![json!({"id": "c1", "count": "n/a"})]] {
+            match kpi_value(&rows, &params(kpi::Agg::Sum)) {
+                Err(OpError::InvalidInput { path, message }) => {
+                    assert_eq!(path, "/rows");
+                    assert!(
+                        message.contains("BikeCounter") && message.contains("count"),
+                        "{message}"
+                    );
+                }
+                other => panic!("expected a refusal, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn a_count_of_no_rows_and_a_true_zero_stay_values() {
+        assert_eq!(kpi_value(&[], &params(kpi::Agg::Count)).ok(), Some(0.0));
+        let zero = [json!({"id": "c1", "count": 0})];
+        assert_eq!(kpi_value(&zero, &params(kpi::Agg::Sum)).ok(), Some(0.0));
+    }
 }

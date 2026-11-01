@@ -68,14 +68,21 @@ pub fn secret_text(text: &str) -> bool {
     (credential_shaped(text) && !public_pem) || secret_in_query(text)
 }
 
+/// Whether a query parameter is named like a credential (`apiKey`, `sig`, `client_secret`, …):
+/// the one list every address check reads (JC1-54).
+pub fn secret_param(name: &str) -> bool {
+    let name = folded(name);
+    SECRET_PARAMS.contains(&name.as_str())
+        || ["auth", "credential"].contains(&name.as_str())
+        || SECRET_KEYS.iter().any(|key| folded(key) == name)
+}
+
 fn secret_in_query(text: &str) -> bool {
     let Ok(url) = url::Url::parse(text.trim()) else {
         return false;
     };
     url.query_pairs().any(|(name, value)| {
-        SECRET_PARAMS.contains(&folded(&name).as_str())
-            && !value.is_empty()
-            && !is_variable_reference(&value)
+        secret_param(&name) && !value.is_empty() && !is_variable_reference(&value)
     })
 }
 
@@ -126,6 +133,35 @@ pub fn masked(answer: &Value) -> Value {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// JC1-54: one parameter list for the operations door, the inference address and the
+    /// drafted source address, each former list's names included.
+    #[test]
+    fn a_credential_parameter_is_one_list_for_every_address_check() {
+        for name in [
+            "key",
+            "apiKey",
+            "api_key",
+            "sig",
+            "signature",
+            "auth",
+            "credential",
+            "token",
+            "client_secret",
+            "clientSecret",
+            "password",
+            "access-token",
+        ] {
+            assert!(secret_param(name), "{name}");
+        }
+        for name in ["format", "limit", "type", "keyword", "q"] {
+            assert!(!secret_param(name), "{name}");
+        }
+        assert!(secret_text("https://feed.example.com/v1?auth=0123456789"));
+        assert!(!secret_text(
+            "https://feed.example.com/v1?auth=${FEED_AUTH}"
+        ));
+    }
 
     #[test]
     fn a_pasted_key_is_found_by_its_name_its_shape_or_its_url() {
