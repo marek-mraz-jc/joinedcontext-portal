@@ -438,12 +438,12 @@ async fn sample_of_planned(
 /// host does not resolve: [`sample_address`], and a name that resolves to nothing is refused too.
 async fn public_address(url: &str, path: &str) -> Result<(), OpError> {
     match resolved_address(url, path).await? {
-        Some((host, addresses)) => resolved_public(&host, &addresses).map_err(|message| {
-            OpError::InvalidInput {
+        Some((host, addresses)) => {
+            resolved_public(&host, &addresses).map_err(|message| OpError::InvalidInput {
                 path: path.into(),
                 message,
-            }
-        }),
+            })
+        }
         None => Ok(()),
     }
 }
@@ -488,8 +488,8 @@ async fn resolved_address(
         path: path.into(),
         message,
     };
-    let parsed = url::Url::parse(url)
-        .map_err(|e| refused(format!("the address does not parse: {e}")))?;
+    let parsed =
+        url::Url::parse(url).map_err(|e| refused(format!("the address does not parse: {e}")))?;
     jc_core::outbound::check(&parsed).map_err(|r| refused(r.to_string()))?;
     let Some(url::Host::Domain(host)) = parsed.host() else {
         return Ok(None);

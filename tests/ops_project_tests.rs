@@ -490,7 +490,12 @@ async fn a_deletion_names_the_project_the_call_is_addressed_to() {
             "{who}: {}",
             refused.text()
         );
-        assert_eq!("name", refused.body["errors"][0]["path"], "{who}: {}", refused.text());
+        assert_eq!(
+            "name",
+            refused.body["errors"][0]["path"],
+            "{who}: {}",
+            refused.text()
+        );
     }
     assert_eq!(
         Vec::<String>::new(),
@@ -508,7 +513,11 @@ async fn a_run_reads_no_resource_of_a_kind_its_profile_does_not_grant() {
     let uris = |answer: &Value| -> Vec<String> {
         answer["result"]["resources"]
             .as_array()
-            .map(|all| all.iter().filter_map(|r| r["uri"].as_str().map(str::to_owned)).collect())
+            .map(|all| {
+                all.iter()
+                    .filter_map(|r| r["uri"].as_str().map(str::to_owned))
+                    .collect()
+            })
             .unwrap_or_default()
     };
     let person = uris(&doors::mcp_rpc(&mcp(steward()), &state, list.clone()).await);

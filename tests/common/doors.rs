@@ -222,8 +222,9 @@ pub fn offered(caller: &Caller, state: &AppState) -> Vec<String> {
 /// One MCP JSON-RPC `message` from `caller` through the Portal's MCP dispatch, answered as JSON.
 pub async fn mcp_rpc(caller: &Caller, state: &AppState, message: Value) -> Value {
     let body = axum::body::Bytes::from(message.to_string());
-    let answer =
-        answer_of(joinedcontext_portal::mcp::dispatch_for(state.clone(), caller.clone(), body).await)
-            .await;
+    let answer = answer_of(
+        joinedcontext_portal::mcp::dispatch_for(state.clone(), caller.clone(), body).await,
+    )
+    .await;
     answer.body
 }

@@ -1700,10 +1700,7 @@ mod tests {
         )
         .await
         .expect_err("no forge to read the published source from");
-        assert!(
-            refused.to_string().contains("git forge"),
-            "{refused}"
-        );
+        assert!(refused.to_string().contains("git forge"), "{refused}");
     }
 
     /// DM-56, T-1484: a model's source stays inside its space's `datamodels/` folder.

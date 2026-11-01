@@ -329,8 +329,11 @@ impl Driver {
                 match super::connector_turn::without_personal(output, marks) {
                     Ok(output) => Ok(output),
                     Err(why) => {
-                        self.event("tool", failed_step(&call.name, started, &call.arguments, &why))
-                            .await?;
+                        self.event(
+                            "tool",
+                            failed_step(&call.name, started, &call.arguments, &why),
+                        )
+                        .await?;
                         return Ok(format!("error: {why}"));
                     }
                 }

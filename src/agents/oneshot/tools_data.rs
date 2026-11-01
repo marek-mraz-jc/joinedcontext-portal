@@ -334,8 +334,7 @@ impl Driver {
             .and_then(|endpoint| endpoint_project(&self.state, &endpoint.slug))
             .unwrap_or_else(|| self.project.clone());
         let marks = crate::personal_data::of_project(&self.state, &project).await?;
-        let removed =
-            crate::personal_data::withhold(&mut result["structuredContent"], &marks);
+        let removed = crate::personal_data::withhold(&mut result["structuredContent"], &marks);
         if removed.is_empty() {
             return Ok(String::new());
         }
@@ -1013,7 +1012,10 @@ mod tests {
         };
 
         // A project without models marks nothing: the answer passes whole.
-        let read = driver.query_endpoint(&chosen, &call, &tools).await.expect("read");
+        let read = driver
+            .query_endpoint(&chosen, &call, &tools)
+            .await
+            .expect("read");
         assert!(read.contains("jana@example.org"), "{read}");
 
         // A model the Portal cannot read (no forge here): nothing could be withheld.
@@ -1024,13 +1026,14 @@ mod tests {
             spec: json!({ "linkml": "model.linkml.yaml" }),
             status: None,
         });
-        let refused = driver.query_endpoint(&chosen, &call, &tools).await.expect("refused");
+        let refused = driver
+            .query_endpoint(&chosen, &call, &tools)
+            .await
+            .expect("refused");
         assert!(refused.starts_with("error: "), "{refused}");
         assert!(!refused.contains("jana@example.org"), "{refused}");
         let last = logged(&state, "tool").await.pop().expect("logged");
         assert_eq!("failed", last["status"], "{last}");
         assert!(!last.to_string().contains("jana@example.org"), "{last}");
     }
-
 }
-

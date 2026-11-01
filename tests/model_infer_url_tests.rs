@@ -140,7 +140,12 @@ async fn an_address_inside_the_cluster_is_refused_before_the_runner_fetches_it()
                 "{name} {url}: {}",
                 answer.text()
             );
-            assert_eq!(field, answer.body["errors"][0]["path"], "{name} {url}: {}", answer.text());
+            assert_eq!(
+                field,
+                answer.body["errors"][0]["path"],
+                "{name} {url}: {}",
+                answer.text()
+            );
         }
     }
 }

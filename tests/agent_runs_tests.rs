@@ -5291,8 +5291,5 @@ async fn a_continuation_holds_inherited_endpoints_to_its_profile() {
     )
     .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "{problem}");
-    assert!(
-        problem.to_string().contains("helsinki-bikes"),
-        "{problem}"
-    );
+    assert!(problem.to_string().contains("helsinki-bikes"), "{problem}");
 }

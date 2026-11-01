@@ -658,7 +658,10 @@ fn readable_item(
 /// so a resource the API hides is not handed out over MCP either. An agent run reads only the
 /// kinds its profile grants `read` (AG-70, JC1-02).
 fn may_read_kind(state: &AppState, caller: &crate::ops::Caller, project: &str, kind: &str) -> bool {
-    caller.access.as_ref().is_none_or(|access| access.reads(kind))
+    caller
+        .access
+        .as_ref()
+        .is_none_or(|access| access.reads(kind))
         && crate::permissions::for_request(state, &caller.identity, project).may_read(kind)
 }
 /// One `tools/call`, answered as its JSON-RPC envelope: an error, or a result the caller grounds.
