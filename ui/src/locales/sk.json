@@ -669,7 +669,8 @@
       "proposeAll": "Navrhnúť všetko",
       "open": "Otvoriť",
       "noDrafts": "Zatiaľ nie sú doplnené žiadne návrhy.",
-      "needInput": "Zadajte URL endpointu alebo pridajte súbor."
+      "needInput": "Zadajte URL endpointu alebo pridajte súbor.",
+      "filesHint": "Ukážka údajov ako CSV, Excel (.xlsx), JSON alebo GeoJSON, s manifestmi, README alebo .env, ktoré opisujú zdroj; spolu do 10 MB. Príklad: stanice.xlsx."
     },
     "segment": "v identifikátoroch entít: {segment}",
     "quality": {
@@ -1120,11 +1121,17 @@
         }
       }
     },
+    "sheet": {
+      "label": "Hárok",
+      "hint": "Zošit má {count} hárkov a číta sa vždy jeden. Vyberte ten s vašimi riadkami, napríklad {example}.",
+      "option": "{name} ({rows, plural, one {# riadok} few {# riadky} other {# riadkov}}, {columns, plural, one {# stĺpec} few {# stĺpce} other {# stĺpcov}})"
+    },
     "upload": {
       "open": "Nahrať CSV",
       "title": "Nahrať CSV",
-      "lead": "Vyberte CSV do 50 MB. Porovná sa s typmi Smart Data Models; model, priestor, jeho Endpoint a vaše právo zapisovať riadky sa navrhnú ako jedna zmena a keď je zmena nasadená, riadky sa zapíšu cez bránu pod vaším menom.",
+      "lead": "Vyberte CSV alebo Excel (.xlsx) do 50 MB. Porovná sa s typmi Smart Data Models; model, priestor, jeho Endpoint a vaše právo zapisovať riadky sa navrhnú ako jedna zmena a keď je zmena nasadená, riadky sa zapíšu cez bránu pod vaším menom.",
       "choose": "Vybrať súbor CSV",
+      "chooseHint": "CSV, TSV alebo Excel (.xlsx) do 50 MB, prvý riadok sú názvy stĺpcov. Príklad: garaze.xlsx so stĺpcami name, lat, lon.",
       "reading": "Čítam {name} a porovnávam jeho stĺpce s typmi Smart Data Models…",
       "type": "Čo riadky sú",
       "noMatch": "Žiadny typ Smart Data Models nepomenúva dosť týchto stĺpcov: súbor dostane vlastný model.",
@@ -6157,7 +6164,8 @@
         "wrongType": "Táto otázka prijíma súbory {formats}.",
         "tooLarge": "Súbor je väčší ako {kilobytes} KB. Odovzdajte jeho vzorku.",
         "empty": "Súbor je prázdny.",
-        "notJson": "Súbor nie je platný JSON."
+        "notJson": "Súbor nie je platný JSON.",
+        "sendSheet": "Odovzdať hárok {name}"
       },
       "url": {
         "label": "Alebo adresa zdroja údajov",

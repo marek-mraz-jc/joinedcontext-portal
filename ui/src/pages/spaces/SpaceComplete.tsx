@@ -14,6 +14,10 @@ import { parse as parseYaml } from "yaml";
 import { Alert, Badge, Button, Card, Field, FileDropZone, Icon, Input, PageHeader } from "../../components/ui";
 import type { IconName } from "../../components/ui";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
+import { SAMPLE_BYTES, sampleOf } from "./csvUpload";
+import { csvOf, readSheets, sheetFileName, unreadableText } from "./importRows";
+import type { Sheet } from "./importRows";
+import { SheetChoice } from "./SheetChoice";
 
 interface CompletedDraft {
   kind: string;
@@ -128,6 +132,9 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
   });
   const [url, setUrl] = useState("");
   const [files, setFiles] = useState<{ name: string; content: string }[]>([]);
+  // An Excel workbook is read here, every sheet, and goes to the op as the CSV of the sheet the
+  // person chose: the op takes text, and a workbook read as text is noise (JC1-07).
+  const [books, setBooks] = useState<{ name: string; sheets: Sheet[]; sheet: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CompleteResult | null>(null);
@@ -145,8 +152,33 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
   }, []);
 
   const takeFiles = async (selected: File[]) => {
-    setFiles(await Promise.all(selected.map(async (f) => ({ name: f.name, content: await f.text() }))));
+    setError(null);
+    const workbook = (f: File) => f.name.toLowerCase().endsWith(".xlsx");
+    try {
+      const read = await Promise.all(
+        selected.filter(workbook).map(async (f) => {
+          const sheets = await readSheets(f);
+          return { name: f.name, sheets, sheet: sheets[0]?.name ?? "" };
+        }),
+      );
+      setBooks(read);
+      setFiles(await Promise.all(selected.filter((f) => !workbook(f)).map(async (f) => ({ name: f.name, content: await f.text() }))));
+    } catch (err: unknown) {
+      setBooks([]);
+      setFiles([]);
+      setError(unreadableText(t, err));
+    }
   };
+
+  /** What the op reads: the text files as they are, each workbook as its chosen sheet's CSV. */
+  const given = () => [
+    ...files,
+    ...books.flatMap((book) => {
+      const sheet = book.sheets.find((s) => s.name === book.sheet);
+      return sheet ? [{ name: sheetFileName(book.name, book.sheets, sheet), content: sampleOf(csvOf(sheet.table), SAMPLE_BYTES) }] : [];
+    }),
+  ];
+  const chosen = [...files.map((f) => f.name), ...books.map((b) => b.name)];
 
   const executeComplete = async (propose: boolean) => {
     setLoading(true);
@@ -160,8 +192,8 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
       }
       if (url.trim()) {
         payload.url = url.trim();
-      } else if (files.length > 0) {
-        payload.files = files;
+      } else if (chosen.length > 0) {
+        payload.files = given();
       }
 
       const answer = await callOperation(project, "jc_space_complete", payload);
@@ -190,7 +222,10 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
     } else if (d.kind === "Endpoint") {
       void navigate({ href: `${base}/endpoints${draft}` });
     } else if (d.kind === "Dashboard" || d.kind === "Layer") {
-      void navigate({ href: `${base}/dashboards` });
+      // The dashboards page reads `?draft=` as a Layer, then as a Dashboard of that name (JC1-40).
+      void navigate({ href: `${base}/dashboards${draft}` });
+    } else if (d.kind === "ContextSpace") {
+      void navigate({ href: `${base}/spaces${draft}` });
     } else if (d.kind === "DataModel") {
       const source = (d.manifest.spec as { source?: unknown } | undefined)?.source;
       if (typeof source === "string") {
@@ -247,15 +282,25 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
         <FileDropZone
           label={t("spaces.complete.files")}
           button={t("form.dropMany")}
+          hint={t("spaces.complete.filesHint")}
           multiple
           onFiles={(selected) => void takeFiles(selected)}
         >
-          {files.length > 0 ? (
+          {chosen.length > 0 ? (
             <p className="text-caption text-fg">
-              {t("form.chosenFiles", { names: files.map((f) => f.name).join(", ") })}
+              {t("form.chosenFiles", { names: chosen.join(", ") })}
             </p>
           ) : null}
         </FileDropZone>
+        {books.map((book, at) => (
+          <SheetChoice
+            key={book.name}
+            id={`complete-sheet-${at}`}
+            sheets={book.sheets}
+            value={book.sheet}
+            onChange={(sheet) => setBooks((all) => all.map((b, i) => (i === at ? { ...b, sheet } : b)))}
+          />
+        ))}
 
         <div className="flex flex-wrap items-center gap-3">
           <Button
@@ -263,9 +308,9 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
             variant={result?.proposeReady ? "secondary" : "primary"}
             // UI-44: nothing to read from is a refusal with a reason on the button, not a grey
             // button and a guess; `loading` keeps the label and its width while the run is out.
-            disabled={!url.trim() && files.length === 0}
+            disabled={!url.trim() && chosen.length === 0}
             disabledReason={
-              !url.trim() && files.length === 0 ? t("spaces.complete.needInput") : undefined
+              !url.trim() && chosen.length === 0 ? t("spaces.complete.needInput") : undefined
             }
             loading={loading}
             onClick={() => void executeComplete(false)}

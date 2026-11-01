@@ -10,6 +10,7 @@ import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
 import i18n from "../src/i18n";
 import { ExportLinks, ImportRowsDialog } from "../src/pages/spaces/ImportRows";
+import { deflated, workbook, zip } from "./xlsxFixture";
 import {
   BATCH,
   createInBatches,
@@ -21,6 +22,10 @@ import {
   importSlotsOf,
   parseCsv,
   parseJson,
+  csvOf,
+  isDateFormat,
+  serialDate,
+  parseWorkbook,
   parseXlsx,
   parseXml,
   readTable,
@@ -65,51 +70,6 @@ const SLOTS = importSlotsOf(MODEL, TYPE);
 const TARGET = { type: TYPE, orgDomain: "hel.fi", space: "helsinki" };
 const urn = (local: string) => `urn:ngsi-ld:${TYPE}:hel.fi:helsinki:${local}`;
 
-/** Raw DEFLATE of a text, as a ZIP entry of method 8 holds it. */
-async function deflated(text: string): Promise<Uint8Array> {
-  const body = new Response(text).body;
-  if (!body) throw new Error("a Response of a text has a body");
-  return new Uint8Array(await new Response(body.pipeThrough(new CompressionStream("deflate-raw"))).arrayBuffer());
-}
-
-/** A ZIP of stored (uncompressed) entries, or deflated ones given as bytes, the smallest workbook a test can hold. */
-function zip(files: Record<string, string | Uint8Array>, sizes: Record<string, number> = {}): Uint8Array {
-  const encoder = new TextEncoder();
-  const parts: number[] = [];
-  const central: number[] = [];
-  const u16 = (out: number[], n: number) => out.push(n & 0xff, (n >> 8) & 0xff);
-  const u32 = (out: number[], n: number) => out.push(n & 0xff, (n >> 8) & 0xff, (n >> 16) & 0xff, (n >>> 24) & 0xff);
-  let count = 0;
-  for (const [name, text] of Object.entries(files)) {
-    const nameBytes = encoder.encode(name);
-    const data = typeof text === "string" ? encoder.encode(text) : text;
-    const method = typeof text === "string" ? 0 : 8;
-    const size = sizes[name] ?? data.length;
-    const offset = parts.length;
-    u32(parts, 0x04034b50);
-    [20, 0, method, 0, 0].forEach((n) => u16(parts, n));
-    [0, data.length, size].forEach((n) => u32(parts, n));
-    u16(parts, nameBytes.length);
-    u16(parts, 0);
-    parts.push(...nameBytes, ...data);
-    u32(central, 0x02014b50);
-    [20, 20, 0, method, 0, 0].forEach((n) => u16(central, n));
-    [0, data.length, size].forEach((n) => u32(central, n));
-    [nameBytes.length, 0, 0, 0, 0].forEach((n) => u16(central, n));
-    u32(central, 0);
-    u32(central, offset);
-    central.push(...nameBytes);
-    count += 1;
-  }
-  const end: number[] = [];
-  u32(end, 0x06054b50);
-  [0, 0, count, count].forEach((n) => u16(end, n));
-  u32(end, central.length);
-  u32(end, parts.length);
-  u16(end, 0);
-  return new Uint8Array([...parts, ...central, ...end]);
-}
-
 describe("reading a file", () => {
   it("reads CSV with quotes, doubled quotes, a semicolon separator and a BOM", () => {
     const table = parseCsv('﻿name;note\r\n"Kamppi; centre";"said ""hi"""\r\nKallio;\r\n\r\n');
@@ -150,6 +110,43 @@ describe("reading a file", () => {
     const table = await parseXlsx(workbook);
     expect(table.columns).toEqual(["name", "bikes", "open"]);
     expect(table.rows).toEqual([{ name: "Kamppi", bikes: "", open: "true" }]);
+  });
+
+  it("reads every sheet in the workbook's own order, named as the spreadsheet shows them (JC1-21)", async () => {
+    const sheets = await parseWorkbook(
+      workbook({
+        Stations: [["name", "opened"], ["Kamppi", { date: 46086 }]],
+        Stops: [["name", "lines"], ["Rautatientori", 12]],
+      }),
+    );
+    expect(sheets.map((s) => s.name)).toEqual(["Stations", "Stops"]);
+    expect(sheets[0]?.table.rows).toEqual([{ name: "Kamppi", opened: "2026-03-05" }]);
+    expect(sheets[1]?.table.rows).toEqual([{ name: "Rautatientori", lines: "12" }]);
+    expect((await parseXlsx(workbook({ A: [["x"], ["1"]], B: [["y"], ["2"]] }), "B")).rows).toEqual([{ y: "2" }]);
+    await expect(parseXlsx(workbook({ A: [["x"], ["1"]] }), "Nope")).rejects.toThrow("no sheet 'Nope'");
+  });
+
+  it("orders sheet2 before sheet10 when the workbook lists no sheets", async () => {
+    const sheet = (header: string) => `<worksheet><sheetData><row><c r="A1" t="inlineStr"><is><t>${header}</t></is></c></row></sheetData></worksheet>`;
+    const sheets = await parseWorkbook(zip({ "xl/worksheets/sheet10.xml": sheet("ten"), "xl/worksheets/sheet2.xml": sheet("two") }));
+    expect(sheets.map((s) => s.table.columns[0])).toEqual(["two", "ten"]);
+  });
+
+  it("writes a date cell as ISO 8601, a time with it, and tells date formats from number formats", () => {
+    expect(serialDate(46086)).toBe("2026-03-05");
+    expect(serialDate(46086.5)).toBe("2026-03-05T12:00:00");
+    expect(serialDate(0.25)).toBe("06:00:00");
+    expect(serialDate(44624, true)).toBe("2026-03-05");
+    expect(isDateFormat("d.m.yyyy")).toBe(true);
+    expect(isDateFormat("[$-405]h:mm")).toBe(true);
+    expect(isDateFormat("#,##0.00")).toBe(false);
+    expect(isDateFormat('"days" 0')).toBe(false);
+  });
+
+  it("writes a sheet as CSV that reads back as the same table", async () => {
+    const table = (await parseWorkbook(workbook({ S: [["name", "note"], ["A, B", 'said "hi"']] })))[0]!.table;
+    expect(csvOf(table)).toBe('name,note\r\n"A, B","said ""hi"""\r\n');
+    expect(parseCsv(csvOf(table)).rows).toEqual(table.rows);
   });
 
   it("inflates a deflated sheet, as every workbook a spreadsheet saves holds it", async () => {

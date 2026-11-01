@@ -669,7 +669,8 @@
       "proposeAll": "Propose all",
       "open": "Open",
       "noDrafts": "No drafts completed yet.",
-      "needInput": "Give an endpoint URL or add a file first."
+      "needInput": "Give an endpoint URL or add a file first.",
+      "filesHint": "A sample of the data as CSV, Excel (.xlsx), JSON or GeoJSON, with any manifests, README or .env that describe the source; up to 10 MB together. Example: stations.xlsx."
     },
     "segment": "in entity ids: {segment}",
     "quality": {
@@ -1120,11 +1121,17 @@
         }
       }
     },
+    "sheet": {
+      "label": "Sheet",
+      "hint": "The workbook holds {count} sheets and one is read at a time. Choose the one with your rows, such as {example}.",
+      "option": "{name} ({rows, plural, one {# row} other {# rows}}, {columns, plural, one {# column} other {# columns}})"
+    },
     "upload": {
       "open": "Upload CSV",
       "title": "Upload a CSV",
-      "lead": "Choose a CSV of up to 50 MB. It is matched against the Smart Data Models types, the model, the space, its Endpoint and your right to write the rows are proposed as one change, and once that change is live the rows are written through the gateway as you.",
+      "lead": "Choose a CSV or Excel (.xlsx) file of up to 50 MB. It is matched against the Smart Data Models types, the model, the space, its Endpoint and your right to write the rows are proposed as one change, and once that change is live the rows are written through the gateway as you.",
       "choose": "Choose a CSV file",
+      "chooseHint": "CSV, TSV or Excel (.xlsx), up to 50 MB, its first row the column names. Example: garages.xlsx with the columns name, lat, lon.",
       "reading": "Reading {name} and matching its columns against the Smart Data Models types…",
       "type": "What the rows are",
       "noMatch": "No Smart Data Models type names enough of these columns: the file gets its own model.",
@@ -6157,7 +6164,8 @@
         "wrongType": "This question takes {formats} files.",
         "tooLarge": "The file is larger than {kilobytes} KB. Hand over a sample of it.",
         "empty": "The file is empty.",
-        "notJson": "The file is not valid JSON."
+        "notJson": "The file is not valid JSON.",
+        "sendSheet": "Hand over the sheet {name}"
       },
       "url": {
         "label": "Or the address of a feed",

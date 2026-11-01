@@ -22,7 +22,7 @@ import {
   TableHeaderCell,
   TableRow,
 } from "../../components/ui";
-import { blankSource } from "./linkml";
+import { blankSource, edit, UPSTREAM_ANNOTATION } from "./linkml";
 import { applyOperations } from "./operations";
 import type { Operation, Refusal } from "./operations";
 
@@ -113,7 +113,31 @@ export function draftOf(answer: InferAnswer, domain: string, fileName: string): 
       .replace(/^-+|-+$/g, "")
       .toLowerCase() || "sample";
   const applied = applyOperations(blankSource(domain, stem), answer.operations);
-  return { name: fileName, answer, source: applied.source, refused: applied.refused };
+  return { name: fileName, answer, source: cited(applied.source, answer.matches), refused: applied.refused };
+}
+
+/** The namespace a Smart Data Models match's IRI lies under, declared as `sdm` beside it. */
+const SDM = "https://smartdatamodels.org/";
+
+/**
+ * The draft with each Smart Data Models match cited as the inferred model cites it (JC1-20):
+ * the slot's upstream IRI and the model it is borrowed from. The operations leave both out,
+ * since the editor refuses a reserved IRI by operation, so they are written here; a match
+ * outside the Smart Data Models namespace or for a slot the draft lacks is left out.
+ */
+export function cited(source: string, matches: InferAnswer["matches"]): string {
+  const taken = Object.entries(matches).filter(([, match]) => match.slotUri.startsWith(SDM));
+  if (taken.length === 0) return source;
+  return edit(source, (document) => {
+    let any = false;
+    for (const [slot, match] of taken) {
+      if (!document.hasIn(["slots", slot])) continue;
+      document.setIn(["slots", slot, "slot_uri"], match.slotUri);
+      document.setIn(["slots", slot, "annotations", UPSTREAM_ANNOTATION], match.model);
+      any = true;
+    }
+    if (any && !document.hasIn(["prefixes", "sdm"])) document.setIn(["prefixes", "sdm"], SDM);
+  });
 }
 
 interface SlotRow {

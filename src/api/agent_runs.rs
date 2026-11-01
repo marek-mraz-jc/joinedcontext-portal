@@ -1157,6 +1157,11 @@ fn offered_file(asked: &serde_json::Value, file: &serde_json::Value) -> Result<(
     if !accepted {
         return Err(format!("the question does not take a {format} file"));
     }
+    // A workbook is offered so the browser takes one; it answers with the CSV of the sheet the
+    // person chose, since the run reads text (JC1-07).
+    if format == "xlsx" {
+        return Err("an Excel workbook is answered as the CSV of one of its sheets".to_owned());
+    }
     let limit = asked.get("maxBytes").and_then(Value::as_u64).unwrap_or(0);
     if text.is_empty() {
         return Err("the file is empty".to_owned());
@@ -2828,7 +2833,23 @@ pub fn preview_router() -> Router<AppState> {
 
 #[cfg(test)]
 mod tests {
-    use super::{app_manifest, caller_token, is_function_name};
+    use super::{app_manifest, caller_token, is_function_name, offered_answer};
+
+    /// JC1-07: a question that offers Excel takes a sheet's CSV, never the workbook's bytes.
+    #[test]
+    fn an_excel_offer_takes_a_sheets_csv_and_refuses_the_workbook() {
+        let question = serde_json::json!({
+            "input": { "file": { "accept": ["csv", "tsv", "xlsx", "json"], "maxBytes": 1024 } }
+        });
+        let file = |format: &str, text: &str| {
+            serde_json::json!({ "file": { "name": "Stops.csv", "format": format, "text": text } })
+        };
+        assert_eq!(offered_answer(&question, &file("csv", "name\r\nKamppi\r\n")), Ok(()));
+        assert_eq!(
+            offered_answer(&question, &file("xlsx", "PK")),
+            Err("an Excel workbook is answered as the CSV of one of its sheets".to_owned())
+        );
+    }
 
     /// T-3134: the gateway's unauthenticated answer, as the SDK brings it out of a function, and
     /// nothing else, is the caller's 401.

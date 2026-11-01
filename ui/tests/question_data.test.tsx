@@ -15,6 +15,7 @@ import { QuestionData, inputOf } from "../src/pages/apps/QuestionData";
 import type { QuestionInput } from "../src/pages/apps/QuestionData";
 import { questionOf } from "../src/pages/apps/useAgentRun";
 import type { JsonSchema } from "../src/components/forms/types";
+import { xlsxFile } from "./xlsxFixture";
 
 const SOURCES: JsonSchema = {
   type: "object",
@@ -116,6 +117,43 @@ describe("data a question asks for", () => {
       await person.upload(fileInput(), file);
       expect(await screen.findByRole("alert")).toHaveTextContent(said);
     }
+    expect(onAnswer).not.toHaveBeenCalled();
+  });
+
+  const EXCEL: QuestionInput = { file: { accept: ["csv", "tsv", "xlsx", "json"], maxBytes: 1024 } };
+
+  it("sends a one-sheet Excel workbook as the CSV of its rows, dates as ISO dates (JC1-07)", async () => {
+    const onAnswer = data(vi.fn(), EXCEL);
+    expect(screen.getByText(/csv, tsv, xlsx, json/)).toBeInTheDocument();
+    await userEvent.setup().upload(fileInput(), xlsxFile("stations.xlsx", { Sheet1: [["station", "opened"], ["kamppi", { date: 46086 }]] }));
+    await vi.waitFor(() =>
+      expect(onAnswer).toHaveBeenCalledWith({ file: { name: "stations.csv", format: "csv", text: "station,opened\r\nkamppi,2026-03-05\r\n" } }),
+    );
+  });
+
+  it("asks which sheet of several before it sends one, and cuts a long sheet at a whole row", async () => {
+    const onAnswer = data(vi.fn(), EXCEL);
+    const person = userEvent.setup();
+    const long = Array.from({ length: 200 }, (_, n) => [`stop-${n}`, n]);
+    await person.upload(fileInput(), xlsxFile("city.xlsx", { Stations: [["station"], ["kamppi"]], Stops: [["code", "lines"], ...long] }));
+    const sheet = await screen.findByRole("combobox", { name: "Sheet" });
+    expect(onAnswer).not.toHaveBeenCalled();
+    await person.selectOptions(sheet, "Stops");
+    await person.click(screen.getByRole("button", { name: "Hand over the sheet Stops" }));
+    const answer = onAnswer.mock.calls[0]?.[0] as { file: { name: string; format: string; text: string } };
+    expect(answer.file.name).toBe("Stops.csv");
+    expect(answer.file.format).toBe("csv");
+    expect(new TextEncoder().encode(answer.file.text).length).toBeLessThanOrEqual(1024);
+    expect(answer.file.text.startsWith("code,lines\r\nstop-0,0\r\n")).toBe(true);
+    expect(answer.file.text.endsWith("\r\n")).toBe(true);
+    const results = await axe.run(document.body);
+    expect(results.violations.map((violation) => violation.id)).toEqual([]);
+  });
+
+  it("says a damaged workbook cannot be read and sends nothing", async () => {
+    const onAnswer = data(vi.fn(), EXCEL);
+    await userEvent.setup().upload(fileInput(), new File(["not a zip"], "broken.xlsx"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("not a ZIP");
     expect(onAnswer).not.toHaveBeenCalled();
   });
 

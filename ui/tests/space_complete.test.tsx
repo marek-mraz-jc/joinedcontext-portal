@@ -9,6 +9,7 @@ import { expectDenied, expectNoRawKeys, expectNoViolations, expectTabOrder } fro
 import { SpaceComplete } from "../src/pages/spaces/SpaceComplete";
 import { rememberPrefill, takePrefill } from "../src/assistant/state";
 import en from "../src/locales/en.json";
+import { xlsxFile } from "./xlsxFixture";
 
 const navigate = vi.fn();
 
@@ -254,6 +255,8 @@ describe("SpaceComplete page", () => {
           draft("DataSource", "city-bikes-feed"),
           draft("Pipeline", "city-bikes-load"),
           draft("Endpoint", "city-bikes-public"),
+          draft("Layer", "city-bikes-map"),
+          draft("ContextSpace", "city-bikes"),
         ],
         proposeReady: true,
         lane: "yellow",
@@ -274,6 +277,11 @@ describe("SpaceComplete page", () => {
     expect(navigate).toHaveBeenLastCalledWith({ href: "/projects/helsinki/pipelines?draft=city-bikes-load" });
     await open("Endpoint");
     expect(navigate).toHaveBeenLastCalledWith({ href: "/projects/helsinki/endpoints?draft=city-bikes-public" });
+    // The dashboards and spaces pages read `?draft=` too (JC1-40).
+    await open("Layer");
+    expect(navigate).toHaveBeenLastCalledWith({ href: "/projects/helsinki/dashboards?draft=city-bikes-map" });
+    await open("ContextSpace");
+    expect(navigate).toHaveBeenLastCalledWith({ href: "/projects/helsinki/spaces?draft=city-bikes" });
   });
 });
 
@@ -379,6 +387,36 @@ describe("the complete-a-space page against the UI contract", () => {
       "aria-disabled",
       "true",
     );
+  });
+
+  it("reads an Excel workbook, offers its sheets and completes from the chosen sheet's CSV (JC1-07)", async () => {
+    const user = userEvent.setup();
+    const op = vi.fn().mockResolvedValue(Response.json(COMPLETED));
+    vi.stubGlobal("fetch", withSpaceList(op));
+    renderComponent();
+    const file = xlsxFile("city.xlsx", {
+      Stations: [["name", "opened"], ["Kamppi", { date: 46086 }]],
+      Stops: [["code", "lines"], ["H0001", 12]],
+    });
+    await user.upload(screen.getByLabelText(en.spaces.complete.files), file);
+    expect(await screen.findByText("Chosen: city.xlsx")).toBeInTheDocument();
+    expect(screen.getByText(en.spaces.complete.filesHint)).toBeInTheDocument();
+    await user.selectOptions(screen.getByRole("combobox", { name: "Sheet" }), "Stops");
+    await user.click(screen.getByRole("button", { name: en.spaces.complete.action }));
+    await screen.findByTestId("complete-draft-DataModel");
+    const request = op.mock.calls[0]?.[0] as Request;
+    const body = JSON.parse(await request.clone().text()) as { input?: { files?: unknown }; files?: unknown };
+    expect(body.input?.files ?? body.files).toEqual([{ name: "Stops.csv", content: "code,lines\r\nH0001,12\r\n" }]);
+  });
+
+  it("says a damaged workbook is unreadable and sends nothing", async () => {
+    const user = userEvent.setup();
+    const op = vi.fn();
+    vi.stubGlobal("fetch", withSpaceList(op));
+    renderComponent();
+    await user.upload(screen.getByLabelText(en.spaces.complete.files), new File(["not a zip"], "broken.xlsx"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("not a ZIP");
+    expect(op).not.toHaveBeenCalled();
   });
 
   it.each(SUPPORTED_LOCALES)("writes the page in %s", async (locale) => {

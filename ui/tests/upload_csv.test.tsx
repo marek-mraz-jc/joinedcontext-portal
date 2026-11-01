@@ -11,6 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { UploadCsv } from "../src/pages/spaces/UploadCsv";
 import { expectNoRawKeys } from "./checks";
+import { xlsxFile } from "./xlsxFixture";
 
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
@@ -114,6 +115,39 @@ describe("Upload CSV", () => {
       location: { type: "GeoProperty", value: { type: "Point", coordinates: [24.93, 60.17] } },
     });
     expect(screen.getByRole("button", { name: "Download the refused rows (CSV)" })).toBeInTheDocument();
+    expectNoRawKeys(container);
+  });
+
+  it("reads an Excel workbook, offers every sheet and proposes the chosen one as its CSV (JC1-07)", async () => {
+    const calls = server();
+    const user = userEvent.setup();
+    const { container } = page("parking");
+    const file = xlsxFile("city.xlsx", {
+      Notes: [["author", "remark"], ["Aino", "draft"]],
+      Garages: [
+        ["name", "totalSpotNumber", "availableSpotNumber", "lat", "lon"],
+        ["Kamppi", 500, 120, 60.17, 24.93],
+        ["", 10, 2, 60.1, 24.9],
+      ],
+    });
+    await user.upload(screen.getByLabelText("Choose a CSV file"), file);
+
+    const sheet = await screen.findByRole("combobox", { name: "Sheet" });
+    expect(screen.getByText(/The workbook holds 2 sheets/)).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Notes (1 row, 2 columns)" })).toBeInTheDocument();
+    expect(screen.queryByRole("radio", { name: /OffStreetParking/ })).toBeNull();
+    await user.selectOptions(sheet, "Garages");
+    expect(await screen.findByRole("radio", { name: /OffStreetParking/ })).toBeChecked();
+
+    await user.click(screen.getByRole("button", { name: "Propose the change" }));
+    await screen.findByText(/write the rows into parking as OffStreetParking/);
+    const op = calls.find((c) => c.url.pathname.endsWith("/ops/jc_space_complete"))?.body as { files: { name: string; content: string }[] };
+    expect(op.files[0]).toEqual({
+      name: "Garages.csv",
+      content: "name,totalSpotNumber,availableSpotNumber,lat,lon\r\nKamppi,500,120,60.17,24.93\r\n,10,2,60.1,24.9\r\n",
+    });
+    await user.click(screen.getByRole("button", { name: "Write 1 row" }));
+    await screen.findByText("1 row written, 1 refused.");
     expectNoRawKeys(container);
   });
 

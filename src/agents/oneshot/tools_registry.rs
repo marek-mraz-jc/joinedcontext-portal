@@ -454,7 +454,8 @@ pub(super) struct AskOption {
 }
 
 /// The formats a question takes a file in: text a person can read and a sample the runner splits.
-pub(crate) const SAMPLE_FORMATS: [&str; 3] = ["csv", "tsv", "json"];
+/// An Excel workbook is read in the browser and answered as the CSV of one sheet (JC1-07).
+pub(crate) const SAMPLE_FORMATS: [&str; 4] = ["csv", "tsv", "xlsx", "json"];
 
 /// The largest file a question takes, in bytes: a sample, not a dataset (T-2694, T-2697).
 pub(crate) const SAMPLE_MAX_BYTES: usize = 256 * 1024;
@@ -1237,6 +1238,7 @@ mod tests {
         );
         let input = call.input.payload().expect("an input");
         assert_eq!(input["file"]["accept"], json!(SAMPLE_FORMATS));
+        assert_eq!(input["file"]["accept"], json!(["csv", "tsv", "xlsx", "json"]));
         assert_eq!(input["file"]["maxBytes"], json!(SAMPLE_MAX_BYTES));
         assert_eq!(input["url"], json!(true));
         let one = parse_ask(&json!({ "question": "Which file?", "input": "file" })).expect("one");
