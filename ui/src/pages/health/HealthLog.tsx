@@ -3,24 +3,19 @@ import type { JSX } from "react";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { ManifestGrid } from "../../components/grid/ManifestGrid";
 import { api, unwrap } from "../../api/client";
 import type { components } from "../../api/schema";
 import type { BadgeTone } from "../../components/ui/Badge";
 import {
   Alert,
   Badge,
-  Card,
   EmptyState,
   Field,
   PageFailed,
   PageHeader,
   Select,
   Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
   TableSkeleton,
   safeHref,
 } from "../../components/ui";
@@ -91,7 +86,6 @@ export function HealthLog({ project }: { project?: string }): JSX.Element {
   const say = useSay();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const time = new Intl.DateTimeFormat(locale, { dateStyle: "short", timeStyle: "short" });
-  const [kind, setKind] = useState<Kind | "">("");
   // A project holds hundreds of checks, almost all working: the list opens on what needs a look.
   const [shown, setShown] = useState<Shown | undefined>(undefined);
   const checks = useQuery({
@@ -129,7 +123,7 @@ export function HealthLog({ project }: { project?: string }): JSX.Element {
     ok: all.length - errors - warnings,
     all: all.length,
   };
-  const items = all.filter((item) => (kind === "" || item.kind === kind) && showsStatus(status, item.status));
+  const items = all.filter((item) => showsStatus(status, item.status));
   return (
     <div className="flex flex-col gap-4">
       {errors + warnings > 0 ? (
@@ -151,71 +145,49 @@ export function HealthLog({ project }: { project?: string }): JSX.Element {
             ))}
           </Select>
         </Field>
-        <Field id="health-kind" label={t("health.kind")} className="min-w-0 sm:w-56">
-          <Select id="health-kind" value={kind} onChange={(event) => setKind(event.target.value as Kind | "")}>
-            <option value="">{t("health.allKinds")}</option>
-            {KINDS.map((value) => (
-              <option key={value} value={value}>
-                {t(`health.kinds.${value}`)}
-              </option>
-            ))}
-          </Select>
-        </Field>
       </div>
       {items.length === 0 ? (
         <EmptyState bare icon="refresh" title={t("health.noneOfKind")} description={t("health.noneOfKindHint")} />
       ) : (
         <>
-          {/* A phone reads one card per check: a table at 400 px cut what was found (T-5067 review). */}
-          <ul aria-label={t("health.caption")} className="flex flex-col gap-3 sm:hidden">
-            {items.map((item) => (
-              <Card as="li" padding="md" key={keyOf(item)} className="flex flex-col gap-2">
-                <div className="flex flex-wrap items-start justify-between gap-2">
-                  <Resource item={item} project={project} />
-                  <StatusOf item={item} time={time} />
-                </div>
-                <Found item={item} say={say} />
-                <div className="flex flex-wrap items-center justify-between gap-2 text-caption text-fg-muted">
-                  <HistoryOf item={item} />
-                  <span>
-                    {t("health.lastOk")}: <LastOk item={item} time={time} />
-                  </span>
-                </div>
-              </Card>
-            ))}
-          </ul>
-          <div className="hidden sm:block">
-            <Table caption={t("health.caption")}>
-              <TableHead>
-                <TableHeaderCell>{t("health.status")}</TableHeaderCell>
-                <TableHeaderCell>{t("health.resource")}</TableHeaderCell>
-                <TableHeaderCell>{t("health.found")}</TableHeaderCell>
-                <TableHeaderCell>{t("health.history")}</TableHeaderCell>
-                <TableHeaderCell>{t("health.lastOk")}</TableHeaderCell>
-              </TableHead>
-              <TableBody>
-                {items.map((item) => (
-                  <TableRow key={keyOf(item)}>
-                    <TableCell>
-                      <StatusOf item={item} time={time} />
-                    </TableCell>
-                    <TableCell>
-                      <Resource item={item} project={project} />
-                    </TableCell>
-                    <TableCell>
-                      <Found item={item} say={say} />
-                    </TableCell>
-                    <TableCell>
-                      <HistoryOf item={item} />
-                    </TableCell>
-                    <TableCell>
-                      <LastOk item={item} time={time} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+          {/* A phone reads one card per check: the grid stacks each row (T-5067 review). */}
+          <ManifestGrid<Check>
+            caption={t("health.caption")}
+            storageKey="health-log"
+            searchLabel={t("grid.searchIn", { list: t("health.caption") })}
+            rows={items}
+            rowKey={keyOf}
+            query={checks}
+            name={{
+              id: "resource",
+              label: t("health.resource"),
+              text: (item) => `${item.name} (${item.project})`,
+              cell: (item) => <Resource item={item} project={project} />,
+            }}
+            columns={[
+              {
+                id: "status",
+                label: t("health.status"),
+                filter: true,
+                text: (item) => item.status,
+                valueLabel: (value) => t(LABEL[value as Status]),
+                cell: (item) => <StatusOf item={item} time={time} />,
+              },
+              { id: "kind", label: t("health.kind"), filter: true, text: (item) => item.kind, valueLabel: (value) => t(`health.kinds.${value}`), hidden: true },
+              { id: "found", label: t("health.found"), text: (item) => (item.detail.text === "" ? t("health.nothingFound") : say(item.detail)), cell: (item) => <Found item={item} say={say} /> },
+              {
+                id: "history",
+                label: t("health.history"),
+                numeric: true,
+                align: "right",
+                // Sorted by the readings that needed a look.
+                text: (item) => String(item.history.filter((point) => point.status !== "ok").length),
+                cell: (item) => <HistoryOf item={item} />,
+              },
+              { id: "lastOk", label: t("health.lastOk"), text: (item) => item.lastOk ?? "", cell: (item) => <LastOk item={item} time={time} /> },
+            ]}
+            empty={<EmptyState bare icon="refresh" title={t("health.noneOfKind")} description={t("health.noneOfKindHint")} />}
+          />
         </>
       )}
     </div>

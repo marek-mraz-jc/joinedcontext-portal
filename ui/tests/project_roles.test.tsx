@@ -3,6 +3,7 @@
 // making the module throw and watching this file go red.
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { narrowsAndOrders } from "./grid_checks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -45,7 +46,7 @@ const PERMISSIONS = {
   ],
 };
 
-function renderAccess() {
+function renderAccess(roles: unknown[] = [role("air-analyst", "banskabystrica", ["DataSource"], ["propose"])]) {
   const posted: { path: string; body: string }[] = [];
   const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const request = typeof input === "string" || input instanceof URL ? null : input;
@@ -83,7 +84,7 @@ function renderAccess() {
       return json(list([role("org-admin", "org", ["Endpoint", "Role"], ["propose", "approve", "delete"])]));
     }
     if (path === "/api/v1/projects/banskabystrica/roles") {
-      return json(list([role("air-analyst", "banskabystrica", ["DataSource"], ["propose"])]));
+      return json(list(roles));
     }
     return json(list([]));
   });
@@ -140,6 +141,19 @@ describe("the roles of a project on the Access page", () => {
     expect(within(own).getByText("Project banskabystrica")).toBeTruthy();
     expect(own.textContent).toMatch(/Propose: data sources/);
     expect(screen.queryByText("org-admin")).toBeNull();
+  });
+
+  // T-6206: the roles are on the shared grid: search, sort by rule count, filter by where.
+  it("searches, sorts by rule count and filters the roles", async () => {
+    const two = { ...role("air-steward", "banskabystrica", ["Pipeline"], ["propose"]), spec: { rules: [{ kinds: ["Pipeline"], verbs: ["propose"] }, { kinds: ["DataSource"], verbs: ["read"] }] } };
+    renderAccess([two, role("air-analyst", "banskabystrica", ["DataSource"], ["propose"])]);
+    const table = await screen.findByRole("table", { name: en.access.projectRoles.caption.replace("{project}", "banskabystrica") });
+    await within(table).findByText("air-steward");
+    await narrowsAndOrders(table, {
+      search: { label: `Search ${en.access.projectRoles.title}`, text: "steward", kept: ["air-steward"] },
+      sort: { column: en.access.projectRoles.ruleCount, ascending: ["air-analyst", "air-steward"] },
+      filter: { value: /^Project banskabystrica/, kept: ["air-steward", "air-analyst"] },
+    });
   });
 
   it("opens this project's role form and posts nothing until it is valid", async () => {

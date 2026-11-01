@@ -13,41 +13,22 @@ import { RowActions } from "../components/ui/RowActions";
 import type { RowAction } from "../components/ui/RowActions";
 import { usePermissions } from "../api/permissions";
 import { CkanAccessPanel } from "../pages/ckan/CkanAccessPanel";
-import { SharedWithBadge, spaceOf } from "../components/endpoints/sharing";
+import { SharedWithBadge, sharingOf, spaceOf } from "../components/endpoints/sharing";
 import {
   Alert,
   Button,
   EmptyState,
   Icon,
-  Input,
-  Select,
-  Table,
-  TableBody,
-  TableCell,
-  TableEmpty,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
-  TableSkeleton,
-  Term,
 } from "../components/ui";
+import { ManifestGrid } from "../components/grid/ManifestGrid";
 
-const COLUMNS = 5;
 /**
  * Rows per page (T-4831): each row carries its representation links, about 130 px, so ten keep the
  * page under three screens; the whole list was 22,822 px with no way to find one.
  */
 export const ENDPOINTS_PER_PAGE = 10;
 
-/** One row of the table, matched by its project, space, name, title or slug. */
-function matchesEndpoint(row: { project: string; endpoint: Manifest }, needle: string, locale: string): boolean {
-  const wanted = needle.trim().toLowerCase();
-  if (wanted === "") return true;
-  const { project, endpoint } = row;
-  const slug = (endpoint.spec as { slug?: string }).slug ?? "";
-  return [project, spaceOf(endpoint) ?? "", endpoint.metadata.name, slug, localized(endpoint.metadata.title, locale, "")]
-    .some((value) => value.toLowerCase().includes(wanted));
-}
+type Row = { project: string; endpoint: Manifest };
 
 /**
  * Every Endpoint of every project in one table (EP-08, EP-44, PF-61): the project and space it
@@ -58,28 +39,11 @@ function matchesEndpoint(row: { project: string; endpoint: Manifest }, needle: s
 export function AllEndpointsPage(): JSX.Element {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
-  const [needle, setNeedle] = useState("");
-  const [projectFilter, setProjectFilter] = useState("");
-  const [page, setPage] = useState(0);
   const endpoints = useQuery({
     queryKey: queryKeys.allEndpoints(),
     queryFn: async () => unwrap(await api.GET("/api/v1/endpoints")),
   });
 
-  const head = (
-    <TableHead>
-      {/* Project and Context Space share a column, one line a row (T-4989). */}
-      <TableHeaderCell>
-        {t("allEndpoints.field.project")} / <Term name="contextSpace">{t("allEndpoints.field.space")}</Term>
-      </TableHeaderCell>
-      <TableHeaderCell>{t("endpoints.field.name")}</TableHeaderCell>
-      <TableHeaderCell>{t("endpoints.field.audience")}</TableHeaderCell>
-      <TableHeaderCell>{t("endpoints.field.representations")}</TableHeaderCell>
-      <TableHeaderCell align="right">
-        <span className="sr-only">{t("approvals.actions")}</span>
-      </TableHeaderCell>
-    </TableHead>
-  );
   const header = (
     <div>
       <h2 id="all-endpoints-heading" className="text-title font-semibold text-fg">
@@ -88,21 +52,6 @@ export function AllEndpointsPage(): JSX.Element {
       <p className="text-body text-fg-muted">{t("allEndpoints.lead")}</p>
     </div>
   );
-
-  if (endpoints.isPending) {
-    return (
-      <div className="flex flex-col gap-section">
-        {header}
-        {/* The filters' place, empty until the list is in: the table keeps its place, and so its
-            identity, when the rows arrive. */}
-        {null}
-        <Table caption={t("allEndpoints.title")} status={t("app.loading")}>
-          {head}
-          <TableSkeleton columns={COLUMNS} />
-        </Table>
-      </div>
-    );
-  }
 
   const failed = endpoints.isError ? endpoints : null;
   if (failed) {
@@ -134,172 +83,106 @@ export function AllEndpointsPage(): JSX.Element {
     );
   }
 
-  const all = asManifests(endpoints.data?.items ?? []).map((endpoint) => ({
+  const all: Row[] = asManifests(endpoints.data?.items ?? []).map((endpoint) => ({
     // The project is the manifest's own namespace, which is what the route answers with.
     project: endpoint.metadata.namespace ?? "",
     endpoint,
   }));
-  const projectNames = [...new Set(all.map((row) => row.project))].sort();
-  const matching = all.filter(
-    (row) => (projectFilter === "" || row.project === projectFilter) && matchesEndpoint(row, needle, locale),
-  );
-  const pages = Math.max(1, Math.ceil(matching.length / ENDPOINTS_PER_PAGE));
-  // A filter that leaves fewer pages keeps the person on the last one there is.
-  const current = Math.min(page, pages - 1);
-  const rows = matching.slice(current * ENDPOINTS_PER_PAGE, (current + 1) * ENDPOINTS_PER_PAGE);
+  const titleOf = (row: Row) => localized(row.endpoint.metadata.title, locale, row.endpoint.metadata.name);
+  const specOf = (row: Row) => row.endpoint.spec as Parameters<typeof servedRepresentations>[0] & { audience?: string; slug?: string };
 
   return (
     <div className="flex flex-col gap-section">
       {header}
-      {all.length > 0 ? (
-        <div className="flex flex-wrap items-end gap-3">
-          <Input
-            type="search"
-            aria-label={t("allEndpoints.find")}
-            placeholder={t("allEndpoints.find")}
-            value={needle}
-            onChange={(event) => {
-              setNeedle(event.target.value);
-              setPage(0);
-            }}
-            className="w-full max-w-sm"
-          />
-          <label className="flex flex-col gap-1 text-caption text-fg-muted">
-            {t("allEndpoints.field.project")}
-            <Select
-              value={projectFilter}
-              onChange={(event) => {
-                setProjectFilter(event.target.value);
-                setPage(0);
-              }}
-            >
-              <option value="">{t("allEndpoints.allProjects")}</option>
-              {projectNames.map((name) => (
-                <option key={name} value={name}>
-                  {name}
-                </option>
-              ))}
-            </Select>
-          </label>
-        </div>
-      ) : null}
-      <Table caption={t("allEndpoints.title")}>
-        {head}
-        <TableBody>
-          {all.length === 0 ? (
-            <TableEmpty columns={COLUMNS}>
-              <EmptyState bare
-            icon="endpoints"
-            title={t("allEndpoints.empty")}
-            description={t("allEndpoints.emptyHint")} />
-            </TableEmpty>
-          ) : rows.length === 0 ? (
-            <TableEmpty columns={COLUMNS}>
-              <EmptyState bare icon="search" title={t("allEndpoints.noMatch")} description={t("allEndpoints.noMatchHint")} />
-            </TableEmpty>
-          ) : (
-            rows.map(({ project, endpoint }) => {
-              const spec = endpoint.spec as {
-                audience?: string;
-                enabledRepresentations?: string[];
-              };
+      <ManifestGrid<Row>
+        caption={t("allEndpoints.title")}
+        storageKey="all-endpoints"
+        searchLabel={t("allEndpoints.find")}
+        rows={all}
+        rowKey={(row) => `${row.project}/${row.endpoint.metadata.name}`}
+        query={endpoints}
+        pageSize={ENDPOINTS_PER_PAGE}
+        name={{
+          id: "name",
+          label: t("endpoints.field.name"),
+          // The name is searched beside the title: a person often knows only one of the two.
+          text: (row) => (row.endpoint.metadata.title ? `${titleOf(row)} (${row.endpoint.metadata.name})` : row.endpoint.metadata.name),
+          cell: ({ project, endpoint }) => (
+            // The whole row opens the endpoint's page, where its surface links are (T-4989).
+            <>
+              <Link
+                data-row-link=""
+                to="/projects/$project/$plural/$name"
+                params={{ project, plural: "endpoints", name: endpoint.metadata.name }}
+                className="focus-ring inline-block max-w-56 truncate rounded-sm align-bottom text-fg hover:text-primary-soft-fg"
+              >
+                {localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
+              </Link>
+              {endpoint.metadata.title ? (
+                <span className="ml-2 hidden font-mono text-caption font-normal text-fg-subtle 2xl:inline">
+                  {endpoint.metadata.name}
+                </span>
+              ) : null}
+            </>
+          ),
+        }}
+        columns={[
+          {
+            id: "project",
+            label: t("allEndpoints.field.project"),
+            filter: true,
+            text: (row) => row.project,
+            cell: ({ project }) => (
+              <Link
+                to="/projects/$project/$plural"
+                params={{ project, plural: "endpoints" }}
+                className="focus-ring rounded-sm font-medium text-fg hover:text-primary-soft-fg"
+              >
+                {project}
+              </Link>
+            ),
+          },
+          {
+            id: "space",
+            label: t("allEndpoints.field.space"),
+            filter: true,
+            text: (row) => spaceOf(row.endpoint) ?? "",
+            cell: ({ project, endpoint }) => {
               const space = spaceOf(endpoint);
-              const key = `${project}/${endpoint.metadata.name}`;
-              return (
-                <TableRow key={key}>
-                  <TableCell className="align-middle">
-                    <div className="flex min-w-0 max-w-40 items-baseline gap-1 whitespace-nowrap sm:max-w-60">
-                      <Link
-                        to="/projects/$project/$plural"
-                        params={{ project, plural: "endpoints" }}
-                        className="focus-ring shrink-0 rounded-sm font-medium text-fg hover:text-primary-soft-fg"
-                      >
-                        {project}
-                      </Link>
-                      {space ? (
-                        <>
-                          <span aria-hidden="true" className="text-fg-subtle">/</span>
-                          <Link
-                            to="/projects/$project/$plural/$name"
-                            params={{ plural: "spaces", project, name: space }}
-                            aria-label={`${t("spaces.inside.open")}: ${project}/${space}`}
-                            title={space}
-                            className="focus-ring truncate rounded-sm font-mono text-caption text-fg-muted hover:text-primary-soft-fg"
-                          >
-                            {space}
-                          </Link>
-                        </>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                  <TableCell primary className="align-middle">
-                    {/* The whole row opens the endpoint's page, where its surface links are (T-4989). */}
-                    <div className="flex min-w-0 max-w-56 items-baseline gap-2 whitespace-nowrap">
-                      <Link
-                        data-row-link=""
-                        to="/projects/$project/$plural/$name"
-                        params={{ project, plural: "endpoints", name: endpoint.metadata.name }}
-                        className="focus-ring max-w-full shrink-0 truncate rounded-sm text-fg hover:text-primary-soft-fg"
-                      >
-                        {localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
-                      </Link>
-                      {endpoint.metadata.title ? (
-                        <span className="hidden truncate font-mono text-caption font-normal text-fg-subtle 2xl:inline">
-                          {endpoint.metadata.name}
-                        </span>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                  <TableCell className="align-middle">
-                    <SharedWithBadge endpoint={endpoint} />
-                  </TableCell>
-                  <TableCell className="align-middle">
-                    <RepresentationSummary served={servedRepresentations(spec)} />
-                  </TableCell>
-                  <TableCell align="right" className="align-middle">
-                    {spec.audience === "public" ? (
-                      <PublicEndpointActions project={project} name={endpoint.metadata.name} />
-                    ) : null}
-                  </TableCell>
-                </TableRow>
-              );
-            })
-          )}
-        </TableBody>
-      </Table>
-      {matching.length > ENDPOINTS_PER_PAGE ? (
-        <nav aria-label={t("allEndpoints.pages")} className="flex flex-wrap items-center justify-between gap-3">
-          <p role="status" className="text-body text-fg-muted">
-            {t("allEndpoints.range", {
-              from: current * ENDPOINTS_PER_PAGE + 1,
-              to: current * ENDPOINTS_PER_PAGE + rows.length,
-              count: matching.length,
-            })}
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              icon={<Icon name="chevronLeft" className="size-4" />}
-              disabled={current === 0}
-              disabledReason={t("allEndpoints.firstPage")}
-              onClick={() => setPage(current - 1)}
-            >
-              {t("allEndpoints.previous")}
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={current >= pages - 1}
-              disabledReason={t("allEndpoints.lastPage")}
-              onClick={() => setPage(current + 1)}
-            >
-              {t("allEndpoints.next")}
-              <Icon name="chevronRight" className="size-4" />
-            </Button>
-          </div>
-        </nav>
-      ) : null}
+              return space ? (
+                <Link
+                  to="/projects/$project/$plural/$name"
+                  params={{ plural: "spaces", project, name: space }}
+                  aria-label={`${t("spaces.inside.open")}: ${project}/${space}`}
+                  title={space}
+                  className="focus-ring truncate rounded-sm font-mono text-caption text-fg-muted hover:text-primary-soft-fg"
+                >
+                  {space}
+                </Link>
+              ) : null;
+            },
+          },
+          { id: "slug", label: t("endpoints.field.slug"), hidden: true, text: (row) => specOf(row).slug ?? "" },
+          {
+            id: "audience",
+            label: t("endpoints.field.audience"),
+            filter: true,
+            text: (row) => sharingOf(row.endpoint).audience,
+            valueLabel: (value) => t(`endpoints.audience.${value}`),
+            cell: ({ endpoint }) => <SharedWithBadge endpoint={endpoint} />,
+          },
+          {
+            id: "representations",
+            label: t("endpoints.field.representations"),
+            text: (row) => servedRepresentations(specOf(row)).join(", "),
+            cell: (row) => <RepresentationSummary served={servedRepresentations(specOf(row))} />,
+          },
+        ]}
+        actions={(row) =>
+          specOf(row).audience === "public" ? <PublicEndpointActions project={row.project} name={row.endpoint.metadata.name} /> : null
+        }
+        empty={<EmptyState bare icon="endpoints" title={t("allEndpoints.empty")} description={t("allEndpoints.emptyHint")} />}
+      />
       <CkanInstancesAccess />
     </div>
   );

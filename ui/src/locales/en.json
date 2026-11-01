@@ -2857,6 +2857,7 @@
       "outcome": "Outcome",
       "message": "Message",
       "noId": "(no id)",
+      "states": {"clean": "Clean", "rejected": "Rejected lines", "failing": "Failed lines", "silent": "Wrote nothing"},
       "outcomes": {
         "sent": "Written",
         "rejected": "Rejected",
@@ -3778,6 +3779,7 @@
       "role": "Role",
       "where": "Written in",
       "grants": "Grants",
+      "ruleCount": "Rules",
       "on": "on",
       "new": "New role",
       "newTitle": "New role",

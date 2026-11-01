@@ -3,6 +3,7 @@ import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { ManifestGrid } from "../components/grid/ManifestGrid";
 import { api, ApiError, queryKeys, unwrap } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
 import { WorkOnCopyAction } from "../components/WorkOnCopyDialog";
@@ -16,12 +17,6 @@ import {
   Icon,
   PageHeader,
   Skeleton,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
 } from "../components/ui";
 import type { components } from "../api/schema";
 
@@ -200,6 +195,9 @@ export function WorkspacesPage({
   );
 }
 
+const PREVIEW_TONE: Record<string, "danger" | "success" | "warning"> = { error: "danger", running: "success", starting: "warning" };
+
+/** A list of copies on the shared grid (T-6206): search, sort by expiry, filter by preview state. */
 function WorkspaceTable({
   project,
   workspaces,
@@ -215,96 +213,89 @@ function WorkspaceTable({
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
+  const scopeOf = (ws: WorkspaceView) =>
+    ws.scope?.kind === "project"
+      ? t("workspaces.scopeProject")
+      : ws.scope?.kind === "space"
+        ? t("workspaces.scopeSpace", { name: ws.scope.name })
+        : ws.scope?.kind === "resources"
+          ? (ws.scope.items?.map((i) => `${i.kind}/${i.name}`).join(", ") ?? "")
+          : "";
   return (
-    <Table data-records="" caption={t("workspaces.tableCaption")}>
-      <TableHead>
-        <TableHeaderCell>{t("workspaces.name")}</TableHeaderCell>
-        {!isMine ? (
-          <TableHeaderCell>{t("workspaces.owner")}</TableHeaderCell>
-        ) : null}
-        <TableHeaderCell>{t("workspaces.scope")}</TableHeaderCell>
-        <TableHeaderCell>{t("workspaces.expiresColumn")}</TableHeaderCell>
-        <TableHeaderCell>{t("workspaces.previewColumn")}</TableHeaderCell>
-        <TableHeaderCell align="right">{t("workspaces.actions")}</TableHeaderCell>
-      </TableHead>
-      <TableBody>
-        {workspaces.map((ws) => (
-          <TableRow key={ws.name}>
-            <TableCell primary>
-              {/* The copy's record link, the same place Open goes: a click on the row opens it (T-2875). */}
-              <Link
-                data-row-link=""
-                to="/projects/$project/$plural"
-                params={{ project, plural: "spaces" }}
-                search={{ workspace: ws.name }}
-                className="focus-ring font-medium text-primary-soft-fg underline-offset-2 hover:underline"
-              >
-                {ws.title ?? ws.name}
-              </Link>
-              {ws.title ? (
-                <span className="block text-caption text-fg-muted">
-                  {ws.name}
-                </span>
-              ) : null}
-            </TableCell>
-            {!isMine ? (
-              <TableCell>{ws.owner}</TableCell>
-            ) : null}
-            <TableCell>
-              {ws.scope?.kind === "project"
-                ? t("workspaces.scopeProject")
-                : ws.scope?.kind === "space"
-                  ? t("workspaces.scopeSpace", { name: ws.scope.name })
-                  : ws.scope?.kind === "resources"
-                    ? ws.scope.items?.map((i) => `${i.kind}/${i.name}`).join(", ") ?? ""
-                    : ""}
-            </TableCell>
-            <TableCell>
-              {t("workspaces.expires", {
-                date: new Date(ws.expiresAt).toLocaleDateString(locale),
-              })}
-            </TableCell>
-            <TableCell>
-              <Badge
-                tone={
-                  ws.previewState === "error"
-                    ? "danger"
-                    : ws.previewState === "running"
-                      ? "success"
-                      : ws.previewState === "starting"
-                        ? "warning"
-                        : "neutral"
-                }
-              >
-                {t(`workspaces.previewStates.${ws.previewState}`)}
-              </Badge>
-            </TableCell>
-            <TableCell align="right">
-              <div className="flex flex-wrap justify-end gap-2">
-                <Button size="sm" onClick={() => onOpen(ws.name)}>
-                  {t("workspaces.openAction")}
-                </Button>
-                <Link
-                  to="/projects/$project/workspaces/$name/compare"
-                  params={{ project, name: ws.name }}
-                  className={buttonClass("ghost", "sm")}
-                >
-                  {t("workspaces.compareAction")}
-                </Link>
-                {isMine && onDiscard ? (
-                  <Button
-                    size="sm"
-                    variant="danger"
-                    onClick={() => onDiscard(ws.name)}
-                  >
-                    {t("workspaces.discard")}
-                  </Button>
-                ) : null}
-              </div>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <ManifestGrid<WorkspaceView>
+      caption={t("workspaces.tableCaption")}
+      storageKey={isMine ? "workspaces-mine" : "workspaces-others"}
+      searchLabel={t("grid.searchIn", { list: t("workspaces.tableCaption") })}
+      rows={workspaces}
+      rowKey={(ws) => ws.name}
+      query={LOADED}
+      name={{
+        id: "name",
+        label: t("workspaces.name"),
+        text: (ws) => (ws.title ? `${ws.title} (${ws.name})` : ws.name),
+        cell: (ws) => (
+          <>
+            {/* The copy's record link, the same place Open goes: a click on the row opens it (T-2875). */}
+            <Link
+              data-row-link=""
+              to="/projects/$project/$plural"
+              params={{ project, plural: "spaces" }}
+              search={{ workspace: ws.name }}
+              className="focus-ring font-medium text-primary-soft-fg underline-offset-2 hover:underline"
+            >
+              {ws.title ?? ws.name}
+            </Link>
+            {ws.title ? <span className="block text-caption text-fg-muted">{ws.name}</span> : null}
+          </>
+        ),
+      }}
+      columns={[
+        ...(isMine ? [] : [{ id: "owner", label: t("workspaces.owner"), filter: true, text: (ws: WorkspaceView) => ws.owner ?? "" }]),
+        { id: "scope", label: t("workspaces.scope"), text: scopeOf },
+        {
+          id: "expires",
+          label: t("workspaces.expiresColumn"),
+          text: (ws) => ws.expiresAt,
+          cell: (ws) => (
+            <time dateTime={ws.expiresAt}>
+              {t("workspaces.expires", { date: new Date(ws.expiresAt).toLocaleDateString(locale) })}
+            </time>
+          ),
+        },
+        {
+          id: "preview",
+          label: t("workspaces.previewColumn"),
+          filter: true,
+          text: (ws) => ws.previewState,
+          valueLabel: (state) => t(`workspaces.previewStates.${state}`),
+          cell: (ws) => (
+            <Badge tone={PREVIEW_TONE[ws.previewState] ?? "neutral"}>{t(`workspaces.previewStates.${ws.previewState}`)}</Badge>
+          ),
+        },
+      ]}
+      actions={(ws) => (
+        <div className="flex justify-end gap-2 whitespace-nowrap">
+          <Button size="sm" onClick={() => onOpen(ws.name)}>
+            {t("workspaces.openAction")}
+          </Button>
+          <Link
+            to="/projects/$project/workspaces/$name/compare"
+            params={{ project, name: ws.name }}
+            className={buttonClass("ghost", "sm")}
+          >
+            {t("workspaces.compareAction")}
+          </Link>
+          {isMine && onDiscard ? (
+            <Button size="sm" variant="danger" onClick={() => onDiscard(ws.name)}>
+              {t("workspaces.discard")}
+            </Button>
+          ) : null}
+        </div>
+      )}
+      empty={<EmptyState bare title={t("workspaces.empty")} description={t("workspaces.emptyHint")} />}
+    />
   );
 }
+
+/** The page reads the list and draws its pending and failed states itself; the grid gets the rows. */
+const LOADED = { isPending: false, isError: false, error: null, refetch: () => undefined };

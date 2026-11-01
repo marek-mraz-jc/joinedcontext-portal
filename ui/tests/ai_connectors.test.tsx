@@ -3,6 +3,7 @@
 import type { JSX } from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { narrowsAndOrders } from "./grid_checks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -90,6 +91,7 @@ interface Stub {
   items?: AiConnector[];
   refuse?: { status: number; detail: string; errors?: string[] };
   listFails?: boolean;
+  activity?: unknown[];
 }
 
 function renderAt(path: string, stub: Stub = {}, page?: JSX.Element) {
@@ -120,6 +122,7 @@ function renderAt(path: string, stub: Stub = {}, page?: JSX.Element) {
           return json(made, 201);
         }
         if (url.pathname.endsWith("/activity")) {
+          if (stub.activity) return json({ items: stub.activity });
           return json({ items: [{ at: "2026-10-28T12:30:00Z", subject: "b7c1e0f4", client: "mcp-local", tool: "jc_resource_get", target: "doprava/Endpoint/bike-counters", verdict: "allowed", durationMs: 12 }] });
         }
         if (request.method === "PATCH") {
@@ -238,6 +241,35 @@ describe("the AI connectors page (T-5951)", () => {
     const table = await screen.findByRole("table", { name: "Calls through doprava-in-claude" });
     expect(within(table).getByText("jc_resource_get")).toBeInTheDocument();
     expect(within(table).getByText("allowed")).toBeInTheDocument();
+  });
+
+  // T-6206: the call log is on the shared grid: search, sort by time, filter by verdict.
+  it("searches, sorts and filters the activity", async () => {
+    const call = (at: string, tool: string, verdict: string) => ({ at, subject: "b7c1e0f4", client: "mcp-local", tool, target: null, verdict, durationMs: 1 });
+    const user = userEvent.setup();
+    renderAt(
+      "/ai-connectors",
+      {
+        items: [connector()],
+        activity: [
+          call("2026-10-28T12:30:00Z", "jc_resource_get", "allowed"),
+          call("2026-10-28T10:00:00Z", "jc_data_query", "denied"),
+          call("2026-10-28T11:00:00Z", "jc_resource_list", "allowed"),
+        ],
+      },
+      <AiConnectorsPage />,
+    );
+    await user.click(await screen.findByRole("button", { name: "Activity" }));
+    const table = await screen.findByRole("table", { name: "Calls through doprava-in-claude" });
+    const at = (iso: string) => new Date(iso).toLocaleString("en");
+    await narrowsAndOrders(table, {
+      search: { label: "Search Calls through doprava-in-claude", text: "jc_data", kept: [at("2026-10-28T10:00:00Z")] },
+      sort: {
+        column: "When",
+        ascending: [at("2026-10-28T10:00:00Z"), at("2026-10-28T11:00:00Z"), at("2026-10-28T12:30:00Z")],
+      },
+      filter: { value: /^denied/, kept: [at("2026-10-28T10:00:00Z")] },
+    });
   });
 
   it("is reached from the person's menu", async () => {
