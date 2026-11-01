@@ -5,10 +5,12 @@ import { cellText } from "./model";
 import type { ColumnLayout, GridLabels, MetaKey, UseEntityGridOptions, VisibleColumn } from "./useEntityGrid";
 import { readableName } from "./readableName";
 import { DEFAULT_LABELS, MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, NAME_COLUMN, useEntityGrid } from "./useEntityGrid";
-import { CellView, cellDisplayText, columnKind, formatDate, kindOfCell, targetName, webHref } from "./cells";
+import { CellView, cellDisplayText, columnKind, formatDate, kindOfCell, IdLabel, targetName, webHref } from "./cells";
 import type { CellLabels, ColumnKind, ResolvedTargets } from "./cells";
 import { ColumnMenu } from "./ColumnMenu";
-import { opsForKind, valuesNeeded } from "./filters";
+import { FilterChips, HeaderFilter, useHeaderFilter } from "./AutoFilter";
+import { columnValues } from "./columnValues";
+import { complete, opsForKind, valuesNeeded } from "./filters";
 import type { ColumnFilter, FilterColumn } from "./filters";
 import { applyChanges, MAX_ENTITIES, MAX_REASON, reasonOk } from "./apply";
 import type { AttributeChange, EntityChange, Observed, Refusal } from "./apply";
@@ -843,7 +845,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
             openDetail(row);
           }}
         >
-          {column.key === "id" ? targetName(text).name : text || row.id}
+          {column.key === "id" ? <IdLabel urn={text} /> : text || row.id}
         </button>
       );
     }
@@ -1028,13 +1030,18 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
     // Back to the button that opened the menu, so a keyboard carries on where it was.
     if (attr) tableRef.current?.querySelector<HTMLElement>(`th[data-col-attr="${attr.replace(/["\\]/g, "\\$&")}"] .jc-grid-meta-btn`)?.focus();
   }, [openMenu]);
+  // A column's header filter (T-6328): one open at a time, under its header, like the menu.
+  const { openFilter, open: openHeaderFilter, close: closeFilter } = useHeaderFilter(tableRef);
   const focusFilter = useCallback((key: string) => {
     setOpenMenu(null);
-    const cells = tableRef.current?.querySelectorAll<HTMLElement>("[data-filter-for]") ?? [];
-    for (const cell of cells) {
-      if (cell.dataset.filterFor === key) cell.querySelector<HTMLElement>("select, input")?.focus();
-    }
-  }, []);
+    openHeaderFilter(key);
+  }, [openHeaderFilter]);
+  const { source: gridSource } = hookOptions;
+  const { valuesQuery } = grid;
+  const loadValues = useCallback(
+    (column: FilterColumn) => () => columnValues(gridSource, valuesQuery(column.key), column.attr ?? ""),
+    [gridSource, valuesQuery],
+  );
   const hideColumn = useCallback((attr: string) => {
     setOpenMenu(null);
     if (onHide) onHide(attr);
@@ -1423,6 +1430,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
           {activeFilters > 0 ? `${labels.filterRow} (${activeFilters})` : labels.filterRow}
         </button>
       )}
+      {!asText && <FilterChips columns={columns} filterable={filterable} filters={state.filters} labels={labels} locale={where} onRemove={(keys) => setFilter(keys, undefined)} />}
       {!onHide && ownHidden.length > 0 && <HiddenFields attrs={ownHidden} labels={labels} labelOf={hiddenLabel} onShow={showColumns} />}
       {unreadable.length > 0 && <p className="jc-grid-sort-note jc-grid-not-readable">{labels.notReadable.replace("{count}", String(unreadable.length))}</p>}
       {grid.sortedLoadedOnly && rows.length > 0 && (
@@ -1467,11 +1475,14 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
                 const at = own === null ? -1 : order.indexOf(own);
                 const fixed = own === NAME_COLUMN;
                 const movable = own !== null && !col.pinned && !fixed;
+                // The Type filter lives in the filter row alone: its values are the grid's own types.
+                const headerFilter = !asText && filterable.get(col.key)?.kind !== "type" ? filterable.get(col.key) : undefined;
                 return (
                 <th
                   key={col.key}
-                  className={`jc-grid-th${col.pinned ? " jc-grid-pinned" : ""}${dragOver === col.key ? " jc-grid-th--drop" : ""}`}
-                  style={col.width ? { width: col.width, minWidth: col.width, maxWidth: col.width } : undefined}
+                  className={`jc-grid-th${col.pinned ? " jc-grid-pinned" : ""}${dragOver === col.key ? " jc-grid-th--drop" : ""}${complete(state.filters[col.key]) ? " jc-grid-th--filtered" : ""}`}
+                  // No header is squeezed below its first word (T-6328): a set width is the person's own.
+                  style={col.width ? { width: col.width, minWidth: col.width, maxWidth: col.width } : { minWidth: firstWordWidth(col.label) }}
                   data-col-attr={own ?? undefined}
                   draggable={movable}
                   onDragStart={movable ? (e) => { e.dataTransfer.setData(DRAG_TYPE, own!); e.dataTransfer.effectAllowed = "move"; } : undefined}
@@ -1499,6 +1510,23 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
                     {col.label}
                     {state.sort?.attr === (col.attr ?? col.key) ? (state.sort.dir === "asc" ? " ↑" : " ↓") : ""}
                   </button>
+                  {headerFilter && (
+                    <HeaderFilter
+                      column={headerFilter}
+                      label={col.label}
+                      labels={labels}
+                      locale={where}
+                      filter={state.filters[col.key]}
+                      open={openFilter === col.key}
+                      onOpen={() => focusFilter(col.key)}
+                      onClose={closeFilter}
+                      load={loadValues(headerFilter)}
+                      onApply={(next) => {
+                        setFilter(col.key, next);
+                        closeFilter();
+                      }}
+                    />
+                  )}
                   {locks.get(col.key) !== undefined ? (
                     <span className="jc-grid-lock" role="img" aria-label={`${labels.locked}: ${locks.get(col.key)}`} title={locks.get(col.key)} />
                   ) : null}
@@ -1521,7 +1549,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
                       labels={labels}
                       sorted={state.sort?.attr === own ? state.sort.dir : null}
                       onSort={(dir) => { setSort(own, dir); closeMenu(); }}
-                      onFilter={filterable.has(col.key) && !asText ? () => focusFilter(col.key) : undefined}
+                      onFilter={headerFilter ? () => focusFilter(col.key) : undefined}
                       onHide={col.pinned || fixed ? undefined : () => hideColumn(own)}
                       renamed={layout.labels?.[own] !== undefined}
                       onRename={(text) => renameColumn(own, text)}
@@ -1574,7 +1602,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
                     />
                   )}
                   {own !== null && (
-                    // The edge a pointer drags; a keyboard has Narrower and Wider in the menu.
+                    // The edge a pointer drags; a keyboard has Narrower and Wider under the menu's settings.
                     <span className="jc-grid-resize" aria-hidden="true" onPointerDown={(e) => startResize(e, own)} />
                   )}
                 </th>
@@ -1676,6 +1704,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
                   <td
                     key={`${row.id}-${col.key}`}
                     data-col={col.attr ? undefined : col.key}
+                    data-kind={col.pinned ? undefined : kindOf.get(col.key)}
                     className={`jc-grid-td${col.pinned ? " jc-grid-pinned" : ""}${locks.get(col.key) !== undefined ? " jc-grid-td--locked" : ""}${classNames?.cell ? ` ${classNames.cell}` : ""}`}
                     {...getCellProps(row, rowIndex, col, colIndex)}
                     onClick={
@@ -2072,7 +2101,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
         {/* The endpoint's own count, not the page's: an answer the gateway narrowed carries none,
             and then the footer says nothing rather than a number it guessed (R22). */}
         {grid.total !== undefined && (
-          <span className="jc-grid-total">{`${grid.total} ${labels.matching}`}</span>
+          <span className="jc-grid-total">{labels.matching.includes("{n}") ? labels.matching.replace("{n}", String(grid.total)) : `${grid.total} ${labels.matching}`}</span>
         )}
         <button
           type="button"
@@ -2149,6 +2178,12 @@ const OVERSCAN = 10;
 /** The share of the loaded rows the window's end passes before the next page is asked for. */
 const PREFETCH_AT = 0.6;
 
+/** A header's floor: its first word, the kind glyph, the filter and menu buttons (T-6328). */
+function firstWordWidth(label: string): string {
+  const word = label.trim().split(/\s+/)[0] ?? "";
+  return `calc(${Math.min(word.length, 16)}ch + 4.5rem)`;
+}
+
 /** The query as a person reads and copies it: the `q`, and the id pattern when one is asked. */
 function queryText(asked: { q?: string; idPattern?: string }): string {
   const parts: string[] = [];
@@ -2163,8 +2198,30 @@ function queryText(asked: { q?: string; idPattern?: string }): string {
 
 type FilterCellLabels = Pick<
   GridLabelsAll,
-  "filter" | "value" | "upperValue" | "noFilter" | "unit" | "filterHintText" | "filterHintNumber" | "filterHintDate" | "filterHintEnum" | "filterHintOther"
+  | "filter" | "value" | "upperValue" | "noFilter" | "unit" | "filterHintText" | "filterHintNumber" | "filterHintDate" | "filterHintEnum" | "filterHintOther"
+  | "filterExampleText" | "filterExampleNumber" | "filterExampleId" | "yes" | "no"
 > & { ops: Record<string, string> };
+
+/** A filter's value box by what the column holds (T-6328): a date or date-time picker, a number, a text with an example. */
+function valueBox(column: FilterColumn, labels: FilterCellLabels): { type: string; placeholder?: string } {
+  if (column.kind === "number") return { type: "number", placeholder: labels.filterExampleNumber };
+  if (column.kind === "date") return { type: column.datetime ? "datetime-local" : "date" };
+  return { type: "text", placeholder: column.kind === "id" ? labels.filterExampleId : labels.filterExampleText };
+}
+
+/** A stored timestamp as a date-time picker shows it, in the reader's own time. */
+function localInput(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return iso;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}T${pad(at.getHours())}:${pad(at.getMinutes())}`;
+}
+
+/** A date-time picker's local value as the UTC timestamp the endpoint compares with. */
+function fromLocalInput(local: string): string {
+  const at = new Date(local);
+  return local === "" || Number.isNaN(at.getTime()) ? local : at.toISOString();
+}
 
 /**
  * The one line under a column's filter (UI-16), from the attribute's model: what to type for its
@@ -2177,6 +2234,7 @@ function filterHint(column: FilterColumn, labels: FilterCellLabels): string {
     case "date":
       return labels.filterHintDate;
     case "enum":
+    case "type":
       return `${labels.filterHintEnum} ${(column.options ?? []).map(optionLabel).join(", ")}.`;
     case "text":
     case "id":
@@ -2207,12 +2265,17 @@ function FilterCell({
 }): React.JSX.Element {
   const hintId = React.useId();
   const hint = filterHint(column, labels);
-  const ops = opsForKind(column.kind);
+  // Values ticked in the header's list stay readable here, whatever the column offers itself (T-6328).
+  const ticked = filter?.op === "anyOf" && column.kind !== "enum" && column.kind !== "type";
+  const ops = ticked ? [...opsForKind(column.kind), "anyOf" as const] : opsForKind(column.kind);
   const op = filter?.op ?? ops[0];
   const needed = valuesNeeded(op);
-  const type = column.kind === "number" ? "number" : column.kind === "date" ? "date" : "text";
+  const box = valueBox(column, labels);
+  const stamp = box.type === "datetime-local";
   // An enum's values are picked, several at once: the query asks for any of them (UI-86).
-  const picking = column.kind === "enum" && op === "anyOf";
+  const picking = (column.kind === "enum" || column.kind === "type") && op === "anyOf";
+  // A yes/no column is picked from its two values, never typed.
+  const yesNo = column.kind === "boolean" && op === "equals";
   return (
     <div className="jc-grid-filter-cell">
       <span id={hintId} className="jc-grid-sr-only">
@@ -2239,16 +2302,14 @@ function FilterCell({
           </option>
         ))}
       </select>
+      {/* One value picked in the row keeps it one line tall; the header's funnel picks several (T-6328). */}
       {filter && picking && (
         <select
-          multiple
           aria-label={`${labels.value}: ${label}`}
-          value={filter.values ?? []}
-          size={Math.min(5, column.options?.length ?? 1)}
-          onChange={(e) =>
-            onChange({ ...filter, values: Array.from(e.target.selectedOptions, (option) => option.value) })
-          }
+          value={(filter.values ?? []).length === 1 ? filter.values![0] : ""}
+          onChange={(e) => onChange({ ...filter, values: e.target.value === "" ? [] : [e.target.value] })}
         >
+          <option value="">{(filter.values ?? []).length > 1 ? `${filter.values!.length} ✓` : labels.noFilter}</option>
           {(column.options ?? []).map((option) => (
             <option key={option.value} value={option.value} title={option.description}>
               {optionLabel(option)}
@@ -2256,20 +2317,30 @@ function FilterCell({
           ))}
         </select>
       )}
-      {filter && needed >= 1 && !picking && (
+      {filter && yesNo && (
+        <select aria-label={`${labels.value}: ${label}`} value={filter.value} onChange={(e) => onChange({ ...filter, value: e.target.value })}>
+          <option value="" disabled>{labels.noFilter}</option>
+          <option value="true">{labels.yes}</option>
+          <option value="false">{labels.no}</option>
+        </select>
+      )}
+      {filter && ticked && <span className="jc-grid-filter-ticked" title={(filter.values ?? []).join(", ")}>{(filter.values ?? []).join(", ")}</span>}
+      {filter && needed >= 1 && !picking && !yesNo && !ticked && (
         <input
           aria-label={`${labels.value}: ${label}`}
-          type={type}
-          value={filter.value}
-          onChange={(e) => onChange({ ...filter, value: e.target.value })}
+          type={box.type}
+          placeholder={box.placeholder}
+          value={stamp ? localInput(filter.value) : filter.value}
+          onChange={(e) => onChange({ ...filter, value: stamp ? fromLocalInput(e.target.value) : e.target.value })}
         />
       )}
       {filter && needed === 2 && (
         <input
           aria-label={`${labels.upperValue}: ${label}`}
-          type={type}
-          value={filter.value2 ?? ""}
-          onChange={(e) => onChange({ ...filter, value2: e.target.value })}
+          type={box.type}
+          placeholder={box.placeholder}
+          value={stamp ? localInput(filter.value2 ?? "") : filter.value2 ?? ""}
+          onChange={(e) => onChange({ ...filter, value2: stamp ? fromLocalInput(e.target.value) : e.target.value })}
         />
       )}
     </div>

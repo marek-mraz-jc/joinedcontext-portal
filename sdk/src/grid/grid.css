@@ -1388,6 +1388,7 @@ a.jc-cell--link:focus-visible {
 @media (width <= 640px) {
   .jc-grid-pager { flex-wrap: wrap; column-gap: var(--jc-space-1, 4px); }
   .jc-grid-pager .jc-grid-total { order: -1; flex-basis: 100%; text-align: center; }
+  .jc-grid-pager .jc-grid-total::before { content: none; }
   .jc-grid-pager:has(.jc-grid-pages) .jc-grid-page-info { display: none; }
   .jc-grid-pager-word {
     position: absolute;
@@ -1597,4 +1598,341 @@ a.jc-cell--link:focus-visible {
     min-width: calc(25vw - var(--jc-grid-rownum-width));
     max-width: calc(25vw - var(--jc-grid-rownum-width));
   }
+}
+
+/* A column's header filter (T-6328): a funnel beside the label, filled where the column is filtered. */
+.jc-grid-funnel {
+  display: inline-block;
+  width: 0.875rem;
+  height: 0.875rem;
+  vertical-align: middle;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M1.5 2h13l-5 6v5l-3 1.5V8z' fill='none' stroke='black' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M1.5 2h13l-5 6v5l-3 1.5V8z' fill='none' stroke='black' stroke-width='1.5' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.jc-grid-filter-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--jc-radius-sm, 2px);
+  padding: 2px 4px;
+  margin-left: 4px;
+  color: var(--jc-color-muted, #666);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.jc-grid-filter-btn:hover,
+.jc-grid-filter-btn:focus-visible {
+  color: var(--jc-color-accent, #0066cc);
+  border-color: var(--jc-color-line, #e0e0e0);
+}
+
+.jc-grid-filter-btn[data-active] {
+  color: var(--jc-color-surface, #fff);
+  background: var(--jc-color-accent, #0066cc);
+}
+
+.jc-grid-filter-btn[data-active] .jc-grid-funnel {
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M1.5 2h13l-5 6v5l-3 1.5V8z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M1.5 2h13l-5 6v5l-3 1.5V8z' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+
+.jc-grid-th--filtered {
+  box-shadow: inset 0 -2px 0 var(--jc-color-accent, #0066cc);
+}
+
+.jc-grid thead th:has(.jc-grid-autofilter) {
+  z-index: 4;
+}
+
+.jc-grid-menu-icon {
+  display: inline-flex;
+  justify-content: center;
+  width: 1.25rem;
+  color: var(--jc-color-muted, #666);
+}
+
+.jc-grid-menu-sep {
+  border: 0;
+  border-top: 1px solid var(--jc-color-line, #e0e0e0);
+  margin: 2px 0;
+  width: 100%;
+}
+
+.jc-grid-col-menu button.jc-grid-meta-item {
+  padding: 6px 8px;
+  font-size: var(--jc-font-size-md, 14px);
+}
+
+.jc-grid-col-menu-details[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--jc-space-1, 4px);
+}
+
+.jc-grid-col-menu-details summary {
+  padding: 6px 8px;
+  font-size: var(--jc-font-size-md, 14px);
+  /* One icon, the gear, as the other items have; the fold shows as a chevron at the end. */
+  list-style: none;
+  display: flex;
+  align-items: center;
+}
+.jc-grid-col-menu-details summary::-webkit-details-marker {
+  display: none;
+}
+.jc-grid-col-menu-details summary::after {
+  content: "›";
+  margin-inline-start: auto;
+  padding-inline-start: 8px;
+  transition: transform 0.15s;
+}
+.jc-grid-col-menu-details[open] summary::after {
+  transform: rotate(90deg);
+}
+
+/* The popup sits inside its header cell, whose label does not wrap: its own text does. */
+.jc-grid-col-menu {
+  white-space: normal;
+}
+
+.jc-grid-autofilter {
+  width: min(20rem, calc(100vw - 16px));
+  padding: var(--jc-space-2, 8px);
+  gap: var(--jc-space-2, 8px);
+  font-size: var(--jc-font-size-md, 14px);
+}
+
+.jc-grid-autofilter-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.jc-grid-autofilter fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--jc-space-1, 4px);
+  min-width: 0;
+}
+
+.jc-grid-autofilter legend {
+  padding: 0;
+  margin-bottom: 2px;
+  font-size: var(--jc-font-size-sm, 12px);
+  color: var(--jc-color-muted, #666);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.jc-grid-autofilter select,
+.jc-grid-autofilter input:not([type="checkbox"]) {
+  font: inherit;
+  padding: 4px 6px;
+  border: 1px solid var(--jc-color-line, #e0e0e0);
+  border-radius: var(--jc-radius-sm, 2px);
+  background: var(--jc-color-surface, #fff);
+  color: inherit;
+  min-width: 0;
+}
+
+.jc-grid-autofilter-hint,
+.jc-grid-autofilter-note {
+  margin: 0;
+  font-size: var(--jc-font-size-sm, 12px);
+  color: var(--jc-color-muted, #666);
+}
+
+.jc-grid-autofilter-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 14rem;
+  overflow-y: auto;
+  border: 1px solid var(--jc-color-line, #e0e0e0);
+  border-radius: var(--jc-radius-sm, 2px);
+  background: var(--jc-color-surface, #fff);
+}
+
+.jc-grid-autofilter-list label,
+.jc-grid-autofilter-all {
+  padding: 4px 6px;
+  font-size: var(--jc-font-size-md, 14px);
+  min-height: 1.75rem;
+}
+
+.jc-grid-autofilter-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jc-grid-autofilter-count {
+  color: var(--jc-color-muted, #666);
+  font-size: var(--jc-font-size-sm, 12px);
+  font-variant-numeric: tabular-nums;
+}
+
+.jc-grid-autofilter-actions {
+  justify-content: flex-end;
+}
+
+.jc-grid-autofilter-apply {
+  font: inherit;
+  padding: 4px 14px;
+  border: 1px solid var(--jc-color-accent, #0066cc);
+  border-radius: var(--jc-radius-sm, 2px);
+  background: var(--jc-color-accent, #0066cc);
+  color: var(--jc-color-surface, #fff);
+  cursor: pointer;
+}
+
+.jc-grid-autofilter-apply:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* The filters set, as chips above the grid (T-6328). */
+.jc-grid-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--jc-space-1, 4px);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.jc-grid-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 2px 2px 2px 10px;
+  border: 1px solid var(--jc-color-accent, #0066cc);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--jc-color-accent, #0066cc) 8%, var(--jc-color-surface, #fff));
+  color: var(--jc-color-ink, #1a1a1a);
+  font-size: var(--jc-font-size-sm, 12px);
+}
+
+.jc-grid-chip .jc-grid-funnel {
+  color: var(--jc-color-accent, #0066cc);
+}
+
+.jc-grid-chip-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jc-grid-chip button,
+.jc-grid-chips-clear {
+  font: inherit;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  border-radius: 999px;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+}
+
+.jc-grid-chip button:hover,
+.jc-grid-chip button:focus-visible {
+  background: var(--jc-color-line, #e0e0e0);
+}
+
+.jc-grid-chips-clear {
+  text-decoration: underline;
+  padding: 0 8px;
+}
+
+.jc-grid-autofilter-list li {
+  display: flex;
+  align-items: center;
+}
+
+.jc-grid-autofilter-list li > label {
+  flex: 1;
+  min-width: 0;
+}
+
+.jc-grid-autofilter-only {
+  font: inherit;
+  font-weight: 600;
+  border: 0;
+  background: none;
+  color: var(--jc-color-accent, #0066cc);
+  cursor: pointer;
+  padding: 4px 8px;
+  min-height: 1.75rem;
+}
+
+/* Always shown: a phone has no hover, and the owner must see the two-click way at once. */
+.jc-grid-autofilter-list li:hover .jc-grid-autofilter-only,
+.jc-grid-autofilter-only:focus-visible {
+  text-decoration: underline;
+}
+
+.jc-grid-autofilter-failed {
+  margin: 0;
+  padding: 6px 8px;
+  border-left: 3px solid var(--jc-color-danger, #b42318);
+  background: color-mix(in srgb, var(--jc-color-danger, #b42318) 8%, var(--jc-color-surface, #fff));
+  color: var(--jc-color-danger, #b42318);
+  font-size: var(--jc-font-size-sm, 12px);
+  text-align: left;
+}
+
+.jc-grid-autofilter-cause {
+  display: block;
+  color: var(--jc-color-muted, #666);
+}
+.jc-grid-autofilter-cause::first-letter {
+  text-transform: uppercase;
+}
+
+.jc-grid-filter-ticked {
+  max-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The id cell (T-6328): the head is cut with "…", the tail that tells rows apart (`101.2012`) never is. */
+.jc-grid-id {
+  display: flex;
+  min-width: 0;
+  max-width: 100%;
+}
+.jc-grid-id > span {
+  text-decoration: inherit;
+  white-space: nowrap;
+}
+.jc-grid-id-head {
+  min-width: 1ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.jc-grid-id-tail {
+  flex: none;
+}
+
+/* A text column keeps room for a few words a line (T-6328): without a floor the table squeezed a
+   name to one word a line, and its three-line cut hid the end that tells rows apart. */
+.jc-grid td[data-kind="text"] > .jc-grid-cell {
+  min-width: min(14ch, 35vw);
+}
+
+/* The count follows the pager's page with a separator, not run into it. */
+.jc-grid-total::before {
+  content: "·";
+  margin-inline-end: 0.5em;
+  color: var(--jc-color-muted, #666);
 }

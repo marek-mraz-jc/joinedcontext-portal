@@ -142,7 +142,7 @@ describe("the grid's filter row as an NGSI-LD query", () => {
     expect(opsForKind("number")).toContain("between");
     expect(opsForKind("number")).not.toContain("contains");
     expect(opsForKind("relationship")).toEqual(["equals", "notEquals", "empty", "present"]);
-    expect(opsForKind("id")).toEqual(["pattern", "equals"]);
+    expect(opsForKind("id")).toEqual(["pattern", "startsWith", "equals"]);
     // A geometry is asked for with a geo query, which is the map's, not a typed value's.
     expect(opsForKind("geo")).toEqual([]);
     expect(opsForKind("none")).toEqual([]);

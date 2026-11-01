@@ -1219,7 +1219,7 @@ function SpaceData({
           rowTone={rowTone}
           reloadKey={reloadKey}
           query={gridQuery}
-          filterRow={false}
+         
           queryBox={showQuery}
           onFilterColumns={onFilterColumns}
           rowNumbers={rowNumberLabels}

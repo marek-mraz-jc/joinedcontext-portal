@@ -121,10 +121,11 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await expect(menu).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
     await shot(page, `grid-column-menu-${label}`);
-    await menu.getByRole("button", { name: "Sort descending" }).click();
+    await menu.getByRole("button", { name: "Sort Z → A" }).click();
     await expect(grid.locator("tbody tr").first()).toContainText("District 8");
 
     await grid.getByRole("button", { name: "Column options: Status" }).click();
+    await page.getByRole("dialog", { name: "Column options: Status" }).getByText("Column settings").click();
     await page.getByLabel("Label in this view").fill("State");
     await page.getByLabel("Label in this view").press("Enter");
     await expect(grid.getByRole("button", { name: "Column options: State" })).toBeVisible();

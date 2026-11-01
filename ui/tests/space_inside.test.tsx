@@ -996,7 +996,7 @@ describe("the space's own data", () => {
     const grid = screen.getByRole("grid");
     const cells = within(grid).getAllByRole("gridcell").map((cell) => cell.textContent ?? "");
     expect(cells.join(" ")).not.toMatch(/[{}]|urn:|ngsi-ld:/);
-    expect(cells.join(" ")).toContain("start: Oct 1, 2026 · end: Oct 31, 2026");
+    expect(cells.join(" ").replace(/\u00a0/g, " ").replace(/\u2060/g, "")).toContain("Oct 1, 2026 – Oct 31, 2026");
     expect(cells.join(" ")).toContain("12.5 µg/m³");
     // The stub answers no Station, so the target reads as its id's end, with no link (G-R2GRID2-020).
     const target = await within(grid).findByTitle("urn:ngsi-ld:Station:banskabystrica.sk:ovzdusie:7");
@@ -1192,7 +1192,7 @@ describe("the space's own data", () => {
         access: { permissions: [{ resource: { type: "AirQualityObserved" }, actions: ["queryEntity"], attributes: "*" }] },
       });
       // The columns follow the answer (DM-102): the open button settles in the Name column once rows arrive.
-      await screen.findByRole("button", { name: /: Name$/ });
+      await screen.findAllByRole("button", { name: /: Name$/ });
       await userEvent.click(screen.getByRole("button", { name: en.spaces.toolbar.edit }));
       // The page says why Edit changed nothing, once the endpoint answered.
       expect(
