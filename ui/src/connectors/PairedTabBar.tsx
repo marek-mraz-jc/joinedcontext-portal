@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { Button, InlineError } from "../components/ui";
 import { attach, disconnectTab, dismissEnded, onPairingChange, pairing, pairingEnded, tabLog } from "./pairedTab";
 import type { TabAction } from "./pairedTab";
+import { clientLabel } from "../pages/mcp/aiConnectors";
 
 function useStored<T>(read: () => T): T {
   return useSyncExternalStore(onPairingChange, read, read);
@@ -21,8 +22,8 @@ const pairedKey = () => {
 };
 
 /** The client a person knows by name; an unknown id is shown as it is. */
-function clientLabel(t: (key: string, options?: Record<string, unknown>) => string, client: string | null): string {
-  return client ? t(`aiConnectors.client.${client}`, { defaultValue: client }) : t("pairedTab.anyClient");
+function clientName(t: (key: string) => string, client: string | null): string {
+  return client ? clientLabel(client, t) : t("pairedTab.anyClient");
 }
 
 function ActionLine({ entry }: { entry: TabAction }): JSX.Element {
@@ -32,7 +33,7 @@ function ActionLine({ entry }: { entry: TabAction }): JSX.Element {
       <time dateTime={entry.at} className="text-fg-muted">
         {new Date(entry.at).toLocaleTimeString(i18n.language)}
       </time>
-      <span>{t("pairedTab.sent", { client: clientLabel(t, entry.client), connector: entry.connector })}</span>
+      <span>{t("pairedTab.sent", { client: clientName(t, entry.client), connector: entry.connector })}</span>
       <span>{t(`pairedTab.tool.${entry.tool}`, { defaultValue: entry.tool })}</span>
       <span className="break-all font-mono">{entry.what}</span>
       {entry.ran ? null : <span className="text-warning">{t("pairedTab.notFound")}</span>}

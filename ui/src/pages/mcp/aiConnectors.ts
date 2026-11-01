@@ -25,6 +25,33 @@ export interface AiConnectorForm {
   clients: string[];
 }
 
+/**
+ * The locale key that names a connector client, from a fixed map of known ids (T-6309): a CIMD URL
+ * is a client's published document, whose own text never becomes a label. Unknown ids show as is.
+ */
+const CLIENT_KEYS: Record<string, string> = {
+  "https://claude.ai/oauth/mcp-oauth-client-metadata": "claudeAi",
+  "https://claude.ai/oauth/mcp-client-metadata": "claudeAi",
+  "https://claude.ai/oauth/claude-code-client-metadata": "claudeCode",
+  "https://chatgpt.com/connector/oauth/client.json": "chatgpt",
+  "mcp-local": "mcp-local",
+  "mcp-hub": "mcp-hub",
+  "mcp-mobile": "mcp-mobile",
+};
+
+/** The words for a client id, e.g. `claude.ai` for its CIMD URL; the id itself when unknown. */
+export function clientLabel(id: string, t: (key: string) => string): string {
+  const key = Object.hasOwn(CLIENT_KEYS, id) ? CLIENT_KEYS[id] : undefined;
+  return key ? t(`aiConnectors.client.${key}`) : id;
+}
+
+/** A clients' refusal without its field path, each offered id replaced by its words, e.g. `the client Claude Code`. */
+export function namedClients(message: string, clients: { id: string }[], t: (key: string) => string): string {
+  const longestFirst = [...clients].sort((a, b) => b.id.length - a.id.length);
+  const text = message.replace(/^allowedClients(\[\d+\])?: /, "");
+  return longestFirst.reduce((named, one) => named.split(one.id).join(clientLabel(one.id, t)), text);
+}
+
 const DNS_LABEL = /^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$/;
 const DAY = 24 * 3600_000;
 

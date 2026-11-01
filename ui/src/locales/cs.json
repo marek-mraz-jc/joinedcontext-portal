@@ -10832,6 +10832,7 @@
     "needsApproval": "vyžaduje schválení vaší organizací",
     "aboveCeiling": "Vaše organizace zatím nedovoluje konektoru nést tuto předvolbu.",
     "binds": "použít ho může jen tento klient",
+    "clientRefused": "politika vaší organizace ho nedovoluje",
     "intendedFor": "říká, pro koho je; uvést ho mohou i jiné lokální programy",
     "state": {
       "active": "Aktivní",
@@ -10909,6 +10910,7 @@
       "scope": "Zaškrtněte celý projekt nebo jednotlivé prostory, Endpointy či pipelines, např. helsinki / Endpoint bike-counters.",
       "expires": "Poslední den platnosti, nejvýše {days} dní ode dneška, např. konec tohoto měsíce.",
       "clients": "Nechte prázdné pro jakéhokoli klienta, nebo zaškrtněte např. Claude Code, pro koho je.",
+      "clientsListed": "Zaškrtněte klienta, kterého použijete, např. claude.ai: vaše organizace dovolí konektoru odpovídat jen klientům, které uvádí její politika.",
       "nameStays": "Název zůstává; podle něj konektor zobrazuje váš AI klient."
     },
     "problem": {

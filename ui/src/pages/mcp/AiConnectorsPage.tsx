@@ -1,4 +1,4 @@
-import { useState, useSyncExternalStore } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -21,7 +21,7 @@ import {
 import { ManifestGrid } from "../../components/grid/ManifestGrid";
 import { CopyValue } from "./McpServerPanels";
 import { connectTab, disconnectTab, onPairingChange, pairing } from "../../connectors/pairedTab";
-import { emptyForm, formProblems, lastDay, pickKey, refusedSection, scopeLines, setup, toForm, toRequest } from "./aiConnectors";
+import { clientLabel, emptyForm, namedClients, formProblems, lastDay, pickKey, refusedSection, scopeLines, setup, toForm, toRequest } from "./aiConnectors";
 import type { AiConnector, AiConnectorForm, ConnectorOptions, Pick, PickKind } from "./aiConnectors";
 
 const KEY = ["ai-connectors"] as const;
@@ -184,7 +184,7 @@ export function AiConnectorCard({ connector, justCreated }: { connector: AiConne
             <dd>
               {connector.allowedClients.length === 0
                 ? t("aiConnectors.anyClient")
-                : connector.allowedClients.map((id) => t(`aiConnectors.client.${id}`, { defaultValue: id })).join(", ")}
+                : connector.allowedClients.map((id) => clientLabel(id, t)).join(", ")}
             </dd>
           </div>
           <div>
@@ -237,7 +237,7 @@ export function ActivityTable({ id, name }: { id: string; name: string }): JSX.E
   if (calls.data.items.length === 0) return <p className="text-caption text-fg-muted">{t("aiConnectors.noCalls")}</p>;
   // A call has no id of its own: its place in the answer keys the row.
   type Call = (typeof calls.data.items)[number] & { row: number };
-  const clientOf = (call: Call) => (call.client ? t(`aiConnectors.client.${call.client}`, { defaultValue: call.client }) : "");
+  const clientOf = (call: Call) => (call.client ? clientLabel(call.client, t) : "");
   return (
     <ManifestGrid<Call>
       caption={t("aiConnectors.activityOf", { name })}
@@ -369,6 +369,8 @@ export function CreateDialog({
   const [form, setForm] = useState<AiConnectorForm | null>(null);
   const [tried, setTried] = useState(false);
   const [refused, setRefused] = useState<{ section?: string; message: string } | null>(null);
+  // The clients' refusal sits at the dialog's foot, below the fold: bring it into view once.
+  const shown = useCallback((alert: HTMLDivElement | null) => alert?.scrollIntoView?.({ block: "nearest" }), []);
   const current = form ?? (stored ? toForm(stored) : emptyForm(options.data, now));
   const set = (patch: Partial<AiConnectorForm>) => setForm({ ...current, ...patch });
   const problems = options.data ? formProblems(current, options.data, now) : {};
@@ -491,20 +493,27 @@ export function CreateDialog({
           <fieldset className="flex flex-col gap-1" aria-describedby="ai-connector-clients-help">
             <legend className="text-body font-semibold">{t("aiConnectors.field.clients")}</legend>
             <p id="ai-connector-clients-help" className="text-caption text-fg-muted">
-              {t("aiConnectors.help.clients")}
+              {options.data.clients.some((one) => one.refused) ? t("aiConnectors.help.clientsListed") : t("aiConnectors.help.clients")}
             </p>
             {options.data.clients.map((one) => (
               <Checkbox
                 key={one.id}
-                label={t(`aiConnectors.client.${one.id}`, { defaultValue: one.id })}
-                hint={one.isBoundary ? t("aiConnectors.binds") : t("aiConnectors.intendedFor")}
+                label={clientLabel(one.id, t)}
+                hint={one.refused ? t("aiConnectors.clientRefused") : one.isBoundary ? t("aiConnectors.binds") : t("aiConnectors.intendedFor")}
+                className="flex-wrap gap-y-0 max-sm:[&>span+span]:basis-full"
+                disabled={Boolean(one.refused) && !current.clients.includes(one.id)}
+                disabledReason={one.refused ?? undefined}
                 checked={current.clients.includes(one.id)}
                 onChange={(event) =>
                   set({ clients: event.target.checked ? [...current.clients, one.id] : current.clients.filter((id) => id !== one.id) })
                 }
               />
             ))}
-            {errorsOf("allowedClients") ? <Alert tone="danger">{errorsOf("allowedClients")?.[0]}</Alert> : null}
+            {errorsOf("allowedClients") ? (
+              <div ref={shown}>
+                <Alert tone="danger">{namedClients(errorsOf("allowedClients")?.[0] ?? "", options.data.clients, t)}</Alert>
+              </div>
+            ) : null}
           </fieldset>
           {refused && !refused.section ? (
             <Alert tone="danger" role="alert">
