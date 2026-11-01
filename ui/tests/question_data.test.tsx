@@ -153,7 +153,7 @@ describe("data a question asks for", () => {
   it("says a damaged workbook cannot be read and sends nothing", async () => {
     const onAnswer = data(vi.fn(), EXCEL);
     await userEvent.setup().upload(fileInput(), new File(["not a zip"], "broken.xlsx"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("not a ZIP");
+    expect(await screen.findByRole("alert")).toHaveTextContent("not an Excel workbook");
     expect(onAnswer).not.toHaveBeenCalled();
   });
 

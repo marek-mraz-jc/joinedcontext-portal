@@ -1123,7 +1123,7 @@
     },
     "sheet": {
       "label": "Hárok",
-      "hint": "Zošit má {count} hárkov a číta sa vždy jeden. Vyberte ten s vašimi riadkami, napríklad {example}.",
+      "hint": "Číta sa vždy jeden hárok: vyberte ten s vašimi riadkami, napríklad {example}.",
       "option": "{name} ({rows, plural, one {# riadok} few {# riadky} other {# riadkov}}, {columns, plural, one {# stĺpec} few {# stĺpce} other {# stĺpcov}})"
     },
     "upload": {

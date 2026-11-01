@@ -415,7 +415,7 @@ describe("the complete-a-space page against the UI contract", () => {
     vi.stubGlobal("fetch", withSpaceList(op));
     renderComponent();
     await user.upload(screen.getByLabelText(en.spaces.complete.files), new File(["not a zip"], "broken.xlsx"));
-    expect(await screen.findByRole("alert")).toHaveTextContent("not a ZIP");
+    expect(await screen.findByRole("alert")).toHaveTextContent("not an Excel workbook");
     expect(op).not.toHaveBeenCalled();
   });
 

@@ -133,7 +133,7 @@ describe("Upload CSV", () => {
     await user.upload(screen.getByLabelText("Choose a CSV file"), file);
 
     const sheet = await screen.findByRole("combobox", { name: "Sheet" });
-    expect(screen.getByText(/The workbook holds 2 sheets/)).toBeInTheDocument();
+    expect(screen.getByText(/One sheet is read at a time/)).toBeInTheDocument();
     expect(screen.getByRole("option", { name: "Notes (1 row, 2 columns)" })).toBeInTheDocument();
     expect(screen.queryByRole("radio", { name: /OffStreetParking/ })).toBeNull();
     await user.selectOptions(sheet, "Garages");

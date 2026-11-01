@@ -367,7 +367,7 @@ async function unzip(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
       break;
     }
   }
-  if (end < 0) throw new Error("the workbook is not a ZIP archive");
+  if (end < 0) throw new Error("the file is not an Excel workbook (.xlsx): save it from the spreadsheet as .xlsx or CSV and choose it again");
   const count = view.getUint16(end + 10, true);
   let at = view.getUint32(end + 16, true);
   const entries = new Map<string, Uint8Array>();

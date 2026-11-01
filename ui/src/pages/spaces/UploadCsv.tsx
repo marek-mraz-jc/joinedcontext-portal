@@ -209,7 +209,7 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
         ) : null}
         {read ? (
           <p className="text-body text-fg-muted">
-            {t("spaces.import.read", { name: read.name, rows: read.table.rows.length, columns: read.table.columns.length })}
+            {t("spaces.import.read", { name: read.sheets.length > 1 ? `${read.name} (${read.sheet})` : read.name, rows: read.table.rows.length, columns: read.table.columns.length })}
           </p>
         ) : null}
         {read && !proposed ? <SheetChoice id="upload-sheet" sheets={read.sheets} value={read.sheet} onChange={takeSheet} /> : null}

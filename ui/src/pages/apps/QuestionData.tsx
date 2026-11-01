@@ -147,6 +147,7 @@ export function QuestionData({
             }
           }}
         >
+          {book ? <p className="text-caption text-fg">{t("form.chosenFiles", { names: book.name })}</p> : null}
           {problem ? (
             <InlineError>
               {problem}
@@ -158,6 +159,7 @@ export function QuestionData({
         <div className="flex flex-col gap-2">
           <SheetChoice id={sheetId} sheets={book.sheets} value={book.sheet} onChange={(sheet) => setBook({ ...book, sheet })} />
           <Button
+            variant="primary"
             className="w-fit"
             disabled={disabled}
             disabledReason={t("app.busyReason")}

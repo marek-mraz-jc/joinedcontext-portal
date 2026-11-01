@@ -104,7 +104,7 @@ for (const [label, width, height] of [["1440", 1440, 900], ["400", 400, 860]] as
       await page.goto(`/projects/${PROJECT}/spaces/upload?lang=en`);
       await shot(page, `upload-empty-${label}`);
       await page.getByLabel("Choose a CSV file").setInputFiles(BROKEN);
-      await expect(page.getByRole("alert")).toContainText("not a ZIP");
+      await expect(page.getByRole("alert")).toContainText("not an Excel workbook");
       await shot(page, `upload-refused-${label}`);
       await page.getByLabel("Choose a CSV file").setInputFiles(BOOK);
       const sheet = page.getByRole("combobox", { name: "Sheet" });

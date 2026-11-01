@@ -154,7 +154,7 @@ describe("reading a file", () => {
       '<row r="2"><c r="A2" t="inlineStr"><is><t>Töölö</t></is></c></row></sheetData></worksheet>';
     const table = await parseXlsx(zip({ "xl/worksheets/sheet1.xml": await deflated(sheet) }, { "xl/worksheets/sheet1.xml": sheet.length }));
     expect(table.rows).toEqual([{ name: "Töölö" }]);
-    await expect(parseXlsx(new TextEncoder().encode("not a zip"))).rejects.toThrow("not a ZIP");
+    await expect(parseXlsx(new TextEncoder().encode("not a zip"))).rejects.toThrow("not an Excel workbook");
   });
 
   it("says a workbook whose directory points past its end is damaged (JC1-45)", async () => {

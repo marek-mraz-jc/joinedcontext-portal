@@ -1238,7 +1238,10 @@ mod tests {
         );
         let input = call.input.payload().expect("an input");
         assert_eq!(input["file"]["accept"], json!(SAMPLE_FORMATS));
-        assert_eq!(input["file"]["accept"], json!(["csv", "tsv", "xlsx", "json"]));
+        assert_eq!(
+            input["file"]["accept"],
+            json!(["csv", "tsv", "xlsx", "json"])
+        );
         assert_eq!(input["file"]["maxBytes"], json!(SAMPLE_MAX_BYTES));
         assert_eq!(input["url"], json!(true));
         let one = parse_ask(&json!({ "question": "Which file?", "input": "file" })).expect("one");

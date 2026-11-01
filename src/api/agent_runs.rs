@@ -2841,10 +2841,11 @@ mod tests {
         let question = serde_json::json!({
             "input": { "file": { "accept": ["csv", "tsv", "xlsx", "json"], "maxBytes": 1024 } }
         });
-        let file = |format: &str, text: &str| {
-            serde_json::json!({ "file": { "name": "Stops.csv", "format": format, "text": text } })
-        };
-        assert_eq!(offered_answer(&question, &file("csv", "name\r\nKamppi\r\n")), Ok(()));
+        let file = |format: &str, text: &str| serde_json::json!({ "file": { "name": "Stops.csv", "format": format, "text": text } });
+        assert_eq!(
+            offered_answer(&question, &file("csv", "name\r\nKamppi\r\n")),
+            Ok(())
+        );
         assert_eq!(
             offered_answer(&question, &file("xlsx", "PK")),
             Err("an Excel workbook is answered as the CSV of one of its sheets".to_owned())

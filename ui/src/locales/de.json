@@ -1123,7 +1123,7 @@
     },
     "sheet": {
       "label": "Tabellenblatt",
-      "hint": "Die Arbeitsmappe hat {count} Blätter, gelesen wird jeweils eines. Wählen Sie das mit Ihren Zeilen, etwa {example}.",
+      "hint": "Gelesen wird jeweils ein Blatt: Wählen Sie das mit Ihren Zeilen, etwa {example}.",
       "option": "{name} ({rows, plural, one {# Zeile} other {# Zeilen}}, {columns, plural, one {# Spalte} other {# Spalten}})"
     },
     "upload": {

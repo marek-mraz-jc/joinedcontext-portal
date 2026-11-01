@@ -1123,7 +1123,7 @@
     },
     "sheet": {
       "label": "Sheet",
-      "hint": "The workbook holds {count} sheets and one is read at a time. Choose the one with your rows, such as {example}.",
+      "hint": "One sheet is read at a time: choose the one with your rows, such as {example}.",
       "option": "{name} ({rows, plural, one {# row} other {# rows}}, {columns, plural, one {# column} other {# columns}})"
     },
     "upload": {
