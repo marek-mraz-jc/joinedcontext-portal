@@ -6861,10 +6861,10 @@
       "noType": "Pick an entity type above to list its attributes; the * row covers every attribute meanwhile.",
       "needsTemporal": "Needs queryTemporal or retrieveTemporal in the operations.",
       "needsWrite": "Needs a write operation, such as updateAttrs.",
-      "needsReadVersions": "Needs the action readVersions (YAML view).",
+      "needsReadVersions": "Needs the grant to allow reading earlier versions; add it in the YAML view.",
       "neverPublicWrite": "A public grant never writes.",
       "neverPublicKeep": "A public grant never keeps versions.",
-      "neverPublicActor": "modifiedBy.actor and provenance are never public: an actor is a person's account.",
+      "neverPublicActor": "Who changed a value and where it came from are never public: the author is a person's account.",
       "column": {
         "attribute": "Attribute",
         "read": "Read",

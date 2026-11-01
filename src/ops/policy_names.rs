@@ -25,20 +25,30 @@ const CORE: [&str; 3] = ["location", "observationSpace", "operationSpace"];
 /// model does not define for any type of the same `information` entry. Empty for another kind, or
 /// when the space, its model or the model's source cannot be read.
 pub async fn findings(state: &AppState, project: &str, manifest: &Value) -> Vec<Finding> {
-    if manifest["kind"].as_str() != Some("Policy") || !has_names(&manifest["spec"]) {
+    if manifest["kind"].as_str() != Some("Policy") || !needs_model(&manifest["spec"]) {
         return Vec::new();
     }
     match space_model(state, project, &manifest["spec"]).await {
-        Some((model, source, linkml)) => {
-            let mut out = unknown_names(&manifest["spec"], &linkml, &model);
-            out.extend(public_personal_versions(
-                &manifest["spec"],
-                &crate::personal_data::marks(&source),
-            ));
-            out
-        }
+        Some((model, source)) => of_model(&manifest["spec"], &model, &source),
         None => Vec::new(),
     }
+}
+
+/// The findings for a Policy `spec` against the LinkML `source` of its space's DataModel `model`.
+/// Empty when the spec names nothing the model judges or the source does not parse.
+fn of_model(spec: &Value, model: &str, source: &str) -> Vec<Finding> {
+    if !needs_model(spec) {
+        return Vec::new();
+    }
+    let Ok(linkml) = serde_norway::from_str(source) else {
+        return Vec::new();
+    };
+    let mut out = unknown_names(spec, &linkml, model);
+    out.extend(public_personal_versions(
+        spec,
+        &crate::personal_data::marks(source),
+    ));
+    out
 }
 
 /// A warning on an Endpoint whose `spec.audit` is `changes`: ADR-N-066 2.5 moves the audit into
@@ -57,12 +67,8 @@ pub fn superseded_audit(manifest: &Value) -> Option<Finding> {
     })
 }
 
-/// The name, LinkML source and parsed source of the DataModel the spec's space names.
-async fn space_model(
-    state: &AppState,
-    project: &str,
-    spec: &Value,
-) -> Option<(String, String, serde_norway::Value)> {
+/// The name and LinkML source of the DataModel the spec's space names.
+async fn space_model(state: &AppState, project: &str, spec: &Value) -> Option<(String, String)> {
     let space = crate::resource::reference_name(&spec["contextSpaceRef"])?;
     let space = state.mirror.get(project, "ContextSpace", space)?;
     let reference = &space.spec["dataModelRef"];
@@ -71,8 +77,18 @@ async fn space_model(
     let linkml = crate::api::datamodels::read_source(state, namespace, model)
         .await
         .ok()?;
-    let parsed = serde_norway::from_str(&linkml).ok()?;
-    Some((model.to_owned(), linkml, parsed))
+    Some((model.to_owned(), linkml))
+}
+
+/// Whether the spec needs its space's model: it lists an attribute name or capability key, or a
+/// holder lists `readVersions`, whose default reads every attribute's versions (DM-151).
+fn needs_model(spec: &Value) -> bool {
+    has_names(spec)
+        || holders(spec).any(|(_, holder)| {
+            holder["actions"]
+                .as_array()
+                .is_some_and(|actions| actions.iter().any(|a| a.as_str() == Some("readVersions")))
+        })
 }
 
 /// Whether the spec or one of its rules lists an attribute name or capability key.
@@ -504,5 +520,23 @@ classes:
             public_personal_versions(&public(json!({"*": {"history": true}})), &marks()),
             Vec::new()
         );
+    }
+
+    #[test]
+    fn a_public_read_versions_grant_naming_only_types_is_judged() {
+        let spec = json!({
+            "assignee": {"kind": "role", "id": "public"},
+            "actions": ["readVersions"],
+            "information": [{"entities": [{"type": "OnStreetParking"}]}],
+        });
+        let source = "classes:\n  OnStreetParking:\n    attributes:\n      ownerName:\n        annotations: { personalData: true }\n      address: {}\n";
+        let found = of_model(&spec, "parking", source);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert_eq!(found[0].path, "spec.information.0.attributes");
+        // Without readVersions and names nothing is judged.
+        let mut plain = spec.clone();
+        plain["actions"] = json!([]);
+        assert!(!needs_model(&plain));
+        assert_eq!(of_model(&plain, "parking", source), Vec::new());
     }
 }

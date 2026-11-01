@@ -6861,10 +6861,10 @@
       "noType": "Wählen Sie oben einen Entitätstyp, um seine Attribute zu sehen; bis dahin deckt die Zeile * alle ab.",
       "needsTemporal": "Braucht queryTemporal oder retrieveTemporal in den Operationen.",
       "needsWrite": "Braucht eine schreibende Operation, etwa updateAttrs.",
-      "needsReadVersions": "Braucht die Aktion readVersions (YAML-Ansicht).",
+      "needsReadVersions": "Braucht eine Freigabe zum Lesen früherer Versionen; ergänzen Sie sie in der YAML-Ansicht.",
       "neverPublicWrite": "Eine öffentliche Berechtigung schreibt nie.",
       "neverPublicKeep": "Eine öffentliche Berechtigung bewahrt nie Versionen.",
-      "neverPublicActor": "modifiedBy.actor und provenance sind nie öffentlich: ein Akteur ist das Konto einer Person.",
+      "neverPublicActor": "Wer einen Wert geändert hat und woher er stammt, ist nie öffentlich: der Autor ist das Konto einer Person.",
       "column": {
         "attribute": "Attribut",
         "read": "Lesen",

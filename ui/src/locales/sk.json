@@ -6861,10 +6861,10 @@
       "noType": "Vyberte vyššie typ entity, aby sa zobrazili jeho atribúty; dovtedy riadok * pokrýva všetky.",
       "needsTemporal": "Vyžaduje queryTemporal alebo retrieveTemporal v operáciách.",
       "needsWrite": "Vyžaduje zapisovaciu operáciu, napríklad updateAttrs.",
-      "needsReadVersions": "Vyžaduje akciu readVersions (zobrazenie YAML).",
+      "needsReadVersions": "Vyžaduje, aby oprávnenie povoľovalo čítať staršie verzie; doplňte to v zobrazení YAML.",
       "neverPublicWrite": "Verejné oprávnenie nikdy nezapisuje.",
       "neverPublicKeep": "Verejné oprávnenie nikdy neukladá verzie.",
-      "neverPublicActor": "modifiedBy.actor a provenance nie sú nikdy verejné: autor je konto osoby.",
+      "neverPublicActor": "Autor zmeny a pôvod hodnoty nie sú nikdy verejné: autor je konto osoby.",
       "column": {
         "attribute": "Atribút",
         "read": "Čítanie",
