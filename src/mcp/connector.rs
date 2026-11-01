@@ -271,7 +271,7 @@ fn tool_problem(id: Value, status: u16, slug: &str, title: &str, why: &str) -> V
             "isError": true,
             "content": [{ "type": "text", "text": why }],
             "structuredContent": {
-                "type": format!("https://joinedcontext.com/errors/{slug}"),
+                "type": crate::error::type_uri(slug),
                 "title": title,
                 "status": status,
                 "detail": why,
