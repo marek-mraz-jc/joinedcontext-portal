@@ -138,6 +138,7 @@ const fi: Strings = {
       present: "on arvo",
       pattern: "vastaa",
       anyOf: "on jokin näistä",
+      startsWith: "alkaa",
     },
     value: "Arvo",
     upperValue: "Yläraja",

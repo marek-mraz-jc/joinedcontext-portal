@@ -4,6 +4,7 @@
 #   sh scripts/apps-ci.sh wasm   # the react-rust-wasm example and the Apps with a wasm/ crate
 #   sh scripts/apps-ci.sh ui     # the reference apps/*/ui, the Apps in their own repository, the
 #                                # rust-wasm-server example's interface
+#   sh scripts/apps-ci.sh typecheck   # only the type check of each touched apps/*/ui (T-6341)
 #   sh scripts/apps-ci.sh touched <path>   # exit 0 when the change touches <path>
 #   sh scripts/apps-ci.sh ours <path>      # touched, and in this job's shard
 #
@@ -98,6 +99,19 @@ wasm() {
   done
 }
 
+# The reference apps' type check alone, seconds an App: the per-push lane builds no App since
+# T-6153, so an SDK type an App fills (a new FilterOp label) broke only the image build (T-6341).
+typecheck() {
+  for app in apps/*/ui; do
+    [ -f "$app/package.json" ] || continue
+    touched "$(dirname "$app")" || { skip "$(dirname "$app")"; continue; }
+    (cd "$app" && if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; else
+      npm pkg set "dependencies.@joinedcontext/sdk=link:$ROOT/sdk" \
+      && pnpm install --no-frozen-lockfile; fi && pnpm typecheck)
+  done
+  git checkout -- apps && git clean -fq -- apps
+}
+
 ui() {
   # The reference apps of AP-34 carry their own bundle and no lockfile: the SDK name is pointed at
   # this checkout, and the manifests and lockfiles are put back after (the lane test reads them).
@@ -145,7 +159,8 @@ ui() {
 case "${1:-}" in
   wasm) wasm ;;
   ui) ui ;;
+  typecheck) typecheck ;;
   touched) touched "${2:?usage: apps-ci.sh touched <path>}" ;;
   ours) ours "${2:?usage: apps-ci.sh ours <path>}" ;;
-  *) echo "usage: apps-ci.sh wasm|ui|touched <path>|ours <path>" >&2; exit 2 ;;
+  *) echo "usage: apps-ci.sh wasm|ui|typecheck|touched <path>|ours <path>" >&2; exit 2 ;;
 esac
