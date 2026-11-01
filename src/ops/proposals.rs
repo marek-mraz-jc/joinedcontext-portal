@@ -878,15 +878,19 @@ pub fn operations() -> Vec<Operation> {
                                 .await
                         }
                     };
-                    let ok = res.valid;
                     let mut findings = Vec::new();
-                    if !ok {
+                    if !res.valid {
                         findings.push(Finding {
                             level: Level::Error,
                             path: "".into(),
                             message: "plan validation failed".into(),
                         });
                     }
+                    // A Policy attribute its space's model lacks narrows the grant to nothing
+                    // (T-6283): an error on its field, not a green plan.
+                    let unknown = super::policy_names::findings(state, project, &manifest).await;
+                    let ok = res.valid && unknown.is_empty();
+                    findings.extend(unknown);
                     // A reference an open change creates passes and names the change (MF-48).
                     findings.extend(res.awaited.iter().map(crate::references::Awaited::finding));
                     let mut verdict = Verdict::new(
