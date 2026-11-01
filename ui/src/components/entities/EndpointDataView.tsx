@@ -10,12 +10,17 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { EntityCompare, enumsOf, originTransport, parseGridConfig, parseQ, relationsOf, sourceFor } from "@joinedcontext/sdk";
-import type { ColumnFilter, FilterColumn, FilterKind, GridColumn } from "@joinedcontext/sdk";
+import { andQ, EntityCompare, enumsOf, matchesQ, originTransport, parseGridConfig, parseQ, queryFromGroup, relationsOf, searchQuery, sourceFor } from "@joinedcontext/sdk";
+import type { ColumnFilter, FilterColumn, FilterGroup, FilterKind, GridColumn, GridState, RichRow } from "@joinedcontext/sdk";
 import { fetchJson, publishedTypes } from "../../pages/endpoints/SchemaProjectionPanel";
 import { classSlots, parseModel } from "../../pages/models/linkml";
 import type { ClassView, LinkmlModel, LinkmlSlot } from "../../pages/models/linkml";
-import { Button, Checkbox, Field, InlineError, Select, safeHref } from "../ui";
+import { Button, Field, InlineError, Select, safeHref } from "../ui";
+import { DataToolbar } from "./DataToolbar";
+import { conditionCount, EMPTY_GROUP, FilterChips } from "./FilterPanel";
+import { GroupCount } from "./GridToolbar";
+import type { RowSize, SortKey } from "./GridToolbar";
+import type { ViewExtras } from "./ViewOptions";
 import { columnLabel, displayOrder } from "./displayOrder";
 import { gridLabels, PortalEntityGrid } from "./PortalEntityGrid";
 import { filtersFromQ } from "./presetFilters";
@@ -111,8 +116,8 @@ export interface OpenedView {
   sort: Sort;
 }
 
-/** Rows per page a reader picks; the model's `view_page_length` picks the first (DM-134). */
-export const PAGE_LENGTHS = [10, 20, 50, 100] as const;
+/** The page lengths a publisher may name; the model's `view_page_length` picks one (DM-134). */
+const PAGE_LENGTHS = [10, 20, 50, 100] as const;
 
 /** A link's order, kept only when it names a column of the type: nothing else reaches `orderBy`. */
 export function sortOfLink(raw: string | undefined, attributes: string[]): Sort {
@@ -209,12 +214,15 @@ export function filterWords(q: string, labels: Record<string, string>, today: st
     .trim();
 }
 
-/** The same filter, whatever the grid wrote for an empty input. */
-function sameFilter(a: OpenedView, b: OpenedView | null): boolean {
+/** The same filter: the typed text and the Filter panel's conditions. */
+function sameFilter(a: OpenedView, group: FilterGroup, b: OpenedView | null): boolean {
   if (!b) return false;
-  const filled = (view: OpenedView) =>
-    JSON.stringify(Object.entries(view.filters ?? {}).filter(([, one]) => JSON.stringify(one) !== "{}").sort(([x], [y]) => x.localeCompare(y)));
-  return (a.filterText ?? "") === (b.filterText ?? "") && filled(a) === filled(b);
+  return (a.filterText ?? "") === (b.filterText ?? "") && JSON.stringify(group) === JSON.stringify(groupOf(b.filters));
+}
+
+/** A default filter's column inputs as the Filter panel's conditions (DM-134), joined by AND. */
+export function groupOf(filters: Record<string, ColumnFilter> | undefined): FilterGroup {
+  return { join: "and", conditions: Object.entries(filters ?? {}).map(([key, filter]) => ({ key, filter })) };
 }
 
 /**
@@ -321,43 +329,6 @@ function csvHref(origin: string | undefined, slug: string, type: string, q: stri
 }
 
 /**
- * The attributes of the type as a list rather than a table: three columns do not fit a phone, one
- * entry a line does. With a published model each entry ticks its column in or out (T-5192).
- */
-function FieldList({ fields, shown, onShown }: { fields: FieldRow[]; shown?: string[]; onShown?: (next: string[]) => void }): JSX.Element {
-  const { t } = useTranslation();
-  return (
-    <details className="rounded border border-border p-2">
-      <summary className="cursor-pointer text-body font-medium text-fg">{t("endpoints.data.fields")}</summary>
-      {onShown ? <p className="mt-1 text-caption text-fg-muted">{t("endpoints.data.fieldsHint")}</p> : null}
-      <ul className="mt-2 divide-y divide-border" aria-label={t("endpoints.data.fields")}>
-        {fields.map((field) => (
-          <li key={field.name} className="flex flex-col gap-0.5 py-2">
-            <span className="text-body">
-              {onShown && shown ? (
-                <Checkbox
-                  label={field.label ?? field.name}
-                  checked={shown.includes(field.name)}
-                  onChange={() => onShown(shown.includes(field.name) ? shown.filter((each) => each !== field.name) : [...shown, field.name])}
-                />
-              ) : (
-                <span className="font-mono">{field.name}</span>
-              )}
-              <span className="text-caption text-fg-muted">
-                {field.label ? <> · <span className="font-mono">{field.name}</span></> : null}
-                {" · "}
-                {t("endpoints.data.fieldType")}: {field.kind || "—"}
-              </span>
-            </span>
-            <span className="text-caption text-fg-muted">{field.description || t("endpoints.data.noDescription")}</span>
-          </li>
-        ))}
-      </ul>
-    </details>
-  );
-}
-
-/**
  * The view's actions: compare with the space (only when the endpoint serves one, T-1435), the full
  * window, and the CSV download of the current query.
  */
@@ -440,13 +411,11 @@ export interface EndpointDataViewProps {
   origin?: string;
 }
 
-/** Where the grid opens: the kept or preset view, else the link's query and order; the page length and order as text. */
-function gridState(kept: OpenedView | null, link: DataLink | undefined, columns: string[], pageLength: number | null, modelLength: number | undefined) {
+/** Where the grid opens: the kept or preset view, else the link's query and order; the order as text. */
+function gridState(kept: OpenedView | null, link: DataLink | undefined, columns: string[]) {
   const opened: OpenedView = kept ?? { filterText: link?.q ?? null, sort: sortOfLink(link?.sort, columns) };
   return {
     opened,
-    filtered: opened.filterText !== null || Object.keys(opened.filters ?? {}).length > 0,
-    rowsPerPage: pageLength ?? modelLength ?? 20,
     sortText: opened.sort ? `${opened.sort.attr}${opened.sort.dir === "desc" ? ";desc" : ""}` : undefined,
   };
 }
@@ -503,7 +472,7 @@ function useTypeColumns(
   modelData: LinkmlModel | null | undefined,
   chosen: string,
   hidden: string[],
-  picked: string[] | null,
+  readerHidden: string[] | undefined,
   language: string,
   widgetData: unknown,
 ) {
@@ -518,7 +487,9 @@ function useTypeColumns(
   }, [klass, widgetData, type]);
   const slots = useMemo(() => (klass && modelData ? classSlots(modelData, klass) : []), [modelData, klass]);
   const shape = useMemo(() => columnModel(slots, columns, language, view?.columns), [slots, columns, language, view]);
-  const shownColumns = useMemo(() => shape.order.filter((name) => (picked ?? shape.shown).includes(name)), [shape, picked]);
+  // What the reader hid with "Hide fields"; until then what the model leaves out of its table (DM-134).
+  const hiddenNow = useMemo(() => readerHidden ?? shape.order.filter((name) => !shape.shown.includes(name)), [shape, readerHidden]);
+  const shownColumns = useMemo(() => shape.order.filter((name) => !hiddenNow.includes(name)), [shape, hiddenNow]);
   // The endpoint's own schema names its enums: such a column is filtered by picking (UI-86).
   const defs = useMemo(() => definitionsOf(schemaData), [schemaData]);
   const enums = useMemo(() => (type ? enumsOf(defs[type.name], defs, language) : {}), [defs, type, language]);
@@ -534,7 +505,7 @@ function useTypeColumns(
   // first, and the filter its schema type takes.
   const gridColumns = useMemo(
     (): GridColumn[] =>
-      shownColumns.map((attribute) => {
+      shape.order.map((attribute) => {
         const format = formatOfKind(kinds.get(attribute) ?? "");
         return {
           attr: attribute,
@@ -545,9 +516,9 @@ function useTypeColumns(
           ...(format ? { format } : {}),
         };
       }),
-    [shownColumns, kinds, shape],
+    [kinds, shape],
   );
-  return { types, type, columns, klass, view, slots, shape, shownColumns, defs, enums, relations, links, kinds, gridColumns };
+  return { types, type, columns, klass, view, slots, shape, hiddenNow, shownColumns, defs, enums, relations, links, kinds, gridColumns };
 }
 
 /** The model's default view, and whether the reader removed it (DM-135): kept in the link. */
@@ -602,6 +573,7 @@ function DefaultFilter({
   filter,
   defaults,
   opened,
+  group,
   filtered,
   labels,
   onClear,
@@ -610,6 +582,7 @@ function DefaultFilter({
   filter: string | undefined;
   defaults: OpenedView | null;
   opened: OpenedView;
+  group: FilterGroup;
   filtered: boolean;
   labels: Record<string, string>;
   onClear: () => void;
@@ -618,7 +591,7 @@ function DefaultFilter({
   const { t } = useTranslation();
   const set = defaults !== null && (defaults.filterText !== null || Object.keys(defaults.filters ?? {}).length > 0);
   const words = filter && set ? filterWords(filter, labels, t("endpoints.data.today")) : null;
-  const atDefault = words !== null && sameFilter(opened, defaults);
+  const atDefault = words !== null && sameFilter(opened, group, defaults);
   return (
     <>
       {atDefault ? (
@@ -695,6 +668,8 @@ export function EndpointDataView({
     () => (origin ? sourceFor({ kind: "endpoint", slug }, originTransport((path, init) => fetch(origin + String(path), init)), i18n.language) : undefined),
     [origin, slug, i18n.language],
   );
+  // The group headers count through the same door the rows come from.
+  const countSource = useMemo(() => source ?? sourceFor({ kind: "endpoint", slug }, originTransport(), i18n.language), [source, slug, i18n.language]);
 
   const { index, schema, model } = useEndpointSchema(base, slug);
   // The publisher's widget defaults (EP-163, EP-164); none, or an error, leaves the model's.
@@ -703,21 +678,76 @@ export function EndpointDataView({
     retry: false,
     queryFn: () => fetchJson(`${root}/api/endpoint/${slug}/widget.json`),
   });
-  const [picked, setPicked] = useState<string[] | null>(null);
-  const { types, type, columns, klass, view: classView, slots, shape, shownColumns, defs, enums, relations, links, kinds, gridColumns } =
-    useTypeColumns(schema.data, model.data, chosen, hidden, picked, i18n.language, widget.data);
+  // The space's toolbar over this grid (T-6303): hidden fields and colours, the filter panel, the
+  // keys after the header's sort, the groups, the row size, the search and the query box.
+  const [extras, setExtras] = useState<ViewExtras>({});
+  const { types, type, columns, klass, view: classView, slots, shape, hiddenNow, shownColumns, enums, relations, links, kinds, gridColumns } =
+    useTypeColumns(schema.data, model.data, chosen, hidden, extras.hidden, i18n.language, widget.data);
   const csvRefused = useCsvRefusal(csv && !origin ? slug : undefined, type?.name, shownColumns, shape.labels);
-  // The order, the column inputs and the typed query the grid opens with; the grid holds them from then on.
+  // The order and the typed query the grid opens with; the grid holds them from then on.
   const [view, setView] = useState<OpenedView | null>(null);
-  const [pageLength, setPageLength] = useState<number | null>(null);
-  const { dropped, setDropped, defaults, preset } = useDefaultView(classView, gridColumns, enums, link);
-  const { opened, filtered, rowsPerPage, sortText } = gridState(view ?? preset, link, columns, pageLength, classView?.pageLength);
+  // The address is read once, as the view opens: the link this view writes back carries the
+  // toolbar's query too, and reading it again would hand that query to the grid a second time.
+  const [opening] = useState(link);
+  const { dropped, setDropped, defaults, preset } = useDefaultView(classView, gridColumns, enums, opening);
+  const { opened, sortText } = gridState(view ?? preset, opening, columns);
+  // The default filter's inputs open in the Filter panel; from the first default on, the panel is the reader's.
+  const [filters, setFilters] = useState<FilterGroup | null>(null);
+  if (filters === null && preset?.filters && Object.keys(preset.filters).length > 0) setFilters(groupOf(preset.filters));
+  const group = filters ?? EMPTY_GROUP;
+  const [filterColumns, setFilterColumns] = useState<FilterColumn[]>([]);
+  const onFilterColumns = useCallback(
+    (next: FilterColumn[]) => setFilterColumns((before) => (JSON.stringify(before) === JSON.stringify(next) ? before : next)),
+    [],
+  );
+  const [thenBy, setThenBy] = useState<SortKey[]>([]);
+  const [groupBy, setGroupBy] = useState<string[]>([]);
+  const [rowSize, setRowSize] = useState<RowSize>("small");
+  const [searchText, setSearchText] = useState("");
+  const [search, setSearch] = useState("");
+  const [showQuery, setShowQuery] = useState(false);
   useEffect(() => {
-    if (type) onLink?.({ type: type.name, q: asked || undefined, sort: sortText, ...(dropped ? { noDefault: true } : {}) });
-  }, [type, asked, sortText, dropped, onLink]);
+    const wait = setTimeout(() => setSearch(searchText), 400);
+    return () => clearTimeout(wait);
+  }, [searchText]);
+  const toolbarQ = useMemo(() => andQ(queryFromGroup(filterColumns, group), searchQuery(search, filterColumns)), [filterColumns, group, search]);
+  const gridQuery = useMemo(() => (toolbarQ ? { q: toolbarQ } : undefined), [toolbarQ]);
+  const allAsked = andQ(asked, toolbarQ);
+  const filtered = opened.filterText !== null || conditionCount(group) > 0;
+  const sortKeys = useMemo(
+    () => (opened.sort ? [opened.sort, ...thenBy.filter((key) => key.attr !== opened.sort?.attr)] : thenBy),
+    [opened.sort, thenBy],
+  );
+  useEffect(() => {
+    if (type) onLink?.({ type: type.name, q: allAsked || undefined, sort: sortText, ...(dropped ? { noDefault: true } : {}) });
+  }, [type, allAsked, sortText, dropped, onLink]);
   const map = useMemo(() => (type ? mapDefaultsOf(widget.data, type.name) : undefined), [widget.data, type]);
   useRowCard(type?.name, klass, slots, shape, kinds, enums, i18n.language, map, onCard);
   const onQuery = useCallback((query: { q?: string }) => setAsked(query.q), []);
+  // The grid reports its state on every change; the same text and order keep the held one, or the two would chase each other.
+  const onGridState = useCallback(
+    (next: GridState) =>
+      setView((before) =>
+        before && (before.filterText ?? null) === (next.filterText ?? null) && before.sort?.attr === next.sort?.attr && before.sort?.dir === next.sort?.dir
+          ? before
+          : { filterText: next.filterText ?? null, sort: next.sort ?? null },
+      ),
+    [],
+  );
+  const sortAttr = opened.sort?.attr;
+  const sortDir = opened.sort?.dir;
+  const gridView = useMemo(
+    () => ({ filterText: opened.filterText, sort: sortAttr && sortDir ? { attr: sortAttr, dir: sortDir } : null }),
+    [opened.filterText, sortAttr, sortDir],
+  );
+  const onHide = useCallback((attr: string) => setExtras((before) => ({ ...before, hidden: [...new Set([...hiddenNow, attr])] })), [hiddenNow]);
+  const rowTone = useCallback(
+    (row: RichRow) => {
+      const rule = (extras.colour ?? []).find((each) => each.when.trim() !== "" && matchesQ(row, each.when) === true);
+      return rule ? { tone: rule.colour, label: t("spaces.saved.toneLabel", { when: rule.when }) } : undefined;
+    },
+    [extras.colour, t],
+  );
 
   // Escape leaves the full window, as it closes a dialog.
   useEffect(() => {
@@ -728,6 +758,7 @@ export function EndpointDataView({
     window.addEventListener("keydown", leave);
     return () => window.removeEventListener("keydown", leave);
   }, [full]);
+  const rowsPerPage = classView?.pageLength ?? 20;
   const config = useMemo(() => {
     if (!type) {
       return null;
@@ -764,11 +795,12 @@ export function EndpointDataView({
     [t],
   );
   const labels = useMemo(() => gridLabels(t), [t]);
-  const fields = useMemo(
-    () => (type ? fieldsOf(defs[type.name], shape.order).map((field) => ({ ...field, label: shape.labels[field.name] })) : []),
-    [defs, type, shape],
-  );
   const renderers = useMemo(() => linkRenderers(links, t("endpoints.data.openLink")), [links, t]);
+  const panelFields = useMemo(() => shape.order.map((attr) => ({ value: attr, label: shape.labels[attr] ?? attr })), [shape]);
+  const filterTitle = (column: FilterColumn) => {
+    const title = shape.labels[column.attr ?? ""] ?? column.attr ?? column.key;
+    return column.meta ? `${title} · ${t(`entityGrid.${column.meta}`)}` : title;
+  };
 
   // A refused or failed schema read says why, in the surface's own sentence (a 403 names the grant).
   const failed = index.error ?? schema.error;
@@ -784,69 +816,94 @@ export function EndpointDataView({
 
   return (
     <div {...windowProps(full, t("endpoints.data.title"))}>
-      {/* One level of controls (T-5415): type and page size side by side from md (768 px), full width each
-          on a phone, so both selects have one width and one left edge. */}
-      <div className="grid gap-3 md:grid-cols-2">
-      <Field id={`endpoint-data-type-${slug}`} label={t("endpoints.data.type")} description={t("endpoints.data.typeHelp")}>
-        <Select
-          id={`endpoint-data-type-${slug}`}
-          value={type.name}
-          onChange={(event) => {
-            setChosen(event.target.value);
-            // Another type has other columns: its query and order start empty.
-            setView({ filterText: null, sort: null });
-            setPicked(null);
-            setAsked(undefined);
-          }}
-        >
-          {types.map((each) => (
-            <option key={each.name} value={each.name}>
-              {classLabel(model.data, each.name, i18n.language)}
-            </option>
-          ))}
-        </Select>
-      </Field>
-        <Field id={`endpoint-data-rows-${slug}`} label={t("endpoints.data.pageLength")} description={t("endpoints.data.pageLengthHelp")}>
-          <Select id={`endpoint-data-rows-${slug}`} value={String(rowsPerPage)} onChange={(event) => setPageLength(Number(event.target.value))}>
-            {PAGE_LENGTHS.map((each) => (
-              <option key={each} value={each}>
-                {each}
+      {/* The type picker lists every type the endpoint serves; the tools beside it are the space's own (T-6303). */}
+      <div className="max-w-md">
+        <Field id={`endpoint-data-type-${slug}`} label={t("endpoints.data.type")} description={t("endpoints.data.typeHelp")}>
+          <Select
+            id={`endpoint-data-type-${slug}`}
+            value={type.name}
+            onChange={(event) => {
+              setChosen(event.target.value);
+              // Another type has other columns: its query, order and tools start empty.
+              setView({ filterText: null, sort: null });
+              setFilters(EMPTY_GROUP);
+              setExtras({});
+              setThenBy([]);
+              setGroupBy([]);
+              setAsked(undefined);
+            }}
+          >
+            {types.map((each) => (
+              <option key={each.name} value={each.name}>
+                {classLabel(model.data, each.name, i18n.language)}
               </option>
             ))}
           </Select>
         </Field>
       </div>
-      {/* Two doors on the same page of entities: what this endpoint's filter and projection leave
-          out is marked on the space's side (T-1435). The CSV is the whole answer of this query as
-          one table, built by the endpoint under its own limits and read with the person's own
-          session, as the rows are (EP-08, EP-44). */}
-      <DataActions
-        space={space}
-        comparing={comparing}
-        onCompare={() => setComparing((each) => !each)}
-        full={full}
-        onFull={() => setFull((each) => !each)}
-        csv={csv ? csvHref(origin, slug, type.name, asked, sortText) : undefined}
-        csvRefused={csvRefused}
-      />
+      <div className="flex flex-wrap items-center gap-1 border-b border-border pb-2" data-testid="grid-toolbar">
+        <DataToolbar
+          filterColumns={filterColumns}
+          filterTitle={filterTitle}
+          filters={group}
+          onFilters={setFilters}
+          attributes={shape.order}
+          enums={enums}
+          extras={{ ...extras, hidden: hiddenNow }}
+          onExtras={setExtras}
+          fields={panelFields}
+          sortKeys={sortKeys}
+          onSortKeys={(next) => {
+            setView({ filterText: opened.filterText, sort: next[0] ?? null });
+            setThenBy(next.slice(1));
+          }}
+          groupBy={groupBy}
+          onGroupBy={setGroupBy}
+          rowSize={rowSize}
+          onRowSize={setRowSize}
+          searchText={searchText}
+          onSearchText={setSearchText}
+          showQuery={showQuery}
+          onShowQuery={setShowQuery}
+        />
+        {/* Two doors on the same page of entities: what this endpoint's filter and projection leave
+            out is marked on the space's side (T-1435). The CSV is the whole answer of this query as
+            one table, built by the endpoint under its own limits and read with the person's own
+            session, as the rows are (EP-08, EP-44). */}
+        <div className="ml-auto">
+          <DataActions
+            space={space}
+            comparing={comparing}
+            onCompare={() => setComparing((each) => !each)}
+            full={full}
+            onFull={() => setFull((each) => !each)}
+            csv={csv ? csvHref(origin, slug, type.name, allAsked, sortText) : undefined}
+            csvRefused={csvRefused}
+          />
+        </div>
+      </div>
       <div className="flex flex-wrap items-center gap-2 empty:hidden">
+        {/* The conditions in force stay in sight, as on the space's grid (T-6161). */}
+        <FilterChips columns={filterColumns} titleOf={filterTitle} value={group} onChange={setFilters} />
         <DefaultFilter
           filter={classView?.filter}
           defaults={defaults}
           opened={opened}
+          group={group}
           filtered={filtered}
           labels={shape.labels}
           onClear={() => {
             setDropped(true);
-            setView({ filterText: null, filters: {}, sort: opened.sort });
+            setView({ filterText: null, sort: opened.sort });
+            setFilters(EMPTY_GROUP);
           }}
           onRestore={() => {
             setDropped(false);
-            setView(defaults);
+            setView(defaults && { filterText: defaults.filterText, sort: defaults.sort });
+            setFilters(groupOf(defaults?.filters));
           }}
         />
       </div>
-      <FieldList fields={fields} {...(slots.length > 0 ? { shown: shownColumns, onShown: setPicked } : {})} />
 
       {comparing && space ? (
         <EntityCompare
@@ -866,9 +923,20 @@ export function EndpointDataView({
           enums={enums}
           relations={relations}
           renderers={renderers}
-          view={opened}
-          onGridState={(next) => setView({ filterText: next.filterText ?? null, filters: next.filters, sort: next.sort ?? null })}
+          view={gridView}
+          onGridState={onGridState}
           onQuery={onQuery}
+          hidden={hiddenNow}
+          onHide={onHide}
+          thenBy={thenBy}
+          groupBy={groupBy}
+          groupHeader={(each) => <GroupCount scope={`endpoint/${slug}`} source={countSource} type={type.name} q={allAsked} path={each.path} />}
+          rowTone={rowTone}
+          rowSize={rowSize}
+          query={gridQuery}
+          filterRow={false}
+          queryBox={showQuery}
+          onFilterColumns={onFilterColumns}
           {...openRowProps(onOpenRow)}
         />
       )}
