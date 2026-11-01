@@ -1475,7 +1475,8 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
                 const at = own === null ? -1 : order.indexOf(own);
                 const fixed = own === NAME_COLUMN;
                 const movable = own !== null && !col.pinned && !fixed;
-                const headerFilter = !asText ? filterable.get(col.key) : undefined;
+                // The Type filter lives in the filter row alone: its values are the grid's own types.
+                const headerFilter = !asText && filterable.get(col.key)?.kind !== "type" ? filterable.get(col.key) : undefined;
                 return (
                 <th
                   key={col.key}
@@ -2196,8 +2197,30 @@ function queryText(asked: { q?: string; idPattern?: string }): string {
 
 type FilterCellLabels = Pick<
   GridLabelsAll,
-  "filter" | "value" | "upperValue" | "noFilter" | "unit" | "filterHintText" | "filterHintNumber" | "filterHintDate" | "filterHintEnum" | "filterHintOther"
+  | "filter" | "value" | "upperValue" | "noFilter" | "unit" | "filterHintText" | "filterHintNumber" | "filterHintDate" | "filterHintEnum" | "filterHintOther"
+  | "filterExampleText" | "filterExampleNumber" | "filterExampleId" | "yes" | "no"
 > & { ops: Record<string, string> };
+
+/** A filter's value box by what the column holds (T-6328): a date or date-time picker, a number, a text with an example. */
+function valueBox(column: FilterColumn, labels: FilterCellLabels): { type: string; placeholder?: string } {
+  if (column.kind === "number") return { type: "number", placeholder: labels.filterExampleNumber };
+  if (column.kind === "date") return { type: column.datetime ? "datetime-local" : "date" };
+  return { type: "text", placeholder: column.kind === "id" ? labels.filterExampleId : labels.filterExampleText };
+}
+
+/** A stored timestamp as a date-time picker shows it, in the reader's own time. */
+function localInput(iso: string): string {
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return iso;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${at.getFullYear()}-${pad(at.getMonth() + 1)}-${pad(at.getDate())}T${pad(at.getHours())}:${pad(at.getMinutes())}`;
+}
+
+/** A date-time picker's local value as the UTC timestamp the endpoint compares with. */
+function fromLocalInput(local: string): string {
+  const at = new Date(local);
+  return local === "" || Number.isNaN(at.getTime()) ? local : at.toISOString();
+}
 
 /**
  * The one line under a column's filter (UI-16), from the attribute's model: what to type for its
@@ -2210,6 +2233,7 @@ function filterHint(column: FilterColumn, labels: FilterCellLabels): string {
     case "date":
       return labels.filterHintDate;
     case "enum":
+    case "type":
       return `${labels.filterHintEnum} ${(column.options ?? []).map(optionLabel).join(", ")}.`;
     case "text":
     case "id":
@@ -2243,9 +2267,12 @@ function FilterCell({
   const ops = opsForKind(column.kind);
   const op = filter?.op ?? ops[0];
   const needed = valuesNeeded(op);
-  const type = column.kind === "number" ? "number" : column.kind === "date" ? "date" : "text";
+  const box = valueBox(column, labels);
+  const stamp = box.type === "datetime-local";
   // An enum's values are picked, several at once: the query asks for any of them (UI-86).
-  const picking = column.kind === "enum" && op === "anyOf";
+  const picking = (column.kind === "enum" || column.kind === "type") && op === "anyOf";
+  // A yes/no column is picked from its two values, never typed.
+  const yesNo = column.kind === "boolean" && op === "equals";
   return (
     <div className="jc-grid-filter-cell">
       <span id={hintId} className="jc-grid-sr-only">
@@ -2289,20 +2316,29 @@ function FilterCell({
           ))}
         </select>
       )}
-      {filter && needed >= 1 && !picking && (
+      {filter && yesNo && (
+        <select aria-label={`${labels.value}: ${label}`} value={filter.value} onChange={(e) => onChange({ ...filter, value: e.target.value })}>
+          <option value="" disabled>{labels.noFilter}</option>
+          <option value="true">{labels.yes}</option>
+          <option value="false">{labels.no}</option>
+        </select>
+      )}
+      {filter && needed >= 1 && !picking && !yesNo && (
         <input
           aria-label={`${labels.value}: ${label}`}
-          type={type}
-          value={filter.value}
-          onChange={(e) => onChange({ ...filter, value: e.target.value })}
+          type={box.type}
+          placeholder={box.placeholder}
+          value={stamp ? localInput(filter.value) : filter.value}
+          onChange={(e) => onChange({ ...filter, value: stamp ? fromLocalInput(e.target.value) : e.target.value })}
         />
       )}
       {filter && needed === 2 && (
         <input
           aria-label={`${labels.upperValue}: ${label}`}
-          type={type}
-          value={filter.value2 ?? ""}
-          onChange={(e) => onChange({ ...filter, value2: e.target.value })}
+          type={box.type}
+          placeholder={box.placeholder}
+          value={stamp ? localInput(filter.value2 ?? "") : filter.value2 ?? ""}
+          onChange={(e) => onChange({ ...filter, value2: stamp ? fromLocalInput(e.target.value) : e.target.value })}
         />
       )}
     </div>

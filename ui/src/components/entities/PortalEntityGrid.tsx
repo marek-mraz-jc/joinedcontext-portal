@@ -12,7 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
-import { EntityGrid, DEFAULT_LABELS, originTransport, SourceError, sourceFor } from "@joinedcontext/sdk/grid";
+import { EntityGrid, originTransport, SourceError, sourceFor } from "@joinedcontext/sdk/grid";
 import type { ColumnLayout, EntityGridProps, GeoLabels, GridLabels, GridMapLabels, GridSource, GridState, ResolvedGridConfig } from "@joinedcontext/sdk/grid";
 
 /** Where the layout a person set is kept, per project and per type. */
@@ -90,7 +90,6 @@ const INSPECTOR_KEYS = [
 ] as const satisfies readonly (keyof NonNullable<GridLabels["inspectorLabels"]>)[];
 
 export function gridLabels(t: (key: string, values?: Record<string, string>) => string): GridLabels {
-  const ops = DEFAULT_LABELS.ops;
   return {
     id: t("entityGrid.id"),
     type: t("entityGrid.type"),
@@ -114,6 +113,9 @@ export function gridLabels(t: (key: string, values?: Record<string, string>) => 
     filterHintNumber: t("entityGrid.hint.filterNumber"),
     filterHintDate: t("entityGrid.hint.filterDate"),
     filterHintEnum: t("entityGrid.hint.filterEnum"),
+    filterExampleText: t("entityGrid.filterExampleText"),
+    filterExampleNumber: t("entityGrid.filterExampleNumber"),
+    filterExampleId: t("entityGrid.filterExampleId"),
     filterHintOther: t("entityGrid.hint.filterOther"),
     editAsTextHint: t("entityGrid.hint.editAsText"),
     exampleLead: t("entityGrid.exampleLead"),
@@ -123,15 +125,16 @@ export function gridLabels(t: (key: string, values?: Record<string, string>) => 
       contains: t("entityGrid.ops.contains"),
       equals: t("entityGrid.ops.equals"),
       notEquals: t("entityGrid.ops.notEquals"),
-      // The four comparisons are symbols in every language, so the SDK's own are kept.
-      gt: ops.gt,
-      gte: ops.gte,
-      lt: ops.lt,
-      lte: ops.lte,
+      // The comparisons in words, as a person says them (T-6328).
+      gt: t("entityGrid.ops.gt"),
+      gte: t("entityGrid.ops.gte"),
+      lt: t("entityGrid.ops.lt"),
+      lte: t("entityGrid.ops.lte"),
       between: t("entityGrid.ops.between"),
       empty: t("entityGrid.ops.isEmpty"),
       present: t("entityGrid.ops.present"),
       pattern: t("entityGrid.ops.pattern"),
+      startsWith: t("entityGrid.ops.startsWith"),
       anyOf: t("entityGrid.ops.anyOf"),
     },
     value: t("entityGrid.value"),

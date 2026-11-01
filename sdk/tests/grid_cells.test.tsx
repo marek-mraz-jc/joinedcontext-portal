@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { CellView, cellDisplayText, columnKind, formatDate, kindOfCell, shortId, structuredText, targetName } from "../src/grid/cells";
+import { CellView, cellDisplayText, columnKind, formatDate, kindOfCell, shortId, structuredText, structuredText as structuredTextOf, targetName } from "../src/grid/cells";
 import { toRichCell } from "../src/grid/model";
 
 const labels = { yes: "Yes", no: "No", points: "points", openTarget: "Open" };
@@ -42,6 +42,8 @@ describe("cells by what they hold (T-4827)", () => {
   // T-6328: the owner's screenshot read "from: 1. 1. 2012 · to: 31. 12. 2012" in a Slovak page.
   it("a period is one range in the reader's language, with no English keys", () => {
     const period = { from: "2012-01-01", to: "2012-12-31" };
+    const structuredText = (...args: Parameters<typeof structuredTextOf>) => structuredTextOf(...args).replace(/\u00a0/g, " ");
+    expect(structuredTextOf(period, "en", labels)).not.toMatch(/ /);
     expect(structuredText(period, "sk", labels)).toBe("1. 1. 2012 – 31. 12. 2012");
     expect(structuredText(period, "en", labels)).toBe("Jan 1, 2012 – Dec 31, 2012");
     expect(structuredText({ startDate: "2026-10-01", endDate: "2026-10-31", type: "Period" }, "en", labels)).toBe("Oct 1, 2026 – Oct 31, 2026");

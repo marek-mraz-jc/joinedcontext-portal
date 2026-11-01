@@ -7,7 +7,7 @@ import { SourceError } from "./source";
 import type { RichRow, RichCell } from "./model";
 import { attributesOf, cellText } from "./model";
 import { unitSymbol } from "../sdk/units";
-import { andQ, opsForKind, queryFromFilters } from "./filters";
+import { andQ, opsForKind, queryFromFilters, typeOfFilter } from "./filters";
 import type { ColumnFilter, FilterColumn, FilterKind, FilterOp } from "./filters";
 import type { AttributeChange, EntityChange } from "./apply";
 import type { EnumOption } from "../enums";
@@ -67,6 +67,10 @@ export interface GridLabels {
   filterHintDate: string;
   filterHintEnum: string;
   filterHintOther: string;
+  /** The placeholder of a filter's value box, an example of what to type (T-6328). */
+  filterExampleText: string;
+  filterExampleNumber: string;
+  filterExampleId: string;
   /** The hint of the switch that hands the query to the person. */
   editAsTextHint: string;
   /** Before the example query the hint builds from the shown type (T-5415), e.g. "e.g.". */
@@ -283,14 +287,15 @@ export const DEFAULT_LABELS: GridLabels = {
     contains: "contains",
     equals: "is",
     notEquals: "is not",
-    gt: ">",
-    gte: "≥",
-    lt: "<",
-    lte: "≤",
+    gt: "is greater than",
+    gte: "is at least",
+    lt: "is less than",
+    lte: "is at most",
     between: "between",
     empty: "is empty",
     present: "has a value",
-    pattern: "matches",
+    pattern: "contains",
+    startsWith: "starts with",
     anyOf: "is one of",
   },
   value: "Value",
@@ -301,6 +306,9 @@ export const DEFAULT_LABELS: GridLabels = {
   filterRow: "Filters",
   noFilter: "All",
   filterHintText: "Choose a test, then type the words, e.g. contains Espoo.",
+  filterExampleText: "Bratislava",
+  filterExampleNumber: "40",
+  filterExampleId: "station-12",
   filterHintNumber: "Choose a test, then type a number, e.g. greater than 40.",
   filterHintDate: "Choose a test, then pick a date, e.g. after 2026-10-01.",
   filterHintEnum: "Choose a test; with any of, pick one or more allowed values:",
@@ -717,6 +725,10 @@ export function filterKindOf(
   if (column.key === "id") {
     return "id";
   }
+  // A Type filter only where the grid reads several types: with one, it would offer one box.
+  if (column.key === "entity:type") {
+    return config.type.includes(",") ? "type" : "none";
+  }
   if (column.attr === null) {
     // The entity's own timestamps are not part of `q`; NGSI-LD filters them with its own
     // temporal parameters, which the grid does not send.
@@ -753,12 +765,24 @@ export function filterKindOf(
     if (typeof one.value === "number") {
       return "number";
     }
+    if (typeof one.value === "boolean") {
+      return "boolean";
+    }
     if (typeof one.value === "string" && DATE_VALUE.test(one.value)) {
       return "date";
     }
     return "text";
   }
   return "text";
+}
+
+/** Whether the rows hold the attribute as a timestamp, a date with a time of day. */
+function holdsTime(rows: RichRow[], attr: string): boolean {
+  return rows.some((row) => {
+    const cell = row.cells[attr];
+    const value = (Array.isArray(cell) ? cell[0] : cell)?.value;
+    return typeof value === "string" && /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(value);
+  });
 }
 
 /** Whether the rows hold the attribute as a LanguageProperty, a text per language. */
@@ -890,7 +914,11 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
           attr: column.attr,
           meta: column.meta,
           kind: filterKindOf(column, config, shapeRows, enums),
-          options: column.attr !== null && column.meta === null ? enums?.[column.attr] : undefined,
+          options:
+            column.key === "entity:type"
+              ? config.type.split(",").map((each) => ({ value: each.trim() }))
+              : column.attr !== null && column.meta === null ? enums?.[column.attr] : undefined,
+          ...(column.attr !== null && column.meta === null && holdsTime(shapeRows, column.attr) ? { datetime: true } : {}),
           unit: column.attr !== null && column.meta === null ? unitSymbol(unitOfColumn(shapeRows, column.attr)) : undefined,
           ...(column.attr !== null && column.meta === null && holdsLanguage(shapeRows, column.attr) ? { language: true } : {}),
         }))
@@ -944,7 +972,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   // the page because React flushes such an update synchronously (T-2276). A host passing
   // `query={{ q: "…" }}` inline had the same effect.
   const gridQueryKey = JSON.stringify({
-    type: config.type,
+    type: typeOfFilter(config.type, filters["entity:type"]),
     // The caller's query and the filter row are both true: `;` is how NGSI-LD says "and", so a
     // preset that narrows the grid to one district cannot be widened by a filter (EP-07).
     q: andQ(queryPartial?.q ?? config.filters.preset?.q, askedQuery.q),

@@ -996,7 +996,7 @@ describe("the space's own data", () => {
     const grid = screen.getByRole("grid");
     const cells = within(grid).getAllByRole("gridcell").map((cell) => cell.textContent ?? "");
     expect(cells.join(" ")).not.toMatch(/[{}]|urn:|ngsi-ld:/);
-    expect(cells.join(" ")).toContain("Oct 1, 2026 – Oct 31, 2026");
+    expect(cells.join(" ").replace(/\u00a0/g, " ")).toContain("Oct 1, 2026 – Oct 31, 2026");
     expect(cells.join(" ")).toContain("12.5 µg/m³");
     // The stub answers no Station, so the target reads as its id's end, with no link (G-R2GRID2-020).
     const target = await within(grid).findByTitle("urn:ngsi-ld:Station:banskabystrica.sk:ovzdusie:7");

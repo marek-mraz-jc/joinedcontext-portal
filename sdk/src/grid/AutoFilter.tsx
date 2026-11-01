@@ -31,7 +31,8 @@ type Loaded = { state: "loading" } | { state: "error"; message: string } | ({ st
 
 /** The ops a condition offers: the column's own, without the value list's `anyOf` and the id's pattern. */
 function conditionOps(column: FilterColumn): FilterOp[] {
-  return opsForKind(column.kind).filter((op) => op !== "anyOf" && op !== "pattern");
+  // A yes/no column is picked from its value list; its condition keeps empty and has a value.
+  return opsForKind(column.kind).filter((op) => op !== "anyOf" && !(column.kind === "boolean" && op === "equals"));
 }
 
 export function AutoFilter({ column, label, labels, filter, load, formatValue, onApply, onClose }: AutoFilterProps): React.JSX.Element {
@@ -122,12 +123,13 @@ export function AutoFilter({ column, label, labels, filter, load, formatValue, o
             aria-label={`${labels.searchValues}: ${label}`}
             aria-describedby={`${id}-find`}
             placeholder={labels.searchValues}
+            disabled={loaded.state === "error"}
             value={find}
             onChange={(e) => setFind(e.target.value)}
           />
           <span id={`${id}-find`} className="jc-grid-autofilter-hint">{labels.searchValuesHint}</span>
           {loaded.state === "loading" && <p role="status" className="jc-grid-autofilter-note">{labels.valuesLoading}</p>}
-          {loaded.state === "error" && <p role="alert" className="jc-grid-autofilter-note jc-grid-error">{`${labels.valuesFailed} ${loaded.message}`}</p>}
+          {loaded.state === "error" && <p role="alert" className="jc-grid-autofilter-failed">{labels.valuesFailed}<span className="jc-grid-autofilter-cause">{loaded.message}</span></p>}
           {loaded.state === "done" && all.length === 0 && <p className="jc-grid-autofilter-note">{labels.noValues}</p>}
           {loaded.state === "done" && all.length > 0 && (
             <>
@@ -176,7 +178,7 @@ export function AutoFilter({ column, label, labels, filter, load, formatValue, o
       {ops.length > 0 && (
         <fieldset className="jc-grid-autofilter-condition">
           <legend>{labels.filterCondition}</legend>
-          <select aria-label={`${labels.filterCondition}: ${label}`} aria-describedby={`${id}-hint`} value={op} onChange={(e) => setOp(e.target.value as FilterOp | "")}>
+          <select aria-label={`${labels.filterCondition}: ${label}`} value={op} onChange={(e) => setOp(e.target.value as FilterOp | "")}>
             <option value="">{labels.noFilter}</option>
             {ops.map((each) => (
               <option key={each} value={each}>
@@ -206,9 +208,11 @@ export function AutoFilter({ column, label, labels, filter, load, formatValue, o
               onChange={(e) => setValue2(e.target.value)}
             />
           )}
-          <span id={`${id}-hint`} className="jc-grid-autofilter-hint">
-            {column.unit && column.kind === "number" ? `${hint} ${labels.unit}: ${column.unit}.` : hint}
-          </span>
+          {needed >= 1 && (
+            <span id={`${id}-hint`} className="jc-grid-autofilter-hint">
+              {column.unit && column.kind === "number" ? `${hint} ${labels.unit}: ${column.unit}.` : hint}
+            </span>
+          )}
         </fieldset>
       )}
       <div className="jc-grid-col-menu-row jc-grid-autofilter-actions">
@@ -229,7 +233,8 @@ export function AutoFilter({ column, label, labels, filter, load, formatValue, o
 }
 
 /** A listed or chipped value as the column's cells show it: an enum's title, a target's name, a local number or date. */
-export function valueText(column: FilterColumn, value: string, locale: string): string {
+export function valueText(column: FilterColumn, value: string, locale: string, words?: Pick<GridLabels, "yes" | "no">): string {
+  if (column.kind === "boolean" && words && (value === "true" || value === "false")) return value === "true" ? words.yes : words.no;
   const option = column.options?.find((each) => each.value === value);
   if (option) return optionLabel(option);
   if (column.kind === "relationship") return targetName(value).name;
@@ -239,8 +244,8 @@ export function valueText(column: FilterColumn, value: string, locale: string): 
 }
 
 /** A filter as its chip reads: the column, the test and the value(s), at most three values named. */
-export function chipText(column: FilterColumn, label: string, filter: ColumnFilter, labels: Pick<GridLabels, "ops">, locale: string): string {
-  const text = (value: string) => valueText(column, value, locale);
+export function chipText(column: FilterColumn, label: string, filter: ColumnFilter, labels: Pick<GridLabels, "ops" | "yes" | "no">, locale: string): string {
+  const text = (value: string) => valueText(column, value, locale, labels);
   if (filter.op === "anyOf") {
     const values = (filter.values ?? []).map(text);
     return `${label}: ${values.slice(0, 3).join(", ")}${values.length > 3 ? ` +${values.length - 3}` : ""}`;
@@ -299,7 +304,7 @@ export function HeaderFilter({
           labels={labels}
           filter={filter}
           load={column.attr && listsValues(column.kind) ? load : undefined}
-          formatValue={(value) => valueText(column, value, locale)}
+          formatValue={(value) => valueText(column, value, locale, labels)}
           onApply={onApply}
           onClose={onClose}
         />
@@ -323,7 +328,7 @@ export function FilterChips({
   columns: readonly { key: string; label: string }[];
   filterable: ReadonlyMap<string, FilterColumn>;
   filters: Readonly<Record<string, ColumnFilter>>;
-  labels: Pick<GridLabels, "activeFilters" | "removeFilter" | "clearFilters" | "ops">;
+  labels: Pick<GridLabels, "activeFilters" | "removeFilter" | "clearFilters" | "ops" | "yes" | "no">;
   locale: string;
   onRemove: (keys: string | string[]) => void;
 }): React.JSX.Element | null {

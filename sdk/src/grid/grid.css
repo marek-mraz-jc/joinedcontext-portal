@@ -1869,3 +1869,18 @@ a.jc-cell--link:focus-visible {
     opacity: 1;
   }
 }
+
+.jc-grid-autofilter-failed {
+  margin: 0;
+  padding: 6px 8px;
+  border-left: 3px solid var(--jc-color-danger, #b42318);
+  background: color-mix(in srgb, var(--jc-color-danger, #b42318) 8%, var(--jc-color-surface, #fff));
+  color: var(--jc-color-danger, #b42318);
+  font-size: var(--jc-font-size-sm, 12px);
+  text-align: left;
+}
+
+.jc-grid-autofilter-cause {
+  display: block;
+  color: var(--jc-color-muted, #666);
+}

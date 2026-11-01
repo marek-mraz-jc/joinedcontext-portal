@@ -917,7 +917,7 @@ export function EndpointDataView({
           rowTone={tools.rowTone}
           rowSize={tools.rowSize}
           query={tools.query}
-          filterRow={false}
+         
           queryBox={tools.showQuery}
           onFilterColumns={tools.onFilterColumns}
           {...openRowProps(onOpenRow)}
