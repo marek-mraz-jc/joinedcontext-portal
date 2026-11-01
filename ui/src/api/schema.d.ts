@@ -3395,7 +3395,7 @@ export interface paths {
         };
         /**
          * Read An MQTT Broker's Capture
-         * @description The newest messages a broker in `capture` mode kept, newest first (API/01 §47, ADR-N-048 §2.10). Only a person who may approve MqttBrokers in the project; anybody else gets 404.
+         * @description The newest messages a capture broker kept; 404 to whoever may not approve MqttBrokers.
          */
         get: operations["get_captured"];
         put?: never;
@@ -4088,6 +4088,26 @@ export interface paths {
          * @description Writes one DataModel's LinkML and its generated artifacts as a change a person approves
          */
         post: operations["jc_model_source_put"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/ops/jc_mqtt_captured": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read An MQTT Broker's Capture
+         * @description The newest messages a capture broker kept; 404 to whoever may not approve MqttBrokers
+         */
+        post: operations["jc_mqtt_captured"];
         delete?: never;
         options?: never;
         head?: never;
@@ -26064,6 +26084,109 @@ export interface operations {
                         url?: string;
                         /** @description Present when the draft was proposed without a fresh green verdict */
                         warning?: string;
+                    };
+                };
+            };
+            /** @description The change the operation opened, waiting for a person's approval */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Forbidden: the caller lacks what x-jc-requires names */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The project or an object the input names is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The input does not match the schema; the problem names the path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    jc_mqtt_captured: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project slug */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "name": "example"
+                 *     }
+                 */
+                "application/json": {
+                    /** @description Default 100 */
+                    limit?: number;
+                    /** @description The MqttBroker's name */
+                    name: string;
+                    /** @description One exact topic, no + or # */
+                    topic?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description The operation's answer */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        broker: string;
+                        messages: {
+                            bytes: number;
+                            clientId?: string;
+                            /** @enum {string} */
+                            encoding: "utf-8" | "base64";
+                            payload: string;
+                            /** Format: date-time */
+                            receivedAt: string;
+                            topic: string;
+                        }[];
+                        messagesPerTopic?: number;
+                        /** @enum {string} */
+                        mode: "ingest" | "capture" | "relay";
+                        truncated: boolean;
+                        window?: string;
+                        /** @description Each personal field left out, as DataSource/{name}.{field}; a payload that is no JSON object is left out whole */
+                        withheld?: string[];
                     };
                 };
             };

@@ -85,6 +85,7 @@ const KINDS: &[&str] = &[
     "RoleBinding",
     "ServiceAccount",
     "SyncSource",
+    "MqttBroker",
     "Project",
     "Workspace",
     "CkanInstance",
@@ -506,7 +507,8 @@ fn bind_personas(mirror: &Mirror, projects: &[String]) {
         "Organization",
         "hel",
         ORG_NAMESPACE,
-        json!({ "domain": "hel.fi", "projects": { "quota": { "minPipelinePeriodSeconds": 900 } } }),
+        json!({ "domain": "hel.fi", "projects": { "quota": { "minPipelinePeriodSeconds": 900 } },
+                "limits": { "mqtt": { "enabled": true } } }),
     ));
     let kinds = json!(KINDS);
     for (role, verbs) in [
@@ -2044,8 +2046,8 @@ fn the_catalogue_holds_the_connector_scenarios_well_formed() {
     let scenarios = catalogue();
     // S-01..S-50 of the owner's order and S-51..S-55 added with T-5971..T-5976; the UI
     // scenarios S-56..S-85 are browser journeys of the user agent (T-5981), not MCP calls, and
-    // S-86 (T-6082), S-87 (T-6265) and S-88 (T-6284) follow them.
-    assert_eq!(scenarios.len(), 58);
+    // S-86 (T-6082), S-87 (T-6265), S-88 (T-6284) and S-89 (T-6290) follow them.
+    assert_eq!(scenarios.len(), 59);
     for (n, s) in scenarios.iter().enumerate() {
         // The MCP ids skip S-56..S-85, the UI journeys' ids (T-6082).
         let number = if n < 55 { n + 1 } else { n + 31 };

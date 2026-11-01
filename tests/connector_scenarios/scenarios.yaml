@@ -1882,3 +1882,52 @@
       args: { kind: KnowledgeSource }
       refused: true
       contains: ['read only']
+- id: S-89
+  segment: pipeline
+  as: project-admin
+  says: "Which MQTT brokers does this project have, and what did the sensors broker capture lately? Then add an mqtt source reading it."
+  expect: 'the pipeline segment lists MqttBroker and reads the capture through jc_mqtt_captured; a DataSource naming a broker the project lacks is refused by spec.mqtt.brokerRef (T-6290)'
+  deny: 'a caller who may not approve brokers -> 404 as for a broker that is not there; a wildcard topic -> refused'
+  script:
+    # The administrator's ceiling, as the reconciler loads it from Git once merged.
+    - proves: expect
+      manifest: { kind: Group, name: devices, spec: { members: [{ user: scn.project-admin@hel.fi }] } }
+    - proves: expect
+      manifest: { kind: DelegationPolicy, name: devices-pipeline, spec: { subjects: [{ kind: Group, name: devices }], projects: ['{project}'], segments: [pipeline], writes: true, maxExpiry: P90D } }
+    - proves: expect
+      manifest: { kind: MqttBroker, name: sensors, namespace: '{project}', spec: { roles: [] } }
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s89-devices, segments: [pipeline], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      via: connector
+      call: jc_resource_list
+      args: { kind: MqttBroker }
+      contains: ['sensors']
+    - proves: expect
+      via: connector
+      call: jc_mqtt_captured
+      args: { name: sensors, limit: 10 }
+      contains: ['"broker":"sensors"', '"mode":"ingest"', '"messages":[]']
+    - proves: expect
+      via: connector
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: DataSource, name: air-mqtt, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: DataSource, metadata: { name: air-mqtt, namespace: '{project}' }, spec: { type: mqtt, mqtt: { brokerRef: { kind: MqttBroker, name: t6248-sensors }, topics: ['sensors/+/air'] } } } }] }
+      refused: true
+      contains: ['spec.mqtt.brokerRef', 't6248-sensors']
+    - proves: deny
+      via: connector
+      call: jc_mqtt_captured
+      args: { name: sensors, topic: 'sensors/#' }
+      refused: true
+      contains: ['without + or #']
+    - proves: deny
+      as: steward
+      call: jc_mqtt_captured
+      args: { name: sensors }
+      refused: true
+      contains: ['not found']
+      absent: ['"messages"']
