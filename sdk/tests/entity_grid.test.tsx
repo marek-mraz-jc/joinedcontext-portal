@@ -389,7 +389,7 @@ describe("EntityGrid", () => {
       pageSize: 50,
     }).config!;
     const fixture = fixtureSource(many);
-    const asked: { offset: number; limit: number }[] = [];
+    const asked: { offset: number; limit: number; count?: boolean }[] = [];
     const logged = { ...fixture, query: (q: Parameters<typeof fixture.query>[0], page: Parameters<typeof fixture.query>[1]) => {
       asked.push(page);
       return fixture.query(q, page);
@@ -399,7 +399,8 @@ describe("EntityGrid", () => {
     // The first page is the config's size; the window of the first rows is past 60 % of 50, so
     // the next, larger page is asked for at once, with no scroll.
     await screen.findByText("250 of 1000 loaded");
-    expect(asked).toEqual([{ offset: 0, limit: 50 }, { offset: 50, limit: VIRTUAL_PAGE_SIZE }]);
+    // A later page leaves the count out: the first page already has the total (T-6161).
+    expect(asked).toEqual([{ offset: 0, limit: 50 }, { offset: 50, limit: VIRTUAL_PAGE_SIZE, count: false }]);
     expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
     const drawn = () => container.querySelectorAll("tbody tr:not(.jc-grid-spacer)");
     expect(drawn().length).toBeLessThanOrEqual(50);
@@ -410,7 +411,7 @@ describe("EntityGrid", () => {
     box.scrollTop = 140 * 36;
     fireEvent.scroll(box);
     await screen.findByText("450 of 1000 loaded");
-    expect(asked[2]).toEqual({ offset: 250, limit: VIRTUAL_PAGE_SIZE });
+    expect(asked[2]).toEqual({ offset: 250, limit: VIRTUAL_PAGE_SIZE, count: false });
     // The window moved: the first drawn row is 130 rows in, and says so to a screen reader.
     expect(screen.queryByText("Station 0")).toBeNull();
     expect(drawn()[0]).toHaveAttribute("aria-rowindex", "132");
