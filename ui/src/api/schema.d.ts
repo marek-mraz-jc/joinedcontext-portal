@@ -26803,6 +26803,8 @@ export interface operations {
                         streamed?: boolean;
                         /** @description Whether the source answered more than the records shown */
                         truncated?: boolean;
+                        /** @description Each personal field of the source left out, as DataSource/{name}.{field} */
+                        withheld?: string[];
                     };
                 };
             };
@@ -27016,6 +27018,8 @@ export interface operations {
                         input?: Record<string, never>;
                         /** @description Each record as the pipeline would write it */
                         records?: unknown[];
+                        /** @description Each personal field of the source left out, as DataSource/{name}.{field} */
+                        withheld?: string[];
                     };
                 };
             };
