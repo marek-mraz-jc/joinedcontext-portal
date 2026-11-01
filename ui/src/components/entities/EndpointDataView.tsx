@@ -15,7 +15,7 @@ import type { ColumnFilter, FilterColumn, FilterGroup, FilterKind, GridColumn, G
 import { fetchJson, publishedTypes } from "../../pages/endpoints/SchemaProjectionPanel";
 import { classSlots, parseModel } from "../../pages/models/linkml";
 import type { ClassView, LinkmlModel, LinkmlSlot } from "../../pages/models/linkml";
-import { Button, Field, InlineError, Select, safeHref } from "../ui";
+import { Button, Field, PageFailed, Select, safeHref } from "../ui";
 import { DataToolbar, sortKeysOf, useDataToolbarState } from "./DataToolbar";
 import { conditionCount, EMPTY_GROUP, FilterChips } from "./FilterPanel";
 import { GroupCount } from "./GridToolbar";
@@ -699,13 +699,15 @@ function filterTitleOf(column: FilterColumn, labels: Record<string, string>, t: 
 }
 
 export function schemaState(
-  reads: Record<"index" | "schema" | "widget", { error: Error | null; isPending: boolean }>,
+  reads: Record<"index" | "schema" | "widget", { error: Error | null; isPending: boolean; refetch?: () => unknown }>,
   ready: boolean,
   t: (key: string) => string,
 ): JSX.Element | null {
   // The widget's defaults are optional: its error leaves the model's, so only its wait shows.
+  // A failed read says the surface's sentence, its reference and, where asking again can help,
+  // Retry, as every page's failure does (T-6313).
   const failed = reads.index.error ?? reads.schema.error;
-  if (failed) return <InlineError>{failed.message}</InlineError>;
+  if (failed) return <PageFailed error={failed} onRetry={() => void Promise.all([reads.index.refetch?.(), reads.schema.refetch?.()])} />;
   if (Object.values(reads).some((read) => read.isPending)) return <p role="status">{t("endpoints.projection.loading")}</p>;
   if (!ready) return <p className="text-caption text-fg-muted">{t("endpoints.data.noSchema")}</p>;
   return null;

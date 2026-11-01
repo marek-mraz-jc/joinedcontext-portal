@@ -11,6 +11,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { DataToolbar, sortKeysOf, useDataToolbarState } from "../src/components/entities/DataToolbar";
 import { schemaState } from "../src/components/entities/EndpointDataView";
+import { ApiError } from "../src/api/client";
 import type { DataToolbarProps } from "../src/components/entities/DataToolbar";
 import { expectNoAxeViolations, renderPart } from "./page_contract";
 
@@ -175,8 +176,8 @@ describe("the Data section's wait (T-6303)", () => {
   const t = (key: string) => key;
 
   it("names a failed schema read, waits for every read, and says when no type is left", () => {
-    render(<>{schemaState({ index: { error: new Error("403: grant read"), isPending: false }, schema: done, widget: done }, false, t)}</>);
-    expect(screen.getByText("403: grant read")).toBeInTheDocument();
+    render(<>{schemaState({ index: { error: new ApiError(403, "no policy grants this read"), isPending: false }, schema: done, widget: done }, false, t)}</>);
+    expect(screen.getByText("no policy grants this read")).toBeInTheDocument();
     expect(schemaState({ index: done, schema: done, widget: { error: null, isPending: true } }, true, t)?.props.role).toBe("status");
     expect(schemaState({ index: done, schema: done, widget: done }, false, t)?.props.children).toBe("endpoints.data.noSchema");
   });
