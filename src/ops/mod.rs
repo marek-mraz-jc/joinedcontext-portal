@@ -577,6 +577,9 @@ pub fn may_try(
     input: Option<&Value>,
 ) -> Result<(), OpError> {
     permitted(op, identity, state, project)?;
+    if let Some(input) = input {
+        named_subject(op.name, identity, state, project, input)?;
+    }
     if op.verb.is_some() || op.annotations.read_only_hint {
         return Ok(());
     }
@@ -597,6 +600,39 @@ pub fn may_try(
             op.title
         )))),
     }
+}
+
+/// For an operation that acts on one object named by the input's `name`, the route's 404 when
+/// that object is not there (T-6280): a person is not asked to confirm a run of a Pipeline that
+/// is only in an open change, which would then fail. A name that is no string is the input's 422,
+/// which the call answers.
+fn named_subject(
+    name: &str,
+    identity: &crate::auth::session::Identity,
+    state: &AppState,
+    project: &str,
+    input: &Value,
+) -> Result<(), OpError> {
+    let Some(subject) = input.get("name").and_then(Value::as_str) else {
+        return Ok(());
+    };
+    let found = match name {
+        "jc_pipeline_run" => {
+            crate::api::pipelines::readable_pipeline_for(state, identity, project, subject)
+                .map(|_| ())
+        }
+        "jc_syncsource_sync" | "jc_syncsource_pause" => {
+            crate::api::sync_sources::named(state, project, subject).map(|_| ())
+        }
+        _ => return Ok(()),
+    };
+    found.map_err(|missing| match missing {
+        ApiError::NotFound(why) => OpError::Api(ApiError::NotFound(format!(
+            "{why}; one still in an open change exists once that change is approved \
+             (jc_change_list lists the open changes)"
+        ))),
+        other => OpError::Api(other),
+    })
 }
 
 /// The route's check of an operation on the organization's people or projects (PF-91, PF-65),
