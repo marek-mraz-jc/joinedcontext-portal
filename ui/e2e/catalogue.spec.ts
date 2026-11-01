@@ -50,11 +50,20 @@ const DETAIL = {
   model: { name: "kpi", classes: [{ name: "KeyPerformanceIndicator", description: "An indicator." }] },
 };
 
-const SAMPLE = {
-  type: "KeyPerformanceIndicator",
-  columns: ["id", "type", "value"],
-  rows: [["urn:ngsi-ld:KeyPerformanceIndicator:bbsk:kpi:1", "KeyPerformanceIndicator", "12"]],
+const SLUG = "k7m2qz4tv6xh3n5jb2ryd3wcfa";
+const KPI_SCHEMA = {
+  $defs: {
+    KeyPerformanceIndicator: {
+      properties: {
+        name: { type: "string", description: "What the indicator measures" },
+        kpiValue: { type: "number", description: "The measured value" },
+      },
+    },
+  },
 };
+const KPI_ROWS = [
+  { id: "urn:ngsi-ld:KeyPerformanceIndicator:bbsk:kpi:1", type: "KeyPerformanceIndicator", name: { type: "Property", value: "Unemployment" }, kpiValue: { type: "Property", value: 12 } },
+];
 
 const MAP = {
   type: "AirQualityObserved",
@@ -75,7 +84,31 @@ async function shot(page: Page, name: string): Promise<void> {
   if (dir) await page.screenshot({ path: `${dir}/${name}.png`, fullPage: true });
 }
 
+/**
+ * The dataset's Endpoint as the grid reads it from the browser (T-6376): `entities` answers rows,
+ * or the gateway's 401 for a private Endpoint read without a session.
+ */
+async function stubEndpoint(page: Page, entities: "rows" | 401 | 403 = "rows"): Promise<void> {
+  await page.route(`**/api/endpoint/${SLUG}/**`, (route) => {
+    const url = new URL(route.request().url());
+    const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
+      route.fulfill({ status, headers, contentType: status >= 400 ? "application/problem+json" : "application/json", body: JSON.stringify(body) });
+    if (entities !== "rows") {
+      const title = entities === 401 ? "Authentication Required" : "Forbidden";
+      return json({ title, status: entities, detail: entities === 401 ? "sign in" : "no policy grants you this dataset" }, entities);
+    }
+    if (url.pathname.endsWith("/schema/index.json")) return json({ models: [{ name: "kpi", version: 1 }] });
+    if (url.pathname.endsWith("/schema/v1/json-schema")) return json(KPI_SCHEMA);
+    if (url.pathname.endsWith("/access/attributes")) {
+      return json({ type: "KeyPerformanceIndicator", attributes: ["name", "kpiValue"].map((name) => ({ name, read: true, write: false, delete: false, reason: "not_in_grant" })) });
+    }
+    if (url.pathname.endsWith("/ngsi-ld/v1/entities")) return json(KPI_ROWS, 200, { "NGSILD-Results-Count": String(KPI_ROWS.length) });
+    return json({ title: "Not Found", status: 404 }, 404);
+  });
+}
+
 async function stubApi(page: Page, asked: string[]): Promise<void> {
+  await stubEndpoint(page);
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
     asked.push(url.pathname + url.search);
@@ -88,7 +121,6 @@ async function stubApi(page: Page, asked: string[]): Promise<void> {
     if (url.pathname.endsWith("/auth/me")) return json({ title: "Unauthorized", status: 401 }, 401);
     if (url.pathname === "/api/v1/catalogue") return json(PAGE);
     if (url.pathname === "/api/v1/catalogue/datasets/bbsk-kpi") return json(DETAIL);
-    if (url.pathname === "/api/v1/catalogue/datasets/bbsk-kpi/sample") return json(SAMPLE);
     if (url.pathname === "/api/v1/catalogue/datasets/gone") {
       return json({ title: "Not Found", status: 404, detail: "dataset 'gone' is not in the catalogue" }, 404);
     }
@@ -97,6 +129,33 @@ async function stubApi(page: Page, asked: string[]): Promise<void> {
 }
 
 test.describe("the public catalogue", () => {
+  // T-6376: the dataset page shows the SDK grid; a private dataset says sign in, a refused one no access.
+  for (const width of [1440, 400]) {
+    test(`a dataset's data is the one grid, and a private one asks to sign in (${width} px)`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await stubApi(page, []);
+      await page.goto("/catalogue/bbsk-kpi?lang=en");
+      const data = page.locator('section[aria-labelledby="catalogue-data"]');
+      await expect(data.getByRole("grid").getByText("Unemployment")).toBeVisible();
+      await data.scrollIntoViewIfNeeded();
+      await shot(page, `dataset-grid-rows-en-${width}`);
+      await page.unroute(`**/api/endpoint/${SLUG}/**`);
+      await stubEndpoint(page, 401);
+      await page.reload();
+      await expect(data.getByText("Sign in to see this dataset")).toBeVisible();
+      await expect(data.getByRole("button", { name: "Sign in" })).toBeVisible();
+      await expect(data.getByRole("grid")).toHaveCount(0);
+      expect(await axeViolations(page)).toEqual([]);
+      await shot(page, `dataset-grid-signed-out-en-${width}`);
+      await page.unroute(`**/api/endpoint/${SLUG}/**`);
+      await stubEndpoint(page, 403);
+      await page.reload();
+      await expect(data.getByText("You have no access to this dataset")).toBeVisible();
+      await expect(data.getByText("no policy grants you this dataset")).toBeVisible();
+      await shot(page, `dataset-grid-no-access-en-${width}`);
+    });
+  }
+
   // T-5628: a citizen sees where a dataset's things are, on the dataset page, in either language.
   for (const lang of ["en", "sk"]) {
     for (const width of [1440, 400]) {
@@ -130,7 +189,7 @@ test.describe("the public catalogue", () => {
     await page.setViewportSize({ width: 400, height: 900 });
     await stubApi(page, []);
     await page.goto("/catalogue/bbsk-kpi?lang=en");
-    await expect(page.getByRole("table", { name: /Up to ten KeyPerformanceIndicator/ })).toBeVisible();
+    await expect(page.locator('section[aria-labelledby="catalogue-data"]').getByRole("grid")).toBeVisible();
     await expect(page.getByRole("heading", { name: "Places on the map" })).toHaveCount(0);
     await shot(page, "dataset-map-none-en-400");
     await page.route((url) => url.pathname === "/api/v1/catalogue/datasets/bbsk-kpi/map", (route) =>
@@ -166,7 +225,8 @@ test.describe("the public catalogue", () => {
     await page.getByRole("link", { name: "Ukazovatele kraja" }).click();
     await expect(page).toHaveURL(/\/catalogue\/bbsk-kpi$/);
     await expect(page.getByRole("heading", { level: 1, name: "Ukazovatele kraja" })).toBeVisible();
-    await expect(page.getByRole("table", { name: /Up to ten KeyPerformanceIndicator/ })).toBeVisible();
+    // The dataset's entities in the one data grid, read through the Endpoint (T-6376).
+    await expect(page.locator('section[aria-labelledby="catalogue-data"]').getByRole("grid").getByText("Unemployment")).toBeVisible();
     await expect(page.getByRole("heading", { name: "From a shell (NGSI-LD)" })).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
     // Nothing on either page asked for a project: the catalogue needs no session.
