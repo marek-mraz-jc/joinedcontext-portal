@@ -21,10 +21,8 @@ import {
 } from "../../components/ui";
 
 type Check = components["schemas"]["HealthCheck"];
-type Kind = components["schemas"]["HealthCheckKind"];
 type Status = components["schemas"]["HealthCheckStatus"];
 
-export const KINDS: readonly Kind[] = ["pipeline", "space", "endpoint", "model", "datasource"];
 /** The checks with a label of their own (`src/health_log.rs`, `src/health_probe.rs`); a surface shows by its name. */
 export const CHECKS = ["reconcile", "runs", "freshness", "entities", "storage", "validation", "reachable"] as const;
 /** The message keys the server sends (`SAY` in `src/health_log.rs`), each under `health.say`. */
