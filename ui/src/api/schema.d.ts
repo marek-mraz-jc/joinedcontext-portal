@@ -23365,7 +23365,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        /** @description Open datasets: title, url, publisher, formats, endpoint slug */
+                        /** @description Open datasets: title, url, publisher, formats, resources (format, url), endpoint slug */
                         datasets?: Record<string, never>[];
                         items?: Record<string, never>[];
                         q?: string;
@@ -26780,6 +26780,8 @@ export interface operations {
                 "application/json": {
                     /** @description The DataSource to read; or sample */
                     dataSource?: string;
+                    /** @description The jc_change_plan planId adding dataSource, sampled before approval */
+                    planId?: string;
                     /** @description The sample */
                     sample?: {
                         /**
