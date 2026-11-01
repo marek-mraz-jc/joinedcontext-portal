@@ -150,6 +150,8 @@ export function AttributeMetadata(props: AttributeMetadataProps): React.JSX.Elem
   ];
   // One refusal covers who, where from, through what and why: said once, not four times.
   if (read.state === "hidden") rows.push([labels.changedBy, hidden(read.why)]);
+  // Nothing recorded is said once too (UI judge, T-6344).
+  else if (read.state === "done" && !read.provenance) rows.push([labels.changedBy, labels.notRecorded]);
   else rows.push(
     [labels.changedBy, written((p) => (p.actor && kindOf(p) ? `${p.actor} (${kindOf(p)})` : p.actor ?? kindOf(p)))],
     [labels.organization, written((p) => p.organization)],

@@ -669,7 +669,8 @@
       "proposeAll": "Navrhnúť všetko",
       "open": "Otvoriť",
       "noDrafts": "Zatiaľ nie sú doplnené žiadne návrhy.",
-      "needInput": "Zadajte URL endpointu alebo pridajte súbor."
+      "needInput": "Zadajte URL endpointu alebo pridajte súbor.",
+      "filesHint": "Ukážka údajov ako CSV, Excel (.xlsx), JSON alebo GeoJSON, s manifestmi, README alebo .env, ktoré opisujú zdroj; spolu do 10 MB. Príklad: stanice.xlsx."
     },
     "segment": "v identifikátoroch entít: {segment}",
     "quality": {
@@ -1120,11 +1121,17 @@
         }
       }
     },
+    "sheet": {
+      "label": "Hárok",
+      "hint": "Číta sa vždy jeden hárok: vyberte ten s vašimi riadkami, napríklad {example}.",
+      "option": "{name} ({rows, plural, one {# riadok} few {# riadky} other {# riadkov}}, {columns, plural, one {# stĺpec} few {# stĺpce} other {# stĺpcov}})"
+    },
     "upload": {
       "open": "Nahrať CSV",
       "title": "Nahrať CSV",
-      "lead": "Vyberte CSV alebo zošit Excel (.xlsx) do 50 MB; zo zošita sa číta prvý hárok. Porovná sa s typmi Smart Data Models; model, priestor, jeho Endpoint a vaše právo zapisovať riadky sa navrhnú ako jedna zmena a keď je zmena nasadená, riadky sa zapíšu cez bránu pod vaším menom.",
+      "lead": "Vyberte CSV alebo Excel. Portál navrhne štandardný typ pre jeho stĺpce a navrhne priestor s vaším právom zapisovať; po schválení zapíšete riadky.",
       "choose": "Vybrať súbor CSV alebo zošit Excel (.xlsx)",
+      "chooseHint": "CSV, TSV alebo Excel (.xlsx) do 50 MB, prvý riadok sú názvy stĺpcov. Príklad: garaze.xlsx so stĺpcami name, lat, lon.",
       "reading": "Čítam {name} a porovnávam jeho stĺpce s typmi Smart Data Models…",
       "type": "Čo riadky sú",
       "noMatch": "Žiadny typ Smart Data Models nepomenúva dosť týchto stĺpcov: súbor dostane vlastný model.",
@@ -1134,6 +1141,10 @@
       "ownTypeHint": "Jedno slovo s veľkým začiatočným písmenom, napríklad Garage.",
       "space": "Názov priestoru",
       "notReady": "Najprv vyberte súbor, typ a priestor.",
+      "spaceHint": "Existujúci priestor alebo nový názov malými písmenami, ako parkovacie-domy.",
+      "missingSpace": "Vyberte kontextový priestor, ktorý sa má navrhnúť.",
+      "missingType": "Vyberte typ alebo napíšte názov vlastného typu.",
+      "columns": "Stĺpce: {names}",
       "notLive": "Riadky zapíšete, keď je zmena schválená a nasadená.",
       "propose": "Navrhnúť zmenu",
       "proposing": "Navrhuje sa…",
@@ -4234,10 +4245,10 @@
       "unavailable": "Katalóg je nedostupný; import podľa identifikátora funguje ďalej.",
       "stale": "Uložený index z {at}; posledné obnovenie sa ku katalógu nedostalo.",
       "noMatches": "Hľadaniu nezodpovedá žiadny model.",
-      "noMatchesHint": "Vymažte hľadanie alebo vyberte inú tému; model, ktorý katalóg nemá, nahrajte súborom vyššie.",
+      "noMatchesHint": "Vymažte hľadanie alebo vyberte inú tému; typ, ktorý katalóg nemá, pridáte cez Pridať typ, Z tabuľky.",
       "clearSearch": "Vymazať hľadanie",
       "emptyCatalogue": "Katalóg zatiaľ neobsahuje žiadny model.",
-      "emptyCatalogueHint": "Stlačte Obnoviť teraz a načítajte ho znova, alebo nahrajte súbor s dátami nižšie.",
+      "emptyCatalogueHint": "Stlačte Obnoviť teraz a načítajte ho znova, alebo zatvorte toto okno a použite Pridať typ, Z tabuľky.",
       "preview": "Prevzatý model",
       "pick": "Vyberte model a uvidíte, čo sa naimportuje.",
       "importRefused": "Schému {name} z katalógu nie je možné previesť na model. Model Tools nižšie uvádza, čo je zle. Vyberte iný model alebo začnite prázdnym modelom a polia doplňte ručne.",
@@ -4619,12 +4630,14 @@
         "target": "Cieľová trieda",
         "targetHint": "Trieda tohto modelu; inverzný koniec sa zapíše na ňu.",
         "targetNone": "Vyberte triedu",
+        "targetPending": "vybranej triede",
         "name": "Názov na {owner}",
         "nameHint": "Pole na {owner}, ktoré odkazuje na cieľ, navrhnuté podľa cieľa.",
         "inverse": "Inverzný na {target}",
         "inverseHint": "Pole na cieli, ktoré odkazuje späť. Každý vzťah ho má.",
         "requiredOn": "Povinný na {owner}",
         "requiredStored": "Každá entita {owner} musí jednu uviesť.",
+        "requiredStoredPending": "Každá entita vybranej triedy ho musí uvádzať.",
         "requiredComputed": "Počíta sa pri čítaní z druhého konca, preto nemôže byť povinný.",
         "onDeleteHint": "Čo sa stane s entitami, ktoré odkazujú na zmazanú.",
         "submit": "Pridať vzťah",
@@ -6200,7 +6213,8 @@
         "wrongType": "Táto otázka prijíma súbory {formats}.",
         "tooLarge": "Súbor je väčší ako {kilobytes} KB. Odovzdajte jeho vzorku.",
         "empty": "Súbor je prázdny.",
-        "notJson": "Súbor nie je platný JSON."
+        "notJson": "Súbor nie je platný JSON.",
+        "sendSheet": "Odovzdať hárok {name}"
       },
       "url": {
         "label": "Alebo adresa zdroja údajov",
@@ -11196,6 +11210,7 @@
   "settingsPage": {
     "title": "Nastavenia",
     "description": "Vaše vlastné nastavenia, nastavenia projektu a pre administrátora aj nastavenia platformy.",
+    "descriptionMember": "Vaše vlastné nastavenia a nastavenia projektu.",
     "projectSettings": "Nastavenia projektu {project}",
     "scope": {
       "personal": "Osobné",

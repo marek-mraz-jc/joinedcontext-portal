@@ -350,8 +350,11 @@ export function parseXml(text: string): Table {
   };
 }
 
-/** The entries a sheet is read from: its shared strings and its worksheets. */
-const WORKBOOK_PARTS = /^xl\/(sharedStrings|worksheets\/sheet\d+)\.xml$/;
+/** The entries a workbook's sheets are read from: their names, order, strings, number formats and cells. */
+const WORKBOOK_PARTS = /^xl\/(sharedStrings|workbook|styles|worksheets\/[^/]+)\.xml$|^xl\/_rels\/workbook\.xml\.rels$/;
+
+/** What a whole workbook may unpack to, its sheets together. */
+const MAX_UNPACKED = 2 * MAX_BYTES;
 
 /** The entries of a ZIP archive by name, read from its central directory (stored or deflated). */
 async function unzip(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
@@ -364,13 +367,15 @@ async function unzip(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
       break;
     }
   }
-  if (end < 0) throw new Error("the workbook is not a ZIP archive");
+  if (end < 0) throw new Error("the file is not an Excel workbook (.xlsx): save it from the spreadsheet as .xlsx or CSV and choose it again");
   const count = view.getUint16(end + 10, true);
   let at = view.getUint32(end + 16, true);
   const entries = new Map<string, Uint8Array>();
   const names = new TextDecoder();
   // An offset past the file's end is a damaged workbook, said as one, not a RangeError (JC1-45).
   const damaged = () => new Error("the workbook's directory is damaged");
+  // Every sheet is unpacked now (JC1-21): their sum is bounded too, not each alone.
+  const budget = { left: MAX_UNPACKED };
   for (let n = 0; n < count; n += 1) {
     if (at + 46 > bytes.length || view.getUint32(at, true) !== 0x02014b50) throw damaged();
     const method = view.getUint16(at + 10, true);
@@ -384,10 +389,10 @@ async function unzip(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
     const dataAt = local + 30 + view.getUint16(local + 26, true) + view.getUint16(local + 28, true);
     if (dataAt + compressed > bytes.length) throw damaged();
     const data = bytes.subarray(dataAt, dataAt + compressed);
-    // Only what the first sheet is read from: a workbook's pictures and styles stay packed.
+    // Only what the sheets are read from: a workbook's pictures and drawings stay packed.
     if (WORKBOOK_PARTS.test(name)) {
       if (method === 0) entries.set(name, data);
-      else if (method === 8) entries.set(name, await inflate(data));
+      else if (method === 8) entries.set(name, await inflate(data, budget));
     }
     at += 46 + nameLength + extraLength + commentLength;
   }
@@ -395,10 +400,11 @@ async function unzip(bytes: Uint8Array): Promise<Map<string, Uint8Array>> {
 }
 
 /**
- * One deflated entry, stopped at `MAX_BYTES` unpacked: a few kilobytes of ZIP can unpack to
- * gigabytes, which would take the tab down before a row is read (F-R2UI4-008).
+ * One deflated entry, stopped at `MAX_BYTES` unpacked and at what the workbook has left: a few
+ * kilobytes of ZIP can unpack to gigabytes, which would take the tab down before a row is read
+ * (F-R2UI4-008).
  */
-async function inflate(data: Uint8Array): Promise<Uint8Array> {
+async function inflate(data: Uint8Array, budget: { left: number }): Promise<Uint8Array> {
   const body = new Response(new Uint8Array(data)).body;
   if (!body) throw new Error("the workbook cannot be unpacked here");
   const reader = body.pipeThrough(new DecompressionStream("deflate-raw")).getReader();
@@ -406,12 +412,13 @@ async function inflate(data: Uint8Array): Promise<Uint8Array> {
   let size = 0;
   for (let read = await reader.read(); !read.done; read = await reader.read()) {
     size += read.value.byteLength;
-    if (size > MAX_BYTES) {
+    if (size > MAX_BYTES || size > budget.left) {
       await reader.cancel();
       throw new Error(`the workbook unpacks to more than ${MAX_BYTES / 1024 / 1024} MB`);
     }
     chunks.push(read.value);
   }
+  budget.left -= size;
   const whole = new Uint8Array(size);
   let at = 0;
   for (const chunk of chunks) {
@@ -427,8 +434,38 @@ function columnIndex(reference: string): number {
   return [...letters].reduce((sum, letter) => sum * 26 + letter.charCodeAt(0) - 64, 0) - 1;
 }
 
-/** The first sheet of an XLSX workbook, its first row the header; shared and inline strings read. */
-export async function parseXlsx(bytes: Uint8Array): Promise<Table> {
+/** One sheet of a workbook: its name as the spreadsheet shows it, and its rows. */
+export interface Sheet {
+  name: string;
+  table: Table;
+}
+
+/** The built-in number formats that show a date or a time (ECMA-376 part 1, 18.8.30). */
+const DATE_FORMATS = new Set([14, 15, 16, 17, 18, 19, 20, 21, 22, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 45, 46, 47, 50, 51, 52, 53, 54, 55, 56, 57, 58]);
+
+/** Whether a custom format code shows a date or time: a d, m, y, h or s outside quotes and brackets. */
+export function isDateFormat(code: string): boolean {
+  const bare = code.replace(/"[^"]*"|\[[^\]]*\]|\\./g, "");
+  return /[dmyhs]/i.test(bare);
+}
+
+/**
+ * A date cell's serial as ISO 8601: `2026-03-05` for a whole day, `2026-03-05T14:30:00` with a
+ * time, `14:30:00` for a time alone. A spreadsheet keeps no time zone, so none is said (JC1-21).
+ */
+export function serialDate(serial: number, date1904 = false): string {
+  // Day 25569 of the 1900 system is 1970-01-01; the 1904 system starts 1462 days later.
+  const iso = new Date(Math.round((serial + (date1904 ? 1462 : 0) - 25569) * 86_400_000)).toISOString();
+  if (serial >= 0 && serial < 1) return iso.slice(11, 19);
+  return Number.isInteger(serial) ? iso.slice(0, 10) : iso.slice(0, 19);
+}
+
+/**
+ * Every sheet of an XLSX workbook, in the order the spreadsheet shows them (JC1-21); each first
+ * row is the header. Shared and inline strings are read, a date cell as its ISO date. A sheet
+ * with no row is left out.
+ */
+export async function parseWorkbook(bytes: Uint8Array): Promise<Sheet[]> {
   const entries = await unzip(bytes);
   const xml = (name: string) => {
     const entry = entries.get(name);
@@ -437,29 +474,97 @@ export async function parseXlsx(bytes: Uint8Array): Promise<Table> {
   const shared = Array.from(xml("xl/sharedStrings.xml")?.getElementsByTagName("si") ?? []).map(
     (si) => Array.from(si.getElementsByTagName("t")).map((t) => t.textContent ?? "").join(""),
   );
-  const sheetName = [...entries.keys()].filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/.test(name)).sort()[0];
-  const sheet = sheetName ? xml(sheetName) : undefined;
-  if (!sheet) throw new Error("the workbook has no sheet");
-  const records = Array.from(sheet.getElementsByTagName("row")).map((row) => {
-    const record: string[] = [];
-    for (const cell of Array.from(row.getElementsByTagName("c"))) {
-      const type = cell.getAttribute("t");
-      const value = cell.getElementsByTagName("v")[0]?.textContent ?? "";
-      const text =
-        type === "s"
-          ? (shared[Number(value)] ?? "")
-          : type === "inlineStr"
-            ? Array.from(cell.getElementsByTagName("t")).map((t) => t.textContent ?? "").join("")
-            : type === "b"
-              ? value === "1"
-                ? "true"
-                : "false"
-              : value;
-      record[columnIndex(cell.getAttribute("r") ?? "")] = text;
-    }
-    return Array.from(record, (cell) => cell ?? "");
+  const styles = xml("xl/styles.xml");
+  const custom = new Map(
+    Array.from(styles?.getElementsByTagName("numFmt") ?? []).map((f) => [Number(f.getAttribute("numFmtId")), f.getAttribute("formatCode") ?? ""]),
+  );
+  const cellXfs = styles?.getElementsByTagName("cellXfs")[0];
+  const dated = Array.from(cellXfs?.getElementsByTagName("xf") ?? []).map((xf) => {
+    const id = Number(xf.getAttribute("numFmtId") ?? 0);
+    return DATE_FORMATS.has(id) || isDateFormat(custom.get(id) ?? "");
   });
-  return fromRecords(records.filter((r) => r.some((cell) => cell.trim() !== "")));
+  const book = xml("xl/workbook.xml");
+  const date1904 = ["1", "true"].includes(book?.getElementsByTagName("workbookPr")[0]?.getAttribute("date1904") ?? "");
+  const targets = new Map(
+    Array.from(xml("xl/_rels/workbook.xml.rels")?.getElementsByTagName("Relationship") ?? []).map((r) => {
+      const target = r.getAttribute("Target") ?? "";
+      return [r.getAttribute("Id") ?? "", target.startsWith("/") ? target.slice(1) : `xl/${target}`];
+    }),
+  );
+  // The workbook's own list names and orders the sheets; without one, sheet2 still comes before sheet10.
+  const listed = Array.from(book?.getElementsByTagName("sheet") ?? []).map((s) => ({
+    name: s.getAttribute("name") ?? "",
+    part: targets.get(s.getAttribute("r:id") ?? "") ?? "",
+  }));
+  const parts = listed.length > 0
+    ? listed
+    : [...entries.keys()]
+        .filter((name) => /^xl\/worksheets\/sheet\d+\.xml$/.test(name))
+        .sort((a, b) => Number(/\d+/.exec(a)?.[0]) - Number(/\d+/.exec(b)?.[0]))
+        .map((part) => ({ name: /sheet\d+/.exec(part)?.[0] ?? part, part }));
+  const sheets: Sheet[] = [];
+  for (const { name, part } of parts) {
+    const sheet = xml(part);
+    if (!sheet) continue;
+    const records = Array.from(sheet.getElementsByTagName("row")).map((row) => {
+      const record: string[] = [];
+      for (const cell of Array.from(row.getElementsByTagName("c"))) {
+        const type = cell.getAttribute("t");
+        const value = cell.getElementsByTagName("v")[0]?.textContent ?? "";
+        const date = (type === null || type === "n") && value !== "" && dated[Number(cell.getAttribute("s") ?? 0)];
+        const text =
+          type === "s"
+            ? (shared[Number(value)] ?? "")
+            : type === "inlineStr"
+              ? Array.from(cell.getElementsByTagName("t")).map((t) => t.textContent ?? "").join("")
+              : type === "b"
+                ? value === "1"
+                  ? "true"
+                  : "false"
+                : date && Number.isFinite(Number(value))
+                  ? serialDate(Number(value), date1904)
+                  : value;
+        record[columnIndex(cell.getAttribute("r") ?? "")] = text;
+      }
+      return Array.from(record, (cell) => cell ?? "");
+    });
+    const table = fromRecords(records.filter((r) => r.some((cell) => cell.trim() !== "")));
+    if (table.columns.length > 0) sheets.push({ name, table });
+  }
+  if (sheets.length === 0) throw new Error("the workbook has no sheet");
+  return sheets;
+}
+
+/** One sheet of an XLSX workbook, the first by default; an unknown name is refused by name. */
+export async function parseXlsx(bytes: Uint8Array, sheet?: string): Promise<Table> {
+  const sheets = await parseWorkbook(bytes);
+  const found = sheet === undefined ? sheets[0] : sheets.find((s) => s.name === sheet);
+  if (!found) throw new Error(`the workbook has no sheet '${sheet}'`);
+  return found.table;
+}
+
+/** A table as CSV text, header first: what a door that takes text (an op, a question) gets of a sheet. */
+export function csvOf(table: Table): string {
+  const quote = (text: string) => (/[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text);
+  return [table.columns, ...table.rows.map((row) => table.columns.map((column) => row[column] ?? ""))]
+    .map((record) => record.map(quote).join(","))
+    .join("\r\n") + "\r\n";
+}
+
+/**
+ * A file as its sheets: every sheet of a workbook, or the one table of any other file under the
+ * name "" (JC1-07). An upload offers the sheets to choose from when there is more than one.
+ */
+export async function readSheets(file: File): Promise<Sheet[]> {
+  if (file.size > MAX_BYTES) throw new FileTooLarge(file.size);
+  if (file.name.toLowerCase().endsWith(".xlsx")) return parseWorkbook(new Uint8Array(await file.arrayBuffer()));
+  return [{ name: "", table: await readTable(file) }];
+}
+
+/** The text name a sheet travels under to a door that takes text: `stations.csv`, or `Stops.csv` for one sheet of several. */
+export function sheetFileName(fileName: string, sheets: Sheet[], sheet: Sheet): string {
+  const stem = fileName.replace(/\.[^.]+$/, "") || "sample";
+  return `${sheets.length > 1 && sheet.name.trim() !== "" ? sheet.name.trim() : stem}.csv`.replace(/[/\\]/g, "-");
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -792,17 +897,6 @@ export async function createInBatches(
 }
 
 /** The rejected rows as CSV, for the person to fix and import again. */
-/**
- * A table as CSV text, its header first: what a workbook's model is inferred from, since the
- * inference reads text and a workbook's bytes are a ZIP (JC1-07).
- */
-export function tableCsv(table: Table): string {
-  const quote = (text: string) => (/[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text);
-  const lines = [table.columns.map(quote).join(",")];
-  for (const row of table.rows) lines.push(table.columns.map((column) => quote(row[column] ?? "")).join(","));
-  return `${lines.join("\n")}\n`;
-}
-
 export function rejectedCsv(rejected: Rejected[]): string {
   // A cell a spreadsheet would run as a formula (`=`, `+`, `-`, `@`, tab, CR) is written as text.
   const inert = (text: string) => (/^[=+\-@\t\r]/.test(text) ? `'${text}` : text);

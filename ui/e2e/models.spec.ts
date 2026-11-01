@@ -554,6 +554,8 @@ test.describe("the model editor's import dialog, inherited fields and read-only 
       await page.getByRole("dialog", { name: "Add type" }).getByRole("button", { name: /Import from Smart Data Models/ }).click();
       const dialog = page.getByRole("dialog", { name: "Import a data model" });
       await expect(dialog).toBeVisible();
+      // The empty catalogue, not its loading skeleton, is the state shot.
+      await expect(dialog.getByText("The catalogue lists no model yet.")).toBeVisible();
       await shot(page, `import-dialog-${width}`, false);
       await page.keyboard.press("Escape");
       await expect(dialog).toBeHidden();

@@ -138,11 +138,14 @@ describe("relationship editor", () => {
     const { user, openForm } = renderEditor();
     const add = within(await openForm());
     const button = () => add.getByRole("button", { name: "Add relationship" });
-    // No target yet.
+    // No target yet, and the form says so where a sighted person reads it (T-6344 judge).
     expect(button()).toHaveAttribute("aria-disabled", "true");
+    expect(add.getByText("Pick the target class and name both ends first.", { selector: "p" })).toBeVisible();
+    expect(add.getByLabelText(/^Inverse on the class you pick/)).toBeInTheDocument();
 
     await user.selectOptions(add.getByLabelText("Target class"), "User");
     expect(button()).not.toHaveAttribute("aria-disabled");
+    expect(add.queryByText("Pick the target class and name both ends first.", { selector: "p" })).toBeNull();
     // A name that cannot become a slot.
     await user.clear(add.getByLabelText("Name on School"));
     await user.type(add.getByLabelText("Name on School"), "9lives");

@@ -167,7 +167,10 @@ describe("the list of data models", () => {
     const dialog = await screen.findByRole("dialog", { name: en.models.newDialog.title });
     const create = within(dialog).getByRole("button", { name: en.models.newDialog.create });
     expect(create).toHaveAttribute("aria-disabled", "true");
+    // The wait is said where a sighted person reads it, and goes once a name is typed.
+    expect(within(dialog).getByText(en.models.nameFirst, { selector: "p" })).toBeVisible();
     await userEvent.type(within(dialog).getByRole("textbox", { name: en.models.identity.name }), "trams");
+    expect(within(dialog).queryByText(en.models.nameFirst, { selector: "p" })).toBeNull();
     await userEvent.click(create);
     expect(screen.queryByRole("dialog", { name: en.models.newDialog.title })).toBeNull();
     expect(await screen.findByRole("tab", { name: en.models.view.structure, selected: true })).toBeInTheDocument();

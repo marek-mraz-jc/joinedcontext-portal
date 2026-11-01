@@ -18,9 +18,10 @@ import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker"
 import { usePermissions } from "../../api/permissions";
 import { CodeBlock, Alert, Button, Card, Field, FilePicker, Input, PageHeader, RadioGroup } from "../../components/ui";
 import { CITY_SUBJECTS, SAMPLE_BYTES, modelsOf, rankModels, sampleOf, uploadInput } from "./csvUpload";
-import type { SdmMatch } from "./csvUpload";
-import { createInBatches, decodeAs, importSlotsOf, MAX_ROWS, readTable, rejectedCsv, suggestMapping, tableCsv, toEntities, unreadableText } from "./importRows";
-import type { Rejected, Table } from "./importRows";
+import type { CatalogueModel, SdmMatch } from "./csvUpload";
+import { createInBatches, csvOf, decodeAs, importSlotsOf, MAX_ROWS, readSheets, rejectedCsv, sheetFileName, suggestMapping, toEntities, unreadableText } from "./importRows";
+import type { Rejected, Sheet, Table } from "./importRows";
+import { SheetChoice } from "./SheetChoice";
 
 /** How many entities the preview shows as NGSI-LD before they are written. */
 const PREVIEW = 10;
@@ -28,7 +29,23 @@ const PREVIEW = 10;
 /** A type name the person writes for their own model: PascalCase, as the op names the class. */
 const TYPE_NAME = /^[A-Z][A-Za-z0-9]{0,62}$/;
 
-type Read = { table: Table; name: string; sample: string; matches: SdmMatch[] };
+/**
+ * A file read: its sheets (one for a CSV), the one the upload takes, the sample `jc_space_complete`
+ * infers the model from and the name it travels under, and the types ranked against its columns.
+ */
+type Read = { sheets: Sheet[]; sheet: string; table: Table; name: string; fileName: string; sample: string; models: CatalogueModel[]; matches: SdmMatch[] };
+
+/** One sheet of a workbook as a read: an Excel sheet reaches the op as the CSV of its rows (JC1-07). */
+function sheetRead(read: Omit<Read, "sheet" | "table" | "fileName" | "sample" | "matches">, sheet: Sheet, sample: string | undefined): Read {
+  return {
+    ...read,
+    sheet: sheet.name,
+    table: sheet.table,
+    fileName: sample === undefined ? sheetFileName(read.name, read.sheets, sheet) : read.name,
+    sample: sample ?? sampleOf(csvOf(sheet.table)),
+    matches: rankModels(sheet.table.columns, read.models),
+  };
+}
 type Proposed = { space: string; type: string; source: string | undefined; change: Change | null };
 
 export function UploadCsv({ project, space: given = "" }: { project: string; space?: string }): JSX.Element {
@@ -68,31 +85,29 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
     setDone(null);
     setReading(file.name);
     try {
-      const table = await readTable(file);
-      if (table.rows.length === 0) {
+      const sheets = (await readSheets(file)).filter((sheet) => sheet.table.rows.length > 0);
+      const first = sheets[0];
+      if (!first) {
         setProblem(t("spaces.import.empty"));
         return;
       }
-      // The sample is read in the encoding the table was, or a Windows-1250 header reaches the
-      // model inference garbled and its slots no longer match the columns (F-UI3-013).
-      // A workbook is a ZIP: its sample is its first sheet as CSV, proposed under a .csv name
-      // while the page keeps naming the file the person chose (JC1-07).
       const workbook = file.name.toLowerCase().endsWith(".xlsx");
-      const sample = workbook
-        ? sampleOf(tableCsv(table))
-        : sampleOf(decodeAs(new Uint8Array(await file.slice(0, SAMPLE_BYTES).arrayBuffer()), table.detected?.encoding));
+      // A text file's sample is read in the encoding the table was, or a Windows-1250 header
+      // reaches the model inference garbled and its slots no longer match the columns (F-UI3-013).
+      const sample = workbook ? undefined : sampleOf(decodeAs(new Uint8Array(await file.slice(0, SAMPLE_BYTES).arrayBuffer()), first.table.detected?.encoding));
       // The catalogue is a help, not a gate: unreachable, the file still gets its own model.
-      let matches: SdmMatch[] = [];
+      let models: CatalogueModel[] = [];
       try {
         const catalogue = await unwrap(
           await api.GET("/api/v1/tools/sdm-catalog", { params: { query: { subject: CITY_SUBJECTS.join(",") } } }),
         );
-        matches = rankModels(table.columns, modelsOf(catalogue as Parameters<typeof modelsOf>[0]));
+        models = modelsOf(catalogue as Parameters<typeof modelsOf>[0]);
       } catch {
-        matches = [];
+        models = [];
       }
-      setRead({ table, name: file.name, sample, matches });
-      setChoice(matches[0]?.model.id ?? "");
+      const taken = sheetRead({ sheets, name: file.name, models }, first, sample);
+      setRead(taken);
+      setChoice(taken.matches[0]?.model.id ?? "");
     } catch (error) {
       setProblem(unreadableText(t, error));
     } finally {
@@ -100,9 +115,19 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
     }
   };
 
+  // Another sheet is another table: its columns are ranked again and its type chosen afresh.
+  const takeSheet = (name: string) => {
+    const sheet = read?.sheets.find((s) => s.name === name);
+    if (!read || !sheet) return;
+    const taken = sheetRead(read, sheet, undefined);
+    setRead(taken);
+    setChoice(taken.matches[0]?.model.id ?? "");
+  };
+
   const match = read?.matches.find((m) => m.model.id === choice);
   const typeName = match ? match.model.name : ownType.trim();
   const ready = read !== null && space.trim() !== "" && TYPE_NAME.test(typeName);
+  const missing = read === null || ready ? undefined : !TYPE_NAME.test(typeName) ? t("spaces.upload.missingType") : t("spaces.upload.missingSpace");
 
   const propose = async () => {
     if (!read || !ready) return;
@@ -115,7 +140,7 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
       const answer = await callOperation(
         project,
         "jc_space_complete",
-        uploadInput({ space: space.trim(), fileName: read.name.replace(/\.xlsx$/i, ".csv"), sample: read.sample, typeName, linkml }),
+        uploadInput({ space: space.trim(), fileName: read.fileName, sample: read.sample, typeName, linkml }),
       );
       if (!answer.ok) {
         setProblem(answer.reason ?? `HTTP ${answer.status}`);
@@ -170,11 +195,14 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
         </Alert>
       ) : null}
       <Card className="flex flex-col gap-4">
-        <FilePicker label={t("spaces.upload.choose")} accept=".csv,.tsv,.txt,.xlsx" onFile={(file) => void choose(file)}>
-          <span className="inline-flex items-center rounded-md border border-dashed border-border px-4 py-3 text-body">
-            {t("spaces.upload.choose")}
-          </span>
-        </FilePicker>
+        <div className="flex flex-col gap-1">
+          <FilePicker label={t("spaces.upload.choose")} accept=".csv,.tsv,.txt,.xlsx" onFile={(file) => void choose(file)}>
+            <span className="inline-flex items-center rounded-md border border-dashed border-border px-4 py-3 text-body">
+              {t("spaces.upload.choose")}
+            </span>
+          </FilePicker>
+          <p className="text-caption text-fg-muted">{t("spaces.upload.chooseHint")}</p>
+        </div>
         {reading ? (
           <p role="status" className="text-body text-fg-muted">
             {t("spaces.upload.reading", { name: reading })}
@@ -182,9 +210,11 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
         ) : null}
         {read ? (
           <p className="text-body text-fg-muted">
-            {t("spaces.import.read", { name: read.name, rows: read.table.rows.length, columns: read.table.columns.length })}
+            {t("spaces.import.read", { name: read.sheets.length > 1 ? `${read.name} (${read.sheet})` : read.name, rows: read.table.rows.length, columns: read.table.columns.length })}
           </p>
         ) : null}
+        {read ? <p className="text-caption text-fg-muted">{t("spaces.upload.columns", { names: read.table.columns.join(", ") })}</p> : null}
+        {read && !proposed ? <SheetChoice id="upload-sheet" sheets={read.sheets} value={read.sheet} onChange={takeSheet} /> : null}
         {read?.table.total !== undefined ? <Alert tone="warning">{t("spaces.import.cut", { total: read.table.total, max: MAX_ROWS })}</Alert> : null}
       </Card>
       {read && !proposed ? (
@@ -211,12 +241,18 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
               <Input id="upload-own-type" value={ownType} onChange={(e) => setOwnType(e.target.value)} placeholder="ParkingGarage" />
             </Field>
           ) : null}
-          <Field id="upload-space" label={t("spaces.upload.space")}>
+          <Field id="upload-space" label={t("spaces.upload.space")} help={t("spaces.upload.spaceHint")}>
             <ResourceNamePicker id="upload-space" label={t("spaces.upload.space")} labelled from={{ project, plural: "spaces" }} value={space} onChange={setSpace} create />
           </Field>
-          <Button className="w-fit" onClick={() => void propose()} disabled={!ready || busy} disabledReason={t("spaces.upload.notReady")}>
+          <Button className="w-fit" onClick={() => void propose()} disabled={!ready || busy} disabledReason={missing ?? t("spaces.upload.notReady")}>
             {busy ? t("spaces.upload.proposing") : t("spaces.upload.propose")}
           </Button>
+          {/* What still keeps Propose out of reach, on screen and not only for a screen reader. */}
+          {missing ? (
+            <p className="text-caption text-fg-muted" aria-hidden="true">
+              {missing}
+            </p>
+          ) : null}
         </Card>
       ) : null}
       {proposed ? (

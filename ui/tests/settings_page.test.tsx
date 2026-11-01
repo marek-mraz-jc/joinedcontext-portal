@@ -36,6 +36,8 @@ describe("the settings page (T-6344)", () => {
     expect(screen.getByRole("link", { name: "My AI connectors" })).toHaveAttribute("href", "/ai-connectors");
     expect(screen.getByRole("link", { name: "Settings of doprava" })).toHaveAttribute("href", "/projects/doprava/settings");
     expect(screen.queryByText("Platform")).toBeNull();
+    // The line under the title names only what this person sees.
+    expect(screen.getByText("Your own settings and this project's.")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Administration" })).toBeNull();
     await expectNoViolations(container);
   });
@@ -44,6 +46,7 @@ describe("the settings page (T-6344)", () => {
     opensAdministration = true;
     show(<SettingsPage project="doprava" />);
     expect(screen.getByText("Platform")).toBeInTheDocument();
+    expect(screen.getByText("Your own settings, this project's and, for an administrator, the platform's.")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Administration" })).toHaveAttribute("href", "/organization/settings");
   });
 
