@@ -2779,6 +2779,54 @@ async fn a_replace_plan_says_when_the_stored_attributes_could_not_be_checked() {
     assert_eq!(harness.run(&scenario, &own).await, Ok(()));
 }
 
+/// T-6363: a connector narrowed to one Pipeline tests a planned edit of it on a sample and then
+/// plans the edit: the records gate it names is one the connector can pass. Another Pipeline's
+/// draft stays out of reach.
+#[tokio::test]
+async fn a_pipeline_scoped_connector_tests_and_plans_an_edit_of_its_pipeline() {
+    let harness = Harness::start(1).await;
+    let own = project_of(1);
+    let patch = json!({ "changes": [{ "op": "patch", "kind": "Pipeline", "name": "counters-hourly",
+                                      "patch": { "spec": { "schedule": "30 * * * *" } } }] });
+    let sample = json!({ "text": COUNTERS_CSV, "format": "csv" });
+    let tested = json!([{ "input": "c1,Most SNP,42,2026-10-27T10:00:00Z",
+        "output": { "id": "urn:ngsi-ld:BikeCounter:c1", "type": "BikeCounter",
+                    "count": { "type": "Property", "value": 42, "observedAt": "2026-10-27T10:00:00Z" } },
+        "error": null }]);
+    let scenario: Scenario = serde_json::from_value(json!({
+        "id": "S-00", "segment": "pipeline", "as": "steward", "says": "selftest",
+        "expect": "selftest", "deny": "none", "script": [
+            { "proves": "expect", "manifest": { "kind": "Group", "name": "pipeliners",
+                  "spec": { "members": [{ "user": "scn.steward@hel.fi" }] } } },
+            { "proves": "expect", "manifest": { "kind": "DelegationPolicy", "name": "pipeliners-doprava",
+                  "spec": { "subjects": [{ "kind": "Group", "name": "pipeliners" }], "projects": ["{project}"],
+                            "segments": ["pipeline"], "writes": true, "maxExpiry": "P90D" } } },
+            { "proves": "expect", "rest": { "method": "POST", "path": "/connectors",
+                  "body": { "name": "s00-counters", "segments": ["pipeline"], "writes": true,
+                            "scope": [{ "project": "{project}", "pipeline": "counters-hourly", "access": "write" }],
+                            "expiresAt": "{in7days}" } },
+              "contains": ["\"state\":\"active\""] },
+            { "proves": "expect", "via": "connector",
+              "contains": ["jc_pipeline_test", "jc_pipeline_try_mapping", "jc_pipeline_sample_source"] },
+            { "proves": "expect", "via": "connector", "call": "jc_change_plan", "args": patch,
+              "refused": true, "contains": ["jc_pipeline_test"] },
+            { "proves": "expect", "via": "connector", "call": "jc_pipeline_test",
+              "args": { "draft": { "kind": "Pipeline", "name": "counters-hourly" }, "sample": sample },
+              "runner": tested, "contains": ["urn:ngsi-ld:BikeCounter:c1"] },
+            { "proves": "expect", "via": "connector", "call": "jc_change_plan", "args": patch,
+              "contains": ["\"planId\""] },
+            { "proves": "deny", "via": "connector", "call": "jc_pipeline_test",
+              "args": { "draft": { "kind": "Pipeline", "name": "counters-new" }, "sample": sample },
+              "refused": true, "contains": ["counters-new"] },
+            { "proves": "deny", "via": "connector", "call": "jc_pipeline_try_mapping",
+              "args": { "pipeline": { "kind": "Pipeline", "metadata": { "name": "counters-new" } }, "sample": sample },
+              "refused": true, "contains": ["counters-new"] }
+        ]
+    }))
+    .expect("scenario");
+    assert_eq!(harness.run(&scenario, &own).await, Ok(()));
+}
+
 /// Seconds of CPU this process has used, user and system (`/proc/self/stat`, 100 ticks a second).
 fn cpu_seconds() -> f64 {
     let stat = std::fs::read_to_string("/proc/self/stat").expect("/proc/self/stat");
