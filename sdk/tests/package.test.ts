@@ -137,10 +137,13 @@ describe("the published package", () => {
   });
 
   it("leaves the application's own libraries outside the bundle", () => {
-    const index = readFileSync(join(root, "dist/package/index.js"), "utf8");
-    // What the bundle still imports by name was not copied into it.
+    // Every built file, entries and the chunks the root shares with `./grid` (T-6305): what they
+    // still import by name was not copied into the bundle.
+    const built = readdirSync(join(root, "dist/package"), { recursive: true, encoding: "utf8" }).filter((file) => file.endsWith(".js"));
     const imported = new Set(
-      [...index.matchAll(/(?:from|import)\s*["']([^"']+)["']/g)].map(([, name]) => name),
+      built
+        .map((file) => readFileSync(join(root, "dist/package", file), "utf8"))
+        .flatMap((code) => [...code.matchAll(/(?:from|import)\s*["']([^"']+)["']/g)].map(([, name]) => name)),
     );
     // Every peer is one the SDK's own code imports — `react-dom` as its `client` entry. An optional
     // peer serves one entry and is checked below.
@@ -176,7 +179,7 @@ describe("the published package", () => {
   });
 
   it("is built for production, not for this checkout's development mode", () => {
-    for (const entry of ["index.js", "server.js", "testing.js"]) {
+    for (const entry of ["index.js", "grid.js", "server.js", "testing.js"]) {
       const built = readFileSync(join(root, "dist/package", entry), "utf8");
       expect(built, `${entry} ships React's development JSX runtime`).not.toContain(
         "jsx-dev-runtime",
