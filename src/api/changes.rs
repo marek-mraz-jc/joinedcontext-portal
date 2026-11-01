@@ -3491,7 +3491,8 @@ mod tests {
     /// Four changes at a time, each reading its files, its head, its base and its author one
     /// after another: ~1 s on dev for helsinki's open changes after the tree walk was gone
     /// (T-6347). Eight open changes behind a forge that answers each read in 150 ms took
-    /// 2 waves x 4 round trips (~1.35 s with the list); one wave of two round trips takes ~0.45 s.
+    /// 2 waves x 4 round trips (~1.35 s with the list), either half of the fix alone ~0.75 s;
+    /// one wave of two round trips takes ~0.45 s.
     #[tokio::test]
     async fn the_list_reads_its_open_changes_in_one_wave_of_two_round_trips() {
         let server = MockServer::start().await;
