@@ -201,7 +201,9 @@ impl Path {
             Path::CreateDataModel => {
                 "where the model starts is answered: a Smart Data Model, ask which; a sample, \
                  ask for the file; nothing, ask the person to describe the entities; then \
-                 change_resource the DataModel (create), which opens its form on the draft"
+                 change_resource the DataModel with create: true and operations: addClass \
+                 (is_a: Entity) per entity type, addSlot (class, range) per attribute; this \
+                 drafts it and opens the model editor on the draft"
             }
             Path::DefineKpi => {
                 "the space is answered; ask which measure, as options from its entity types; \
@@ -402,7 +404,8 @@ mod tests {
             let steps = path.steps();
             assert!(!steps.is_empty() && !steps.ends_with('.'), "{}", path.id());
             for word in steps.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_')) {
-                if word.contains('_') {
+                // `is_a` is a field of the model editor's addClass, not a tool.
+                if word.contains('_') && word != "is_a" {
                     assert!(path.allows(word), "{}: {word}", path.id());
                 }
             }

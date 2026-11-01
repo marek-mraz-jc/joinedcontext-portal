@@ -53,8 +53,9 @@ pub fn manifest(kind: &str, project: &str, name: &str, spec: Value) -> Value {
 /// The kinds one sentence creates from the chat (AG-45, UI-45): the kind's page opens on the
 /// checked draft, the form is already filled and the person proposes it. A Dashboard is created
 /// with its layers by its own step; every other kind is changed from the chat, never created,
-/// because its create needs a page of its own (a data model is drawn, a space is completed from
-/// files, an endpoint is shared, a role is granted).
+/// because its create needs a page of its own (a space is completed from files, an endpoint is
+/// shared, a role is granted). A DataModel is created from the editor's operations instead of a
+/// patch (`create_model`), and its editor opens on the draft.
 pub const CREATABLE: [&str; 3] = ["ContextSpace", "DataSource", "Pipeline"];
 
 /// The manifest of a new resource, from the fields the model sent as its `patch`: its `spec`, and
