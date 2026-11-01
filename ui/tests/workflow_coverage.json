@@ -374,7 +374,10 @@
           "spec": "walk.spec.ts",
           "test": "every page opens cleanly for the steward"
         },
-        "assistant": "jc_resource_get"
+        "assistant": "jc_resource_get",
+        "routes": [
+          "POST /api/v1/projects/{project}/spaces/{space}/usage/recalculate"
+        ]
       },
       "edit": {
         "live": {

@@ -274,6 +274,17 @@ impl McpClientSync {
         {
             outcome.error = Some(format!("mappers of {id}: {err}"));
         }
+        if let Err(err) = self
+            .admin
+            .drop_optional_scopes(token, &uuid, &mut outcome)
+            .await
+        {
+            let scopes = format!("scopes of {id}: {err}");
+            outcome.error = Some(match outcome.error.take() {
+                Some(mappers) => format!("{mappers}; {scopes}"),
+                None => scopes,
+            });
+        }
         outcome
     }
 }
