@@ -221,7 +221,7 @@ fn tool_problem(id: Value, status: u16, slug: &str, title: &str, why: &str) -> V
             "isError": true,
             "content": [{ "type": "text", "text": why }],
             "structuredContent": {
-                "type": format!("https://joinedcontext.com/problems/{slug}"),
+                "type": format!("https://joinedcontext.com/errors/{slug}"),
                 "title": title,
                 "status": status,
                 "detail": why,
@@ -717,6 +717,16 @@ async fn verdict_of(response: Response, id: Value, result_bytes: usize) -> (Resp
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// JC2-41: a refused call names the same problem type base as every Portal error.
+    #[test]
+    fn a_refused_call_names_the_portal_error_type() {
+        let answer = refused_call(json!(1), "no");
+        assert_eq!(
+            answer["result"]["structuredContent"]["type"],
+            "https://joinedcontext.com/errors/forbidden"
+        );
+    }
 
     #[tokio::test]
     async fn an_answer_past_the_connector_result_size_is_a_413_tool_error() {
