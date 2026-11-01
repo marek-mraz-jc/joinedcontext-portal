@@ -46,6 +46,7 @@ export default defineConfig({
     lib: {
       entry: {
         index,
+        grid: fileURLToPath(new URL("./src/sdk/grid.ts", import.meta.url)),
         server: fileURLToPath(new URL("./src/sdk/server.ts", import.meta.url)),
         testing: fileURLToPath(new URL("./src/sdk/testing.ts", import.meta.url)),
         responsive: fileURLToPath(new URL("./src/sdk/responsive.ts", import.meta.url)),

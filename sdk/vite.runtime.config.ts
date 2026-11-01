@@ -28,6 +28,7 @@ const NAMES: Record<string, string> = {
   "@deck.gl/aggregation-layers": "@deck.gl/aggregation-layers",
   "@deck.gl/mapbox": "@deck.gl/mapbox",
   "@joinedcontext/sdk": "/src/sdk/index.ts",
+  "@joinedcontext/sdk/grid": "/src/sdk/grid.ts",
 };
 const COMMONJS = new Set(["react", "react/jsx-runtime", "react-dom/client"]);
 
