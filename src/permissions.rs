@@ -1713,7 +1713,12 @@ pub fn lives_in_space(kind: &str) -> bool {
 
 /// `spec.contextSpaceRef` of a manifest, written bare or as `{ name }`.
 pub fn space_ref(target: &Value) -> Option<String> {
-    let value = target.pointer("/spec/contextSpaceRef")?;
+    target.get("spec").and_then(spec_space)
+}
+
+/// The space a manifest's `spec` names by `contextSpaceRef`, as a name or a reference.
+pub fn spec_space(spec: &Value) -> Option<String> {
+    let value = spec.get("contextSpaceRef")?;
     value
         .as_str()
         .or_else(|| value.get("name").and_then(Value::as_str))

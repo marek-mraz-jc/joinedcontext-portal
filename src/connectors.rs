@@ -697,11 +697,16 @@ impl ScopeItem {
         .find_map(|(kind, name)| name.as_deref().map(|name| (kind, name)))
     }
 
-    /// Whether this item reaches the object `kind`/`name` of its project.
-    fn names(&self, kind: &str, name: &str) -> bool {
+    /// Whether this item reaches the object `kind`/`name` of its project, which sits in `space`:
+    /// a space item reaches the space and every object whose `contextSpaceRef` names it (T-6360).
+    fn names(&self, kind: &str, name: &str, space: Option<&str>) -> bool {
+        let fits = |item: &str, of: &str| item == "*" || item == of;
         match self.narrowing() {
             None => true,
-            Some((narrowed, item)) => narrowed == kind && (item == "*" || item == name),
+            Some(("ContextSpace", item)) if kind != "ContextSpace" => {
+                space.is_some_and(|space| fits(item, space))
+            }
+            Some((narrowed, item)) => narrowed == kind && fits(item, name),
         }
     }
 }
@@ -892,12 +897,14 @@ impl Connector {
 
     /// Whether a plan (or, with `write`, an apply) may name `kind`/`name` of `project`: a kind of
     /// the segments, a scope item that reaches the object, and for a write the `writes` switch and
-    /// `write` on that item (AG-144, AG-149). `Err` says which, naming the target.
+    /// `write` on that item (AG-144, AG-149). `space` is where the change sits ([`change_space`]).
+    /// `Err` says which, naming the target.
     pub fn may_change(
         &self,
         project: &str,
         kind: &str,
         name: &str,
+        space: Option<&str>,
         write: bool,
     ) -> Result<(), String> {
         let (_, kinds) = self.reach();
@@ -911,7 +918,7 @@ impl Connector {
         let mut items = self
             .scope
             .iter()
-            .filter(|i| i.project == project && i.names(kind, name))
+            .filter(|i| i.project == project && i.names(kind, name, space))
             .peekable();
         if items.peek().is_none() {
             return Err(format!(
@@ -990,8 +997,15 @@ impl Connector {
     }
 
     /// The scope's half of one call (AG-144): the project, the kind and the object the call
-    /// names. `Err` is the reason the refusal carries, naming the target.
-    pub fn admits(&self, op: &Operation, project: &str, args: &Value) -> Result<(), String> {
+    /// names, which sits in the space `space_of(kind, name)` answers ([`space_now`]). `Err` is the
+    /// reason the refusal carries, naming the target.
+    pub fn admits(
+        &self,
+        op: &Operation,
+        project: &str,
+        args: &Value,
+        space_of: &dyn Fn(&str, &str) -> Option<String>,
+    ) -> Result<(), String> {
         if !self.scope.iter().any(|i| i.project == project) {
             return Err(format!(
                 "this connector does not reach project {project}; its scope names {}",
@@ -1024,7 +1038,8 @@ impl Connector {
         if op.name == RUN {
             let name = text("name").ok_or("jc_pipeline_run names the pipeline: name it")?;
             self.may_verb("Pipeline", name, ConnectorVerb::Run)?;
-            return self.may_change(project, "Pipeline", name, true);
+            let space = space_of("Pipeline", name);
+            return self.may_change(project, "Pipeline", name, space.as_deref(), true);
         }
         // A plan or an apply names its objects per change; the operation holds each one to
         // the scope with `may_change` (T-5956).
@@ -1036,10 +1051,9 @@ impl Connector {
             .flatten();
         match (kind, name) {
             (Some(kind), Some(name))
-                if self
-                    .scope
-                    .iter()
-                    .any(|i| i.project == project && i.names(kind, name)) =>
+                if self.scope.iter().any(|i| {
+                    i.project == project && i.names(kind, name, space_of(kind, name).as_deref())
+                }) =>
             {
                 Ok(())
             }
@@ -1080,6 +1094,37 @@ impl Connector {
             .map(|(kind, name)| format!("{kind} {name}"))
             .collect::<Vec<_>>()
             .join(", ")
+    }
+}
+
+/// Where `kind`/`name` of `project` sits now: the `contextSpaceRef` of the copy the mirror holds
+/// in the nearest home of the kind (T-6360).
+pub(crate) fn space_now(
+    mirror: &crate::store::Mirror,
+    project: &str,
+    kind: &str,
+    name: &str,
+) -> Option<String> {
+    let info = crate::resource::by_kind(kind)?;
+    crate::resource::homes(info, project)
+        .iter()
+        .find_map(|home| mirror.get(home, kind, name))
+        .and_then(|envelope| crate::permissions::spec_space(&envelope.spec))
+}
+
+/// The space a change sits in (T-6360): where the object is now (`now`, its spec) and where its
+/// manifest puts it (`next`). `None` when an end that exists names no space, or the change moves
+/// the object between spaces: a space item reaches neither end of a move.
+pub(crate) fn change_space(now: Option<&Value>, next: Option<&Value>) -> Option<String> {
+    let spaces: Vec<Option<String>> = [now, next]
+        .into_iter()
+        .flatten()
+        .map(|manifest| crate::permissions::space_ref(manifest))
+        .collect();
+    match spaces.as_slice() {
+        [Some(space)] => Some(space.clone()),
+        [Some(a), Some(b)] if a == b => Some(a.clone()),
+        _ => None,
     }
 }
 
@@ -2132,16 +2177,16 @@ pub(crate) mod tests {
         for tool in &TOOLS[..3] {
             assert!(c.access().names(op(tool)), "{tool}");
             assert_eq!(
-                c.admits(op(tool), "doprava", &json!({ "name": "p" })),
+                c.admits(op(tool), "doprava", &json!({ "name": "p" }), &|_, _| None),
                 Ok(())
             );
             assert!(c
-                .admits(op(tool), "other", &json!({ "name": "p" }))
+                .admits(op(tool), "other", &json!({ "name": "p" }), &|_, _| None)
                 .is_err());
         }
         assert!(!c.access().names(op(RUN)), "writes off: no run");
         assert!(c
-            .admits(op(RUN), "doprava", &json!({ "name": "p" }))
+            .admits(op(RUN), "doprava", &json!({ "name": "p" }), &|_, _| None)
             .expect_err("writes off")
             .contains("writes off"));
         // T-6040: the test a Pipeline plan asks for is the segment's too, held to the same rule.
@@ -2153,7 +2198,7 @@ pub(crate) mod tests {
             assert!(c.access().names(op(tool)), "{tool}");
             let url = json!({ "sample": { "url": "http://10.0.0.5/a.csv", "format": "csv" } });
             assert!(c
-                .admits(op(tool), "doprava", &url)
+                .admits(op(tool), "doprava", &url, &|_, _| None)
                 .expect_err("a prompt's URL")
                 .contains("never a URL"));
         }
@@ -2161,7 +2206,7 @@ pub(crate) mod tests {
         c.scope[0].access = ItemAccess::Write;
         assert!(c.access().names(op(RUN)));
         assert_eq!(
-            c.admits(op(RUN), "doprava", &json!({ "name": "p" })),
+            c.admits(op(RUN), "doprava", &json!({ "name": "p" }), &|_, _| None),
             Ok(())
         );
         let mut one = item("doprava", None);
@@ -2172,11 +2217,18 @@ pub(crate) mod tests {
         for tool in ["jc_pipeline_logs", RUN] {
             assert!(narrow.lists(op(tool), "doprava"), "{tool}");
             assert_eq!(
-                narrow.admits(op(tool), "doprava", &json!({ "name": "counters" })),
+                narrow.admits(
+                    op(tool),
+                    "doprava",
+                    &json!({ "name": "counters" }),
+                    &|_, _| None
+                ),
                 Ok(())
             );
             assert!(narrow
-                .admits(op(tool), "doprava", &json!({ "name": "other" }))
+                .admits(op(tool), "doprava", &json!({ "name": "other" }), &|_, _| {
+                    None
+                })
                 .expect_err("outside the scope")
                 .contains("other"));
         }
@@ -2187,7 +2239,9 @@ pub(crate) mod tests {
             "jc_pipeline_test",
         ] {
             assert!(!narrow.lists(op(tool), "doprava"), "{tool}");
-            assert!(narrow.admits(op(tool), "doprava", &json!({})).is_err());
+            assert!(narrow
+                .admits(op(tool), "doprava", &json!({}), &|_, _| None)
+                .is_err());
         }
     }
 
@@ -2200,21 +2254,187 @@ pub(crate) mod tests {
         let c = connector(&["pipeline"], vec![item("doprava", None)]);
         assert!(c.access().names(captured));
         assert_eq!(
-            c.admits(captured, "doprava", &json!({ "name": "sensors" })),
+            c.admits(
+                captured,
+                "doprava",
+                &json!({ "name": "sensors" }),
+                &|_, _| None
+            ),
             Ok(())
         );
-        assert_eq!(c.admits(op("jc_resource_list"), "doprava", &list), Ok(()));
+        assert_eq!(
+            c.admits(op("jc_resource_list"), "doprava", &list, &|_, _| None),
+            Ok(())
+        );
         let read = connector(&["data-read"], vec![item("doprava", None)]);
         assert!(!read.access().names(captured));
         assert!(read
-            .admits(op("jc_resource_list"), "doprava", &list)
+            .admits(op("jc_resource_list"), "doprava", &list, &|_, _| None)
             .is_err());
         let mut one = item("doprava", None);
         one.pipeline = Some("counters".into());
         let narrow = connector(&["pipeline"], vec![one]);
         assert!(narrow
-            .admits(captured, "doprava", &json!({ "name": "sensors" }))
+            .admits(
+                captured,
+                "doprava",
+                &json!({ "name": "sensors" }),
+                &|_, _| None
+            )
             .is_err());
+    }
+
+    /// T-6360: a space item reaches every object whose `contextSpaceRef` names the space, for
+    /// reads and plans, and no object of another space, of no space or moved across spaces.
+    #[test]
+    fn a_space_item_reaches_the_objects_of_its_space_and_no_other() {
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        let mut one = item("doprava", None);
+        one.space = Some("traffic".into());
+        let c = connector(&["data-read", "context"], vec![one]);
+        let mirror = crate::store::Mirror::new();
+        for (kind, name, space) in [
+            ("DataModel", "bikes", Some("traffic")),
+            ("Endpoint", "counters", Some("traffic")),
+            ("Policy", "readers", Some("traffic")),
+            ("DataModel", "parks", Some("green")),
+            ("Endpoint", "trees", Some("green")),
+            ("Policy", "gardeners", Some("green")),
+            ("Policy", "loose", None),
+        ] {
+            mirror.upsert(ResourceEnvelope {
+                api_version: API_VERSION.to_owned(),
+                kind: kind.to_owned(),
+                metadata: ObjectMeta {
+                    name: name.to_owned(),
+                    namespace: Some("doprava".to_owned()),
+                    ..Default::default()
+                },
+                spec: space.map_or(json!({}), |s| json!({ "contextSpaceRef": { "name": s } })),
+                status: None,
+            });
+        }
+        let space_of = |kind: &str, name: &str| space_now(&mirror, "doprava", kind, name);
+        let get = |kind: &str, name: &str| json!({ "kind": kind, "name": name });
+        for (kind, inside, outside) in [
+            ("DataModel", "bikes", "parks"),
+            ("Endpoint", "counters", "trees"),
+            ("Policy", "readers", "gardeners"),
+        ] {
+            assert_eq!(
+                c.admits(
+                    op("jc_resource_get"),
+                    "doprava",
+                    &get(kind, inside),
+                    &space_of
+                ),
+                Ok(()),
+                "{kind} {inside}"
+            );
+            let refused = c
+                .admits(
+                    op("jc_resource_get"),
+                    "doprava",
+                    &get(kind, outside),
+                    &space_of,
+                )
+                .expect_err("another space");
+            assert!(refused.contains(outside), "{refused}");
+            assert_eq!(
+                c.may_change(
+                    "doprava",
+                    kind,
+                    inside,
+                    space_of(kind, inside).as_deref(),
+                    false
+                ),
+                Ok(())
+            );
+            assert!(c
+                .may_change(
+                    "doprava",
+                    kind,
+                    outside,
+                    space_of(kind, outside).as_deref(),
+                    false
+                )
+                .is_err());
+        }
+        assert!(c
+            .admits(
+                op("jc_resource_get"),
+                "doprava",
+                &get("Policy", "loose"),
+                &space_of
+            )
+            .is_err());
+        assert!(c
+            .admits(
+                op("jc_resource_get"),
+                "doprava",
+                &get("DataModel", "gone"),
+                &space_of
+            )
+            .is_err());
+        // A data query is held to its Endpoint's space.
+        let query = |endpoint: &str| json!({ "endpoint": endpoint, "type": "Counter" });
+        assert_eq!(
+            c.admits(
+                op("jc_data_query"),
+                "doprava",
+                &query("counters"),
+                &space_of
+            ),
+            Ok(())
+        );
+        assert!(c
+            .admits(op("jc_data_query"), "doprava", &query("trees"), &space_of)
+            .is_err());
+        // The space itself, and no other space.
+        assert_eq!(
+            c.admits(
+                op("jc_resource_get"),
+                "doprava",
+                &get("ContextSpace", "traffic"),
+                &space_of
+            ),
+            Ok(())
+        );
+        assert!(c
+            .admits(
+                op("jc_resource_get"),
+                "doprava",
+                &get("ContextSpace", "green"),
+                &space_of
+            )
+            .is_err());
+    }
+
+    /// T-6360: a change sits in a space when every end that exists names that one space.
+    #[test]
+    fn a_change_sits_in_a_space_only_when_both_ends_name_it() {
+        let at = |space: &str| json!({ "spec": { "contextSpaceRef": space } });
+        let bare = json!({ "spec": {} });
+        let traffic = Some("traffic".to_owned());
+        assert_eq!(change_space(None, Some(&at("traffic"))), traffic, "create");
+        assert_eq!(change_space(Some(&at("traffic")), None), traffic, "delete");
+        assert_eq!(
+            change_space(Some(&at("traffic")), Some(&at("traffic"))),
+            traffic
+        );
+        assert_eq!(
+            change_space(Some(&at("green")), Some(&at("traffic"))),
+            None,
+            "move in"
+        );
+        assert_eq!(
+            change_space(Some(&at("traffic")), Some(&at("green"))),
+            None,
+            "move out"
+        );
+        assert_eq!(change_space(Some(&bare), Some(&at("traffic"))), None);
+        assert_eq!(change_space(Some(&at("traffic")), Some(&bare)), None);
+        assert_eq!(change_space(None, None), None);
     }
 
     /// T-5956, AG-149: a segment that proposes plans; only `writes` brings the apply, and an
@@ -2225,24 +2445,32 @@ pub(crate) mod tests {
         let access = c.access();
         assert!(access.names(op(PLAN)));
         assert!(!access.names(op(APPLY)), "writes off: no apply");
-        assert_eq!(c.may_change("doprava", "DataModel", "bikes", false), Ok(()));
+        assert_eq!(
+            c.may_change("doprava", "DataModel", "bikes", None, false),
+            Ok(())
+        );
         assert!(c
-            .may_change("doprava", "DataModel", "bikes", true)
+            .may_change("doprava", "DataModel", "bikes", None, true)
             .expect_err("writes off")
             .contains("writes off"));
         assert!(c
-            .may_change("doprava", "Pipeline", "p", false)
+            .may_change("doprava", "Pipeline", "p", None, false)
             .expect_err("not a context kind")
             .contains("not Pipeline"));
-        assert!(c.may_change("other", "DataModel", "bikes", false).is_err());
+        assert!(c
+            .may_change("other", "DataModel", "bikes", None, false)
+            .is_err());
         c.writes = true;
         assert!(c.access().names(op(APPLY)));
         assert!(c
-            .may_change("doprava", "DataModel", "bikes", true)
+            .may_change("doprava", "DataModel", "bikes", None, true)
             .expect_err("read item")
             .contains("only reads"));
         c.scope[0].access = ItemAccess::Write;
-        assert_eq!(c.may_change("doprava", "DataModel", "bikes", true), Ok(()));
+        assert_eq!(
+            c.may_change("doprava", "DataModel", "bikes", None, true),
+            Ok(())
+        );
         // A data-read connector plans nothing.
         let read = connector(&["data-read"], vec![item("doprava", None)]);
         assert!(!read.access().names(op(PLAN)));
@@ -2250,11 +2478,11 @@ pub(crate) mod tests {
         let narrow = connector(&["context"], vec![item("doprava", Some("counters"))]);
         assert!(narrow.lists(op(PLAN), "doprava"));
         assert_eq!(
-            narrow.may_change("doprava", "Endpoint", "counters", false),
+            narrow.may_change("doprava", "Endpoint", "counters", None, false),
             Ok(())
         );
         assert!(narrow
-            .may_change("doprava", "Endpoint", "other", false)
+            .may_change("doprava", "Endpoint", "other", None, false)
             .is_err());
     }
 
