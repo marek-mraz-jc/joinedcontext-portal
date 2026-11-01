@@ -34,8 +34,8 @@ fn input_schema() -> Value {
         "type": "object",
         "properties": {
             "name": text("The MqttBroker's name", NAME),
-            "topic": text("One exact topic, no + or #, e.g. sensors/s-12/air", 65_535),
-            "limit": { "type": "integer", "minimum": 1, "maximum": 1000, "description": "Messages, default 100" }
+            "topic": text("One exact topic, no + or #", 65_535),
+            "limit": { "type": "integer", "minimum": 1, "maximum": 1000, "description": "Default 100" }
         },
         "required": ["name"],
         "additionalProperties": false
@@ -76,7 +76,8 @@ fn output_schema() -> Value {
     })
 }
 
-/// Each DataSource of `project` reading broker `broker`, with the fields it lists personal.
+/// Each DataSource of `project` reading broker `broker` that declares `spec.personalFields`, with
+/// the fields it lists (an empty list declares none personal).
 fn personal_fields(
     state: &AppState,
     project: &str,
@@ -85,37 +86,47 @@ fn personal_fields(
     state
         .mirror
         .kind_where(project, "DataSource", |source| {
-            source
-                .spec
-                .pointer("/mqtt/brokerRef/name")
-                .and_then(Value::as_str)
-                == Some(broker)
+            source.spec.get("personalFields").is_some()
+                && source
+                    .spec
+                    .pointer("/mqtt/brokerRef/name")
+                    .and_then(Value::as_str)
+                    == Some(broker)
         })
         .into_iter()
         .map(|source| {
             let fields = crate::personal_data::source_fields(state, project, &source.metadata.name);
             (source.metadata.name, fields)
         })
-        .filter(|(_, fields)| !fields.is_empty())
         .collect()
 }
 
-/// `captured` without the `personal` fields: removed from each payload that is a JSON object, and
-/// a payload that is not one left out whole, since a text cannot lose one field. Returns each
-/// field removed as `DataSource/{source}.{field}`; values are never returned.
-fn withhold(captured: &mut Captured, personal: &[(String, BTreeSet<String>)]) -> Vec<String> {
+/// `captured` as a model outside the Portal may read it (AG-158, ADR-N-048 item 10), deny by
+/// default: no `clientId`, and no payload unless a DataSource reading the broker declares its
+/// personal fields. Those fields leave each payload that is a JSON object, and a payload that is
+/// not one leaves whole, since a text cannot lose one field. Returns what was left out, a field
+/// as `DataSource/{source}.{field}`; values are never returned.
+fn withhold(captured: &mut Captured, declared: &[(String, BTreeSet<String>)]) -> Vec<String> {
     let mut removed = BTreeSet::new();
-    if personal.is_empty() {
-        return Vec::new();
-    }
     for message in &mut captured.messages {
+        if message.client_id.take().is_some() {
+            removed.insert("clientId".to_owned());
+        }
+        if declared.is_empty() {
+            message.payload = String::new();
+            removed.insert(format!(
+                "payload: no DataSource reading broker {} lists its personal fields",
+                captured.broker
+            ));
+            continue;
+        }
         let parsed = (message.encoding == "utf-8")
             .then(|| serde_json::from_str::<Value>(&message.payload).ok())
             .flatten();
         match parsed {
             Some(Value::Object(mut members)) => {
                 let mut changed = false;
-                for (source, fields) in personal {
+                for (source, fields) in declared {
                     for field in fields {
                         if members.remove(field).is_some() {
                             removed.insert(format!("DataSource/{source}.{field}"));
@@ -127,12 +138,13 @@ fn withhold(captured: &mut Captured, personal: &[(String, BTreeSet<String>)]) ->
                     message.payload = Value::Object(members).to_string();
                 }
             }
-            _ => {
+            _ if declared.iter().any(|(_, fields)| !fields.is_empty()) => {
                 message.payload = String::new();
-                for (source, fields) in personal {
+                for (source, fields) in declared {
                     removed.extend(fields.iter().map(|f| format!("DataSource/{source}.{f}")));
                 }
             }
+            _ => {}
         }
     }
     removed.into_iter().collect()
@@ -171,7 +183,8 @@ pub fn operations() -> Vec<Operation> {
     vec![Operation {
         name: CAPTURED,
         title: "Read An MQTT Broker's Capture",
-        description: "The newest messages a broker in `capture` mode kept, newest first (API/01 §47, ADR-N-048 §2.10). Only a person who may approve MqttBrokers in the project; anybody else gets 404",
+        description:
+            "The newest messages a capture broker kept; 404 to whoever may not approve MqttBrokers",
         input: input_schema,
         output: output_schema,
         annotations: Annotations {
@@ -232,7 +245,35 @@ mod tests {
     }
 
     #[test]
-    fn nothing_is_withheld_where_no_source_lists_a_personal_field() {
+    fn a_broker_no_source_declares_keeps_every_payload_and_client_id_back() {
+        let mut held = message(r#"{"pm10": 12}"#, "utf-8");
+        held.client_id = Some("s-12".to_owned());
+        let mut captured = Captured {
+            broker: "sensors".to_owned(),
+            mode: "capture".to_owned(),
+            window: None,
+            messages_per_topic: None,
+            messages: vec![held],
+            truncated: false,
+        };
+        let removed = withhold(&mut captured, &[]);
+        assert_eq!(
+            removed,
+            vec![
+                "clientId".to_owned(),
+                "payload: no DataSource reading broker sensors lists its personal fields"
+                    .to_owned()
+            ]
+        );
+        let kept = captured
+            .messages
+            .first()
+            .map(|m| (m.payload.as_str(), m.client_id.clone(), m.bytes));
+        assert_eq!(kept, Some(("", None, 12)));
+    }
+
+    #[test]
+    fn a_source_declaring_no_personal_field_keeps_the_payload() {
         let mut captured = Captured {
             broker: "sensors".to_owned(),
             mode: "capture".to_owned(),
@@ -241,7 +282,8 @@ mod tests {
             messages: vec![message("pm10=12", "utf-8")],
             truncated: false,
         };
-        assert!(withhold(&mut captured, &[]).is_empty());
+        let declared = vec![("air".to_owned(), BTreeSet::new())];
+        assert!(withhold(&mut captured, &declared).is_empty());
         assert_eq!(
             captured.messages.first().map(|m| m.payload.as_str()),
             Some("pm10=12")

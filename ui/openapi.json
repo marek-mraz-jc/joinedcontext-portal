@@ -14770,7 +14770,7 @@
           "resources"
         ],
         "summary": "Read An MQTT Broker's Capture",
-        "description": "The newest messages a broker in `capture` mode kept, newest first (API/01 §47, ADR-N-048 §2.10). Only a person who may approve MqttBrokers in the project; anybody else gets 404.",
+        "description": "The newest messages a capture broker kept; 404 to whoever may not approve MqttBrokers.",
         "operationId": "get_captured",
         "parameters": [
           {
@@ -20472,6 +20472,202 @@
           "checkedBy": "registry",
           "kind": "DataModel",
           "verb": "propose"
+        }
+      }
+    },
+    "/api/v1/projects/{project}/ops/jc_mqtt_captured": {
+      "post": {
+        "description": "The newest messages a capture broker kept; 404 to whoever may not approve MqttBrokers",
+        "operationId": "jc_mqtt_captured",
+        "parameters": [
+          {
+            "description": "Project slug",
+            "in": "path",
+            "name": "project",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "example": {
+                "name": "example"
+              },
+              "schema": {
+                "additionalProperties": false,
+                "properties": {
+                  "limit": {
+                    "description": "Default 100",
+                    "maximum": 1000,
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "name": {
+                    "description": "The MqttBroker's name",
+                    "maxLength": 253,
+                    "type": "string"
+                  },
+                  "topic": {
+                    "description": "One exact topic, no + or #",
+                    "maxLength": 65535,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "name"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "properties": {
+                    "broker": {
+                      "type": "string"
+                    },
+                    "messages": {
+                      "items": {
+                        "properties": {
+                          "bytes": {
+                            "type": "integer"
+                          },
+                          "clientId": {
+                            "type": "string"
+                          },
+                          "encoding": {
+                            "enum": [
+                              "utf-8",
+                              "base64"
+                            ],
+                            "type": "string"
+                          },
+                          "payload": {
+                            "type": "string"
+                          },
+                          "receivedAt": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "topic": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "topic",
+                          "receivedAt",
+                          "bytes",
+                          "payload",
+                          "encoding"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "messagesPerTopic": {
+                      "type": "integer"
+                    },
+                    "mode": {
+                      "enum": [
+                        "ingest",
+                        "capture",
+                        "relay"
+                      ],
+                      "type": "string"
+                    },
+                    "truncated": {
+                      "type": "boolean"
+                    },
+                    "window": {
+                      "type": "string"
+                    },
+                    "withheld": {
+                      "description": "Each personal field left out, as DataSource/{name}.{field}; a payload that is no JSON object is left out whole",
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    }
+                  },
+                  "required": [
+                    "broker",
+                    "mode",
+                    "messages",
+                    "truncated"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The operation's answer"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The change the operation opened, waiting for a person's approval"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "Forbidden: the caller lacks what x-jc-requires names"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The project or an object the input names is not there"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            },
+            "description": "The input does not match the schema; the problem names the path"
+          }
+        },
+        "summary": "Read An MQTT Broker's Capture",
+        "tags": [
+          "ops"
+        ],
+        "x-jc-requires": {
+          "checkedBy": "project",
+          "kind": "MqttBroker",
+          "verb": "read"
         }
       }
     },
