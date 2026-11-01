@@ -39,9 +39,10 @@ import { ViewBar } from "../../components/entities/ViewBar";
 import { columnLabel, displayOrder } from "../../components/entities/displayOrder";
 import { readLayout, writeLayout } from "../../components/entities/viewLayout";
 import { dataViewsKey, listViews } from "../../api/dataViews";
-import { GroupCounts, groupTerm, ViewOptions } from "../../components/entities/ViewOptions";
-import { conditionCount, EMPTY_GROUP, FilterChips, FilterPanel, readGroup } from "../../components/entities/FilterPanel";
-import { AGGREGATIONS, FooterAggregate, GroupCount, GroupPanel, MAX_GROUP_FIELDS, MAX_SORT_KEYS, ROW_SIZES, SortPanel, ToolbarPopover } from "../../components/entities/GridToolbar";
+import { GroupCounts, groupTerm } from "../../components/entities/ViewOptions";
+import { EMPTY_GROUP, FilterChips, readGroup } from "../../components/entities/FilterPanel";
+import { DataToolbar } from "../../components/entities/DataToolbar";
+import { AGGREGATIONS, FooterAggregate, GroupCount, MAX_GROUP_FIELDS, MAX_SORT_KEYS, ROW_SIZES, ToolbarPopover } from "../../components/entities/GridToolbar";
 import type { SortKey } from "../../components/entities/GridToolbar";
 import type { Aggregation, RowSize } from "../../components/entities/GridToolbar";
 import type { ViewExtras } from "../../components/entities/ViewOptions";
@@ -94,7 +95,7 @@ import {
   tabPanelProps,
   Term,
 } from "../../components/ui";
-import { Card, ConfirmDialog, Field, Input, RadioGroup, Select } from "../../components/ui";
+import { Card, ConfirmDialog, Field, Input, Select } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { SourceRemovalsPanel } from "../pipelines/PipelineSourceReport";
 import { useUrlParam, useUrlText, useUrlUrn } from "../../navigation/urlState";
@@ -1039,56 +1040,30 @@ function SpaceData({
             </span>
           ) : null}
           {view === "grid" ? (
-            <>
-            <ToolbarPopover label={t("spaces.toolbar.filter")} count={conditionCount(filters)} wide>
-              <FilterPanel columns={filterColumns} titleOf={filterTitle} value={filters} onChange={setFilters} />
-            </ToolbarPopover>
-            <ToolbarPopover label={t("spaces.toolbar.hide")} count={extras.hidden?.length}>
-              <ViewOptions part="fields" attributes={attributes} enums={enums} value={extras} onChange={setExtras} />
-            </ToolbarPopover>
-            <ToolbarPopover label={t("spaces.toolbar.sort")} count={sortKeys.length}>
-              <SortPanel fields={panelFields} value={sortKeys} onChange={onSortKeys} />
-            </ToolbarPopover>
-            <ToolbarPopover label={t("spaces.toolbar.group")} count={groupBy.length}>
-              <GroupPanel
-                fields={panelFields}
-                value={groupBy}
-                onChange={(next) => {
-                  setGroupBy(next.slice(0, MAX_GROUP_FIELDS));
-                  setGroup(null);
-                }}
-              />
-            </ToolbarPopover>
-            <ToolbarPopover label={t("spaces.toolbar.colour")} count={extras.colour?.length} wide>
-              <ViewOptions part="colours" attributes={attributes} enums={enums} value={extras} onChange={setExtras} />
-            </ToolbarPopover>
-            <ToolbarPopover label={t("spaces.toolbar.rowSize")}>
-              <RadioGroup
-                name="grid-row-size"
-                legend={t("spaces.toolbar.rowSize")}
-                value={rowSize}
-                options={ROW_SIZES.map((size) => ({ value: size, label: t(`spaces.toolbar.rowSizes.${size}`) }))}
-                onChange={setRowSize}
-              />
-            </ToolbarPopover>
-            <Input
-              type="search"
-              aria-label={t("spaces.toolbar.search")}
-              placeholder={t("spaces.toolbar.searchPlaceholder")}
-              className="h-control w-full sm:w-36"
-              value={searchText}
-              onChange={(e) => setSearchText(e.target.value)}
+            <DataToolbar
+              filterColumns={filterColumns}
+              filterTitle={filterTitle}
+              filters={filters}
+              onFilters={setFilters}
+              attributes={attributes}
+              enums={enums}
+              extras={extras}
+              onExtras={setExtras}
+              fields={panelFields}
+              sortKeys={sortKeys}
+              onSortKeys={onSortKeys}
+              groupBy={groupBy}
+              onGroupBy={(next) => {
+                setGroupBy(next);
+                setGroup(null);
+              }}
+              rowSize={rowSize}
+              onRowSize={setRowSize}
+              searchText={searchText}
+              onSearchText={setSearchText}
+              showQuery={showQuery}
+              onShowQuery={setShowQuery}
             />
-            {/* The query the filters ask, folded until asked for (T-5093): the rows and their count stay together. */}
-            <Button
-              variant={showQuery ? "secondary" : "ghost"}
-              size="sm"
-              aria-pressed={showQuery}
-              onClick={() => setShowQuery((shown) => !shown)}
-            >
-              {t("spaces.toolbar.query")}
-            </Button>
-            </>
           ) : null}
           <div className="ml-auto flex items-center gap-1">
             {!copy && correctable && endpoints.length > 0 ? (
