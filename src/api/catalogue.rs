@@ -1133,12 +1133,17 @@ pub(crate) async fn datasets_matching(
                     .filter(|dataset| dataset["private"] != Value::Bool(true))
                     .map(|dataset| {
                         let summary = summary(dataset);
-                        serde_json::json!({
+                        let mut hit = serde_json::json!({
                             "title": summary.title,
                             "url": format!("{base}/dataset/{}", summary.name),
                             "publisher": summary.publisher.map(|p| p.title),
                             "formats": summary.formats,
-                        })
+                        });
+                        // The slug jc_data_query reads, only for a public Endpoint here (T-6272).
+                        if let Some(slug) = public_slug(state, dataset) {
+                            hit["endpoint"] = Value::String(slug);
+                        }
+                        hit
                     }),
             ),
             Err(reason) => {
@@ -1210,6 +1215,13 @@ pub fn endpoint_slug(extra: &str, public_base: &Url) -> Option<String> {
 fn our_endpoint_slug(state: &AppState, extra: &str) -> Option<String> {
     endpoint_slug(extra, &state.config.api_base_url())
         .or_else(|| endpoint_slug(extra, &state.config.public_base_url))
+}
+
+/// The slug of the dataset's Endpoint when it is a public Endpoint of this installation.
+fn public_slug(state: &AppState, dataset: &Value) -> Option<String> {
+    extra(dataset, "endpoint")
+        .and_then(|e| our_endpoint_slug(state, &e))
+        .filter(|slug| public_endpoint(state, slug).is_some())
 }
 
 /// The public Endpoint with `slug`, and the project it belongs to.
@@ -1913,6 +1925,41 @@ mod tests {
                 .map(|(k, v)| json!({ "key": k, "value": v }))
                 .collect(),
         )
+    }
+
+    /// T-6272: a hit names its Endpoint's slug only when it is a public Endpoint here; a
+    /// project-only Endpoint or another host's address names none.
+    #[test]
+    fn a_hit_names_the_slug_of_a_public_endpoint_alone() {
+        let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
+        for (name, slug, audience) in [
+            ("stops", "stopshelsinkizzzzzzzzzzzzzzz", "public"),
+            ("staff", "staffhelsinkizzzzzzzzzzzzzzz", "project"),
+        ] {
+            state.mirror.upsert(crate::resource::ResourceEnvelope {
+                api_version: crate::resource::API_VERSION.to_owned(),
+                kind: "Endpoint".to_owned(),
+                metadata: crate::resource::ObjectMeta::new(name, "helsinki"),
+                spec: json!({ "slug": slug, "audience": audience }),
+                status: None,
+            });
+        }
+        let named = |url: String| {
+            public_slug(
+                &state,
+                &dataset("d", "o", extras(&[("endpoint", &url)]), &[], false),
+            )
+        };
+        let ours = |slug: &str| endpoint_url(&state.config.api_base_url(), slug);
+        assert_eq!(
+            named(ours("stopshelsinkizzzzzzzzzzzzzzz")).as_deref(),
+            Some("stopshelsinkizzzzzzzzzzzzzzz")
+        );
+        assert_eq!(named(ours("staffhelsinkizzzzzzzzzzzzzzz")), None);
+        assert_eq!(
+            named("https://other.example/api/endpoint/stopshelsinkizzzzzzzzzzzzzzz/".into()),
+            None
+        );
     }
 
     fn fixture() -> Vec<Value> {

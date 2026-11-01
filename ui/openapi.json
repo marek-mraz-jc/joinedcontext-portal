@@ -15794,7 +15794,7 @@
                 "schema": {
                   "properties": {
                     "datasets": {
-                      "description": "Open-data catalogue datasets: title, url of the dataset page, publisher, formats",
+                      "description": "Open datasets: title, url, publisher, formats, endpoint (a jc_data_query slug)",
                       "items": {
                         "type": "object"
                       },
@@ -17303,7 +17303,7 @@
                     "type": "string"
                   },
                   "endpoint": {
-                    "description": "Endpoint name, e.g. doprava-counters",
+                    "description": "Endpoint name or a public slug, e.g. doprava-counters",
                     "maxLength": 253,
                     "type": "string"
                   },

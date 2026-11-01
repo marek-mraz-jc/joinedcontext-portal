@@ -23363,7 +23363,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        /** @description Open-data catalogue datasets: title, url of the dataset page, publisher, formats */
+                        /** @description Open datasets: title, url, publisher, formats, endpoint (a jc_data_query slug) */
                         datasets?: Record<string, never>[];
                         items?: Record<string, never>[];
                         q?: string;
@@ -24217,7 +24217,7 @@ export interface operations {
                     count?: boolean;
                     /** @description The nextCursor of the previous page */
                     cursor?: string;
-                    /** @description Endpoint name, e.g. doprava-counters */
+                    /** @description Endpoint name or a public slug, e.g. doprava-counters */
                     endpoint: string;
                     /**
                      * @description keyValues answers plain values
