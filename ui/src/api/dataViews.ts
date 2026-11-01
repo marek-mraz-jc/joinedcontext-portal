@@ -8,7 +8,11 @@ import type { components } from "./schema";
 export type DataView = components["schemas"]["DataView"];
 export type ViewConfig = components["schemas"]["ViewConfig"];
 export type ViewMode = "personal" | "collaborative" | "locked";
-export type ViewKind = "grid" | "gallery" | "kanban" | "calendar" | "timeline" | "map" | "form";
+/**
+ * The one kind the Portal saves (T-6210). A row stored with a kind of before (gallery, kanban,
+ * calendar, timeline, map, form) stays on the server and opens as the grid.
+ */
+export type ViewKind = "grid";
 
 export const VIEW_MODES: ViewMode[] = ["personal", "collaborative", "locked"];
 

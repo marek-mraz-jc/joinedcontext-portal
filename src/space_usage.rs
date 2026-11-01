@@ -6,12 +6,14 @@
 //! (`GET /ngsi-ld/v1/entities?local=true&count=true&limit=0`) is not usable here: the
 //! `joinedcontext` policy engine denies a caller without subject headers on every query clause,
 //! so on dev it answered 403 for every space (T-3983). A count is a scan on the broker's side,
-//! so each answer is kept for a few minutes: these are dashboard numbers, not per-request work.
+//! so each answer is kept: these are dashboard numbers, not per-request work. A small space is
+//! measured again on a read after `FRESH`; a large one once an hour (`KEPT`), by the health
+//! probes' sweep over every space (T-6208), or when a reader asks for a recalculation.
 //! The storage size in bytes comes in the same answer, measured by the broker (`bytes`, T-2890).
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::path::PathBuf;
-use std::sync::RwLock;
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
@@ -23,11 +25,20 @@ use serde_json::Value;
 const NO_TENANT: &str = "https://uri.etsi.org/ngsi-ld/errors/ResourceNotFound";
 use utoipa::ToSchema;
 
-/// How long one broker answer is shown before it is asked again.
+/// How long one broker answer for a small space is shown before a read asks again.
 const FRESH: chrono::Duration = chrono::Duration::minutes(5);
+/// How long the answer for a large space is kept: it is measured once an hour (T-6208).
+const KEPT: chrono::Duration = chrono::Duration::hours(1);
+/// A space whose current state and history hold fewer rows than this is small: measuring it
+/// costs the broker little, so a read past [`FRESH`] measures it again.
+const SMALL_ROWS: u64 = 10_000;
+/// A recalculation takes an answer this young as its own: concurrent and repeated clicks share
+/// one broker read (T-6208).
+const RECALCULATED: chrono::Duration = chrono::Duration::seconds(30);
 /// How long a kept answer still stands in for a broker that did not answer: a count a few
-/// minutes old, with its `observedAt`, says more than a 503 (T-4825).
-const STALE: chrono::Duration = chrono::Duration::hours(1);
+/// minutes old, with its `observedAt`, says more than a 503 (T-4825). It outlasts [`KEPT`], so a
+/// failed hourly measurement keeps the last one on the page.
+const STALE: chrono::Duration = chrono::Duration::hours(3);
 /// How long the Portal waits for the broker. Its first answer after a five-minute gap counts the
 /// tenant's history and measures its size under two 5 s statement bounds (Antares
 /// `SIZE_SCAN_TIMEOUT`), so 5 s here cut every Helsinki count off on dev (T-4825).
@@ -44,6 +55,10 @@ pub struct SpaceUsage {
     /// When the broker answered.
     #[schema(value_type = String, format = DateTime)]
     pub observed_at: DateTime<Utc>,
+    /// When the broker measured the size: its own `measuredAt` (it keeps a size five minutes),
+    /// else when it answered (T-6208).
+    #[schema(value_type = String, format = DateTime)]
+    pub measured_at: DateTime<Utc>,
     /// The storage the space takes, measured by the broker; absent when the broker cannot
     /// measure it or holds no tenant for the space yet.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -69,13 +84,17 @@ pub struct SpaceBytes {
     pub by_type: BTreeMap<String, u64>,
 }
 
-/// Asks the broker for a space's counts and keeps each answer for five minutes.
+/// Asks the broker for a space's counts and keeps each answer: five minutes for a small space,
+/// an hour for a large one.
 pub struct Counter {
     broker: Option<String>,
     template: Option<String>,
     token_file: Option<PathBuf>,
     http: reqwest::Client,
     cache: RwLock<HashMap<String, SpaceUsage>>,
+    /// One lock per broker tenant: a second ask waits for the measurement in flight and takes its
+    /// answer, so the broker counts a space once however many readers ask.
+    measuring: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
     surfaces: RwLock<Option<(DateTime<Utc>, BTreeSet<String>)>>,
 }
 
@@ -92,6 +111,7 @@ impl Counter {
                 .build()
                 .unwrap_or_default(),
             cache: RwLock::default(),
+            measuring: Mutex::default(),
             surfaces: RwLock::default(),
         }
     }
@@ -106,18 +126,75 @@ impl Counter {
     /// broker named `broker` (PF-111, empty when its `brokerRef` resolves to none). `tenant`
     /// must already be a DNS-1123 name: it becomes a path segment.
     pub async fn usage(&self, broker_name: &str, tenant: &str) -> Result<SpaceUsage, String> {
+        self.measured(broker_name, tenant, |kept| current(kept, Utc::now()), true)
+            .await
+    }
+
+    /// One broker read now, for a decision that must not stand on a kept number (a broker move,
+    /// PF-115): no kept answer is taken, neither before the read nor when the broker is away.
+    pub async fn measure_now(&self, broker_name: &str, tenant: &str) -> Result<SpaceUsage, String> {
+        self.measured(broker_name, tenant, |_| false, false).await
+    }
+
+    /// Measures the space again for a reader who asked (T-6208). An answer younger than
+    /// `RECALCULATED` stands: concurrent clicks share one broker read, and repeated ones within
+    /// half a minute ask nothing.
+    pub async fn recalculate(&self, broker_name: &str, tenant: &str) -> Result<SpaceUsage, String> {
+        self.measured(
+            broker_name,
+            tenant,
+            |kept| Utc::now() - kept.observed_at < RECALCULATED,
+            true,
+        )
+        .await
+    }
+
+    /// The kept answer while `good` holds for it, else one broker read under the tenant's lock;
+    /// with `fallback` a failed read answers the last kept row younger than [`STALE`].
+    async fn measured(
+        &self,
+        broker_name: &str,
+        tenant: &str,
+        good: impl Fn(&SpaceUsage) -> bool,
+        fallback: bool,
+    ) -> Result<SpaceUsage, String> {
         let broker = self.reach(broker_name)?;
         let key = format!("{broker}/{tenant}");
-        let now = Utc::now();
-        if let Some(kept) = self
-            .cache
-            .read()
-            .unwrap_or_else(|e| e.into_inner())
-            .get(&key)
-            .filter(|kept| now - kept.observed_at < FRESH)
-        {
-            return Ok(kept.clone());
+        let held = |key: &str| {
+            self.cache
+                .read()
+                .unwrap_or_else(|e| e.into_inner())
+                .get(key)
+                .filter(|kept| good(kept))
+                .cloned()
+        };
+        if let Some(kept) = held(&key) {
+            return Ok(kept);
         }
+        let lock = Arc::clone(
+            self.measuring
+                .lock()
+                .unwrap_or_else(|e| e.into_inner())
+                .entry(key.clone())
+                .or_default(),
+        );
+        let _measuring = lock.lock().await;
+        // the reader before this one may have measured it while this one waited
+        if let Some(kept) = held(&key) {
+            return Ok(kept);
+        }
+        self.ask(broker_name, &broker, tenant, key, fallback).await
+    }
+
+    /// One broker read of the tenant's counts, kept under `key`.
+    async fn ask(
+        &self,
+        broker_name: &str,
+        broker: &str,
+        tenant: &str,
+        key: String,
+        fallback: bool,
+    ) -> Result<SpaceUsage, String> {
         let token = self.token()?;
         let response = match self
             .http
@@ -130,11 +207,17 @@ impl Counter {
             Err(err) => {
                 let reason = unanswered(&err);
                 tracing::warn!(tenant, error = ?err.without_url(), "the broker did not answer a space's counts");
-                return self.kept(&key, now).ok_or(reason);
+                return self
+                    .kept(&key, Utc::now())
+                    .filter(|_| fallback)
+                    .ok_or(reason);
             }
         };
         let status = response.status();
         let body: Value = response.json().await.unwrap_or(Value::Null);
+        // the answer's time, not the ask's: a reader who asked while this read was in flight
+        // takes it as a fresh one
+        let now = Utc::now();
         let (entities, bytes, attr_instances) = match status {
             status if status.is_success() => (
                 count_of(&body)?,
@@ -157,13 +240,19 @@ impl Counter {
                 tracing::warn!(tenant, %status, "the broker refused a space's counts");
                 return self
                     .kept(&key, now)
+                    .filter(|_| fallback)
                     .ok_or_else(|| format!("the broker answered {status} for the space's counts"));
             }
         };
+        let measured_at = body["measuredAt"]
+            .as_str()
+            .and_then(|at| DateTime::parse_from_rfc3339(at).ok())
+            .map_or(now, |at| at.with_timezone(&Utc).min(now));
         let usage = SpaceUsage {
             entities,
             broker: broker_name.to_owned(),
             observed_at: now,
+            measured_at,
             bytes,
             attr_instances,
             estimated: body["estimated"].as_bool().unwrap_or(false),
@@ -329,6 +418,16 @@ impl Counter {
         }
         Ok(response.json().await.unwrap_or(Value::Null))
     }
+}
+
+/// Whether a kept answer still stands for a read at `now`: five minutes for a small space, an
+/// hour for a large one, whose next measurement the hourly sweep makes (T-6208).
+fn current(kept: &SpaceUsage, now: DateTime<Utc>) -> bool {
+    let rows = kept
+        .entities
+        .saturating_add(kept.attr_instances.unwrap_or(u64::MAX));
+    let age = now - kept.observed_at;
+    age < FRESH || (rows >= SMALL_ROWS && age < KEPT)
 }
 
 /// Why a broker sent no answer, in words that say where to look: a timeout is a slow count, a
@@ -583,6 +682,7 @@ mod tests {
             entities: 42,
             broker: "main".into(),
             observed_at: Utc::now() - chrono::Duration::minutes(minutes),
+            measured_at: Utc::now() - chrono::Duration::minutes(minutes),
             bytes: None,
             attr_instances: None,
             estimated: false,
@@ -593,11 +693,146 @@ mod tests {
             .expect("cache")
             .insert(key.clone(), old(10));
         let kept = counter.usage("main", "air").await;
-        counter.cache.write().expect("cache").insert(key, old(61));
+        counter.cache.write().expect("cache").insert(key, old(181));
         let gone = counter.usage("main", "air").await;
         let _ = std::fs::remove_file(&file);
         assert_eq!(kept.map(|u| u.entities), Ok(42));
         assert!(gone.unwrap_err().contains("503"));
+    }
+
+    /// T-6208: a decision read takes no kept row, a fresh one included, and fails while the
+    /// broker is away instead of answering the last count.
+    #[tokio::test]
+    async fn a_measurement_now_never_answers_a_kept_count() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let broker = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/q/tenants/air"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"counts": {"entities": 0}})),
+            )
+            .up_to_n_times(1)
+            .mount(&broker)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/q/tenants/air"))
+            .respond_with(ResponseTemplate::new(503))
+            .mount(&broker)
+            .await;
+        let file = token_file("now");
+        let counter = Counter::new(Some(broker.uri()), Some(file.clone()));
+        let first = counter.measure_now("main", "air").await;
+        let kept = counter.usage("main", "air").await;
+        let now = counter.measure_now("main", "air").await;
+        let _ = std::fs::remove_file(&file);
+        assert_eq!(first.map(|u| u.entities), Ok(0));
+        assert_eq!(kept.map(|u| u.entities), Ok(0));
+        assert!(now.unwrap_err().contains("503"));
+        assert_eq!(broker.received_requests().await.map(|r| r.len()), Some(2));
+    }
+
+    /// T-6208: a small space is measured again after five minutes, a large one is kept for the
+    /// hour until the sweep measures it.
+    #[test]
+    fn a_small_space_is_kept_five_minutes_and_a_large_one_an_hour() {
+        let now = Utc::now();
+        let row = |entities, history: Option<u64>, minutes| SpaceUsage {
+            entities,
+            broker: "main".into(),
+            observed_at: now - chrono::Duration::minutes(minutes),
+            measured_at: now,
+            bytes: None,
+            attr_instances: history,
+            estimated: false,
+        };
+        assert!(current(&row(10, Some(0), 4), now));
+        assert!(!current(&row(10, Some(0), 6), now));
+        assert!(current(&row(9_000, Some(5_000), 59), now));
+        assert!(!current(&row(9_000, Some(5_000), 61), now));
+        // a history nobody counted is no proof of a small space
+        assert!(current(&row(10, None, 30), now));
+    }
+
+    /// T-6208: concurrent recalculations share one broker read, a click within half a minute
+    /// asks nothing, and the size's time is the broker's `measuredAt`.
+    #[tokio::test]
+    async fn concurrent_recalculations_share_one_broker_read() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let broker = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/q/tenants/air"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({
+                        "counts": {"entities": 5, "attrInstances": 0},
+                        "measuredAt": "2026-10-31T17:00:00.000Z",
+                    }))
+                    .set_delay(Duration::from_millis(200)),
+            )
+            .expect(1)
+            .mount(&broker)
+            .await;
+        let file = token_file("recalc");
+        let counter = Counter::new(Some(broker.uri()), Some(file.clone()));
+        let (a, b, c) = tokio::join!(
+            counter.recalculate("main", "air"),
+            counter.recalculate("main", "air"),
+            counter.recalculate("main", "air"),
+        );
+        let again = counter.recalculate("main", "air").await;
+        let _ = std::fs::remove_file(&file);
+        let a = a.expect("a");
+        assert_eq!(Ok(&a), b.as_ref());
+        assert_eq!(Ok(&a), c.as_ref());
+        assert_eq!(Ok(&a), again.as_ref());
+        assert_eq!(a.measured_at.to_rfc3339(), "2026-10-31T17:00:00+00:00");
+    }
+
+    /// T-6208: a recalculation measures a kept answer older than half a minute again, which a
+    /// read of a large space would still take.
+    #[tokio::test]
+    async fn a_recalculation_measures_again_what_a_read_keeps() {
+        use wiremock::matchers::path;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let broker = MockServer::start().await;
+        Mock::given(path("/q/tenants/air"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(json!({"counts": {"entities": 50_000, "attrInstances": 7}})),
+            )
+            .expect(1)
+            .mount(&broker)
+            .await;
+        let file = token_file("remeasure");
+        let counter = Counter::new(Some(broker.uri()), Some(file.clone()));
+        let key = format!("{}/air", broker.uri());
+        let at = Utc::now() - chrono::Duration::minutes(20);
+        counter.cache.write().expect("cache").insert(
+            key,
+            SpaceUsage {
+                entities: 40_000,
+                broker: "main".into(),
+                observed_at: at,
+                measured_at: at,
+                bytes: None,
+                attr_instances: Some(7),
+                estimated: false,
+            },
+        );
+        let read = counter.usage("main", "air").await.expect("read");
+        let recalculated = counter
+            .recalculate("main", "air")
+            .await
+            .expect("recalculated");
+        let _ = std::fs::remove_file(&file);
+        assert_eq!(
+            read.entities, 40_000,
+            "a read keeps a large space for the hour"
+        );
+        assert_eq!(recalculated.entities, 50_000);
+        assert!(recalculated.measured_at > at);
     }
 
     #[tokio::test]

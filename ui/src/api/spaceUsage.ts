@@ -90,3 +90,15 @@ export function bytesOfType(byType: Record<string, number> | undefined, type: st
   const matches = Object.entries(byType).filter(([key]) => key.split(/[/#]/).pop() === type);
   return matches.length === 1 ? matches[0][1] : undefined;
 }
+
+/**
+ * Asks the broker to measure the space again (T-6208). Concurrent asks share one broker read and
+ * an answer under 30 s old stands, so a second click costs the broker nothing.
+ */
+export async function recalculateSpaceUsage(project: string, space: string): Promise<SpaceUsage> {
+  return unwrap(
+    await api.POST("/api/v1/projects/{project}/spaces/{space}/usage/recalculate", {
+      params: { path: { project, space } },
+    }),
+  );
+}

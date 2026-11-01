@@ -5963,11 +5963,31 @@ export interface paths {
         };
         /**
          * Read Space Usage
-         * @description The entity count and the storage in bytes of one space, read from the broker that holds it and kept for five minutes. `0` entities and no `bytes` for a space the broker has no tenant for yet. The same count for everyone who reads the space.
+         * @description The entity count and the storage in bytes of one space, read from the broker that holds it and kept: five minutes for a space under 10 000 rows, an hour for a larger one, which the Portal measures once an hour. `measuredAt` says when the size was measured. `0` entities and no `bytes` for a space the broker has no tenant for yet. The same count for everyone who reads the space.
          */
         get: operations["get_usage"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/spaces/{space}/usage/recalculate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Recalculate Space Usage
+         * @description Measures one space's entity count and size again on its broker, for anyone who may read the space. Concurrent asks share one broker read, and an answer under 30 s old stands. The broker keeps a size it measured for five minutes, so `measuredAt` can be older than the ask.
+         */
+        post: operations["recalculate_usage"];
         delete?: never;
         options?: never;
         head?: never;
@@ -11184,6 +11204,12 @@ export interface components {
              *     because the history was too long to count within its bound (T-6085).
              */
             estimated: boolean;
+            /**
+             * Format: date-time
+             * @description When the broker measured the size: its own `measuredAt` (it keeps a size five minutes),
+             *     else when it answered (T-6208).
+             */
+            measuredAt: string;
             /**
              * Format: date-time
              * @description When the broker answered.
@@ -34235,6 +34261,67 @@ export interface operations {
             };
             /** @description Not signed in */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such space the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No broker or admin token is configured, or the broker did not answer or refused */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    recalculate_usage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description Context Space name */
+                space: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The space's usage, measured now */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpaceUsage"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No CSRF token */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

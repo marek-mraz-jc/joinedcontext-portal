@@ -345,3 +345,98 @@ async fn without_the_admin_token_or_with_a_refused_one_the_reason_is_answered() 
     assert!(body.to_string().contains("401"), "{body}");
     assert!(!body.to_string().contains(TOKEN), "{body}");
 }
+
+/// `POST .../usage/recalculate` with the session cookie and the CSRF pair the UI sends; no
+/// cookie at all for `email` "".
+async fn recalculate(state: &AppState, email: &str, uri: &str) -> (StatusCode, Value) {
+    use joinedcontext_portal::auth::csrf::{CSRF_COOKIE, CSRF_HEADER};
+    const CSRF: &str = "test-csrf-token-space-usage-recalculate";
+    let mut request = Request::builder()
+        .method("POST")
+        .uri(format!("{uri}/recalculate"))
+        .header(CSRF_HEADER, CSRF);
+    request = if email.is_empty() {
+        request.header(header::COOKIE, format!("{CSRF_COOKIE}={CSRF}"))
+    } else {
+        request.header(
+            header::COOKIE,
+            format!("{}; {CSRF_COOKIE}={CSRF}", cookie(&state.config, email)),
+        )
+    };
+    let response = server::app(state.clone())
+        .oneshot(request.body(Body::empty()).expect("a request"))
+        .await
+        .expect("a response");
+    let status = response.status();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("a body")
+        .to_bytes();
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
+/// T-6208: a reader recalculates a space they may read; nobody else learns it is there, and a
+/// caller without a session is asked to sign in.
+#[tokio::test]
+async fn a_reader_recalculates_and_nobody_else_may() {
+    let broker = MockServer::start().await;
+    count_query()
+        .respond_with(counts(json!(7)))
+        .expect(1)
+        .mount(&broker)
+        .await;
+    let state = world(Some(broker.uri()));
+
+    let (status, body) = recalculate(&state, READER, AIR).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["entities"], json!(7));
+    assert!(body["measuredAt"].is_string(), "{body}");
+    let (stranger, _) = recalculate(&state, STRANGER, AIR).await;
+    assert_eq!(stranger, StatusCode::NOT_FOUND);
+    let (unread, _) = recalculate(
+        &state,
+        READER,
+        "/api/v1/projects/helsinki/spaces/mobility/usage",
+    )
+    .await;
+    assert_eq!(
+        unread,
+        StatusCode::NOT_FOUND,
+        "the reader is bound to air alone"
+    );
+    let (missing, _) = recalculate(
+        &state,
+        READER,
+        "/api/v1/projects/helsinki/spaces/nope/usage",
+    )
+    .await;
+    assert_eq!(missing, StatusCode::NOT_FOUND);
+    let (anonymous, _) = recalculate(&state, "", AIR).await;
+    assert_eq!(anonymous, StatusCode::UNAUTHORIZED);
+}
+
+/// T-6208: concurrent recalculations of one space make one broker read.
+#[tokio::test]
+async fn concurrent_recalculations_ask_the_broker_once() {
+    let broker = MockServer::start().await;
+    count_query()
+        .respond_with(counts(json!(3)).set_delay(std::time::Duration::from_millis(200)))
+        .expect(1)
+        .mount(&broker)
+        .await;
+    let state = world(Some(broker.uri()));
+    let (a, b, c) = tokio::join!(
+        recalculate(&state, READER, AIR),
+        recalculate(&state, READER, AIR),
+        recalculate(&state, READER, AIR),
+    );
+    for (status, body) in [a, b, c] {
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(body["entities"], json!(3));
+    }
+}

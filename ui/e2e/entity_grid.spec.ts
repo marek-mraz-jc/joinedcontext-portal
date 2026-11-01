@@ -440,8 +440,9 @@ for (const width of [1440, 400]) {
       await expect(cell).toHaveValue("0");
 
       // Click the cell, type over it, Enter keeps the value and goes one row down. At 400 px the
-      // pinned name leaves ~90 px of this column in sight and its middle sits under the name, so
-      // the click goes where a person taps: the field's start, beside the pinned column.
+      // pinned id covers the left edge, so the cell is scrolled to the middle first, as a person
+      // swipes the table before tapping.
+      await cell.evaluate((element) => element.scrollIntoView({ block: "center", inline: "center" }));
       await cell.click({ position: { x: 8, y: 8 } });
       await page.keyboard.press("ControlOrMeta+a");
       await page.keyboard.type("4");
