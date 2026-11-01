@@ -145,13 +145,21 @@ tokio::task_local! {
 const TRAILER: &str = "Proposed-Via: ";
 
 impl ProposedVia {
-    /// A `tools/call` of `client` (the token's `azp`); a client id outside the allowed
-    /// characters is named `unknown` rather than written into Git.
+    /// A `tools/call` of `client` (the token's `azp`). A known CIMD client (its id is the URL of
+    /// its metadata document) is named by its short name, another CIMD client by its host
+    /// (T-6390); a client id outside the allowed characters is named `unknown` rather than
+    /// written into Git.
     pub fn mcp(client: Option<&str>) -> Self {
         let client = client
-            .filter(|c| valid_client(c))
-            .unwrap_or("unknown")
-            .to_owned();
+            .and_then(|c| {
+                CIMD_CLIENTS
+                    .iter()
+                    .find(|(url, _)| *url == c)
+                    .map(|(_, name)| (*name).to_owned())
+                    .or_else(|| cimd_host(c))
+                    .or_else(|| valid_client(c).then(|| c.to_owned()))
+            })
+            .unwrap_or_else(|| "unknown".to_owned());
         Self {
             channel: "mcp".to_owned(),
             client,
@@ -255,6 +263,25 @@ impl ProposedVia {
         }
         Some(via)
     }
+}
+
+/// The CIMD clients a person connects most (their client id is their metadata document's URL),
+/// by the short name the approval page shows as "Claude Code" or "claude.ai".
+const CIMD_CLIENTS: [(&str, &str); 2] = [
+    (
+        "https://claude.ai/oauth/claude-code-client-metadata",
+        "claude-code",
+    ),
+    (
+        "https://claude.ai/oauth/mcp-oauth-client-metadata",
+        "claude-ai",
+    ),
+];
+
+/// The host of a CIMD client id (`https://host/path`), when it is a valid client name.
+fn cimd_host(client: &str) -> Option<String> {
+    let host = client.strip_prefix("https://")?.split('/').next()?;
+    (!host.is_empty() && !host.contains(':') && valid_client(host)).then(|| host.to_owned())
 }
 
 fn valid_client(client: &str) -> bool {
@@ -832,6 +859,25 @@ mod tests {
         assert_eq!(ProposedVia::mcp(Some("evil\n<b>x</b>")).client, "unknown");
         assert_eq!(ProposedVia::mcp(Some(&"a".repeat(65))).client, "unknown");
         assert_eq!(ProposedVia::mcp(None).client, "unknown");
+        // T-6390: a CIMD client id is a URL; the known ones go by name, another by its host.
+        for (azp, client) in [
+            (
+                "https://claude.ai/oauth/claude-code-client-metadata",
+                "claude-code",
+            ),
+            (
+                "https://claude.ai/oauth/mcp-oauth-client-metadata",
+                "claude-ai",
+            ),
+            (
+                "https://chatgpt.com/connector/oauth/metadata.json",
+                "chatgpt.com",
+            ),
+            ("https://user:pw@evil.example/x", "unknown"),
+            ("http://plain.example/x", "unknown"),
+        ] {
+            assert_eq!(ProposedVia::mcp(Some(azp)).client, client, "{azp}");
+        }
         assert_eq!(
             ProposedVia::in_body("Proposed-Via: mcp; client=<img src=x>"),
             None

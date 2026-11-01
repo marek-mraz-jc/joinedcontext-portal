@@ -107,6 +107,10 @@ impl From<String> for TokenRefusal {
 /// What a refused Endpoint exchange tells the caller (T-6063). Keycloak answers
 /// `invalid_request` both for a subject token whose session ended ("Invalid token") and for a
 /// realm not set up for the exchange, so the description decides between them.
+/// How often the deployment links a new Endpoint's scope (its admin-permissions CronJob,
+/// `*/5 * * * *`, T-6388): the wait a refused exchange names.
+const LINK_MINUTES: u32 = 5;
+
 fn exchange_refused(refusal: &TokenRefusal, slug: &str) -> ApiError {
     let ended = refusal.code == "invalid_grant"
         || refusal.code == "invalid_token"
@@ -121,8 +125,11 @@ fn exchange_refused(refusal: &TokenRefusal, slug: &str) -> ApiError {
     if refusal.code == "invalid_scope" {
         return ApiError::Unavailable(format!(
             "Endpoint {slug} is not open to data reads yet: the realm links its \
-             `endpoint:{slug}` scope on the next run of the admin-permissions Job; try again \
-             in a few minutes, and ask an administrator to run the Job if it persists"
+             `endpoint:{slug}` scope within {LINK_MINUTES} minutes of the Endpoint going Live, \
+             when the keycloak-admin-permissions-sync CronJob runs; try again then, and ask an \
+             administrator to check that CronJob if it still answers this after \
+             {} minutes",
+            2 * LINK_MINUTES
         ));
     }
     ApiError::Unavailable(format!(
@@ -1475,7 +1482,10 @@ mod tests {
             "counters-abc",
         );
         assert!(
-            matches!(&err, ApiError::Unavailable(m) if m.contains("`endpoint:counters-abc`") && m.contains("admin-permissions")),
+            matches!(&err, ApiError::Unavailable(m) if m.contains("`endpoint:counters-abc`")
+                && m.contains("within 5 minutes of the Endpoint going Live")
+                && m.contains("keycloak-admin-permissions-sync CronJob")
+                && !m.contains("a few minutes")),
             "{err:?}"
         );
         for setup in [

@@ -2005,6 +2005,40 @@ mod tests {
         }
     }
 
+    /// T-6391: a Policy whose assigner an AI client filled with an e-mail is refused naming
+    /// spec.assigner, so the address never reaches a proposal branch.
+    #[tokio::test]
+    async fn a_planned_policy_with_an_e_mail_assigner_is_refused() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let input = PlanInput {
+            changes: vec![ChangeInput {
+                op: Op::Create,
+                kind: "Policy".into(),
+                name: "t6377-read".into(),
+                manifest: Some(json!({
+                    "apiVersion": crate::resource::API_VERSION,
+                    "kind": "Policy",
+                    "metadata": { "name": "t6377-read", "namespace": "doprava" },
+                    "spec": {
+                        "contextSpaceRef": "air", "assigner": "owner@example.com",
+                        "assignee": { "kind": "role", "id": "public" },
+                        "operations": ["retrieveOps"],
+                        "information": [{ "entities": [{ "type": "AirQualityObserved" }] }]
+                    }
+                })),
+                patch: None,
+                source: None,
+            }],
+            workspace: None,
+        };
+        let mut approver = caller(None);
+        approver.identity.groups = vec!["portal-approver".into()];
+        let refusal = format!("{:?}", plan(&approver, &state, "doprava", input).await);
+        assert!(refusal.starts_with("Err("), "{refusal}");
+        assert!(refusal.contains("spec.assigner"), "{refusal}");
+        assert!(refusal.contains("did:web:{orgDomain}"), "{refusal}");
+    }
+
     fn kept(store: &PlanStore, owner: &str, connector: Option<&str>, minutes: i64) -> String {
         let id = new_id();
         store.keep(

@@ -11,9 +11,9 @@
 //! joinedcontext` and the Endpoint it stands for; one whose Endpoint is gone or stopped serving
 //! MCP is deleted. A scope of that name this platform did not create is never written and is
 //! reported. On `mcp-hub` itself the links are the deployment's (T-3324): the T-2725 deny keeps
-//! this client off the hub, and the admin-permissions Job links our scopes as optional and
-//! unlinks a stray `endpoint:` scope or a default one, which every token would carry without the
-//! person asking. This wave reads the links and reports a scope that waits for that run.
+//! this client off the hub, and the admin-permissions Job (after each sync) and CronJob (every 5
+//! minutes, T-6388) link our scopes as optional and unlink a stray `endpoint:` scope or a
+//! default one, which every token would carry without the person asking. This wave reads the links and reports a scope that waits for that run.
 
 use crate::config::ClientAuth;
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -35,7 +35,7 @@ pub const CONDITION: &str = "HubLinked";
 
 /// What a scope not yet linked to the hub reports: the deployment links it (T-3324).
 pub const PENDING: &str =
-    "in the one-connector list after the next deployment sync, which links it to the hub";
+    "in the one-connector list within 5 minutes, when the realm's admin-permissions CronJob links it to the hub";
 
 /// The prefix the gateway reads a hub token's Endpoints from (`Claims::endpoint_scopes`).
 pub const SCOPE_PREFIX: &str = "endpoint:";
