@@ -1,3 +1,4 @@
+import { clsx } from "clsx";
 import { useCallback, useState, useSyncExternalStore } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -297,13 +298,15 @@ export function ScopeTree({
     onChange(form.picks.map((one) => (pickKey(one) === pickKey(pick) ? { ...one, access } : one)));
   const row = (project: string, kind: PickKind, name: string | undefined, label: string, disabledReason?: string) => {
     const pick = picked(form, project, kind, name);
+    // A ticked row stays enabled so an edit can drop an item the ceiling no longer allows.
+    const reason = pick ? undefined : disabledReason;
     return (
       <li key={`${kind}/${name ?? ""}`} className="flex flex-wrap items-center gap-2">
         <Checkbox
           label={label}
           checked={Boolean(pick)}
-          disabled={Boolean(disabledReason)}
-          disabledReason={disabledReason}
+          disabled={Boolean(reason)}
+          disabledReason={reason}
           onChange={(event) => toggle(project, kind, name, event.target.checked)}
         />
         {pick ? (
@@ -327,6 +330,15 @@ export function ScopeTree({
       {options.projects.map((project) => {
         const whole = Boolean(picked(form, project.project, "project"));
         const inWhole = whole ? t("aiConnectors.inWholeProject") : undefined;
+        const onlyEndpoints = project.allowedEndpoints ?? undefined;
+        // A hint only: Create checks every item against the ceiling again (T-6307).
+        const refused = !project.allowed
+          ? t("aiConnectors.projectAboveCeiling")
+          : onlyEndpoints
+            ? t("aiConnectors.endpointsOnly")
+            : undefined;
+        const reason = (kind: PickKind, name: string) =>
+          kind === "endpoint" && onlyEndpoints?.includes(name) ? inWhole : (refused ?? inWhole);
         const groups: [PickKind, string[]][] = [
           ["space", project.spaces],
           ["endpoint", project.endpoints],
@@ -335,13 +347,20 @@ export function ScopeTree({
         return (
           <li key={project.project} className="rounded-md border border-border p-2">
             <ul className="flex flex-col gap-1">
-              {row(project.project, "project", undefined, t("aiConnectors.wholeProject", { project: project.project }))}
+              {row(project.project, "project", undefined, t("aiConnectors.wholeProject", { project: project.project }), refused)}
             </ul>
+            {refused ? (
+              <p className="ml-6 text-caption text-fg" aria-hidden>
+                {refused}
+              </p>
+            ) : null}
             {groups.map(([kind, names]) =>
               names.length > 0 ? (
                 <fieldset key={kind} className="ml-6 mt-2">
-                  <legend className="text-caption font-semibold">{t(`aiConnectors.kinds.${kind}`)}</legend>
-                  <ul className="flex flex-col gap-1">{names.map((name) => row(project.project, kind, name, name, inWhole))}</ul>
+                  <legend className={clsx("text-caption font-semibold", !project.allowed && "text-fg-muted")}>
+                    {t(`aiConnectors.kinds.${kind}`)}
+                  </legend>
+                  <ul className="flex flex-col gap-1">{names.map((name) => row(project.project, kind, name, name, reason(kind, name)))}</ul>
                 </fieldset>
               ) : null,
             )}
