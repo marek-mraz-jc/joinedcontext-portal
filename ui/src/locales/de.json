@@ -1130,7 +1130,7 @@
       "open": "CSV hochladen",
       "title": "CSV hochladen",
       "lead": "Wählen Sie eine CSV- oder Excel-Datei (.xlsx) bis 50 MB. Sie wird mit den Smart-Data-Models-Typen abgeglichen; Modell, Space, sein Endpoint und Ihr Recht, die Zeilen zu schreiben, werden als eine Änderung vorgeschlagen, und sobald die Änderung live ist, werden die Zeilen in Ihrem Namen über das Gateway geschrieben.",
-      "choose": "CSV-Datei wählen",
+      "choose": "CSV-Datei oder Excel-Arbeitsmappe (.xlsx) wählen",
       "chooseHint": "CSV, TSV oder Excel (.xlsx) bis 50 MB, die erste Zeile sind die Spaltennamen. Beispiel: garagen.xlsx mit den Spalten name, lat, lon.",
       "reading": "{name} wird gelesen und seine Spalten mit den Smart-Data-Models-Typen abgeglichen…",
       "type": "Was die Zeilen sind",

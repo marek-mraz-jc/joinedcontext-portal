@@ -1130,7 +1130,7 @@
       "open": "Nahrát CSV",
       "title": "Nahrát CSV",
       "lead": "Vyberte CSV nebo Excel (.xlsx) do 50 MB. Porovná se s typy Smart Data Models; model, prostor, jeho Endpoint a vaše právo zapisovat řádky se navrhnou jako jedna změna a když je změna nasazená, řádky se zapíší přes bránu pod vaším jménem.",
-      "choose": "Vybrat soubor CSV",
+      "choose": "Vybrat soubor CSV nebo sešit Excel (.xlsx)",
       "chooseHint": "CSV, TSV nebo Excel (.xlsx) do 50 MB, první řádek jsou názvy sloupců. Příklad: garaze.xlsx se sloupci name, lat, lon.",
       "reading": "Čtu {name} a porovnávám jeho sloupce s typy Smart Data Models…",
       "type": "Co řádky jsou",

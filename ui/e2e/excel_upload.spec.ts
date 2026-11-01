@@ -102,11 +102,12 @@ for (const [label, width, height] of [["1440", 1440, 900], ["400", 400, 860]] as
       const sent: { path: string; body: unknown }[] = [];
       await stub(page, sent);
       await page.goto(`/projects/${PROJECT}/spaces/upload?lang=en`);
+      await expect(page.getByRole("heading", { level: 1, name: "Upload a CSV" })).toBeVisible();
       await shot(page, `upload-empty-${label}`);
-      await page.getByLabel("Choose a CSV file").setInputFiles(BROKEN);
+      await page.getByLabel("Choose a CSV file or an Excel workbook (.xlsx)").setInputFiles(BROKEN);
       await expect(page.getByRole("alert")).toContainText("not an Excel workbook");
       await shot(page, `upload-refused-${label}`);
-      await page.getByLabel("Choose a CSV file").setInputFiles(BOOK);
+      await page.getByLabel("Choose a CSV file or an Excel workbook (.xlsx)").setInputFiles(BOOK);
       const sheet = page.getByRole("combobox", { name: "Sheet" });
       await sheet.selectOption("Garages");
       await expect(page.getByRole("radio", { name: /OffStreetParking/ })).toBeChecked();
@@ -119,6 +120,7 @@ for (const [label, width, height] of [["1440", 1440, 900], ["400", 400, 860]] as
       const sent: { path: string; body: unknown }[] = [];
       await stub(page, sent);
       await page.goto(`/projects/${PROJECT}/spaces/complete?lang=en`);
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       await shot(page, `complete-empty-${label}`);
       await page.getByLabel("Files", { exact: true }).setInputFiles(BOOK);
       await page.getByRole("combobox", { name: "Sheet" }).selectOption("Garages");

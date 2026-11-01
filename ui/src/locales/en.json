@@ -1130,7 +1130,7 @@
       "open": "Upload CSV",
       "title": "Upload a CSV",
       "lead": "Choose a CSV or Excel (.xlsx) file of up to 50 MB. It is matched against the Smart Data Models types, the model, the space, its Endpoint and your right to write the rows are proposed as one change, and once that change is live the rows are written through the gateway as you.",
-      "choose": "Choose a CSV file",
+      "choose": "Choose a CSV file or an Excel workbook (.xlsx)",
       "chooseHint": "CSV, TSV or Excel (.xlsx), up to 50 MB, its first row the column names. Example: garages.xlsx with the columns name, lat, lon.",
       "reading": "Reading {name} and matching its columns against the Smart Data Models types…",
       "type": "What the rows are",

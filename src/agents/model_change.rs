@@ -160,6 +160,27 @@ const RELATIONSHIP_FIELDS: [&str; 2] = ["range", "multivalued"];
 /// The slot fields a conversation sets; units, IRIs and bounds are set in the editor.
 const SET_FIELDS: [&str; 4] = ["range", "required", "multivalued", "description"];
 
+/// A new model as the editor starts one (`blankSource` in `ui/src/pages/models/linkml.ts`): the
+/// organization's prefix, LinkML's types and `ngsi-ld-core`, so a class added `is_a: Entity` is an
+/// NGSI-LD entity type (DM-09, DM-13).
+pub fn blank(domain: &str, name: &str) -> Value {
+    let prefix = domain
+        .split('.')
+        .next()
+        .filter(|p| !p.is_empty())
+        .unwrap_or("org");
+    json!({
+        "id": format!("https://{domain}/models/{name}"),
+        "name": name,
+        "prefixes": { (prefix): format!("https://{domain}/terms/"), "linkml": "https://w3id.org/linkml/" },
+        "default_prefix": prefix,
+        "imports": ["linkml:types", "ngsi-ld-core"],
+        "classes": {},
+        "slots": {},
+        "enums": {},
+    })
+}
+
 /// The model with the operations applied in order, all or nothing. A refusal names the operation
 /// by its index, so the model corrects that one.
 pub fn apply(model: &Value, operations: &[Operation]) -> Result<Value, String> {
