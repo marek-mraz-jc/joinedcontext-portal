@@ -498,7 +498,8 @@ fn bind_personas(mirror: &Mirror, projects: &[String]) {
         "Organization",
         "hel",
         ORG_NAMESPACE,
-        json!({ "domain": "hel.fi", "projects": { "quota": { "minPipelinePeriodSeconds": 900 } } }),
+        json!({ "domain": "hel.fi", "projects": { "quota": { "minPipelinePeriodSeconds": 900 } },
+                "limits": { "mqtt": { "enabled": true } } }),
     ));
     let kinds = json!(KINDS);
     for (role, verbs) in [
