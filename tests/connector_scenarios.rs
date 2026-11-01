@@ -2441,6 +2441,33 @@ async fn a_revert_plans_the_inverse_of_a_merged_change_and_opens_it_for_approval
     assert_eq!(harness.run(&scenario(script), &own).await, Ok(()));
 }
 
+/// A change tool sends the person to the Portal page that decides the change, never to the
+/// forge's sign-in (T-6293): list and get answer `url` = its approval page, the pull request only
+/// as `mergeRequest`. Another project's change is no link at all.
+#[tokio::test]
+async fn the_change_tools_link_the_portal_approval_page() {
+    let harness = Harness::start(42).await;
+    let own = project_of(42);
+    let page = format!("\"url\":\"https://portal.test/projects/{own}/approvals/chg-0000002a\"");
+    let step = |call: &str, args: Value| {
+        json!({ "proves": "expect", "call": call, "args": args,
+            "contains": [page, "\"mergeRequest\":\"https://gitea.example.sk/pulls/42\""],
+            "absent": ["\"url\":\"https://gitea"] })
+    };
+    let script = json!([
+        step("jc_change_list", json!({})),
+        step("jc_change_get", json!({ "id": "chg-0000002a" })),
+        { "proves": "deny", "call": "jc_change_get", "args": { "id": "chg-0000002a" },
+          "project": "other", "refused": true, "absent": ["approvals/chg-0000002a"] }
+    ]);
+    let scenario: Scenario = serde_json::from_value(json!({
+        "id": "S-00", "segment": "operate", "as": "steward", "says": "selftest",
+        "expect": "selftest", "deny": "selftest", "script": script
+    }))
+    .expect("scenario");
+    assert_eq!(harness.run(&scenario, &own).await, Ok(()));
+}
+
 /// The "My connectors" tree lists only what the person reads, and create asks again per item
 /// (T-5951): a reader bound to one space sees that space's objects, and naming another space's
 /// Endpoint is refused with the field named, the same answer as an Endpoint that is not there.

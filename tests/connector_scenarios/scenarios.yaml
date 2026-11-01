@@ -200,8 +200,8 @@
     - proves: expect
       call: jc_change_apply
       args: { planId: '{planId}' }
-      contains: ['changeRequests', 'https://gitea.example.sk/pulls/77']
-      absent: ['"merged"']
+      contains: ['changeRequests', '"url":"https://portal.test/projects/{project}/approvals/chg-0000004d"', '"mergeRequest":"https://gitea.example.sk/pulls/77"']
+      absent: ['"merged"', '"url":"https://gitea']
     - proves: deny
       call: jc_change_apply
       args: { planId: '{planId}' }
@@ -328,12 +328,12 @@
   segment: context
   as: steward
   says: "Create an Endpoint that serves BikeCounter from space Doprava, public read, NGSI-LD + OData + GeoJSON."
-  expect: 'Endpoint manifest with a valid slug (>= 26 chars, base32), representations as asked, Policy binding; after merge the Endpoint answers'
-  deny: 'a slug with digits 0/1/8/9 -> validation error naming the field'
+  expect: 'Endpoint manifest without a slug, the platform mints one (EP-75), representations as asked, Policy binding; after merge the Endpoint answers'
+  deny: 'a slug the caller typed -> refused naming /changes/0/manifest/spec/slug (EP-75, T-6285)'
   script:
     - proves: expect
       call: jc_change_plan
-      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-public', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-public', namespace: '{project}' }, spec: { slug: bikecounterspublicdopravazz, contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld, odata, ogc-features] } } }] }
+      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-public', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-public', namespace: '{project}' }, spec: { contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld, odata, ogc-features] } } }] }
       keep: planId
       contains: ['"planId"', '"ok":true', 'changes nothing live']
     - proves: expect
@@ -1054,7 +1054,7 @@
       absent: ['"merged"']
     - proves: deny
       call: jc_change_plan
-      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-internal', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-internal', namespace: '{project}' }, spec: { slug: countersinternaldopravazzzz, contextSpaceRef: doprava, audience: organization, enabledRepresentations: [ngsi-ld], publish: { ckan: { instanceRef: opendata, organization: doprava } } } } }] }
+      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-internal', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-internal', namespace: '{project}' }, spec: { contextSpaceRef: doprava, audience: organization, enabledRepresentations: [ngsi-ld], publish: { ckan: { instanceRef: opendata, organization: doprava } } } } }] }
       refused: true
       contains: ["spec.audience is 'organization'", 'EP-83']
 - id: S-34
@@ -1146,7 +1146,7 @@
   script:
     - proves: expect
       call: jc_change_plan
-      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-events', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-events', namespace: '{project}' }, spec: { slug: eventsdopravapublicfeedzzzz, contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld, ical], representations: { ical: [{ name: events, sources: [{ type: Event, preset: sdm-event }] }] } } } }] }
+      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-events', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-events', namespace: '{project}' }, spec: { contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld, ical], representations: { ical: [{ name: events, sources: [{ type: Event, preset: sdm-event }] }] } } } }] }
       keep: planId
       contains: ['"planId"', '"ok":true']
     - proves: expect
@@ -1155,7 +1155,7 @@
       contains: ['changeRequests']
     - proves: deny
       call: jc_change_plan
-      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-counter-feed', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-counter-feed', namespace: '{project}' }, spec: { slug: countersdopravacalendarzzzz, contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld, ical], representations: { ical: [{ name: counters, sources: [{ type: BikeCounter, mapping: { DTSTART: { attribute: count }, SUMMARY: { attribute: name } } }] }] } } } }] }
+      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-counter-feed', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-counter-feed', namespace: '{project}' }, spec: { contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld, ical], representations: { ical: [{ name: counters, sources: [{ type: BikeCounter, mapping: { DTSTART: { attribute: count }, SUMMARY: { attribute: name } } }] }] } } } }] }
       refused: true
       contains: ['DTSTART', 'BikeCounter', 'EP-125']
 
@@ -1311,7 +1311,7 @@
               apiVersion: joinedcontext.com/v1alpha1
               kind: Endpoint
               metadata: { name: '{project}-preview', namespace: '{project}' }
-              spec: { slug: bikecountersworkspacezzzzzz, contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld] }
+              spec: { contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld] }
       keep: planId
       contains: ['"planId"', 'bike-counter', '{project}-preview']
     - proves: expect

@@ -78,7 +78,6 @@ const FAMILIES: [Family; 7] = [
         spec: || {
             json!({
                 "contextSpaceRef": { "kind": "ContextSpace", "name": "helsinki" },
-                "slug": "zt4qm7ge2xdv6ksb3ncf5arw2y",
                 "audience": "organization",
                 "enabledRepresentations": ["ngsi-ld", "ogc-features"]
             })

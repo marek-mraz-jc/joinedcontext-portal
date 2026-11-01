@@ -517,3 +517,106 @@ async fn adopting_drift_reads_the_live_entity_with_the_persons_own_token() {
         1
     );
 }
+
+/// T-6273: a Role lives in the project or the organization, and `jc_resource_list` judges each
+/// home with the grants the caller holds there, as `jc_resource_get` does: a person who reads
+/// Roles in the project alone lists no organization Role, and every Role listed opens.
+#[tokio::test]
+async fn the_role_list_judges_each_home_with_its_own_grants() {
+    let state = world();
+    state.mirror.upsert(common::envelope(
+        "Role",
+        "role-reader",
+        ORG_NAMESPACE,
+        json!({ "rules": [{ "kinds": ["Role"], "verbs": ["read"] }] }),
+    ));
+    state.mirror.upsert(common::envelope(
+        "Role",
+        "local-role",
+        PROJECT,
+        json!({ "rules": [{ "kinds": ["Endpoint"], "verbs": ["read"] }] }),
+    ));
+    for (binding, scope) in [
+        ("project-role-readers", json!({ "project": PROJECT })),
+        ("org-role-readers", json!({ "organization": "city" })),
+    ] {
+        state.mirror.upsert(common::envelope(
+            "RoleBinding",
+            binding,
+            ORG_NAMESPACE,
+            json!({ "subjects": [{ "group": binding }], "role": "role-reader", "scope": scope }),
+        ));
+    }
+    let org_roles: Vec<String> = state
+        .mirror
+        .list(ORG_NAMESPACE, "Role", &Default::default())
+        .items
+        .into_iter()
+        .map(|envelope| envelope.metadata.name)
+        .collect();
+    assert!(
+        org_roles.contains(&"viewer-role".to_owned()),
+        "{org_roles:?}"
+    );
+
+    let in_project = member("pia", "project-role-readers");
+    let listed = call(
+        "jc_resource_list",
+        &mcp(in_project.clone()),
+        &state,
+        json!({ "kind": "Role" }),
+    )
+    .await;
+    assert_eq!(listed.status, StatusCode::OK, "{}", listed.text());
+    assert_eq!(names(&listed.body["items"], "/name"), ["local-role"]);
+    for (name, status) in [
+        ("local-role", StatusCode::OK),
+        ("viewer-role", StatusCode::NOT_FOUND),
+    ] {
+        let read = call(
+            "jc_resource_get",
+            &mcp(in_project.clone()),
+            &state,
+            json!({ "kind": "Role", "name": name }),
+        )
+        .await;
+        assert_eq!(read.status, status, "{name}: {}", read.text());
+    }
+    // A miss names only the Roles the caller may open.
+    let missed = call(
+        "jc_resource_get",
+        &mcp(in_project),
+        &state,
+        json!({ "kind": "Role", "name": "nope" }),
+    )
+    .await;
+    assert_eq!(missed.status, StatusCode::NOT_FOUND);
+    assert!(missed.text().contains("local-role"), "{}", missed.text());
+    assert!(!missed.text().contains("viewer-role"), "{}", missed.text());
+
+    // A reader of Roles in the organization lists both homes, and opens every Role listed.
+    let in_org = member("oto", "org-role-readers");
+    let listed = call(
+        "jc_resource_list",
+        &mcp(in_org.clone()),
+        &state,
+        json!({ "kind": "Role" }),
+    )
+    .await;
+    assert_eq!(listed.status, StatusCode::OK, "{}", listed.text());
+    let listed = names(&listed.body["items"], "/name");
+    assert!(listed.contains(&"local-role".to_owned()), "{listed:?}");
+    for name in &org_roles {
+        assert!(listed.contains(name), "{name} missing from {listed:?}");
+    }
+    for name in &listed {
+        let read = call(
+            "jc_resource_get",
+            &mcp(in_org.clone()),
+            &state,
+            json!({ "kind": "Role", "name": name }),
+        )
+        .await;
+        assert_eq!(read.status, StatusCode::OK, "{name}: {}", read.text());
+    }
+}

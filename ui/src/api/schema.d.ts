@@ -23646,6 +23646,8 @@ export interface operations {
                         planFields?: Record<string, never>[];
                         status: Record<string, never>;
                         summary?: Record<string, never>;
+                        /** @description The Portal page where a person decides it */
+                        url?: string;
                     };
                 };
             };
@@ -23729,6 +23731,8 @@ export interface operations {
                             phase?: string;
                             proposedBy?: string;
                             title?: string;
+                            /** @description The Portal page where a person decides it */
+                            url?: string;
                         }[];
                         /** @enum {string} */
                         kind: "ChangeList";
