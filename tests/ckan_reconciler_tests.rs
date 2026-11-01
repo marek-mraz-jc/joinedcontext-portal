@@ -108,6 +108,7 @@ fn target(name: &str, audience: &str, publication: Value) -> Target {
         language: None,
         instance_title: None,
         history: Default::default(),
+        granted: Vec::new(),
     }
 }
 

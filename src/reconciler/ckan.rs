@@ -956,6 +956,7 @@ pub fn withdrawn(previous: &Mirror, published: &BTreeSet<(String, String)>) -> V
             instance_title: None,
             // A withdrawal draws no chart.
             history: Default::default(),
+            granted: Vec::new(),
         });
     }
     gone
