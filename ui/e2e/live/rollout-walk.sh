@@ -106,6 +106,10 @@ work=$(mktemp -d)
 trap 'git -C "$repo" worktree remove --force "${work:?}/portal" >/dev/null 2>&1; rm -rf "${work:?}"' EXIT
 git -C "$repo" worktree add -q --detach "$work/portal" "$sha" || { echo "rollout-walk: $sha is not in $repo" >&2; exit 2; }
 mkdir -p "$dir"
+# T-6334: one directory per commit holds every try. A try set aside (dev applied during it) left its
+# reports here, and the next try, whose Chromium failed to launch, wrote none: the summary judged the
+# set-aside walk and filed a 503 met mid-apply. Each try starts without an earlier try's reports.
+rm -rf "${dir:?}/walker-steward.json" "${dir:?}/walker-viewer.json" "${dir:?}/pages-steward" "${dir:?}/pages-viewer"
 run=$(date -u +%Y-%m-%dT%H:%MZ)
 echo "rollout-walk: walking portal $sha on $PORTAL_URL ($run)"
 # The steward walks, then the viewer, each with the whole cap. Side by side they shared one address
