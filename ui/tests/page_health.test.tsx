@@ -11,8 +11,12 @@ import cs from "../src/locales/cs.json";
 import de from "../src/locales/de.json";
 import en from "../src/locales/en.json";
 import sk from "../src/locales/sk.json";
-import { CHECKS as CHECK_NAMES, KINDS, LABEL, SAID } from "../src/pages/health/HealthLog";
+import type { components } from "../src/api/schema";
+import { CHECKS as CHECK_NAMES, LABEL, SAID } from "../src/pages/health/HealthLog";
 import { expectAxeClean, jsonResponse, problem, renderRoute } from "./pageHarness";
+
+/** Every server kind once: a kind added to the API without a key here is a type error. */
+const KINDS = Object.keys({ pipeline: 1, space: 1, endpoint: 1, model: 1, datasource: 1 } satisfies Record<components["schemas"]["HealthCheckKind"], 1>) as components["schemas"]["HealthCheckKind"][];
 
 const none = { code: "", args: {}, text: "" };
 const said = (code: string, text: string, args: Record<string, string> = {}) => ({ code, args, text });
