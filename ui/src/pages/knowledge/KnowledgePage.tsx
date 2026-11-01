@@ -16,7 +16,6 @@ import {
   Dialog,
   EmptyState,
   PageFailed,
-  MayNotCreate,
   PageHeader,
   PermissionGuard,
   Table,
@@ -116,7 +115,6 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
         compact
         title={t("knowledge.title")}
         description={t("knowledge.intro")}
-        note={<MayNotCreate project={project} kinds={["KnowledgeSource", "AssistantDeployment"]} />}
         actions={
           <>
             {/* The stored conversations, shown to the assistant's administrator alone (T-4670). */}

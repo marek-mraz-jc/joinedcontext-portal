@@ -54,11 +54,11 @@ describe("parseGridConfig", () => {
     expect(result.config).toBeUndefined();
   });
 
-  it("rejects pageSize > 1000", () => {
+  it("rejects pageSize > 5000", () => {
     const raw = {
       source: { kind: "endpoint", slug: "abc" },
       type: "Bike",
-      pageSize: 1001,
+      pageSize: 5001,
     };
     const result = parseGridConfig(raw);
     expect(result.findings).toHaveLength(1);
@@ -171,9 +171,10 @@ describe("gridConfigSchema", () => {
     expect(gridConfigSchema.additionalProperties).toBe(false);
   });
 
-  it("has pageSize maximum 1000", () => {
+  // 5000 rows a page since owner 2026-11-01; the source reads them in broker pages of 1000.
+  it("has pageSize maximum 5000", () => {
     const pageSizeProp = (gridConfigSchema.properties as Record<string, unknown>).pageSize as Record<string, unknown>;
-    expect(pageSizeProp.maximum).toBe(1000);
+    expect(pageSizeProp.maximum).toBe(5000);
   });
 });
 

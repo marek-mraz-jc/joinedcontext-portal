@@ -142,6 +142,11 @@ export interface EntityGridProps extends UseEntityGridOptions {
    * names a screen reader hears; the checked rows are the host's (`selected`).
    */
   rowNumbers?: { selectRow: string; selectAll: string };
+  /** The entity type the grid reads, picked in the Type column's filter cell; the host reads the new type (owner 2026-11-01). */
+  typeChoice?: TypeChoice;
+  /** Rows per page offered in the pager (with `paged`); the host sets `config.pageSize` from the pick. */
+  pageSizes?: readonly number[];
+  onPageSize?: (size: number) => void;
   selected?: readonly string[];
   onSelectedChange?: (ids: string[]) => void;
   /** Rows of one line (`small`), two or four (T-4883); without it a cell keeps the grid's own wrapping. */
@@ -351,6 +356,9 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
     queryBox = true,
     onFilterColumns,
     rowNumbers,
+    typeChoice,
+    pageSizes,
+    onPageSize,
     selected = EMPTY_IDS,
     onSelectedChange,
     rowSize,
@@ -482,7 +490,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
       allowed.includes(column.attr) &&
       (!asked || accessOf(column.attr)?.write === true);
   }, [editing, hookOptions.config.editableAttrs, asked, accessOf]);
-  const [inspected, setInspected] = useState<{ attr: string; label: string } | null>(null);
+  const [inspected, setInspected] = useState<{ attr: string; label: string; row?: RichRow } | null>(null);
   // A host that translated only the grid's labels still gets its own word for closing.
   const inspectorLabels = { ...DEFAULT_INSPECTOR_LABELS, close: labels.close, ...hookOptions.labels?.inspectorLabels };
   const inspects = (column: VisibleColumn): column is VisibleColumn & { attr: string } =>
@@ -504,6 +512,11 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
   const [undoNote, setUndoNote] = useState<string | null>(null);
   const reasonHintId = React.useId();
   const [history, setHistory] = useState<{ attr: string; id: string; heading: string } | null>(null);
+  // A history opened from a cell shows under the grid: bring it into sight (owner 2026-11-01).
+  const historyBox = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (history) historyBox.current?.scrollIntoView?.({ block: "start", behavior: "smooth" });
+  }, [history]);
   // The row whose detail panel is open, by id, so a new page closes it rather than showing a row
   // that is no longer listed (T-3097).
   const [ownDetailId, setOwnDetailId] = useState<string | null>(null);
@@ -515,6 +528,9 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
     },
     [onOpenRow],
   );
+  // A cell clicked opens its row on that attribute: its readings over time, metadata and versions
+  // (owner 2026-11-01); the "i" button keeps the access panel.
+  const [cellPlace, setCellPlace] = useState<{ tab: string; attr: string } | null>(null);
   // Inside an App's shell a row opens in the shell's one entity panel (SDK-40), else in the grid's own.
   const openDetail = useCallback(
     (row: RichRow) => (selection.inShell ? selection.select({ id: row.id, type: row.type }) : setDetailId(row.id)),
@@ -550,11 +566,17 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
       const rect = box.getBoundingClientRect();
       const below = (box.parentElement?.getBoundingClientRect().bottom ?? rect.bottom) - rect.bottom;
       const top = rect.top + window.scrollY;
-      setFitHeight(Math.max(240, window.innerHeight - top - below - 16));
+      setFitHeight(Math.max(240, window.innerHeight - top - below - 8));
     };
     fit();
+    // Content above that settles after the first paint (a banner, a toolbar wrapping) moves the top.
+    const moved = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
+    moved?.observe(document.body);
     window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
+    return () => {
+      moved?.disconnect();
+      window.removeEventListener("resize", fit);
+    };
   }, [virtual]);
   const rowHeight = useRef(FALLBACK_ROW_HEIGHT);
   const [windowStart, setWindowStart] = useState(0);
@@ -1123,7 +1145,9 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
   // The map is a second view of the same page: it is offered only where the config asked for one
   // AND the rows actually carry a geometry, so a type without one gets no panel and no action.
   const mapConfig = hookOptions.config.map;
-  const mapAttr = mapConfig?.enabled ? mapAttrOf(rows, mapConfig.attr) : null;
+  // A geo column's filter cell opens the map to draw an area on, where the config shows none (owner 2026-11-01).
+  const [areaMap, setAreaMap] = useState<string | null>(null);
+  const mapAttr = mapConfig?.enabled ? mapAttrOf(rows, mapConfig.attr) : (areaMap ?? (grid.area ? grid.area.geoproperty : null));
   const mapPosition = mapConfig?.position ?? "right";
   // Past a count the map also draws the whole type from the Endpoint's tiles (T-5195). A tile takes
   // no query, so a narrowed answer stays on the page's shapes, and only `location` is tiled.
@@ -1258,7 +1282,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
       const here = state.activeCell ? columns[state.activeCell.col] : undefined;
       if (onGrid && e.key === "i" && here && inspects(here) && !editable(here)) {
         e.preventDefault();
-        setInspected({ attr: here.attr, label: here.label });
+        setInspected({ attr: here.attr, label: here.label, row: rows[state.activeCell!.row] });
         return;
       }
       // Typing on an editable cell starts editing it with that character, as Baserow and every
@@ -1620,6 +1644,35 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
                 {columns.map((col) => {
                   const column = filterable.get(col.key);
                   const className = `jc-grid-filter${col.pinned ? " jc-grid-pinned" : ""}`;
+                  if (col.attr && !col.meta && kindOf.get(col.key) === "geo" && !asText) {
+                    const drawn = grid.area?.geoproperty === col.attr;
+                    return (
+                      <th key={`filter-${col.key}`} className={className} data-filter-for={col.key}>
+                        <div className="jc-grid-filter-cell">
+                          <button
+                            type="button"
+                            className="jc-grid-area-button"
+                            aria-pressed={drawn || areaMap === col.attr}
+                            onClick={() => {
+                              if (drawn) {
+                                grid.setArea(null);
+                                setAreaMap(null);
+                              } else setAreaMap(areaMap === col.attr ? null : col.attr!);
+                            }}
+                          >
+                            {drawn ? labels.areaClear : labels.areaPick}
+                          </button>
+                        </div>
+                      </th>
+                    );
+                  }
+                  if (typeChoice && col.key === "entity:type") {
+                    return (
+                      <th key={`filter-${col.key}`} className={className} data-filter-for={col.key}>
+                        <TypeChoiceCell choice={typeChoice} />
+                      </th>
+                    );
+                  }
                   // A column the endpoint cannot be asked about has no filter, and an empty
                   // header cell is a header that names nothing to a screen reader.
                   if (!column || asText) return <td key={`filter-${col.key}`} className={className} />;
@@ -1674,7 +1727,6 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
               >
                 {rowNumbers && (
                   <td className="jc-grid-rownum">
-                    <span className="jc-grid-rownum-n" aria-hidden="true">{rowIndex + 1 + (virtual ? 0 : state.offset)}</span>
                     {/* A tap beside the box ticks it and does not open the row. */}
                     <label className="jc-grid-check" onClick={(e) => e.stopPropagation()}>
                       <input
@@ -1713,11 +1765,16 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
                     className={`jc-grid-td${col.pinned ? " jc-grid-pinned" : ""}${locks.get(col.key) !== undefined ? " jc-grid-td--locked" : ""}${classNames?.cell ? ` ${classNames.cell}` : ""}`}
                     {...getCellProps(row, rowIndex, col, colIndex)}
                     onClick={
-                      inspects(col) && !editable(col)
+                      (inspects(col) || (col.attr && !col.meta && !selection.inShell)) && !editable(col)
                         ? (e: React.MouseEvent) => {
                             // A control of the cell (a chip, a link) keeps its own click.
                             if ((e.target as HTMLElement).closest("button, a, input, select")) return;
-                            setInspected({ attr: col.attr, label: col.label });
+                            if (col.attr && !col.meta && !selection.inShell) {
+                              setCellPlace({ tab: "attribute", attr: col.attr });
+                              setDetailId(row.id);
+                              return;
+                            }
+                            if (col.attr) setInspected({ attr: col.attr, label: col.label, row });
                           }
                         : undefined
                     }
@@ -1740,7 +1797,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
                         title={`${inspectorLabels.title}: ${col.label}`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setInspected({ attr: col.attr, label: col.label });
+                          setInspected({ attr: col.attr, label: col.label, row });
                         }}
                       />
                     ) : null}
@@ -1800,6 +1857,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
           allowed={mapAllowed}
           area={grid.area}
           onArea={grid.setArea}
+          startDrawing={areaMap !== null && !mapConfig?.enabled}
           boundsNow={mapBounds}
           labels={mapLabels}
           tiles={tileTemplate ? { template: tileTemplate, layer: hookOptions.config.type } : null}
@@ -1859,6 +1917,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
                     maxPoints={hookOptions.config.history.maxPoints}
                     labels={hookOptions.labels?.historyLabels}
                     versions
+                    versionsFirst={cellPlace !== null}
                   />
                 )
               : undefined
@@ -1876,10 +1935,11 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
           )}
           changes={changesFeed}
           tabs={detailTabs?.(detailRow)}
-          place={detailPlace}
+          place={cellPlace ?? detailPlace}
           onPlace={onDetailPlace}
           onClose={() => {
             setDetailId(null);
+            setCellPlace(null);
             tableRef.current?.focus();
           }}
         >
@@ -1906,6 +1966,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
       )}
 
       {history && (
+        <div ref={historyBox}>
         <EntityHistory
           source={hookOptions.source}
           id={history.id}
@@ -1915,6 +1976,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
           labels={hookOptions.labels?.historyLabels}
           onClose={() => setHistory(null)}
         />
+        </div>
       )}
 
       {open && (
@@ -2056,7 +2118,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
         </div>
       )}
 
-      {virtual ? (
+      {virtual && !hookOptions.paged ? (
         <div className={`jc-grid-pager${classNames?.pager ? ` ${classNames.pager}` : ""}`} role="status">
           {/* The total is the endpoint's own count, from the same answer as the rows (T-4885): an
               answer the gateway narrowed carries none (R22), and the footer says so in words. */}
@@ -2117,6 +2179,24 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
         >
           <span className="jc-grid-pager-word">{labels.next}</span> <span aria-hidden="true">›</span>
         </button>
+        {pageSizes && onPageSize ? (
+          <label className="jc-grid-page-size">
+            {labels.rowsPerPage}
+            <select
+              value={hookOptions.config.pageSize}
+              onChange={(e) => {
+                onPageSize(Number(e.target.value));
+                setOffset(0);
+              }}
+            >
+              {pageSizes.map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
       )}
     </div>
@@ -2256,6 +2336,27 @@ function filterHint(column: FilterColumn, labels: FilterCellLabels): string {
  * One column's filter: the operators its content allows, and the value(s) the chosen one needs.
  * A filter is sent only once it is complete, so nothing narrows while it is being typed.
  */
+export interface TypeChoice {
+  value: string;
+  options: readonly { value: string; label: string }[];
+  label: string;
+  onChange: (type: string) => void;
+}
+
+function TypeChoiceCell({ choice }: { choice: TypeChoice }): React.JSX.Element {
+  return (
+    <div className="jc-grid-filter-cell">
+      <select aria-label={choice.label} title={choice.label} value={choice.value} onChange={(e) => choice.onChange(e.target.value)}>
+        {choice.options.map((each) => (
+          <option key={each.value} value={each.value}>
+            {each.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 function FilterCell({
   column,
   label,

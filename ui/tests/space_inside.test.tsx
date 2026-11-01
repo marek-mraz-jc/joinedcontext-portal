@@ -672,10 +672,13 @@ describe("the space's own data", () => {
   it("lists the model's types and reads the space surface, never an endpoint", async () => {
     const fetchMock = renderInside({ status: 200, count: 1 });
 
-    const list = await screen.findByRole("navigation", { name: en.spaces.inside.types });
-    const types = within(list).getAllByRole("button").filter((button) => button.title !== "");
-    expect(types.map((button) => button.title)).toEqual(["AirQualityObserved", "AirQualityStation"]);
+    // The grid's Type column lists the model's types (owner 2026-11-01, T-6344).
     expect(await screen.findByText("12 µg/m³")).toBeInTheDocument();
+    const picker = screen.getByRole("combobox", { name: en.spaces.inside.type });
+    expect(within(picker).getAllByRole("option").map((option) => (option as HTMLOptionElement).value)).toEqual([
+      "AirQualityObserved",
+      "AirQualityStation",
+    ]);
 
     const reads = fetchMock.mock.calls
       .map((call) => urlOf(call[0]))
@@ -685,11 +688,10 @@ describe("the space's own data", () => {
     expect(surface.every((url) => url.searchParams.get("type") === "AirQualityObserved")).toBe(true);
   });
 
-  it("offers the types as a picker above the grid for a phone, and picking one reads that type (T-4992)", async () => {
+  it("picks the type in the grid's Type column at every width, and picking one reads that type (T-4992, T-6344)", async () => {
     const fetchMock = renderInside({ status: 200, count: 1 });
 
     const picker = await screen.findByRole("combobox", { name: en.spaces.inside.type });
-    expect(picker).toHaveAccessibleDescription(en.spaces.inside.typeHint);
     expect(within(picker).getAllByRole("option").map((option) => (option as HTMLOptionElement).value)).toEqual([
       "AirQualityObserved",
       "AirQualityStation",
@@ -706,9 +708,8 @@ describe("the space's own data", () => {
           .some((url) => url.pathname.startsWith("/cs/ovzdusie/") && url.searchParams.get("type") === "AirQualityStation"),
       ).toBe(true),
     );
-    // The list beside the grid follows the picker, for the width that shows it.
-    const list = screen.getByRole("navigation", { name: en.spaces.inside.types });
-    expect(within(list).getByTitle("AirQualityStation")).toHaveAttribute("aria-current", "true");
+    // No second list beside the grid repeats it: a space without saved views has no left list.
+    expect(screen.queryByRole("navigation", { name: en.spaces.inside.types })).toBeNull();
   });
 
   it("offers the Grid and API tabs only (owner 2026-10-31, T-6210 deletes the other views)", async () => {

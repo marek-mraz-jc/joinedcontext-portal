@@ -6,7 +6,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import en from "../src/locales/en.json";
-import sk from "../src/locales/sk.json";
 import { proposesAnything } from "../src/api/permissions";
 import type { Effective } from "../src/api/permissions";
 import { renderRoute } from "./pageHarness";
@@ -23,21 +22,21 @@ afterEach(() => {
   window.history.pushState({}, "", "/");
 });
 
-describe("the may-not-create line", () => {
-  it("says under the spaces header why its actions are greyed", async () => {
+// The line under a list's header went away (owner 2026-11-01, T-6344): the greyed control keeps
+// its reason, on the control and for a screen reader.
+describe("a list's greyed create button", () => {
+  it("says on the control why a viewer may not create, with no line under the header", async () => {
     await renderRoute({ path: "/projects/helsinki/spaces", permissions: VIEWER });
-    expect(await screen.findByText(en.form.mayNotCreate)).toBeVisible();
+    const add = await screen.findByRole("button", { name: new RegExp(en.spaces.add) });
+    await waitFor(() => expect(add).toHaveAttribute("aria-disabled", "true"));
+    expect(add).toHaveAccessibleDescription(/ContextSpace/);
+    expect(screen.queryByText(en.form.mayNotCreate)).toBeNull();
   });
 
-  it("says it in the person's language", async () => {
-    await renderRoute({ path: "/projects/helsinki/knowledge", permissions: VIEWER, locale: "sk" });
-    expect(await screen.findByText(sk.form.mayNotCreate)).toBeVisible();
-  });
-
-  it("is absent for a role that may create there, and while the role is unknown", async () => {
+  it("is enabled for a role that may create there", async () => {
     await renderRoute({ path: "/projects/helsinki/spaces", permissions: SPACE_EDITOR });
-    await screen.findByRole("heading", { level: 1, name: en.spaces.title });
-    await waitFor(() => expect(screen.queryByText(en.form.mayNotCreate)).toBeNull());
+    const add = await screen.findByRole("button", { name: new RegExp(en.spaces.add) });
+    await waitFor(() => expect(add).not.toHaveAttribute("aria-disabled", "true"));
   });
 });
 

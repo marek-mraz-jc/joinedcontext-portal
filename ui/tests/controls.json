@@ -503,7 +503,7 @@
     },
     "src/components/layout/Shell.tsx": {
       "controls": {
-        "Button": 6
+        "Button": 5
       },
       "tests": [
         "addressItem.test.ts",
@@ -1135,7 +1135,7 @@
     },
     "src/pages/apps/QuestionData.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "question_data.test.tsx"
@@ -1622,8 +1622,9 @@
     },
     "src/pages/models/LinkmlVisualEditor.tsx": {
       "controls": {
-        "Button": 12,
-        "Checkbox": 3
+        "Button": 13,
+        "Checkbox": 3,
+        "RadioGroup": 1
       },
       "tests": [
         "linkml_enum_values.test.tsx",
@@ -1694,7 +1695,7 @@
     },
     "src/pages/models/ModelsList.tsx": {
       "controls": {
-        "Button": 3
+        "Button": 1
       },
       "tests": [
         "models_list_page.test.tsx"
@@ -1702,7 +1703,7 @@
     },
     "src/pages/models/ModelsPage.tsx": {
       "controls": {
-        "Button": 2,
+        "Button": 3,
         "Checkbox": 1
       },
       "tests": [

@@ -618,7 +618,7 @@ async fn the_pipeline_path_offers_what_exists_and_asks_for_a_file_or_an_address(
     );
     assert_eq!(
         question["input"]["file"]["accept"],
-        json!(["csv", "tsv", "json"])
+        json!(["csv", "tsv", "xlsx", "json"])
     );
     assert_eq!(question["input"]["file"]["maxBytes"], 262_144);
     assert_eq!(question["input"]["url"], true);

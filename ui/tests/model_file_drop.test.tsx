@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { queryKeys } from "../src/api/client";
 import en from "../src/locales/en.json";
-import { ModelFileDrop, draftOf, inferAnswerOf, inferForm, slotRows } from "../src/pages/models/ModelFileDrop";
+import { ModelFileDrop, cited, draftOf, inferAnswerOf, inferForm, slotRows } from "../src/pages/models/ModelFileDrop";
 import type { InferAnswer } from "../src/pages/models/ModelFileDrop";
 import { parseModel } from "../src/pages/models/linkml";
 
@@ -273,5 +273,17 @@ describe("a model from a dropped file", () => {
     // The editor applies a list all or nothing (DM-13), so the draft is the blank model.
     expect(parseModel(draft.source).classes).toEqual([]);
     expect(parseModel(draft.source).name).toBe("my-sensors");
+  });
+
+  it("keeps each Smart Data Models match cited in the draft: its IRI, its model and the sdm prefix (JC1-20)", () => {
+    const model = parseModel(draftOf(ANSWER, "hel.fi", "sensors.csv").source);
+    const temp = model.slots.find((slot) => slot.name === "b_Temp_b");
+    expect(temp?.slot_uri).toBe("https://smartdatamodels.org/dataModel.Environment/temperature");
+    expect(temp?.upstream).toBe("dataModel.Environment/AirQualityObserved");
+    expect(model.prefixes.sdm).toBe("https://smartdatamodels.org/");
+    expect(model.slots.find((slot) => slot.name === "plate")?.upstream).toBeUndefined();
+    // Only a Smart Data Models IRI, and only for a slot the draft holds, is written.
+    const source = "id: https://hel.fi/models/x\nname: x\nslots:\n  a:\n    range: string\n";
+    expect(cited(source, { a: { model: "m", slotUri: "https://www.w3.org/ns/x" }, b: { model: "m", slotUri: "https://smartdatamodels.org/b" } })).toBe(source);
   });
 });

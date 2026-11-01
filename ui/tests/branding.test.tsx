@@ -139,9 +139,10 @@ describe("runtime branding", () => {
     await waitFor(() => {
       expect(header).toHaveTextContent(NEUTRAL_BRANDING.instanceName as string);
     });
-    // Nothing is branded, so nothing is claimed: no footer, no logo.
+    // Nothing is branded, so nothing is claimed: no logo, and the footer holds only the
+    // accessibility statement and the glossary every page links (T-6344).
     expect(header.querySelector("img")).toBeNull();
-    expect(screen.queryByRole("contentinfo")).toBeNull();
+    expect(within(screen.getByRole("contentinfo")).getAllByRole("link").map((link) => link.getAttribute("href"))).toEqual(["/accessibility", "/glossary"]);
   });
 
   it("keeps every bundled language when the installation names none", () => {

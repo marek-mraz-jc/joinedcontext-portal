@@ -85,9 +85,10 @@ describe("AttributeMetadata (T-5529)", () => {
       throw new SourceError(403, "forbidden");
     });
     render(<AttributeMetadata source={source} id={ID} attr="kpiValue" cell={cell} locale="en" now={() => NOW} />);
-    await waitFor(() => expect(value("Organization").textContent).toBe("hidden: no access (history not granted)"));
-    for (const term of ["Changed by", "Through", "Reason"]) {
-      expect(value(term).textContent).toBe("hidden: no access (history not granted)");
+    // One refusal is said once, under "Changed by", not four times (owner 2026-11-01).
+    await waitFor(() => expect(value("Changed by").textContent).toBe("hidden: no access (history not granted)"));
+    for (const term of ["Organization", "Through", "Reason"]) {
+      expect(screen.queryByText(term)).toBeNull();
     }
     expect(value("Last changed").querySelector("time")).not.toBeNull();
     expect(calls).toHaveLength(1);
@@ -97,15 +98,20 @@ describe("AttributeMetadata (T-5529)", () => {
     const { source } = sourceOf(async () => []);
     render(<AttributeMetadata source={source} id={ID} attr="kpiValue" cell={{ kind: "property", value: 1 }} locale="en" now={() => NOW} />);
     expect(value("Created").textContent).toBe("hidden: no access (this view does not pass it)");
-    await waitFor(() => expect(value("Organization").textContent).toBe("No change was recorded"));
+    // Nothing recorded is said once, under "Changed by", not per field.
+    await waitFor(() => expect(value("Changed by").textContent).toBe("No change was recorded"));
+    for (const term of ["Organization", "Through", "Reason"]) {
+      expect(screen.queryByText(term)).toBeNull();
+    }
   });
 
   it("asks a public Endpoint for nothing and hides who wrote it", () => {
     const history = vi.fn();
     render(<AttributeMetadata source={{ history }} id={ID} attr="kpiValue" cell={{ kind: "property", value: 1 }} publicView locale="en" />);
-    for (const term of ["Created", "Changed by", "Organization", "Through", "Reason"]) {
+    for (const term of ["Created", "Changed by"]) {
       expect(value(term).textContent).toBe("hidden: no access (public view)");
     }
+    expect(screen.queryByText("Organization")).toBeNull();
     expect(history).not.toHaveBeenCalled();
   });
 

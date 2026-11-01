@@ -104,6 +104,11 @@ export interface GridLabels {
   noTotal: string;
   /** The entry that opens one attribute's history, and the panel's own labels (T-1431). */
   history: string;
+  /** A geo column's filter cell: draw an area on the map, and take it away again. */
+  areaPick: string;
+  /** The pager's page-size picker: "Rows per page". */
+  rowsPerPage: string;
+  areaClear: string;
   historyLabels?: Partial<import("./EntityHistory").HistoryLabels>;
   /** The cell inspector's words (T-5528): its title also names each cell's "i" button. */
   inspectorLabels?: Partial<import("./CellInspector").CellInspectorLabels>;
@@ -329,6 +334,9 @@ export const DEFAULT_LABELS: GridLabels = {
   matching: "matching",
   noTotal: "the endpoint gives no total for this answer",
   history: "History",
+  areaPick: "Pick area on map",
+  rowsPerPage: "Rows per page",
+  areaClear: "Clear area",
   metadata: "Metadata",
   edit: "Edit",
   pending: "not applied yet",
@@ -484,6 +492,8 @@ export interface UseEntityGridOptions {
    * the person nears the end, up to `MAX_VIRTUAL_ROWS`; the view draws only the rows in sight.
    */
   virtual?: boolean;
+  /** A scrolling grid that still reads one page at a time, with a pager (owner 2026-11-01): no rows are appended past `pageSize`. */
+  paged?: boolean;
   /**
    * Attributes left out of the grid, as a saved view hides them (API/01 §30): their columns are not
    * drawn and not filtered. The primary attribute is never hidden; it names the row.
@@ -804,7 +814,7 @@ function holdsLanguage(rows: RichRow[], attr: string): boolean {
 const refusesOrder = new WeakSet<EntitySource>();
 
 export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
-  const { config, source, labels: labelsPartial, state: controlledState, onStateChange, query: queryPartial, enums, relations, virtual = false, hidden, layout } = options;
+  const { config, source, labels: labelsPartial, state: controlledState, onStateChange, query: queryPartial, enums, relations, virtual = false, paged = false, hidden, layout } = options;
   // By content, as `hidden`: a host building new arrays each render does not ask again.
   const thenByKey = JSON.stringify(options.thenBy ?? []);
   const groupByKey = JSON.stringify(options.groupBy ?? []);
@@ -1025,7 +1035,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
 
     source
       // A scrolling grid starts over from the first row whenever the question changes.
-      .query(gridQuery, { offset: virtual ? 0 : offset, limit: config.pageSize })
+      .query(gridQuery, { offset: virtual && !paged ? 0 : offset, limit: config.pageSize })
       .then((page) => {
         if (cancelledRef.current || nonceRef.current !== nonce) return;
         setRows(page.rows);
@@ -1050,14 +1060,14 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
         }
         setLoading(false);
       });
-  }, [source, config.pageSize, offset, gridQueryKey, virtual, labels.queryRefused]);
+  }, [source, config.pageSize, offset, gridQueryKey, virtual, paged, labels.queryRefused]);
 
   /**
    * The next page of a scrolling grid, appended to what is loaded. An answer to an older question
    * is dropped, and an entity already loaded is not listed twice when the set moved under the read.
    */
   const loadMore = useCallback(() => {
-    if (!virtual || !more || loadingMore || loading) return;
+    if (!virtual || paged || !more || loadingMore || loading) return;
     const nonce = nonceRef.current;
     const from = rows.length;
     const limit = Math.max(config.pageSize, VIRTUAL_PAGE_SIZE);
@@ -1082,7 +1092,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
       .finally(() => {
         if (nonceRef.current === nonce) setLoadingMore(false);
       });
-  }, [virtual, more, loadingMore, loading, rows.length, source, gridQueryKey, config.pageSize]);
+  }, [virtual, paged, more, loadingMore, loading, rows.length, source, gridQueryKey, config.pageSize]);
 
   useEffect(() => {
     fetchData();
@@ -1435,7 +1445,7 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   );
 
   return {
-    more: virtual && more,
+    more: virtual && !paged && more,
     loadingMore,
     loadMore,
     rows: sortedRows,
