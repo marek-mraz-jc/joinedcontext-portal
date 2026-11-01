@@ -17,7 +17,7 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
-import { checkForm, type FormSpec } from "./formContract";
+import { byLabel, checkForm, type FormSpec } from "./formContract";
 import { expectDenied, expectNoRawKeys } from "./checks";
 import { json, LOCALES, problem, renderPage } from "./page_contract";
 
@@ -131,11 +131,11 @@ describe("the catalogue form (T-1765)", () => {
       },
     });
     await user.type(await screen.findByLabelText(/^Name/), "opendata-bb");
-    await user.clear(screen.getByLabelText(/^URL/));
-    await user.type(screen.getByLabelText(/^URL/), "https://opendata.example.sk");
-    await user.click(screen.getByLabelText(/Default organization/));
+    await user.clear(byLabel(/^URL/));
+    await user.type(byLabel(/^URL/), "https://opendata.example.sk");
+    await user.click(byLabel(/Default organization/));
     await user.click(await screen.findByRole("option", { name: /Mesto Banská Bystrica/ }));
-    await user.type(screen.getByLabelText(/API token secret/), "ckan-api-token");
+    await user.type(byLabel(/API token secret/), "ckan-api-token");
     await user.click(screen.getByRole("button", { name: /Propose catalogue/ }));
 
     await waitFor(() => expect(bodies).toHaveLength(1));
@@ -166,9 +166,9 @@ describe("the catalogue form (T-1765)", () => {
       },
     });
     await user.type(await screen.findByLabelText(/^Name/), "opendata-bb");
-    await user.clear(screen.getByLabelText(/^URL/));
-    await user.type(screen.getByLabelText(/^URL/), "https://opendata.example.sk");
-    await user.type(screen.getByLabelText(/API token secret/), "ckan-api-token");
+    await user.clear(byLabel(/^URL/));
+    await user.type(byLabel(/^URL/), "https://opendata.example.sk");
+    await user.type(byLabel(/API token secret/), "ckan-api-token");
     await user.click(screen.getByRole("button", { name: /Propose catalogue/ }));
 
     await screen.findByText("chg-9");
@@ -187,18 +187,18 @@ describe("the catalogue form (T-1765)", () => {
       },
     });
     await user.type(await screen.findByLabelText(/^Name/), "opendata-bb");
-    await user.clear(screen.getByLabelText(/^URL/));
-    await user.type(screen.getByLabelText(/^URL/), "https://opendata.example.sk");
-    await user.click(screen.getByLabelText(/Default organization/));
+    await user.clear(byLabel(/^URL/));
+    await user.type(byLabel(/^URL/), "https://opendata.example.sk");
+    await user.click(byLabel(/Default organization/));
     await user.click(await screen.findByRole("option", { name: /Mesto Banská Bystrica/ }));
-    await user.type(screen.getByLabelText(/API token secret/), "ckan-api-token");
+    await user.type(byLabel(/API token secret/), "ckan-api-token");
     await user.click(screen.getByRole("button", { name: /Propose catalogue/ }));
 
     expect(await screen.findByText(REFUSAL)).toBeInTheDocument();
     expect((screen.getByLabelText(/^Name/) as HTMLInputElement).value).toBe("opendata-bb");
-    expect((screen.getByLabelText(/^URL/) as HTMLInputElement).value).toBe("https://opendata.example.sk");
-    expect((screen.getByLabelText(/Default organization/) as HTMLInputElement).value).toBe("Mesto Banská Bystrica");
-    expect((screen.getByLabelText(/API token secret/) as HTMLInputElement).value).toBe("ckan-api-token");
+    expect((byLabel(/^URL/) as HTMLInputElement).value).toBe("https://opendata.example.sk");
+    expect((byLabel(/Default organization/) as HTMLInputElement).value).toBe("Mesto Banská Bystrica");
+    expect((byLabel(/API token secret/) as HTMLInputElement).value).toBe("ckan-api-token");
   });
 
   it("refuses_a_javascript_address_itself_and_sends_nothing", async () => {
@@ -217,14 +217,14 @@ describe("the catalogue form (T-1765)", () => {
       },
     });
     await user.type(await screen.findByLabelText(/^Name/), "opendata-bb");
-    await user.clear(screen.getByLabelText(/^URL/));
-    await user.type(screen.getByLabelText(/^URL/), "javascript:alert(1)");
-    await user.type(screen.getByLabelText(/API token secret/), "ckan-api-token");
+    await user.clear(byLabel(/^URL/));
+    await user.type(byLabel(/^URL/), "javascript:alert(1)");
+    await user.type(byLabel(/API token secret/), "ckan-api-token");
     await user.click(screen.getByRole("button", { name: /Propose catalogue/ }));
 
     expect(await screen.findByText(/starts with http:\/\/ or https:\/\//)).toBeInTheDocument();
     expect(sent, "a javascript: address was proposed").toEqual([]);
-    expect(screen.getByLabelText(/^URL/)).toHaveAttribute("aria-invalid", "true");
+    expect(byLabel(/^URL/)).toHaveAttribute("aria-invalid", "true");
   });
 
   it.each([
@@ -244,14 +244,14 @@ describe("the catalogue form (T-1765)", () => {
       },
     });
     await user.type(await screen.findByLabelText(/^Name/), "opendata-bb");
-    await user.type(screen.getByLabelText(/^URL/), "https://opendata.example.sk");
-    await user.type(screen.getByLabelText(/API token secret/), typed);
+    await user.type(byLabel(/^URL/), "https://opendata.example.sk");
+    await user.type(byLabel(/API token secret/), typed);
     await user.click(screen.getByRole("button", { name: /Propose catalogue/ }));
 
     expect(await screen.findByText(sentence)).toBeInTheDocument();
     expect(sent, "a token or an invalid secret name was proposed").toEqual([]);
-    expect(screen.getByLabelText(/API token secret/)).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByLabelText(/API token secret/)).toHaveFocus();
+    expect(byLabel(/API token secret/)).toHaveAttribute("aria-invalid", "true");
+    expect(byLabel(/API token secret/)).toHaveFocus();
   });
 
   it("names_the_key_inside_the_secret_and_sends_what_was_typed (T-3215)", async () => {
@@ -270,8 +270,8 @@ describe("the catalogue form (T-1765)", () => {
       },
     });
     await user.type(await screen.findByLabelText(/^Name/), "opendata-bb");
-    await user.type(screen.getByLabelText(/^URL/), "https://opendata.example.sk");
-    await user.type(screen.getByLabelText(/API token secret/), "ckan-api-token");
+    await user.type(byLabel(/^URL/), "https://opendata.example.sk");
+    await user.type(byLabel(/API token secret/), "ckan-api-token");
     const key = screen.getByLabelText(/Key inside the secret/);
     expect(key).toHaveValue("apiToken");
     await user.clear(key);
@@ -334,7 +334,7 @@ describe("the catalogue form (T-1765)", () => {
     // The read parts stay: the catalogue table and who manages it.
     expect(await screen.findByRole("table", { name: i18n.t("ckan.instances.title") })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Propose catalogue/ })).not.toBeInTheDocument();
-    expect(screen.queryByLabelText(/API token secret/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("textbox", { name: /API token secret/ })).not.toBeInTheDocument();
   });
 
   it("shows_a_steward_the_form (T-4997)", async () => {

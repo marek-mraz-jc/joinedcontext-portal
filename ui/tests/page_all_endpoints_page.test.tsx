@@ -14,9 +14,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { OrganizationPage } from "../src/pages/organization/OrganizationPage";
+import { narrowsAndOrders } from "./grid_checks";
 import { AllEndpointsPage, ENDPOINTS_PER_PAGE } from "../src/routes/AllEndpointsPage";
 import userEvent from "@testing-library/user-event";
-import { expectDenied } from "./checks";
 import {
   expectHeadingOutline,
   expectNoAxeViolations,
@@ -143,11 +143,16 @@ describe("all endpoints", () => {
 
   it.each([0, 1, 500])("draws %i endpoints without changing how the page reads", async (rows) => {
     const { container } = renderAll({ rows });
+    if (rows === 0) {
+      expect(await screen.findByText(en.allEndpoints.empty)).toBeInTheDocument();
+      expectHeadingOutline(container);
+      return;
+    }
     const table = await screen.findByRole("table", { name: en.allEndpoints.title });
     await waitFor(() => {
       expect(table).not.toHaveAttribute("aria-busy");
     });
-    expect(table.querySelectorAll("tbody tr")).toHaveLength(Math.min(Math.max(rows, 1), ENDPOINTS_PER_PAGE));
+    expect(table.querySelectorAll("tbody tr")).toHaveLength(Math.min(rows, ENDPOINTS_PER_PAGE));
     expectHeadingOutline(container);
   });
 
@@ -248,25 +253,26 @@ describe("all endpoints", () => {
     renderAll({ rows: 25 });
     const table = await screen.findByRole("table", { name: en.allEndpoints.title });
     await waitFor(() => expect(table.querySelectorAll("tbody tr")).toHaveLength(ENDPOINTS_PER_PAGE));
-    expect(screen.getByText("1–10 of 25")).toBeInTheDocument();
-    expectDenied(screen.getByRole("button", { name: en.allEndpoints.previous }), en.allEndpoints.firstPage);
+    expect(screen.getByText("Showing 10 of 25")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Show 10 more" }));
+    expect(within(table).getByText("Air quality 19")).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: en.allEndpoints.next }));
-    expect(within(table).getByText("Air quality 10")).toBeInTheDocument();
-    expect(within(table).queryByText("Air quality 0")).toBeNull();
-
-    // A search goes back to the first page of what it matches.
+    // A search goes back to the first page of what it matches: air-2 and air-20..air-24.
     await user.type(screen.getByRole("searchbox", { name: en.allEndpoints.find }), "air-2");
-    // air-2 and air-20..air-24
     expect(table.querySelectorAll("tbody tr")).toHaveLength(6);
-    expect(screen.queryByRole("navigation", { name: en.allEndpoints.pages })).toBeNull();
-
-    await user.clear(screen.getByRole("searchbox", { name: en.allEndpoints.find }));
-    await user.selectOptions(screen.getByRole("combobox", { name: en.allEndpoints.field.project }), "city-3");
-    // city-3 holds air-3, air-10, air-17, air-24
-    expect(table.querySelectorAll("tbody tr")).toHaveLength(4);
-
     await user.type(screen.getByRole("searchbox", { name: en.allEndpoints.find }), "nothing-like-it");
-    expect(within(table).getByText(en.allEndpoints.noMatch)).toBeInTheDocument();
+    expect(within(table).getByText(en.grid.noMatch)).toBeInTheDocument();
+  });
+
+  // T-6206: the shared grid's search, sort and project filter.
+  it("searches, sorts and filters on the shared grid", async () => {
+    renderAll({ rows: 3, items: [endpoint(5), endpoint(9, { audience: "organization" }), endpoint(1)] });
+    const table = await screen.findByRole("table", { name: en.allEndpoints.title });
+    await screen.findByText("Air quality 9");
+    await narrowsAndOrders(table, {
+      search: { label: en.allEndpoints.find, text: "Air quality 9", kept: ["Air quality 9"] },
+      sort: { column: en.allEndpoints.field.project, ascending: ["Air quality 1", "Air quality 9", "Air quality 5"] },
+      filter: { value: new RegExp(`^${en.endpoints.audience.organization}`), kept: ["Air quality 9"] },
+    });
   });
 });

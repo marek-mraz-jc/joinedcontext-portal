@@ -178,7 +178,17 @@ async function mount(element: Element_, spec: FormSpec): Promise<Mounted> {
  * substring passes a RegExp instead.
  */
 function control(field: FormFieldSpec): HTMLElement {
-  return screen.getByLabelText(field.label, { exact: false }) as HTMLElement;
+  return byLabel(field.label);
+}
+
+/**
+ * The form control a label names, leaving out a shared grid's own controls (Columns, Sort by): a list beside the
+ * form names its columns as the form names its fields (T-6206, the CKAN catalogues).
+ */
+export function byLabel(label: FormFieldSpec["label"]): HTMLElement {
+  const found = screen.getAllByLabelText(label, { exact: false }).filter((each) => each.closest("[data-manifest-grid]") === null);
+  if (found.length !== 1) throw new Error(`${String(label)} names ${found.length} form controls, not one`);
+  return found[0] as HTMLElement;
 }
 
 /** The id the messages hang off: the spec's when it gives one, the control's own otherwise. */

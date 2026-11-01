@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { ManifestGrid } from "../../components/grid/ManifestGrid";
 import { ApiError, queryKeys } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
 import { asManifests, isChange, localized, ORG_NAMESPACE, storedMetadata } from "../../api/manifest";
@@ -22,14 +23,6 @@ import {
   Button,
   EmptyState,
   PageFailed,
-  Table,
-  TableBody,
-  TableCell,
-  TableEmpty,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
-  TableSkeleton,
 } from "../../components/ui";
 import { PermissionGuard } from "../../components/ui/PermissionGuard";
 
@@ -323,96 +316,76 @@ export function Roles({
           }}
         />
       ) : (
-        <Table data-records="" caption={t("access.projectRoles.caption", { project })} status={pending ? t("app.loading") : undefined}>
-          <TableHead>
-            <TableHeaderCell>{t("access.projectRoles.role")}</TableHeaderCell>
-            <TableHeaderCell>{t("access.projectRoles.where")}</TableHeaderCell>
-            <TableHeaderCell>{t("access.projectRoles.grants")}</TableHeaderCell>
-            <TableHeaderCell align="right">{t("approvals.actions")}</TableHeaderCell>
-          </TableHead>
-          {pending ? (
-            <TableSkeleton columns={4} />
-          ) : (
-            <TableBody>
-              {rows.length === 0 ? (
-                <TableEmpty columns={4}>
-                  <EmptyState bare
-                    title={t("access.projectRoles.empty")}
-                    description={t("access.projectRoles.emptyHint")}
-                    action={
-                      <PermissionGuard project={project} kind="Role" verb="propose">
-                        <Button variant="secondary" onClick={() => setWriting(true)}>
-                          {t("access.projectRoles.new")}
-                        </Button>
-                      </PermissionGuard>
-                    } />
-                </TableEmpty>
-              ) : (
-                rows.map((row) => (
-                  <TableRow key={`${row.home}/${row.name}`}>
-                    <TableCell primary>
-                      <span className="inline-flex items-center gap-2">
-                        <span className="flex flex-col">
-                          <FormRecordLink name={row.name}>{row.title || row.name}</FormRecordLink>
-                          {row.title ? <span className="text-caption font-normal text-fg-muted">{row.name}</span> : null}
-                        </span>
-                        {row.home === ORG_NAMESPACE &&
-                        (SEEDED_ROLES as readonly string[]).includes(row.name) ? (
-                          <Badge tone="neutral">{t("organization.roles.seeded")}</Badge>
-                        ) : null}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {row.home === ORG_NAMESPACE
-                        ? t("access.roles.organization")
-                        : t("access.roles.project", { name: row.home })}
-                    </TableCell>
-                    <TableCell>
-                      <RulesInWords rules={row.rules} preset={presetOfRules(row.rules)} />
-                    </TableCell>
-                    <TableCell align="right">
-                      <span className="inline-flex items-center gap-1.5">
-                        <EditResourceAction
-                          target={{
-                            project,
-                            home: row.home,
-                            kind: "Role",
-                            plural: "roles",
-                            name: row.name,
-                            label: row.name,
-                          }}
-                          // A role of this project wins its name's address over the organization's.
-                          addressed={
-                            row.home === project ||
-                            !rows.some((other) => other.home === project && other.name === row.name)
-                          }
-                          form={{
-                            schema: editSchema,
-                            uiSchema: roleUiSchema(false),
-                            fromManifest: (manifest) =>
-                              fromRoleEnvelope(manifest) as unknown as Record<string, unknown>,
-                            toManifest: (edited, stored) =>
-                              toRoleEnvelope(row.home, edited as unknown as RoleForm, stored),
-                          }}
-                        />
-                        <DeleteResourceAction
-                          target={{
-                            project,
-                            home: row.home,
-                            kind: "Role",
-                            plural: "roles",
-                            name: row.name,
-                            label: row.name,
-                          }}
-                        />
-                      </span>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
+        <ManifestGrid<Row>
+          caption={t("access.projectRoles.caption", { project })}
+          storageKey="project-roles"
+          searchLabel={t("grid.searchIn", { list: t("access.projectRoles.title") })}
+          rows={rows}
+          rowKey={(row) => `${row.home}/${row.name}`}
+          query={{ isPending: pending, isError: false, error: null, refetch: () => undefined }}
+          name={{
+            id: "role",
+            label: t("access.projectRoles.role"),
+            text: (row) => (row.title ? `${row.title} (${row.name})` : row.name),
+            cell: (row) => (
+              <span className="inline-flex items-center gap-2">
+                <span className="flex flex-col">
+                  <FormRecordLink name={row.name}>{row.title || row.name}</FormRecordLink>
+                  {row.title ? <span className="text-caption font-normal text-fg-muted">{row.name}</span> : null}
+                </span>
+                {row.home === ORG_NAMESPACE && (SEEDED_ROLES as readonly string[]).includes(row.name) ? (
+                  <Badge tone="neutral">{t("organization.roles.seeded")}</Badge>
+                ) : null}
+              </span>
+            ),
+          }}
+          columns={[
+            {
+              id: "where",
+              label: t("access.projectRoles.where"),
+              filter: true,
+              text: (row) => (row.home === ORG_NAMESPACE ? t("access.roles.organization") : t("access.roles.project", { name: row.home })),
+            },
+            {
+              id: "grants",
+              label: t("access.projectRoles.grants"),
+              // Search and sort read the kinds and verbs the rules name; the cell says them in words.
+              text: (row) => row.rules.flatMap((rule) => [...(rule.kinds ?? []), ...(rule.verbs ?? [])]).join(" "),
+              cell: (row) => <RulesInWords rules={row.rules} preset={presetOfRules(row.rules)} />,
+            },
+            { id: "rules", label: t("access.projectRoles.ruleCount"), numeric: true, align: "right", text: (row) => String(row.rules.length) },
+          ]}
+          actions={(row) => (
+            <span className="inline-flex items-center gap-1.5">
+              <EditResourceAction
+                target={{ project, home: row.home, kind: "Role", plural: "roles", name: row.name, label: row.name }}
+                // A role of this project wins its name's address over the organization's.
+                addressed={row.home === project || !rows.some((other) => other.home === project && other.name === row.name)}
+                form={{
+                  schema: editSchema,
+                  uiSchema: roleUiSchema(false),
+                  fromManifest: (manifest) => fromRoleEnvelope(manifest) as unknown as Record<string, unknown>,
+                  toManifest: (edited, stored) => toRoleEnvelope(row.home, edited as unknown as RoleForm, stored),
+                }}
+              />
+              <DeleteResourceAction target={{ project, home: row.home, kind: "Role", plural: "roles", name: row.name, label: row.name }} />
+            </span>
           )}
-        </Table>
+          empty={
+            <EmptyState
+              bare
+              title={t("access.projectRoles.empty")}
+              description={t("access.projectRoles.emptyHint")}
+              action={
+                <PermissionGuard project={project} kind="Role" verb="propose">
+                  <Button variant="secondary" onClick={() => setWriting(true)}>
+                    {t("access.projectRoles.new")}
+                  </Button>
+                </PermissionGuard>
+              }
+            />
+          }
+        />
       )}
 
       <NewRoleDialog project={project} open={writing} onOpenChange={setWriting} />

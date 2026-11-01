@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { ManifestGrid } from "../../components/grid/ManifestGrid";
 import { api, ApiError, unwrap } from "../../api/client";
 import { proposeChecked } from "../../api/proposal";
 import { isChange } from "../../api/manifest";
@@ -28,12 +29,6 @@ import {
   Input,
   PageFailed,
   PageHeader,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
 } from "../../components/ui";
 
 type CkanStatus = components["schemas"]["CkanStatus"];
@@ -262,44 +257,49 @@ function Instances({
         <EmptyState title={t("ckan.instances.empty")} description={t("ckan.instances.emptyHint")} icon="ckan" />
       ) : null}
       {instances.length > 0 ? (
-        <Table data-records="" caption={t("ckan.instances.title")}>
-          <TableHead>
-            <TableHeaderCell>{t("ckan.instances.name")}</TableHeaderCell>
-            <TableHeaderCell>{t("ckan.instances.url")}</TableHeaderCell>
-            <TableHeaderCell>{t("ckan.instances.organization")}</TableHeaderCell>
-            <TableHeaderCell>{t("ckan.instances.tokenRef")}</TableHeaderCell>
-            <TableHeaderCell align="right">
-              <span className="sr-only">{t("approvals.actions")}</span>
-            </TableHeaderCell>
-          </TableHead>
-          <TableBody>
-            {instances.map((instance) => (
-              <TableRow key={instance.name}>
-                <TableCell className="font-mono">
-                  {/* The kind's own edit address: the same form as the row's Edit (T-2875). */}
-                  <RecordLink project={project} plural="ckaninstances" name={instance.name} />
-                </TableCell>
-                <TableCell>
-                  <ExternalLink href={instance.url} hideIcon className="hover:no-underline">
-                    {instance.url}
-                  </ExternalLink>
-                </TableCell>
-                <TableCell>{instance.organizationDefault ?? "—"}</TableCell>
-                <TableCell className="font-mono">{instance.apiTokenRef}</TableCell>
-                <TableCell align="right">
-                  <span className="inline-flex items-center gap-1.5">
-                    <EditResourceAction
-                      target={{ project, kind: "CkanInstance", plural: "ckaninstances", name: instance.name }}
-                    />
-                    <DeleteResourceAction
-                      target={{ project, kind: "CkanInstance", plural: "ckaninstances", name: instance.name }}
-                    />
-                  </span>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+        <ManifestGrid<(typeof instances)[number]>
+          caption={t("ckan.instances.title")}
+          storageKey="ckan-instances"
+          searchLabel={t("grid.searchIn", { list: t("ckan.instances.title") })}
+          rows={instances}
+          rowKey={(instance) => instance.name}
+          // The section draws its own loading line and failure; the grid gets the rows read.
+          query={{ isPending: false, isError: false, error: null, refetch: () => undefined }}
+          name={{
+            id: "name",
+            label: t("ckan.instances.name"),
+            text: (instance) => instance.name,
+            // The kind's own edit address: the same form as the row's Edit (T-2875).
+            cell: (instance) => <RecordLink project={project} plural="ckaninstances" name={instance.name} />,
+          }}
+          columns={[
+            {
+              id: "url",
+              label: t("ckan.instances.url"),
+              text: (instance) => instance.url,
+              cell: (instance) => (
+                <ExternalLink href={instance.url} hideIcon className="hover:no-underline">
+                  {instance.url}
+                </ExternalLink>
+              ),
+            },
+            {
+              id: "organization",
+              label: t("ckan.instances.organization"),
+              filter: true,
+              text: (instance) => instance.organizationDefault ?? "",
+              cell: (instance) => instance.organizationDefault ?? "—",
+            },
+            { id: "tokenRef", label: t("ckan.instances.tokenRef"), text: (instance) => instance.apiTokenRef, cell: (instance) => <span className="font-mono">{instance.apiTokenRef}</span> },
+          ]}
+          actions={(instance) => (
+            <span className="inline-flex items-center gap-1.5">
+              <EditResourceAction target={{ project, kind: "CkanInstance", plural: "ckaninstances", name: instance.name }} />
+              <DeleteResourceAction target={{ project, kind: "CkanInstance", plural: "ckaninstances", name: instance.name }} />
+            </span>
+          )}
+          empty={<EmptyState bare title={t("ckan.instances.empty")} description={t("ckan.instances.emptyHint")} icon="ckan" />}
+        />
       ) : null}
 
       {!mayPropose ? (
@@ -308,7 +308,8 @@ function Instances({
         </Alert>
       ) : (
         <form
-          className="max-w-4xl space-y-2"
+          aria-labelledby="ckan-instance-new"
+          className="max-w-4xl space-y-2 border-t border-border pt-4"
           noValidate
           onSubmit={(event) => {
             event.preventDefault();
@@ -326,6 +327,9 @@ function Instances({
             onSubmit(draft);
           }}
         >
+          <h3 id="ckan-instance-new" className="text-body font-semibold text-fg">
+            {t("ckan.instances.propose")}
+          </h3>
           <Field
             id="ckan-instance-name"
             label={t("ckan.instances.name")}

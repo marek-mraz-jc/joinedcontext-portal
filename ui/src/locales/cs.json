@@ -2745,6 +2745,7 @@
       "outcome": "Výsledek",
       "message": "Zpráva",
       "noId": "(bez id)",
+      "states": {"clean": "Bez chyb", "rejected": "Odmítnuté řádky", "failing": "Selhané řádky", "silent": "Nezapsal nic"},
       "outcomes": {
         "sent": "Zapsán",
         "rejected": "Odmítnut",
@@ -3666,6 +3667,7 @@
       "role": "Role",
       "where": "Zapsaná v",
       "grants": "Dává",
+      "ruleCount": "Pravidla",
       "on": "na",
       "new": "Nová role",
       "newTitle": "Nová role",

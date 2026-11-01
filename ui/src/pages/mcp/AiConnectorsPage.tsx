@@ -17,13 +17,8 @@ import {
   PageHeader,
   PageLoading,
   Select,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableRow,
 } from "../../components/ui";
+import { ManifestGrid } from "../../components/grid/ManifestGrid";
 import { CopyValue } from "./McpServerPanels";
 import { connectTab, disconnectTab, onPairingChange, pairing } from "../../connectors/pairedTab";
 import { emptyForm, formProblems, lastDay, pickKey, refusedSection, scopeLines, setup, toForm, toRequest } from "./aiConnectors";
@@ -240,29 +235,38 @@ export function ActivityTable({ id, name }: { id: string; name: string }): JSX.E
   if (calls.isPending) return <PageLoading label={t("aiConnectors.activityLoading")} lines={1} />;
   if (calls.isError) return <PageFailed error={calls.error} onRetry={() => void calls.refetch()} />;
   if (calls.data.items.length === 0) return <p className="text-caption text-fg-muted">{t("aiConnectors.noCalls")}</p>;
+  // A call has no id of its own: its place in the answer keys the row.
+  type Call = (typeof calls.data.items)[number] & { row: number };
+  const clientOf = (call: Call) => (call.client ? t(`aiConnectors.client.${call.client}`, { defaultValue: call.client }) : "");
   return (
-    <Table caption={t("aiConnectors.activityOf", { name })} maxHeight="max-h-80">
-      <TableHead>
-        <TableHeaderCell>{t("aiConnectors.call.at")}</TableHeaderCell>
-        <TableHeaderCell>{t("aiConnectors.call.tool")}</TableHeaderCell>
-        <TableHeaderCell>{t("aiConnectors.call.target")}</TableHeaderCell>
-        <TableHeaderCell>{t("aiConnectors.call.client")}</TableHeaderCell>
-        <TableHeaderCell>{t("aiConnectors.call.verdict")}</TableHeaderCell>
-      </TableHead>
-      <TableBody>
-        {calls.data.items.map((call, index) => (
-          <TableRow key={`${call.at}-${index}`}>
-            <TableCell>{new Date(call.at).toLocaleString(i18n.language)}</TableCell>
-            <TableCell className="font-mono">{call.tool}</TableCell>
-            <TableCell className="font-mono">{call.target ?? "–"}</TableCell>
-            <TableCell>{call.client ? t(`aiConnectors.client.${call.client}`, { defaultValue: call.client }) : "–"}</TableCell>
-            <TableCell>
-              <Badge tone={call.verdict === "allowed" ? "success" : "danger"}>{call.verdict}</Badge>
-            </TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
+    <ManifestGrid<Call>
+      caption={t("aiConnectors.activityOf", { name })}
+      storageKey="ai-connector-activity"
+      searchLabel={t("grid.searchIn", { list: t("aiConnectors.activityOf", { name }) })}
+      rows={calls.data.items.map((call, row) => ({ ...call, row }))}
+      rowKey={(call) => String(call.row)}
+      query={calls}
+      pageSize={20}
+      name={{
+        id: "at",
+        label: t("aiConnectors.call.at"),
+        text: (call) => call.at,
+        cell: (call) => <time dateTime={call.at}>{new Date(call.at).toLocaleString(i18n.language)}</time>,
+      }}
+      columns={[
+        { id: "tool", label: t("aiConnectors.call.tool"), filter: true, text: (call) => call.tool, cell: (call) => <span className="font-mono">{call.tool}</span> },
+        { id: "target", label: t("aiConnectors.call.target"), text: (call) => call.target ?? "", cell: (call) => <span className="font-mono">{call.target ?? "–"}</span> },
+        { id: "client", label: t("aiConnectors.call.client"), filter: true, text: clientOf, cell: (call) => clientOf(call) || "–" },
+        {
+          id: "verdict",
+          label: t("aiConnectors.call.verdict"),
+          filter: true,
+          text: (call) => call.verdict,
+          cell: (call) => <Badge tone={call.verdict === "allowed" ? "success" : "danger"}>{call.verdict}</Badge>,
+        },
+      ]}
+      empty={<p className="text-caption text-fg-muted">{t("aiConnectors.noCalls")}</p>}
+    />
   );
 }
 
