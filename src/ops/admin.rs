@@ -421,3 +421,34 @@ pub fn operations() -> Vec<Operation> {
         },
     ]
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// JC1-01: the delete op names the project it is addressed to, or nothing is deleted.
+    #[tokio::test]
+    async fn a_delete_naming_another_project_is_refused() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let caller = super::super::Caller::new(
+            crate::auth::session::Identity {
+                client: None,
+                subject: "f:1:ana".into(),
+                username: "ana".into(),
+                email: None,
+                name: None,
+                roles: Vec::new(),
+                groups: Vec::new(),
+                second_factor: true,
+            },
+            super::super::Via::Mcp,
+        );
+        let refused = delete_project(&caller, &state, "ovzdusie", json!({ "name": "doprava" }))
+            .await
+            .expect_err("another project's name");
+        assert!(
+            matches!(&refused, OpError::InvalidInput { path, .. } if path == "/name"),
+            "{refused:?}"
+        );
+    }
+}

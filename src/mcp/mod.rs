@@ -1487,6 +1487,28 @@ mod tests {
         assert_eq!(answer["error"]["code"], -32001);
     }
 
+    /// A change resource is read only behind `read` on Change: a caller without it gets nothing.
+    #[tokio::test]
+    async fn a_change_is_not_read_without_read_on_change() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let caller = crate::ops::Caller::new(
+            crate::auth::session::Identity {
+                subject: "f:1:ana".to_owned(),
+                username: "ana".to_owned(),
+                email: None,
+                name: None,
+                roles: Vec::new(),
+                groups: Vec::new(),
+                client: None,
+                second_factor: false,
+            },
+            crate::ops::Via::Mcp,
+        );
+        assert!(read_change(&state, &caller, "ovzdusie", "42")
+            .await
+            .is_none());
+    }
+
     /// F-R2POR4-012: the project of a call is a project name before any question is asked,
     /// since it goes into the address and text of the question's page.
     #[tokio::test]
