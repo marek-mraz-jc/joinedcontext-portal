@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { axeViolations } from "./axe";
 
 // The Data models page as a person meets it (T-2765, T-2762; DM-61, DM-62): the list of the project's
 // models, one click to a model's own page, and its diagram, form and YAML. `vite preview` has no
@@ -1115,6 +1116,38 @@ test.describe("the model pages after the T-6207 judge (T-6254)", () => {
       await expect(page.getByRole("textbox", { name: "New field" })).toHaveCount(0);
       await noSideScroll();
       await shot(page, `model-new-${width}`, false);
+    });
+  }
+});
+
+// T-6344: a structured value's shape (CalculationPeriod) sits folded under "Value structures", apart
+// from the entity types; a link is added through Add field, whose relationship form fills the dialog.
+test.describe("value structures and the link form of Add field (T-6344)", () => {
+  for (const width of [1440, 400]) {
+    test(`the rail folds value structures and Add field > link shows the relationship form at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
+      await stubKpi(page, ["read", "propose"]);
+      // A regex, not a glob: tests/gates.ts strips comments by regex, and a glob there ends one.
+      await page.route(/\/datamodels\/helsinki-kpi\/source$/, (route) =>
+        route.fulfill({ status: 200, contentType: "text/yaml", body: KPI_LINKML }),
+      );
+      await page.goto("/projects/helsinki/models?edit=helsinki-kpi&lang=en");
+      const folded = page.getByText("Value structures (1)", { exact: true });
+      await expect(folded).toBeVisible();
+      await expect(page.getByRole("button", { name: "CalculationPeriod", exact: true })).toBeHidden();
+      await shot(page, `value-structures-folded-${width}`, false);
+      await folded.click();
+      await expect(page.getByRole("button", { name: "CalculationPeriod", exact: true })).toBeVisible();
+      await shot(page, `value-structures-open-${width}`, false);
+
+      await page.getByRole("button", { name: "KeyPerformanceIndicator", exact: true }).click();
+      await page.getByRole("button", { name: "Add field", exact: true }).first().click();
+      await page.getByRole("radio", { name: /A link to another type/ }).click();
+      const form = page.getByRole("form", { name: "Add a relationship from KeyPerformanceIndicator" });
+      await expect(form).toBeVisible();
+      await expect(form.getByRole("button", { name: "Add relationship" })).toBeVisible();
+      expect(await axeViolations(page)).toEqual([]);
+      await shot(page, `add-relationship-form-${width}`, false);
     });
   }
 });
