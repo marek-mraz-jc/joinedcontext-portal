@@ -85,10 +85,12 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_pipeline_try_mapping",
             "jc_pipeline_test",
             "jc_syncsource_status",
+            "jc_mqtt_captured",
         ],
         &[
             "Pipeline",
             "DataSource",
+            "MqttBroker",
             "SyncSource",
             "ContextSpace",
             "DataModel",
@@ -1947,6 +1949,32 @@ pub(crate) mod tests {
             assert!(!narrow.lists(op(tool), "doprava"), "{tool}");
             assert!(narrow.admits(op(tool), "doprava", &json!({})).is_err());
         }
+    }
+
+    /// T-6290: the pipeline segment reaches the project's MQTT brokers and reads a capture; a
+    /// connector without the segment, or narrowed to one pipeline, reads none.
+    #[test]
+    fn the_pipeline_segment_reaches_mqtt_brokers_and_their_capture() {
+        let captured = op(crate::ops::mqtt::CAPTURED);
+        let list = json!({ "kind": "MqttBroker" });
+        let c = connector(&["pipeline"], vec![item("doprava", None)]);
+        assert!(c.access().names(captured));
+        assert_eq!(
+            c.admits(captured, "doprava", &json!({ "name": "sensors" })),
+            Ok(())
+        );
+        assert_eq!(c.admits(op("jc_resource_list"), "doprava", &list), Ok(()));
+        let read = connector(&["data-read"], vec![item("doprava", None)]);
+        assert!(!read.access().names(captured));
+        assert!(read
+            .admits(op("jc_resource_list"), "doprava", &list)
+            .is_err());
+        let mut one = item("doprava", None);
+        one.pipeline = Some("counters".into());
+        let narrow = connector(&["pipeline"], vec![one]);
+        assert!(narrow
+            .admits(captured, "doprava", &json!({ "name": "sensors" }))
+            .is_err());
     }
 
     /// T-5956, AG-149: a segment that proposes plans; only `writes` brings the apply, and an

@@ -85,6 +85,7 @@ const KINDS: &[&str] = &[
     "RoleBinding",
     "ServiceAccount",
     "SyncSource",
+    "MqttBroker",
     "Project",
     "Workspace",
     "CkanInstance",
@@ -2001,8 +2002,8 @@ fn the_catalogue_holds_the_connector_scenarios_well_formed() {
     let scenarios = catalogue();
     // S-01..S-50 of the owner's order and S-51..S-55 added with T-5971..T-5976; the UI
     // scenarios S-56..S-85 are browser journeys of the user agent (T-5981), not MCP calls, and
-    // S-86 (T-6082) and S-87 (T-6265) follow them.
-    assert_eq!(scenarios.len(), 57);
+    // S-86 (T-6082), S-87 (T-6265) and S-88 (T-6290) follow them.
+    assert_eq!(scenarios.len(), 58);
     for (n, s) in scenarios.iter().enumerate() {
         // The MCP ids skip S-56..S-85, the UI journeys' ids (T-6082).
         let number = if n < 55 { n + 1 } else { n + 31 };
