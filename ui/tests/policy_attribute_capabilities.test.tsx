@@ -15,6 +15,14 @@ import { policySchema, policyUiSchema } from "../src/schemas/kinds";
 import { toPolicyEnvelope } from "../src/routes/PoliciesPage";
 import type { PolicyForm } from "../src/routes/PoliciesPage";
 import {
+  AttributeCapabilitiesField,
+  CapabilityCell,
+  CapabilityHints,
+  GrantNote,
+} from "../src/components/forms/widgets/AttributeCapabilitiesField";
+import type { FieldProps } from "@rjsf/utils";
+import type { ReactElement } from "react";
+import {
   columnBlocked,
   grantLimits,
   matrixRows,
@@ -158,5 +166,76 @@ describe("the matrix logic (DM-148, DM-152)", () => {
     // An empty list is a value: it narrows `*` to nothing for that attribute.
     expect(withCapability(one, "name", "versions", [])).toEqual({ name: { versions: [] } });
     expect(toggled(["read", "keep"], ["keep"], "read", true)).toEqual(["read", "keep"]);
+  });
+});
+
+describe("the matrix cells on their own", () => {
+  beforeEach(async () => {
+    await i18n.changeLanguage("en");
+    stubModels();
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  const limits = grantLimits({ operations: ["updateOps", "queryTemporal"], assignee: { kind: "group", id: "staff" } });
+  const wrap = (node: ReactElement) =>
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <I18nextProvider i18n={i18n}>{node}</I18nextProvider>
+      </QueryClientProvider>,
+    );
+
+  it("names the chosen metadata members and takes a row back to the * value", async () => {
+    const user = userEvent.setup();
+    const changes: unknown[] = [];
+    wrap(
+      <CapabilityCell
+        attribute="pm10"
+        column="metadata"
+        row={{ metadata: ["observedAt", "unitCode"] }}
+        limits={limits}
+        frozen={false}
+        describedBy="hints"
+        onChange={(value) => changes.push(value)}
+      />,
+    );
+    expect(screen.getByText("observedAt, unitCode")).toBeTruthy();
+    await user.click(screen.getByText("observedAt, unitCode"));
+    await user.click(screen.getByRole("button", { name: "pm10: Metadata: Same as all (*)" }));
+    await user.click(screen.getByRole("checkbox", { name: "pm10: Metadata provenance" }));
+    expect(changes).toEqual([undefined, ["observedAt", "unitCode", "provenance"]]);
+  });
+
+  it("shows the * row's value in an unset cell and a dash where the grant gives nothing", () => {
+    wrap(
+      <>
+        <CapabilityCell attribute="name" column="read" row={undefined} every={{ read: false }} limits={limits} frozen={false} describedBy="h" onChange={() => {}} />
+        <CapabilityCell attribute="name" column="history" row={undefined} limits={grantLimits({})} frozen={false} describedBy="h" onChange={() => {}} />
+        <CapabilityCell attribute="name" column="write" row={undefined} limits={limits} frozen={false} describedBy="h" onChange={() => {}} />
+      </>,
+    );
+    expect(screen.getByRole("option", { name: "Same as all (*): No" })).toBeTruthy();
+    expect(screen.getByText("Needs queryTemporal or retrieveTemporal in the operations.")).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "name: Edit update" })).toBeTruthy();
+  });
+
+  it("says nothing when the grant can give every column", () => {
+    const all = grantLimits({ operations: ["updateOps", "queryTemporal"], actions: ["readVersions"] });
+    const { container } = wrap(<GrantNote limits={all} />);
+    expect(container.textContent).toBe("");
+    wrap(<CapabilityHints />);
+    expect(screen.getByText("What each column means, with examples")).toBeTruthy();
+  });
+
+  it("renders as a field and writes the block through its path", async () => {
+    const user = userEvent.setup();
+    const onChange = vi.fn();
+    const props = {
+      fieldPathId: { $id: "root_information_0_attributes", path: ["information", 0, "attributes"] },
+      formData: undefined,
+      onChange,
+    } as unknown as FieldProps;
+    wrap(<AttributeCapabilitiesField {...props} />);
+    await user.selectOptions(screen.getByRole("combobox", { name: "All attributes (*): Read" }), "true");
+    expect(onChange).toHaveBeenCalledWith({ "*": { read: true } }, ["information", 0, "attributes"]);
   });
 });

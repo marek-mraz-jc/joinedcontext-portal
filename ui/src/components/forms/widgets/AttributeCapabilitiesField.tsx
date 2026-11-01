@@ -33,6 +33,8 @@ import {
 } from "./attributeCapabilities";
 import type { AttributeCapabilities, Capabilities, CapabilityField, GrantLimits } from "./attributeCapabilities";
 
+type Root = ({ information?: Entry[] } & Parameters<typeof grantLimits>[0]) | undefined;
+
 const COLUMNS: CapabilityField[] = ["read", "history", "versions", "metadata", "write"];
 
 interface Entry {
@@ -44,18 +46,10 @@ interface Entry {
 const strings = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((v): v is string => typeof v === "string" && v !== "") : [];
 
-/**
- * A Policy entry's `attributes` block as a table (ADR-N-066 2.6, DM-153): a row per attribute the
- * model declares for the entry's types, plus `*`; columns read, history, versions, metadata and
- * edit. A cell the grant's operations cannot give is disabled and says why. The server checks
- * every key and value again at the dry run (DM-148, DM-151).
- */
-export function AttributeCapabilitiesField(props: FieldProps): JSX.Element {
-  const { t } = useTranslation();
-  const id = useId();
-  const root = useContext(FormDataContext) as ({ information?: Entry[] } & Parameters<typeof grantLimits>[0]) | undefined;
+/** The rows, held block and grant limits of the `information` entry at `path`. */
+function useEntryMatrix(path: readonly (string | number)[], formData: unknown) {
+  const root = useContext(FormDataContext) as Root;
   const project = useContext(FormProjectContext) ?? "";
-  const path = props.fieldPathId.path;
   const at = path.findIndex((step) => step === "information");
   const index = typeof path[at + 1] === "number" ? (path[at + 1] as number) : 0;
   const entry = root?.information?.[index];
@@ -67,43 +61,39 @@ export function AttributeCapabilitiesField(props: FieldProps): JSX.Element {
       unwrap(await api.GET("/api/v1/projects/{project}/{plural}", { params: { path: { project, plural: "datamodels" } } })),
     enabled: Boolean(project) && types.length > 0 && listed.length === 0,
   });
-  const declared = [
-    ...new Set(
-      asManifests(models.data?.items ?? []).flatMap((model) =>
-        types.flatMap((type) => filterSlotsOf(model, type).map((slot) => slot.name)),
-      ),
-    ),
-  ].sort();
-  const caps = (props.formData ?? undefined) as Capabilities | undefined;
-  const rows = matrixRows(listed, declared, Object.keys(caps ?? {}));
-  const limits = grantLimits(root);
-  const frozen = Boolean(props.disabled || props.readonly);
-  const write = <F extends CapabilityField>(attribute: string, field: F, value: AttributeCapabilities[F] | undefined): void =>
-    props.onChange(withCapability(caps, attribute, field, value), props.fieldPathId.path);
-  const hints = `${id}-hints`;
+  const declared = asManifests(models.data?.items ?? []).flatMap((model) =>
+    types.flatMap((type) => filterSlotsOf(model, type).map((slot) => slot.name)),
+  );
+  const caps = (formData ?? undefined) as Capabilities | undefined;
+  return {
+    types,
+    caps,
+    rows: matrixRows(listed, [...new Set(declared)].sort(), Object.keys(caps ?? {})),
+    limits: grantLimits(root),
+  };
+}
 
+/**
+ * A Policy entry's `attributes` block as a table (ADR-N-066 2.6, DM-153): a row per attribute the
+ * model declares for the entry's types, plus `*`; columns read, history, versions, metadata and
+ * edit. What the grant cannot give is said once above the table and its cells are disabled. The
+ * server checks every key and value again at the dry run (DM-148, DM-151).
+ */
+export function AttributeCapabilitiesField(props: FieldProps): JSX.Element {
+  const { t } = useTranslation();
+  const id = useId();
+  const { types, caps, rows, limits } = useEntryMatrix(props.fieldPathId.path, props.formData);
+  const frozen = Boolean(props.disabled || props.readonly);
+  const hints = `${id}-hints`;
   return (
     <fieldset className="flex min-w-0 flex-col gap-3">
       <legend className="text-body font-medium text-fg">{t("policies.capabilities.title")}</legend>
-      <p className="text-caption text-fg-muted">{t("policies.capabilities.about")}</p>
-      <dl id={hints} className="grid gap-1 text-caption sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-x-3">
-        {COLUMNS.map((column) => (
-          <div key={column} className="contents">
-            <dt className="font-medium text-fg">{t(`policies.capabilities.column.${column}`)}</dt>
-            <dd className="text-fg-muted">
-              {t(`policies.capabilities.hint.${column}`)}
-              {columnReasons(column, limits).map((reason) => (
-                <span key={reason} className="block text-fg">
-                  {t(reason)}
-                </span>
-              ))}
-            </dd>
-          </div>
-        ))}
-      </dl>
-      {types.length === 0 ? (
-        <p className="text-caption text-fg-muted">{t("policies.capabilities.noType")}</p>
-      ) : null}
+      <p id={hints} className="text-caption text-fg-muted">
+        {t("policies.capabilities.about")}
+      </p>
+      <CapabilityHints />
+      <GrantNote limits={limits} />
+      {types.length === 0 ? <p className="text-caption text-fg-muted">{t("policies.capabilities.noType")}</p> : null}
       <Table stack caption={t("policies.capabilities.caption", { types: types.join(", ") || "—" })} zebra={false}>
         <TableHead>
           <TableHeaderCell>{t("policies.capabilities.column.attribute")}</TableHeaderCell>
@@ -123,10 +113,13 @@ export function AttributeCapabilitiesField(props: FieldProps): JSX.Element {
                     attribute={attribute}
                     column={column}
                     row={caps?.[attribute]}
+                    every={attribute === "*" ? undefined : caps?.["*"]}
                     limits={limits}
                     frozen={frozen}
                     describedBy={hints}
-                    onChange={(value) => write(attribute, column, value)}
+                    onChange={(value) =>
+                      props.onChange(withCapability(caps, attribute, column, value), props.fieldPathId.path)
+                    }
                   />
                 </TableCell>
               ))}
@@ -135,6 +128,43 @@ export function AttributeCapabilitiesField(props: FieldProps): JSX.Element {
         </TableBody>
       </Table>
     </fieldset>
+  );
+}
+
+/** What each column means, with an example, folded so the table stays in view (DM-153). */
+export function CapabilityHints(): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <details className="rounded-md border border-border bg-surface-subtle px-3 py-2">
+      <summary className="focus-ring cursor-pointer rounded-sm text-caption font-medium text-fg">
+        {t("policies.capabilities.hintsTitle")}
+      </summary>
+      <dl className="mt-2 grid gap-1 text-caption sm:grid-cols-[auto_minmax(0,1fr)] sm:gap-x-3">
+        {COLUMNS.map((column) => (
+          <div key={column} className="contents">
+            <dt className="font-medium text-fg">{t(`policies.capabilities.column.${column}`)}</dt>
+            <dd className="text-fg-muted">{t(`policies.capabilities.hint.${column}`)}</dd>
+          </div>
+        ))}
+      </dl>
+    </details>
+  );
+}
+
+/** What this grant cannot give, once each, so no cell has to repeat it. Nothing when it can give all. */
+export function GrantNote({ limits }: { limits: GrantLimits }): JSX.Element | null {
+  const { t } = useTranslation();
+  const reasons = [...new Set(COLUMNS.flatMap((column) => columnReasons(column, limits)))];
+  if (reasons.length === 0) return null;
+  return (
+    <div className="rounded-md border border-border px-3 py-2 text-caption text-fg">
+      <p className="font-medium">{t("policies.capabilities.limitsTitle")}</p>
+      <ul className="list-disc pl-5 text-fg-muted">
+        {reasons.map((reason) => (
+          <li key={reason}>{t(reason)}</li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -153,85 +183,121 @@ interface CellProps {
   attribute: string;
   column: CapabilityField;
   row: AttributeCapabilities | undefined;
+  /** The `*` row, whose value an unset cell of another row takes. */
+  every?: AttributeCapabilities;
   limits: GrantLimits;
   frozen: boolean;
   describedBy: string;
   onChange: (value: AttributeCapabilities[CapabilityField] | undefined) => void;
 }
 
-/** One cell: a yes/no/inherit choice for read and history, ticks for the list columns. */
-export function CapabilityCell({ attribute, column, row, limits, frozen, describedBy, onChange }: CellProps): JSX.Element {
+/** One cell: a dash with its reason where the grant cannot give the column, else its control. */
+export function CapabilityCell(props: CellProps): JSX.Element {
+  const { t } = useTranslation();
+  const blocked = columnBlocked(props.column, props.limits);
+  // A value the manifest holds in a blocked column stays visible, so the dry run's refusal names
+  // something the person can see.
+  if (blocked && props.row?.[props.column] === undefined) {
+    return (
+      <span className="text-fg-muted" title={t(blocked)}>
+        <span aria-hidden="true">—</span>
+        <span className="sr-only">{t(blocked)}</span>
+      </span>
+    );
+  }
+  if (props.column === "read" || props.column === "history") return <ChoiceCell {...props} />;
+  if (props.column === "metadata") return <MetadataCell {...props} />;
+  return <ListCell {...props} />;
+}
+
+/** The cell's name for a screen reader: "pm10: History". */
+function useCellName(attribute: string, column: CapabilityField): string {
+  const { t } = useTranslation();
+  return `${attribute === "*" ? t("policies.capabilities.every") : attribute}: ${t(`policies.capabilities.column.${column}`)}`;
+}
+
+/** What an unset cell means: the grant's default on `*`, else the `*` row's value. */
+function useInherited(attribute: string, inherited: unknown): string {
+  const { t } = useTranslation();
+  if (attribute === "*") return t("policies.capabilities.asGrant");
+  if (typeof inherited === "boolean") {
+    return `${t("policies.capabilities.asEvery")}: ${t(inherited ? "policies.capabilities.yes" : "policies.capabilities.no")}`;
+  }
+  return t("policies.capabilities.asEvery");
+}
+
+/** Read or history: inherit, yes or no. */
+export function ChoiceCell({ attribute, column, row, every, limits, frozen, describedBy, onChange }: CellProps): JSX.Element {
   const { t } = useTranslation();
   const value = row?.[column];
-  const blocked = columnBlocked(column, limits);
-  // The reasons stand once above the table (columnReasons); a disabled box carries its own too.
-  const name = `${attribute === "*" ? t("policies.capabilities.every") : attribute}: ${t(`policies.capabilities.column.${column}`)}`;
-  const inherit = t(attribute === "*" ? "policies.capabilities.asGrant" : "policies.capabilities.asEvery");
-  // A column the grant cannot give shows its reason; a value the manifest holds there anyway stays
-  // visible, so the dry run's refusal names something the person can see.
-  if (blocked && value === undefined) {
-    return <span className="text-caption text-fg-muted">{t(blocked)}</span>;
-  }
-  if (column === "read" || column === "history") {
-    return (
-      <Select
-        aria-label={name}
-        aria-describedby={describedBy}
-        className="min-w-28"
-        disabled={frozen || (blocked !== undefined && value !== true)}
-        value={value === undefined ? "" : String(value)}
-        onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value === "true")}
-      >
-        <option value="">{inherit}</option>
-        <option value="true">{t("policies.capabilities.yes")}</option>
-        <option value="false">{t("policies.capabilities.no")}</option>
-      </Select>
-    );
-  }
+  const name = useCellName(attribute, column);
+  const inherit = useInherited(attribute, every?.[column]);
+  return (
+    <Select
+      aria-label={name}
+      aria-describedby={describedBy}
+      className="w-full min-w-32"
+      disabled={frozen || (columnBlocked(column, limits) !== undefined && value !== true)}
+      value={value === undefined ? "" : String(value)}
+      onChange={(event) => onChange(event.target.value === "" ? undefined : event.target.value === "true")}
+    >
+      <option value="">{inherit}</option>
+      <option value="true">{t("policies.capabilities.yes")}</option>
+      <option value="false">{t("policies.capabilities.no")}</option>
+    </Select>
+  );
+}
+
+/** The ticks of a list column, and a control back to the inherited value once one is set. */
+export function ListCell({ attribute, column, row, every, limits, frozen, onChange }: CellProps): JSX.Element {
+  const { t } = useTranslation();
+  const name = useCellName(attribute, column);
   const vocabulary: readonly string[] =
     column === "versions" ? VERSIONS_CAPABILITIES : column === "write" ? WRITE_CAPABILITIES : METADATA_MEMBERS;
-  const list = value as string[] | undefined;
-  const boxes = vocabulary.map((item) => {
-    const reason = valueBlocked(column, item, limits);
-    const ticked = list?.includes(item) ?? false;
-    return (
-      <div key={item} className="flex flex-col">
-        <Checkbox
-          label={<span className="font-mono text-caption">{item}</span>}
-          aria-label={`${name} ${item}`}
-          checked={ticked}
-          disabled={frozen || (reason !== undefined && !ticked)}
-          disabledReason={reason ? t(reason) : undefined}
-          onChange={(event) => onChange(toggled(vocabulary, list, item, event.target.checked) as AttributeCapabilities[CapabilityField])}
-        />
-      </div>
-    );
-  });
-  const reset =
-    list !== undefined && !frozen ? (
-      <Button size="sm" variant="ghost" aria-label={`${name}: ${inherit}`} onClick={() => onChange(undefined)}>
-        {inherit}
-      </Button>
-    ) : (
-      <span className="text-caption text-fg-muted">{list === undefined ? inherit : null}</span>
-    );
-  if (column !== "metadata") {
-    return (
-      <div className="flex flex-col gap-1">
-        {boxes}
-        {reset}
-      </div>
-    );
-  }
-  // Nine members: folded behind a summary so a row stays one line until it is opened.
+  const list = row?.[column] as string[] | undefined;
+  const inherit = useInherited(attribute, every?.[column]);
+  // Versions and edit values read as words; metadata members are names a reader looks up as such.
+  const word = (item: string): string => (column === "metadata" ? item : t(`policies.capabilities.value.${item}`));
+  return (
+    <div className="flex flex-col gap-1">
+      {vocabulary.map((item) => {
+        const reason = valueBlocked(column, item, limits);
+        const ticked = list?.includes(item) ?? false;
+        return (
+          <Checkbox
+            key={item}
+            label={<span className={column === "metadata" ? "font-mono text-caption" : "text-caption"}>{word(item)}</span>}
+            aria-label={`${name} ${item}`}
+            checked={ticked}
+            disabled={frozen || (reason !== undefined && !ticked)}
+            disabledReason={reason ? t(reason) : undefined}
+            onChange={(event) => onChange(toggled(vocabulary, list, item, event.target.checked) as AttributeCapabilities[CapabilityField])}
+          />
+        );
+      })}
+      {list !== undefined && !frozen ? (
+        <Button size="xs" variant="ghost" className="self-start" aria-label={`${name}: ${inherit}`} onClick={() => onChange(undefined)}>
+          {inherit}
+        </Button>
+      ) : (
+        <span className="text-caption text-fg-muted">{list === undefined ? inherit : null}</span>
+      )}
+    </div>
+  );
+}
+
+/** Nine members: folded behind a summary that names the chosen ones, so a row stays short. */
+export function MetadataCell(props: CellProps): JSX.Element {
+  const list = props.row?.metadata;
+  const inherit = useInherited(props.attribute, undefined);
+  const { t } = useTranslation();
   return (
     <details className="min-w-40">
       <summary className="focus-ring cursor-pointer rounded-sm text-caption text-fg">
-        {list === undefined ? inherit : t("policies.capabilities.members", { count: list.length })}
+        {list === undefined ? inherit : list.length === 0 ? t("policies.capabilities.none") : list.join(", ")}
       </summary>
-      <div className="mt-2 flex flex-col gap-1">
-        {boxes}
-        {reset}
+      <div className="mt-2">
+        <ListCell {...props} />
       </div>
     </details>
   );
