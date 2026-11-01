@@ -638,9 +638,12 @@ export function ModelsPage({
           {/* Said in the window, where the name is typed: a taken name never reaches the editor. */}
           {taken ? <InlineError>{t("models.create.taken", { name: targetName })}</InlineError> : null}
           {spaceTakenBy ? <InlineError>{t("models.create.spaceTaken", { space: newSpace, model: spaceTakenBy })}</InlineError> : null}
-          <div className="flex justify-end border-t border-border pt-3">
+          <div className="flex flex-wrap items-center justify-end gap-3 border-t border-border pt-3">
+            {/* Why Create waits, where a sighted person reads it; a taken name says so above. */}
+            {!newName.trim() ? <p className="mr-auto text-caption text-fg-muted">{t("models.nameFirst")}</p> : null}
             <Button
               type="submit"
+              variant="primary"
               disabled={Boolean(newNameRefusal)}
               disabledReason={newNameRefusal}
             >

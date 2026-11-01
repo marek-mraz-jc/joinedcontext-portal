@@ -295,10 +295,13 @@ export function AddRelationshipForm({ source, model, klass, initialTarget, run, 
     }
   };
 
-  const targetLabel = target || t("models.relationships.add.target");
+  // Before a class is picked the labels name it in words, not by the Target class label (UI judge, T-6344).
+  const targetLabel = target || t("models.relationships.add.targetPending");
   const requiredHint = (end: "source" | "target", owner: string) =>
     stored === end
-      ? t("models.relationships.add.requiredStored", { owner })
+      ? end === "target" && !target
+        ? t("models.relationships.add.requiredStoredPending")
+        : t("models.relationships.add.requiredStored", { owner })
       : t("models.relationships.add.requiredComputed");
 
   return (
@@ -413,6 +416,10 @@ export function AddRelationshipForm({ source, model, klass, initialTarget, run, 
         <Alert tone="danger" role="alert">
           {t("models.refused", { reason: refusal })}
         </Alert>
+      ) : null}
+      {/* A sighted person reads why Add relationship waits; the button's reason is for screen readers. */}
+      {!ready && refusal === null ? (
+        <p className={`text-caption text-fg-muted${bare ? " self-end" : ""}`}>{t("models.relationships.add.pickFirst")}</p>
       ) : null}
       <Button type="submit" variant="primary" className={bare ? "w-fit self-end" : "w-fit"} disabled={!ready || refusal !== null}
         disabledReason={refusal ?? t("models.relationships.add.pickFirst")}

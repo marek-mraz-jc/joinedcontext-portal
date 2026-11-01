@@ -98,7 +98,11 @@ describe("AttributeMetadata (T-5529)", () => {
     const { source } = sourceOf(async () => []);
     render(<AttributeMetadata source={source} id={ID} attr="kpiValue" cell={{ kind: "property", value: 1 }} locale="en" now={() => NOW} />);
     expect(value("Created").textContent).toBe("hidden: no access (this view does not pass it)");
-    await waitFor(() => expect(value("Organization").textContent).toBe("No change was recorded"));
+    // Nothing recorded is said once, under "Changed by", not per field.
+    await waitFor(() => expect(value("Changed by").textContent).toBe("No change was recorded"));
+    for (const term of ["Organization", "Through", "Reason"]) {
+      expect(screen.queryByText(term)).toBeNull();
+    }
   });
 
   it("asks a public Endpoint for nothing and hides who wrote it", () => {

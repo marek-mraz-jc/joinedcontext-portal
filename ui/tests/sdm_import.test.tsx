@@ -386,7 +386,7 @@ describe("Smart Data Models import wizard", () => {
     expect(screen.queryByText(en.models.sdm.noMatches)).not.toBeInTheDocument();
   });
 
-  it("calls an empty catalogue empty, with the refresh and the file drop as next steps", async () => {
+  it("calls an empty catalogue empty, with the refresh and Add type, From a spreadsheet as next steps", async () => {
     renderWizard({ catalogue: { subjects: [] } });
     expect(await screen.findByText(en.models.sdm.emptyCatalogue)).toBeInTheDocument();
     expect(screen.getByText(en.models.sdm.emptyCatalogueHint)).toBeInTheDocument();

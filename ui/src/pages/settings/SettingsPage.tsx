@@ -59,21 +59,24 @@ export function SettingsPage({ project }: { project: string }): JSX.Element {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={t("settingsPage.title")} description={t("settingsPage.description")} />
-      {groups.map((group) => (
-        <Card key={group.scope}>
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-muted">{t(`settingsPage.scope.${group.scope}`)}</h2>
-          <p className="mb-3 text-caption text-fg-muted">{t(`settingsPage.scopeHint.${group.scope}`)}</p>
-          <ul className="flex flex-col gap-2">
-            {group.entries.map((entry) => (
-              <li key={entry.key} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-body font-medium [&_a]:text-primary-soft-fg [&_a]:underline-offset-2 hover:[&_a]:underline">
-                <Icon name={entry.icon} className="size-4 text-fg-subtle" />
-                {entry.link}
-                <span className="text-caption font-normal text-fg-muted">{t(`settingsPage.hint.${entry.key}`)}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      ))}
+      {/* Side by side on a wide screen: one link per card stretched across 1440 px read as empty. */}
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+        {groups.map((group) => (
+          <Card key={group.scope}>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-fg-muted">{t(`settingsPage.scope.${group.scope}`)}</h2>
+            <p className="mb-3 text-caption text-fg-muted">{t(`settingsPage.scopeHint.${group.scope}`)}</p>
+            <ul className="flex flex-col gap-2">
+              {group.entries.map((entry) => (
+                <li key={entry.key} className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-body font-medium [&_a]:text-primary-soft-fg [&_a]:underline-offset-2 hover:[&_a]:underline">
+                  <Icon name={entry.icon} className="size-4 text-fg-subtle" />
+                  {entry.link}
+                  <span className="text-caption font-normal text-fg-muted">{t(`settingsPage.hint.${entry.key}`)}</span>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
