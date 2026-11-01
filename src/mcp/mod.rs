@@ -973,6 +973,26 @@ async fn read_change(
     Some(("application/json", serde_json::to_string(&change).ok()?))
 }
 
+/// `jc://{project}/datamodels/{name}/linkml`, behind the read of the model's manifest; the
+/// project `-` is the organization's own (JC2-47).
+async fn read_linkml(
+    state: &AppState,
+    caller: &crate::ops::Caller,
+    project: &str,
+    name: &str,
+) -> Option<(&'static str, String)> {
+    let project = if project == "-" {
+        crate::permissions::ORG_NAMESPACE
+    } else {
+        project
+    };
+    readable_item(state, caller, project, "DataModel", name)?;
+    let source = crate::api::datamodels::read_source(state, project, name)
+        .await
+        .ok()?;
+    Some(("application/yaml", source))
+}
+
 /// `jc://schemas/{Kind}`, `jc://{project}/drafts/{Kind}/{name}`,
 /// `jc://{project}/changes/{changeId}`, `jc://{project}/datamodels/{name}/linkml`,
 /// `jc://-/datamodels/{name}/linkml`, `jc://-/{plural}/{name}` or
@@ -999,14 +1019,7 @@ async fn read_resource(
         [project, "changes", change_id] => read_change(state, caller, project, change_id).await,
         // The model's own source. The Portal holds the LinkML; the JSON Schema and the
         // `@context` are the endpoint façade's renderings of it, and are read there (EP-47).
-        [project, "datamodels", name, "linkml"]
-            if readable_item(state, caller, project, "DataModel", name).is_some() =>
-        {
-            let source = crate::api::datamodels::read_source(state, project, name)
-                .await
-                .ok()?;
-            Some(("application/yaml", source))
-        }
+        [project, "datamodels", name, "linkml"] => read_linkml(state, caller, project, name).await,
         [project, "drafts", kind, name] if may_read_kind(state, caller, project, kind) => {
             let effective = crate::permissions::for_request(state, &caller.identity, project);
             let draft = state
@@ -1017,23 +1030,6 @@ async fn read_resource(
                 .flatten()
                 .filter(|draft| effective.may_read_manifest(&draft.kind, &draft.manifest))?;
             Some(("application/json", serde_json::to_string(&draft).ok()?))
-        }
-        // JC2-47: an organization model's source, read behind the read of its manifest.
-        ["-", "datamodels", name, "linkml"]
-            if readable_item(
-                state,
-                caller,
-                crate::permissions::ORG_NAMESPACE,
-                "DataModel",
-                name,
-            )
-            .is_some() =>
-        {
-            let source =
-                crate::api::datamodels::read_source(state, crate::permissions::ORG_NAMESPACE, name)
-                    .await
-                    .ok()?;
-            Some(("application/yaml", source))
         }
         // AG-81: `jc://-/{plural}/{name}` is a resource of the organization itself.
         ["-", plural, name] => {

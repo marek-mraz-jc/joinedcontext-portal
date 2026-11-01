@@ -1,3 +1,5 @@
+import { MAX_FORMULA_CHARS, parseFormula } from "./formula";
+
 export type Density = "compact" | "comfortable";
 
 export interface ColumnShow {
@@ -16,6 +18,12 @@ export interface GridColumn {
   show?: ColumnShow;
   editable?: boolean;
   format?: "text" | "number" | "date" | "link";
+  /**
+   * A computed column (T-6384): `attr` names it and the formula works its value out of the row's
+   * stored attributes, e.g. `availableBikeNumber / totalSlotNumber`. Parsed by `parseFormula`,
+   * never evaluated as code; such a column is neither edited nor filtered on the endpoint.
+   */
+  formula?: string;
 }
 
 export type GridSource =
@@ -168,9 +176,17 @@ function checkColumns(raw: unknown, path: string, findings: ConfigFinding[]): Gr
       if (VALID_FORMATS.has(item.format as string)) col.format = item.format as GridColumn["format"];
       else findings.push({ path: `${itemPath}/format`, message: `must be one of ${[...VALID_FORMATS].join(", ")}` });
     }
+    if (item.formula !== undefined) {
+      const parsed = typeof item.formula === "string" ? parseFormula(item.formula) : null;
+      if (parsed === null) findings.push({ path: `${itemPath}/formula`, message: "must be a string" });
+      else if (!parsed.ok) findings.push({ path: `${itemPath}/formula`, message: `${parsed.error} (at character ${parsed.at + 1})` });
+      else if (parsed.attrs.includes(attr)) findings.push({ path: `${itemPath}/formula`, message: `reads "${attr}", the column it computes; name the column differently` });
+      else if (col.editable === true) findings.push({ path: `${itemPath}/editable`, message: "a computed column is worked out from the row and cannot be edited" });
+      else col.formula = item.formula as string;
+    }
     // unknown keys in column
     for (const k of Object.keys(item)) {
-      if (!["attr", "label", "width", "pinned", "show", "editable", "format"].includes(k)) {
+      if (!["attr", "label", "width", "pinned", "show", "editable", "format", "formula"].includes(k)) {
         findings.push({ path: `${itemPath}/${k}`, message: "unknown property" });
       }
     }
@@ -215,6 +231,7 @@ export const gridConfigSchema: Record<string, unknown> = {
           },
           editable: { type: "boolean" },
           format: { type: "string", enum: ["text", "number", "date", "link"] },
+          formula: { type: "string", minLength: 1, maxLength: MAX_FORMULA_CHARS },
         },
       },
     },
@@ -373,6 +390,11 @@ export function parseGridConfig(raw: unknown): { config?: ResolvedGridConfig; fi
   if (editableAttrs !== undefined) {
     if (!Array.isArray(editableAttrs) || !editableAttrs.every((a: unknown) => typeof a === "string")) {
       findings.push({ path: "/editableAttrs", message: "must be an array of strings" });
+    } else {
+      const computed = new Set((columns ?? []).filter((c) => c.formula !== undefined).map((c) => c.attr));
+      editableAttrs.forEach((attr: string, i: number) => {
+        if (computed.has(attr)) findings.push({ path: `/editableAttrs/${i}`, message: `"${attr}" is a computed column and cannot be edited` });
+      });
     }
   }
 

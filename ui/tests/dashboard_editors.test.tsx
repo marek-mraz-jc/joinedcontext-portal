@@ -464,6 +464,10 @@ describe("the grid widget of a dashboard", () => {
     // and jc_core's GridConfig refuses the field outright, so the form would draw a manifest the
     // platform rejects.
     expect(Object.keys(grid.properties ?? {})).not.toContain("compareWith");
+    // An App's computed column (T-6384) is no field of jc_core's GridColumn either.
+    const columns = (grid.properties ?? {}).columns as { items?: { properties?: Record<string, unknown> } };
+    expect(Object.keys(columns.items?.properties ?? {})).toContain("attr");
+    expect(Object.keys(columns.items?.properties ?? {})).not.toContain("formula");
   });
 
   it("round-trips a configured grid through the manifest unchanged", () => {
