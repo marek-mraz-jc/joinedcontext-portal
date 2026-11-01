@@ -1290,6 +1290,9 @@
       "selectRow": "Zeile auswählen",
       "selectAll": "Alle geladenen Zeilen auswählen",
       "query": "Abfrage",
+      "edit": "Bearbeiten",
+      "editChecking": "Prüfe, welcher Endpoint Ihnen erlaubt, {type} zu korrigieren…",
+      "editNone": "Kein Endpoint dieses Raums erlaubt Ihnen, {type} zu korrigieren: Sie können es nur lesen. Ein Projektadmin kann Ihnen Schreibrechte auf einem Endpoint erteilen.",
       "aggregateOf": "Fußzeile von {field}",
       "aggregate": {
         "none": "Zusammenfassen",
@@ -2867,6 +2870,7 @@
       "outcome": "Ergebnis",
       "message": "Meldung",
       "noId": "(ohne ID)",
+      "states": {"clean": "Fehlerfrei", "rejected": "Abgelehnte Zeilen", "failing": "Fehlgeschlagene Zeilen", "silent": "Nichts geschrieben"},
       "outcomes": {
         "sent": "Geschrieben",
         "rejected": "Abgelehnt",
@@ -3788,6 +3792,7 @@
       "role": "Rolle",
       "where": "Geschrieben in",
       "grants": "Gewährt",
+      "ruleCount": "Regeln",
       "on": "auf",
       "new": "Neue Rolle",
       "newTitle": "Neue Rolle",

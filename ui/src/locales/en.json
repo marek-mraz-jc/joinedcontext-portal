@@ -1290,6 +1290,9 @@
       "selectRow": "Select row",
       "selectAll": "Select all loaded rows",
       "query": "Query",
+      "edit": "Edit",
+      "editChecking": "Checking which endpoint lets you correct {type}…",
+      "editNone": "No endpoint of this space lets you correct {type}: you can read it only. A project admin can grant you a write on an endpoint.",
       "aggregateOf": "Footer of {field}",
       "aggregate": {
         "none": "Summarize",
@@ -2867,6 +2870,7 @@
       "outcome": "Outcome",
       "message": "Message",
       "noId": "(no id)",
+      "states": {"clean": "Clean", "rejected": "Rejected lines", "failing": "Failed lines", "silent": "Wrote nothing"},
       "outcomes": {
         "sent": "Written",
         "rejected": "Rejected",
@@ -3788,6 +3792,7 @@
       "role": "Role",
       "where": "Written in",
       "grants": "Grants",
+      "ruleCount": "Rules",
       "on": "on",
       "new": "New role",
       "newTitle": "New role",

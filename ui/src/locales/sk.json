@@ -1290,6 +1290,9 @@
       "selectRow": "Vybrať riadok",
       "selectAll": "Vybrať všetky načítané riadky",
       "query": "Dopyt",
+      "edit": "Upraviť",
+      "editChecking": "Overujem, ktorý endpoint vám dovolí opraviť {type}…",
+      "editNone": "Žiadny endpoint tohto priestoru vám nedovoľuje opraviť {type}: môžete ho len čítať. Zápis na endpointe vám môže udeliť správca projektu.",
       "aggregateOf": "Súhrn poľa {field}",
       "aggregate": {
         "none": "Zhrnúť",
@@ -2867,6 +2870,7 @@
       "outcome": "Výsledok",
       "message": "Správa",
       "noId": "(bez id)",
+      "states": {"clean": "Bez chýb", "rejected": "Odmietnuté riadky", "failing": "Zlyhané riadky", "silent": "Nezapísal nič"},
       "outcomes": {
         "sent": "Zapísaný",
         "rejected": "Odmietnutý",
@@ -3788,6 +3792,7 @@
       "role": "Rola",
       "where": "Zapísaná v",
       "grants": "Dáva",
+      "ruleCount": "Pravidlá",
       "on": "na",
       "new": "Nová rola",
       "newTitle": "Nová rola",

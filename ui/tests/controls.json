@@ -2095,7 +2095,7 @@
     },
     "src/pages/spaces/SpaceInside.tsx": {
       "controls": {
-        "Button": 19,
+        "Button": 20,
         "RadioGroup": 1
       },
       "tests": [
@@ -2186,7 +2186,7 @@
     },
     "src/routes/AllEndpointsPage.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 2
       },
       "tests": [
         "page_all_endpoints_page.test.tsx"
