@@ -14,7 +14,7 @@ use crate::change::{Change, Lane};
 use crate::error::ApiError;
 use crate::ops::feed_shape::{self, Records};
 use crate::ops::verdict::{Finding, Level, Verdict};
-use crate::ops::{self, draft_store, Caller, OpError};
+use crate::ops::{self, Caller, OpError};
 use crate::resource::{self, is_dns1123, API_VERSION};
 use crate::state::AppState;
 use crate::tools::model_tools;
@@ -759,7 +759,7 @@ pub async fn run(
 
     // Now compute verdicts and store drafts
     let mut drafts = Vec::new();
-    let store = draft_store(state);
+    let store = state.drafts.clone();
 
     // Save DataModel draft
     if let Some(m) = model_manifest {
@@ -1683,7 +1683,7 @@ async fn put_draft(
         Verb::Propose,
         Some(&manifest),
     )?;
-    let store = draft_store(state);
+    let store = state.drafts.clone();
     let existing = store
         .get(project, kind, name)
         .await
@@ -1724,7 +1724,7 @@ async fn checked_draft(
         .as_str()
         .unwrap_or_default()
         .to_owned();
-    let store = draft_store(state);
+    let store = state.drafts.clone();
     let stored = put_draft(caller, state, project, &kind, &name, manifest.clone()).await?;
     // The bundle is proposed with this draft as one Change, so a reference to one of its drafts
     // (the space naming its new model, the Endpoint its new space) resolves (T-5109).
@@ -1979,7 +1979,8 @@ mod tests {
             }
             other => panic!("expected a refusal at the slug, got {other:?}"),
         }
-        let drafted = crate::ops::drafts::draft_store(&state)
+        let drafted = state
+            .drafts
             .get("doprava", "Endpoint", "bikes")
             .await
             .expect("the store answers");

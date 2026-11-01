@@ -232,7 +232,7 @@ pub async fn checked_send(
 /// Anything but a Pipeline draft with a verdict is left alone.
 pub async fn records_checked(state: &AppState, project: &str, name: &str) {
     use joinedcontext_portal::ops::verdict::{digest_of, RecordsVerdict};
-    let store = joinedcontext_portal::ops::drafts::draft_store(state);
+    let store = state.drafts.clone();
     let Ok(Some(draft)) = store.get(project, "Pipeline", name).await else {
         return;
     };

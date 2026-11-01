@@ -10,7 +10,9 @@ use serde_json::{json, Value};
 
 use super::bounds::{text, NAME, QUERY, TERM, TITLE};
 use super::runs::as_user;
-use super::{change_schema, dry_run_output_schema, parse_input, Annotations, OpError, Operation};
+use super::{
+    change_schema, dry_run_output_schema, parse_input, OpError, Operation, OperationAnnotations,
+};
 use crate::change::Lane;
 use crate::error::ApiError;
 use crate::state::AppState;
@@ -231,7 +233,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Opens a project, with the opener's steward binding in the same change; the organization's own setting says who may",
             input: create_project_input_schema,
             output: change_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: false,
                 idempotent_hint: false,
@@ -266,7 +268,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Proposes the one red-lane change that removes a project and every space, endpoint, app, service account, role and binding written for it",
             input: delete_project_input_schema,
             output: change_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: true,
                 idempotent_hint: false,
@@ -286,7 +288,7 @@ pub fn operations() -> Vec<Operation> {
             description: "The project's manifests as one bundle, narrowed to the kinds and names asked for; the whole project is for organization administrators",
             input: export_input_schema,
             output: export_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: true,
                 destructive_hint: false,
                 idempotent_hint: true,
@@ -335,7 +337,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Imports a bundle into the project as one change a person approves, or answers the plan alone",
             input: import_input_schema,
             output: import_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: false,
                 idempotent_hint: false,
@@ -390,7 +392,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Writes one DataModel's LinkML and its generated artifacts as a change a person approves",
             input: source_put_input_schema,
             output: source_put_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: false,
                 idempotent_hint: true,

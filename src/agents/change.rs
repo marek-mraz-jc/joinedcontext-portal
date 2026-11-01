@@ -134,26 +134,6 @@ pub fn tool_call(answer: &str) -> Option<Result<ChangeResource, String>> {
     call_of(answer, "change_resource")
 }
 
-/// RFC 7386: an object patch merges key by key, `null` removes a key, anything else replaces.
-fn merge(target: &mut Value, patch: &Value) {
-    let Value::Object(changes) = patch else {
-        *target = patch.clone();
-        return;
-    };
-    if !target.is_object() {
-        *target = json!({});
-    }
-    if let Value::Object(fields) = target {
-        for (key, value) in changes {
-            if value.is_null() {
-                fields.remove(key);
-            } else {
-                merge(fields.entry(key.clone()).or_insert(Value::Null), value);
-            }
-        }
-    }
-}
-
 /// The manifest with the patch applied and without status (MF-04). The kind, the name and the
 /// namespace stay: another one would be another resource.
 pub fn patched(current: &Value, patch: &Value) -> Result<Value, String> {
@@ -168,7 +148,7 @@ pub fn patched(current: &Value, patch: &Value) -> Result<Value, String> {
         fields.remove("status");
     }
     let mut after = before.clone();
-    merge(&mut after, patch);
+    crate::plan::merge_patch(&mut after, patch);
     if let Value::Object(fields) = &mut after {
         fields.remove("status");
     }

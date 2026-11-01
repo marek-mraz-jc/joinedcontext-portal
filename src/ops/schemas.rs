@@ -524,7 +524,7 @@ fn compact(kind: &str, schema: &Value) -> Value {
         .find(|(of, _)| *of == kind)
         .and_then(|(_, patch)| serde_json::from_str::<Value>(patch).ok())
     {
-        merge(&mut example, patch);
+        crate::plan::merge_patch(&mut example, &patch);
     }
     json!({
         "kind": kind,
@@ -732,26 +732,6 @@ fn example_of(defs: &Defs, schema: &Value, depth: usize) -> Value {
     }
 }
 
-/// RFC 7386 merge patch: an object member replaces or merges, null removes it.
-fn merge(target: &mut Value, patch: Value) {
-    let Value::Object(members) = patch else {
-        *target = patch;
-        return;
-    };
-    if !target.is_object() {
-        *target = Value::Object(Map::new());
-    }
-    if let Value::Object(into) = target {
-        for (name, value) in members {
-            if value.is_null() {
-                into.remove(&name);
-            } else {
-                merge(into.entry(name).or_insert(Value::Null), value);
-            }
-        }
-    }
-}
-
 /// The registry name of get_schema (AG-146).
 pub const GET: &str = "jc_schema_get";
 
@@ -921,7 +901,10 @@ mod tests {
     #[test]
     fn merge_follows_rfc_7386() {
         let mut target = json!({ "a": 1, "b": { "c": 2, "d": 3 } });
-        merge(&mut target, json!({ "a": null, "b": { "c": 4 }, "e": [1] }));
+        crate::plan::merge_patch(
+            &mut target,
+            &json!({ "a": null, "b": { "c": 4 }, "e": [1] }),
+        );
         assert_eq!(target, json!({ "b": { "c": 4, "d": 3 }, "e": [1] }));
     }
 }

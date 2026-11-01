@@ -55,13 +55,7 @@ pub(crate) async fn refusal(
     if let Some(token) = token.filter(|token| !token.is_empty()) {
         said = said.replace(token, "[redacted]");
     }
-    if said.len() > 300 {
-        let mut end = 300;
-        while !said.is_char_boundary(end) {
-            end -= 1;
-        }
-        said.truncate(end);
-    }
+    said.truncate(said.floor_char_boundary(300));
     match said.is_empty() {
         true => format!("{what}: {status}"),
         false => format!("{what}: {status}: {said}"),

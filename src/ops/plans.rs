@@ -18,7 +18,7 @@ use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
 use super::bounds::{manifest, text, NAME, TERM};
-use super::{parse_input, Annotations, Caller, OpError, Operation};
+use super::{parse_input, Caller, OpError, Operation, OperationAnnotations};
 use crate::api::datamodels::{self, ModelChange, SourceDryRunResult};
 use crate::api::delete::{self, DeleteOutcome};
 use crate::api::mutate::{self, ProposeOutcome};
@@ -1832,7 +1832,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Dry-runs one or more changes of any kind (nothing saved): the diff, the verdict and a planId valid 30 minutes; a failing check answers 422 naming each field",
             input: plan_input_schema,
             output: plan_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: false,
                 idempotent_hint: false,
@@ -1851,7 +1851,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Plans the undo of a merged Change, every file back to before it, for jc_change_apply; 409 names files changed since",
             input: revert_input_schema,
             output: revert_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: false,
                 idempotent_hint: false,
@@ -1870,7 +1870,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Opens the change requests (or workspace commits) of an unchanged jc_change_plan plan; 409 when an object moved since. Nothing goes live until a person approves each in the Portal, so apply what the person asked for without asking again",
             input: apply_input_schema,
             output: apply_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: false,
                 idempotent_hint: false,

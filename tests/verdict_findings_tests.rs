@@ -264,7 +264,8 @@ async fn a_refused_check_writes_no_draft_of_its_own() {
         "the refusal repeats the credential: {body}"
     );
 
-    let drafts = joinedcontext_portal::ops::draft_store(&state)
+    let drafts = state
+        .drafts
         .list("ovzdusie")
         .await
         .expect("the drafts list");

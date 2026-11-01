@@ -645,6 +645,9 @@ async fn with_projects_named(response: Response, projects: &[&str]) -> Response 
         ),
     };
     answer["result"]["instructions"] = json!(format!("{instructions} {reach}"));
+    // Only what [`METHODS`] and the plan view serve: the Portal MCP's prompts and tasks are
+    // refused here, so a client is never told it may call them (JC2-21).
+    answer["result"]["capabilities"] = json!({ "tools": {}, "resources": {} });
     json_response(parts.status, &answer)
 }
 
@@ -912,10 +915,16 @@ mod tests {
             StatusCode::OK,
             &result(
                 json!(1),
-                json!({ "instructions": "Tool answers carry text." }),
+                json!({ "instructions": "Tool answers carry text.",
+                    "capabilities": { "tools": {}, "resources": {}, "prompts": {}, "tasks": {} } }),
             ),
         );
         let answer = answer_of(with_projects_named(init, &connector.projects()).await).await;
+        // JC2-21: no capability a connector refuses is offered.
+        assert_eq!(
+            answer["result"]["capabilities"],
+            json!({ "tools": {}, "resources": {} })
+        );
         assert_eq!(
             answer["result"]["instructions"],
             "Tool answers carry text. This connector reaches project doprava; every tool's \

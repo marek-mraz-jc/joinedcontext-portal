@@ -12,7 +12,7 @@ use serde_json::{json, Value};
 
 use super::bounds::{text, NAME};
 use super::runs::as_user;
-use super::{parse_input, Annotations, OpError, Operation};
+use super::{parse_input, OpError, Operation, OperationAnnotations};
 use crate::change::Lane;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -101,7 +101,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Where one SyncSource stands: its phase, the revision it saw and why the last run stopped",
             input: name_input_schema,
             output: status_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: true,
                 destructive_hint: false,
                 idempotent_hint: true,
@@ -138,7 +138,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Runs one SyncSource at once; what it finds becomes changes a person approves",
             input: name_input_schema,
             output: report_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: false,
                 idempotent_hint: false,
@@ -166,7 +166,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Switches one SyncSource's loop off, or back on; nothing already proposed is touched",
             input: pause_input_schema,
             output: status_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: false,
                 idempotent_hint: true,
@@ -197,7 +197,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Stops the loop and proposes removing the SyncSource; what it imported stays",
             input: name_input_schema,
             output: detached_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: true,
                 idempotent_hint: true,

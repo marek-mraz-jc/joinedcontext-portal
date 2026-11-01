@@ -434,7 +434,9 @@ pub async fn get(
 ) -> Result<Preview, ApiError> {
     let workspace = workspaces::visible(state, identity, project, name).await?;
     let render = match workspace.preview_state {
-        PreviewState::Running | PreviewState::Error => render(state, &workspace).await.ok(),
+        // A forge that cannot be read is that problem, not a preview with no addresses (JC1-56);
+        // the loader's own refusal still comes back as the preview's reason.
+        PreviewState::Running | PreviewState::Error => Some(render(state, &workspace).await?),
         _ => None,
     };
     Ok(view(state, &workspace, render.as_deref()))
@@ -595,4 +597,43 @@ mod tests {
 
     /// `MAX_NAME` is the workspace name's limit; kept beside these cases so a change to it is read.
     const MAX_NAME_FOR_TEST: usize = crate::ops::workspaces::MAX_NAME;
+
+    /// JC1-56: a running preview whose branch cannot be read answers the problem, never an
+    /// empty preview that looks like one serving no Endpoint.
+    #[tokio::test]
+    async fn a_preview_whose_forge_cannot_be_read_answers_that_problem() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        state
+            .workspaces
+            .create(crate::ops::workspaces::Opening {
+                name: "air",
+                title: None,
+                project: "helsinki",
+                owner: "test-user",
+                base_revision: "b",
+                scope: crate::ops::workspaces::Scope::Project {},
+                ttl_hours: 24,
+            })
+            .await
+            .expect("opened");
+        state
+            .workspaces
+            .set_preview_state("air", PreviewState::Running)
+            .await
+            .expect("running");
+        let identity = Identity {
+            client: None,
+            subject: "sub-test-user".into(),
+            username: "test-user".into(),
+            email: None,
+            name: None,
+            roles: vec![state.config.bootstrap_admins.clone()],
+            groups: vec![],
+            second_factor: false,
+        };
+        match get(&identity, &state, "helsinki", "air").await {
+            Err(ApiError::Unavailable(why)) => assert!(why.contains("forge"), "{why}"),
+            other => panic!("expected the forge's problem, got {other:?}"),
+        }
+    }
 }

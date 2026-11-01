@@ -297,11 +297,6 @@ fn key(workspace: &str, project: &str, kind: &str, name: &str) -> (String, Strin
     )
 }
 
-/// The store the state carries: one per process, memory-backed without a database.
-pub fn draft_store(state: &AppState) -> DraftStore {
-    state.drafts.clone()
-}
-
 impl DraftStore {
     pub fn new(db: Option<sqlx::PgPool>) -> Self {
         let inner = match db {
@@ -835,7 +830,8 @@ pub(crate) async fn readable_draft(
     draft: &DraftRef,
 ) -> Result<Draft, OpError> {
     let effective = crate::permissions::for_request(state, identity, project);
-    draft_store(state)
+    state
+        .drafts
         .get(project, &draft.kind, &draft.name)
         .await
         .map_err(draft_error)?
@@ -1065,7 +1061,7 @@ pub fn operations() -> Vec<Operation> {
                     crate::permissions::for_request(state, &caller.identity, project)
                         .check(&input.kind, Verb::Propose, Some(&input.manifest))?;
                     draft_workspace_owned(state, caller, project, input.workspace.as_deref(), "write a draft into").await?;
-                    let draft = draft_store(state)
+                    let draft = state.drafts
                         .put_in(
                             input.workspace.as_deref(),
                             project,
@@ -1101,7 +1097,7 @@ pub fn operations() -> Vec<Operation> {
                     let d: DraftGetInput = parse_input(val)?;
                     draft_workspace_visible(state, caller, project, d.workspace.as_deref()).await?;
                     let effective = crate::permissions::for_request(state, &caller.identity, project);
-                    let draft = draft_store(state)
+                    let draft = state.drafts
                         .get_in(d.workspace.as_deref(), project, &d.kind, &d.name)
                         .await
                         .map_err(draft_error)?
@@ -1139,7 +1135,7 @@ pub fn operations() -> Vec<Operation> {
                     let effective = crate::permissions::for_request(state, &caller.identity, project);
                     // A line per draft, never the manifest and never the verdict's trace
                     // (T-2248): the manifest is read one at a time with jc_draft_get.
-                    let items: Vec<crate::ops::drafts::DraftLine> = draft_store(state)
+                    let items: Vec<crate::ops::drafts::DraftLine> = state.drafts
                         .list_in(asked.workspace.as_deref(), project)
                         .await
                         .map_err(draft_error)?
@@ -1172,7 +1168,7 @@ pub fn operations() -> Vec<Operation> {
                     let d: DraftDropInput = parse_input(val)?;
                     // Judged by the stored draft, so a grant bound to one space drops only that
                     // space's drafts (F-POR3-019).
-                    let stored = draft_store(state)
+                    let stored = state.drafts
                         .get_in(d.workspace.as_deref(), project, &d.kind, &d.name)
                         .await
                         .map_err(draft_error)?;
@@ -1182,7 +1178,7 @@ pub fn operations() -> Vec<Operation> {
                         stored.as_ref().map(|draft| &draft.manifest),
                     )?;
                     draft_workspace_owned(state, caller, project, d.workspace.as_deref(), "drop a draft of").await?;
-                    let dropped = draft_store(state)
+                    let dropped = state.drafts
                         .drop_in(d.workspace.as_deref(), project, &d.kind, &d.name)
                         .await
                         .map_err(draft_error)?;
