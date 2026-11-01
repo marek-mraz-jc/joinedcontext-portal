@@ -1014,9 +1014,9 @@ async fn plan(
 
 /// The manifests of a plan applied as one Change, `None` for a plan opened change by change.
 /// One Change holds two or more creates, replaces or patches of the project's own objects
-/// outside a workspace (T-6282); a removal, a model with its LinkML file and an object kept in
-/// another namespace each open a change request of their own, so their siblings are checked
-/// against the project as it is.
+/// outside a workspace (T-6282), a DataModel with its LinkML file among them (JC2-10); a removal
+/// and an object kept in another namespace each open a change request of their own, so their
+/// siblings are checked against the project as it is.
 fn together(state: &AppState, project: &str, input: &PlanInput) -> Option<Vec<Value>> {
     if input.workspace.is_some() || input.changes.len() < 2 {
         return None;
@@ -1026,7 +1026,7 @@ fn together(state: &AppState, project: &str, input: &PlanInput) -> Option<Vec<Va
         .iter()
         .enumerate()
         .map(|(n, change)| {
-            if change.op == Op::Delete || change.source.is_some() {
+            if change.op == Op::Delete {
                 return None;
             }
             let info = super::resources::kind_named(&change.kind).ok()?;
@@ -1045,9 +1045,10 @@ fn together(state: &AppState, project: &str, input: &PlanInput) -> Option<Vec<Va
 fn bundled(plan: &Plan) -> bool {
     plan.workspace.is_none()
         && plan.items.len() > 1
-        && plan.items.iter().all(|item| {
-            item.manifest.is_some() && item.model.is_none() && item.home == plan.project
-        })
+        && plan
+            .items
+            .iter()
+            .all(|item| item.manifest.is_some() && item.home == plan.project)
 }
 
 /// Opens a [`bundled`] plan as one Change (T-6282): every change through the propose engine's
@@ -1079,22 +1080,32 @@ async fn open_together(
             summary.update += 1;
             (ChangeOp::Update, "update")
         };
-        let written = mutate::propose_gated_onto(
-            &caller.identity,
-            state,
-            &item.home,
-            item.plural,
-            Some(&item.name),
-            op,
-            manifest.clone(),
-            &branch,
-        )
-        .await;
+        let written = match model_proposal(caller, state, item, manifest) {
+            // A model writes its manifest, source and artifacts onto the plan's branch (JC2-10).
+            Ok(Some(proposal)) => {
+                datamodels::propose_model_onto(state, &caller.identity, proposal, &branch)
+                    .await
+                    .map(|lane| (lane, Vec::new()))
+            }
+            Ok(None) => mutate::propose_gated_onto(
+                &caller.identity,
+                state,
+                &item.home,
+                item.plural,
+                Some(&item.name),
+                op,
+                manifest.clone(),
+                &branch,
+            )
+            .await
+            .map(|commit| (commit.lane, commit.waits_on)),
+            Err(err) => Err(err),
+        };
         super::forget_check(state, &item.home, manifest).await;
         match written {
-            Ok(commit) => {
-                lanes.push(commit.lane);
-                waits_on.extend(commit.waits_on);
+            Ok((lane, waits)) => {
+                lanes.push(lane);
+                waits_on.extend(waits);
                 lines.push(format!("- {word} {} `{}`", item.kind, item.name));
             }
             Err(err) => {
@@ -1650,10 +1661,22 @@ async fn propose_source(
     item: &Planned,
     manifest: &Value,
 ) -> Result<crate::change::Change, ApiError> {
-    let model = item
-        .model
-        .as_ref()
+    let proposal = model_proposal(caller, state, item, manifest)?
         .ok_or_else(|| ApiError::Internal("a model change without its source".into()))?;
+    datamodels::propose_model(state, &caller.identity, proposal).await
+}
+
+/// The model proposal of a DataModel planned with its LinkML file, once the caller may propose
+/// it; `None` for any other change.
+fn model_proposal<'a>(
+    caller: &Caller,
+    state: &AppState,
+    item: &'a Planned,
+    manifest: &Value,
+) -> Result<Option<datamodels::ModelProposal<'a>>, ApiError> {
+    let Some(model) = item.model.as_ref() else {
+        return Ok(None);
+    };
     crate::permissions::for_request(state, &caller.identity, &item.home).check(
         "DataModel",
         jc_core::kinds::Verb::Propose,
@@ -1666,28 +1689,23 @@ async fn propose_source(
     } else {
         ("update", "update")
     };
-    datamodels::propose_model(
-        state,
-        &caller.identity,
-        datamodels::ModelProposal {
-            namespace: &item.home,
-            name: &item.name,
-            envelope,
-            source: &model.source,
-            checked: model.checked.clone(),
-            next_val: model.next_val.clone(),
-            imports: model.imports.clone(),
-            creating: model.creating,
-            lane: datamodels::model_lane(&item.home, model.creating, &model.checked.severity),
-            title: format!("{verb} DataModel {}", item.name),
-            body: format!(
-                "Proposed {noun} of DataModel `{}` source, manifest and generated artifacts in \
-                 project `{}` through a plan (AG-149).",
-                item.name, item.home
-            ),
-        },
-    )
-    .await
+    Ok(Some(datamodels::ModelProposal {
+        namespace: &item.home,
+        name: &item.name,
+        envelope,
+        source: &model.source,
+        checked: model.checked.clone(),
+        next_val: model.next_val.clone(),
+        imports: model.imports.clone(),
+        creating: model.creating,
+        lane: datamodels::model_lane(&item.home, model.creating, &model.checked.severity),
+        title: format!("{verb} DataModel {}", item.name),
+        body: format!(
+            "Proposed {noun} of DataModel `{}` source, manifest and generated artifacts in \
+             project `{}` through a plan (AG-149).",
+            item.name, item.home
+        ),
+    }))
 }
 
 /// What an apply opened, as API/14 §4.3 names it; never an approval. `url` is the Portal page
@@ -1922,7 +1940,8 @@ mod tests {
     }
 
     /// T-6282: two or more creates of the project's own objects are checked and opened as one
-    /// Change; a single change, a workspace, a removal or a model with its file is not.
+    /// Change, a model with its LinkML file among them (JC2-10); a single change, a workspace or
+    /// a removal is not.
     #[test]
     fn a_plan_of_several_changes_is_checked_as_one_bundle() {
         let state = AppState::new(crate::config::Config::for_tests(), None);
@@ -1949,7 +1968,9 @@ mod tests {
         assert!(together(&state, "doprava", &plan(vec![space(), removal], None)).is_none());
         let mut model = create("DataModel", "parking");
         model.source = Some("id: x".into());
-        assert!(together(&state, "doprava", &plan(vec![space(), model], None)).is_none());
+        let bundle = together(&state, "doprava", &plan(vec![model, space()], None))
+            .expect("JC2-10: a model with its source stays in the bundle");
+        assert_eq!(bundle[0]["kind"], "DataModel");
     }
 
     /// EP-75 (T-6285): a connector planning an Endpoint with a slug it wrote is refused at the
@@ -2192,5 +2213,243 @@ mod tests {
             .await,
         );
         assert!(why.contains("may not create ContextSpace parking"), "{why}");
+    }
+
+    /// A forge that holds nothing yet and takes every write; `open` is the head branch of a
+    /// change already open on it.
+    async fn empty_forge(open: Option<String>) -> wiremock::MockServer {
+        use wiremock::matchers::{method, path, path_regex};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        let repo = "/api/v1/repos/o/r";
+        Mock::given(method("GET"))
+            .and(path(repo))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({ "default_branch": "main" })),
+            )
+            .mount(&server)
+            .await;
+        let pull = |number: u64, head: &str| {
+            json!({
+                "number": number, "html_url": format!("https://forge.test/pulls/{number}"),
+                "state": "open", "title": "t", "body": "",
+                "head": { "ref": head }, "base": { "ref": "main" },
+                "created_at": "2026-11-01T20:00:00Z",
+                "user": { "login": "jana", "full_name": "Jana" },
+                "mergeable": true, "merged": false
+            })
+        };
+        let pulls: Vec<Value> = open.iter().map(|head| pull(175, head)).collect();
+        Mock::given(method("GET"))
+            .and(path(format!("{repo}/pulls")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(pulls))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{repo}/pulls")))
+            .respond_with(
+                ResponseTemplate::new(201).set_body_json(pull(176, "portal/import-plan-p1")),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{repo}/branches")))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{repo}/contents")))
+            .respond_with(
+                ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "c0ffee" } })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("PUT"))
+            .and(path_regex(format!("^{repo}/contents/.*")))
+            .respond_with(
+                ResponseTemplate::new(201).set_body_json(json!({ "commit": { "sha": "c0ffee" } })),
+            )
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path_regex(format!("^{repo}/contents/.*")))
+            .respond_with(
+                ResponseTemplate::new(404).set_body_json(json!({ "message": "not found" })),
+            )
+            .mount(&server)
+            .await;
+        server
+    }
+
+    fn steward() -> Caller {
+        let mut steward = caller(None);
+        steward.identity.groups = vec!["portal-approver".into()];
+        steward
+    }
+
+    /// A plan creating DataModel `parking` with its LinkML file and the space naming it.
+    fn model_and_space() -> Plan {
+        let model = json!({
+            "apiVersion": crate::resource::API_VERSION, "kind": "DataModel",
+            "metadata": { "name": "parking", "namespace": "doprava" },
+            "spec": { "contextSpaceRef": "mobility", "linkml": "./parking.linkml.yaml",
+                      "version": "1.0.0", "lifecycle": "draft" }
+        });
+        let space = json!({
+            "apiVersion": crate::resource::API_VERSION, "kind": "ContextSpace",
+            "metadata": { "name": "mobility", "namespace": "doprava" },
+            "spec": { "isSandbox": true, "dataModelRef": "parking" }
+        });
+        let item = |kind: &str, plural: &'static str, name: &str, manifest: Value| Planned {
+            kind: kind.into(),
+            plural,
+            home: "doprava".into(),
+            name: name.into(),
+            manifest: Some(manifest),
+            base: "absent".into(),
+            model: None,
+        };
+        let mut parking = item("DataModel", "datamodels", "parking", model);
+        parking.model = Some(ModelPlan {
+            source: "id: https://example.org/parking\nname: parking\n".into(),
+            checked: SourceDryRunResult {
+                severity: "none".into(),
+                changes: vec![],
+                version: "1.0.0".into(),
+                artifacts: Default::default(),
+            },
+            next_val: json!({ "classes": { "Parking": {} } }),
+            imports: BTreeMap::new(),
+            creating: true,
+            base: String::new(),
+        });
+        Plan {
+            owner: "sub-jana".into(),
+            connector: None,
+            project: "doprava".into(),
+            workspace: None,
+            items: vec![parking, item("ContextSpace", "spaces", "mobility", space)],
+            expires_at: Utc::now() + Duration::minutes(TTL_MINUTES),
+        }
+    }
+
+    async fn on_forge(server: &wiremock::MockServer) -> AppState {
+        let forge = crate::git::GiteaClient::new(server.uri().parse().expect("url"), "o", "r", "t")
+            .expect("client");
+        let state = AppState::new(crate::config::Config::for_tests(), None)
+            .with_gitea(std::sync::Arc::new(forge));
+        let plan = model_and_space();
+        let space = plan.items[1].manifest.as_ref().expect("manifest");
+        super::super::proposals::record_check(
+            &steward(),
+            &state,
+            "doprava",
+            space,
+            &super::super::verdict::Verdict::green(space, None),
+        )
+        .await;
+        state
+    }
+
+    /// [`open_together`] with the plan's manifests as the bundle in scope, as [`apply`] runs it.
+    async fn opened_together(state: &AppState, plan: &Plan) -> Result<Vec<Value>, OpError> {
+        let manifests = plan
+            .items
+            .iter()
+            .filter_map(|i| i.manifest.clone())
+            .collect();
+        crate::references::BUNDLE
+            .scope(manifests, open_together(&steward(), state, "p1", plan))
+            .await
+    }
+
+    /// JC2-10: a bundled plan holding a DataModel with its LinkML file commits the model's
+    /// manifest, source and artifacts onto the plan's one branch and opens one Change for it all.
+    #[tokio::test]
+    async fn a_bundled_plan_commits_the_model_with_its_source_onto_the_plan_branch() {
+        let server = empty_forge(None).await;
+        let state = on_forge(&server).await;
+        let plan = model_and_space();
+        assert!(bundled(&plan));
+        let rows = opened_together(&state, &plan).await;
+        let requests = server.received_requests().await.expect("requests");
+        let rows = rows.unwrap_or_else(|err| {
+            let seen: Vec<String> = requests
+                .iter()
+                .map(|r| format!("{} {}", r.method, r.url))
+                .collect();
+            panic!("the plan opens: {err}; forge saw {seen:#?}")
+        });
+        assert_eq!(rows.len(), 1, "one Change: {rows:?}");
+
+        let commits: Vec<Value> = requests
+            .iter()
+            .filter(|r| {
+                matches!(r.method.as_str(), "POST" | "PUT") && r.url.path().contains("/contents")
+            })
+            .map(|r| serde_json::from_slice(&r.body).expect("json"))
+            .collect();
+        assert_eq!(commits.len(), 2, "one commit per change");
+        let model = commits
+            .iter()
+            .find(|c| c["files"].as_array().is_some_and(|f| f.len() > 2))
+            .expect("the model's commit");
+        assert_eq!(model["branch"], "portal/import-plan-p1");
+        let paths: Vec<&str> = model["files"]
+            .as_array()
+            .expect("files")
+            .iter()
+            .filter_map(|f| f["path"].as_str())
+            .collect();
+        for wanted in [
+            "parking.yaml",
+            "parking.linkml.yaml",
+            "json-schema/parking.v1.json",
+            "context/parking.v1.jsonld",
+        ] {
+            assert!(
+                paths.iter().any(|p| p.ends_with(wanted)),
+                "{wanted} in {paths:?}"
+            );
+        }
+        assert!(
+            commits
+                .iter()
+                .all(|c| c["branch"] == "portal/import-plan-p1"),
+            "every write lands on the plan's branch"
+        );
+        let opened: Vec<Value> = requests
+            .iter()
+            .filter(|r| r.method.as_str() == "POST" && r.url.path().ends_with("/pulls"))
+            .map(|r| serde_json::from_slice(&r.body).expect("json"))
+            .collect();
+        assert_eq!(opened.len(), 1, "one merge request");
+        assert_eq!(opened[0]["head"], "portal/import-plan-p1");
+    }
+
+    /// CC-34 (JC2-10): a change already open on the model refuses the plan before a byte of it is
+    /// written, and names the open change.
+    #[tokio::test]
+    async fn a_bundled_plan_is_refused_while_the_model_has_an_open_change() {
+        let own = crate::api::mutate::branch_name(
+            "doprava",
+            "datamodel",
+            "parking",
+            crate::change::Operation::Create,
+        );
+        let server = empty_forge(Some(own)).await;
+        let state = on_forge(&server).await;
+        let err = opened_together(&state, &model_and_space())
+            .await
+            .expect_err("an open change on the model");
+        let why = err.to_string();
+        assert!(why.contains("DataModel 'parking' is already open"), "{why}");
+        assert!(why.contains("nothing of the plan was opened"), "{why}");
+        let requests = server.received_requests().await.expect("requests");
+        assert!(
+            requests.iter().all(|r| r.method.as_str() == "GET"),
+            "nothing written: {:?}",
+            requests.iter().map(|r| r.url.path()).collect::<Vec<_>>()
+        );
     }
 }
