@@ -16,6 +16,11 @@ import {
 } from "../pages/endpoints/catalog";
 import { withCatalog } from "../pages/organization/limits";
 import type { LimitEntry } from "../pages/organization/limits";
+import {
+  METADATA_MEMBERS,
+  VERSIONS_CAPABILITIES,
+  WRITE_CAPABILITIES,
+} from "../components/forms/widgets/attributeCapabilities";
 
 /**
  * Draft-07 schemas for the kinds the Portal writes, mirroring jc-core's `ContextSpaceSpec`
@@ -1810,6 +1815,11 @@ export function policySchema(
               items: { type: "string" },
               uniqueItems: true,
             },
+            attributes: {
+              type: "object",
+              title: t("policies.capabilities.title"),
+              additionalProperties: ATTRIBUTE_CAPABILITIES_SCHEMA,
+            },
           },
         },
       },
@@ -1842,6 +1852,19 @@ export function policySchema(
   };
 }
 
+/** One attribute's capabilities in a grant, as jc-core's `AttributeCapabilities` (ADR-N-066). */
+const ATTRIBUTE_CAPABILITIES_SCHEMA: JsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    read: { type: "boolean" },
+    history: { type: "boolean" },
+    versions: { type: "array", items: { type: "string", enum: [...VERSIONS_CAPABILITIES] }, uniqueItems: true },
+    metadata: { type: "array", items: { type: "string", enum: [...METADATA_MEMBERS] }, uniqueItems: true },
+    write: { type: "array", items: { type: "string", enum: [...WRITE_CAPABILITIES] }, uniqueItems: true },
+  },
+};
+
 /** The members a rule of `rules[]` carries, which the Policy then holds in no other place (ADR-N-057). */
 export const POLICY_RULE_MEMBERS = ["effect", "assignee", "operations", "actions", "information", "q", "scopeQ", "geoQ", "temporalQ"];
 
@@ -1857,6 +1880,7 @@ export function hasPolicyRules(spec: Record<string, unknown> | undefined): boole
  */
 export const policyUiSchema: UiSchema = {
   operations: { "ui:widget": "operations" },
+  information: { items: { attributes: { "ui:field": "attributeCapabilities" } } },
   q: { "ui:autocomplete": "off" },
   scopeQ: { "ui:autocomplete": "off" },
   geoQ: { "ui:autocomplete": "off" },

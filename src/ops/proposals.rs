@@ -918,6 +918,7 @@ pub fn operations() -> Vec<Operation> {
                     let unknown = super::policy_names::findings(state, project, &manifest).await;
                     let ok = res.valid && unknown.is_empty();
                     findings.extend(unknown);
+                    findings.extend(super::policy_names::superseded_audit(&manifest));
                     // A reference an open change creates passes and names the change (MF-48).
                     findings.extend(res.awaited.iter().map(crate::references::Awaited::finding));
                     let mut verdict = Verdict::new(

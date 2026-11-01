@@ -6813,6 +6813,39 @@
     "more": "Další akce pro {name}"
   },
   "policies": {
+    "capabilities": {
+      "title": "Co oprávnění dovoluje volajícímu s každým atributem",
+      "about": "Zužuje tuto položku po atributech; nikdy nedá víc než operace výše. Buňka na výchozí hodnotě zachová dnešní chování.",
+      "caption": "Schopnosti atributů typu {types}",
+      "every": "Všechny atributy (*)",
+      "asGrant": "Podle oprávnění",
+      "asEvery": "Podle *",
+      "yes": "Ano",
+      "no": "Ne",
+      "members": "Vybráno: {count}",
+      "noType": "Vyberte výše typ entity, aby se zobrazily jeho atributy; do té doby řádek * pokrývá všechny.",
+      "needsTemporal": "Vyžaduje queryTemporal nebo retrieveTemporal v operacích.",
+      "needsWrite": "Vyžaduje zapisovací operaci, například updateAttrs.",
+      "needsReadVersions": "Vyžaduje akci readVersions (zobrazení YAML).",
+      "neverPublicWrite": "Veřejné oprávnění nikdy nezapisuje.",
+      "neverPublicKeep": "Veřejné oprávnění nikdy neukládá verze.",
+      "neverPublicActor": "modifiedBy.actor a provenance nejsou nikdy veřejné: autor je účet osoby.",
+      "column": {
+        "attribute": "Atribut",
+        "read": "Čtení",
+        "history": "Historie",
+        "versions": "Verze",
+        "metadata": "Metadata",
+        "write": "Úpravy"
+      },
+      "hint": {
+        "read": "Aktuální hodnota. Například Ne u pm10 ji ponechá jen pro historii.",
+        "history": "Minulé hodnoty v čase. Například Ano u pm10 poskytne měření za minulý týden.",
+        "versions": "read poskytne starší verze hodnoty, keep uloží každý zápis jako verzi. Například keep u name.",
+        "metadata": "Které údaje jdou s hodnotou. Například observedAt a unitCode.",
+        "write": "Které změny smí volající provést. Například update u name, nic u pm10."
+      }
+    },
     "title": "Politiky",
     "filter": {
       "label": "Najít politiku",

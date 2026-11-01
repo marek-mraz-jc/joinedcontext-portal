@@ -6,6 +6,10 @@
 //! LinkML source and names each such entry as an error on its field. A class the model's own
 //! source does not hold whole (an imported class, or one whose `is_a` or mixin is imported) is
 //! not judged here: Model Tools resolves imports, and a guess would refuse a valid Policy.
+//!
+//! The same holds for the keys of an entry's `attributes` capability block (ADR-N-066, DM-148),
+//! and a public grant never reads the versions of an attribute the model marks `personalData`
+//! (DM-151): the dry run names the key that gives them.
 
 use std::collections::BTreeSet;
 
@@ -25,17 +29,40 @@ pub async fn findings(state: &AppState, project: &str, manifest: &Value) -> Vec<
         return Vec::new();
     }
     match space_model(state, project, &manifest["spec"]).await {
-        Some((model, linkml)) => unknown_names(&manifest["spec"], &linkml, &model),
+        Some((model, source, linkml)) => {
+            let mut out = unknown_names(&manifest["spec"], &linkml, &model);
+            out.extend(public_personal_versions(
+                &manifest["spec"],
+                &crate::personal_data::marks(&source),
+            ));
+            out
+        }
         None => Vec::new(),
     }
 }
 
-/// The name and parsed LinkML source of the DataModel the spec's space names.
+/// A warning on an Endpoint whose `spec.audit` is `changes`: ADR-N-066 2.5 moves the audit into
+/// `versions: [keep]` on the `*` entry of the Endpoint's write grants, and the gateway reads the
+/// old field for one release more (DM-150).
+pub fn superseded_audit(manifest: &Value) -> Option<Finding> {
+    (manifest["kind"].as_str() == Some("Endpoint")
+        && manifest["spec"]["audit"].as_str() == Some("changes"))
+    .then(|| Finding {
+        level: Level::Warning,
+        path: "spec.audit".into(),
+        message: "spec.audit is superseded: give the Endpoint's write grants \
+                  `attributes: {\"*\": {versions: [keep]}}` and drop spec.audit (ADR-N-066 2.5); \
+                  the gateway reads it for one release more"
+            .into(),
+    })
+}
+
+/// The name, LinkML source and parsed source of the DataModel the spec's space names.
 async fn space_model(
     state: &AppState,
     project: &str,
     spec: &Value,
-) -> Option<(String, serde_norway::Value)> {
+) -> Option<(String, String, serde_norway::Value)> {
     let space = crate::resource::reference_name(&spec["contextSpaceRef"])?;
     let space = state.mirror.get(project, "ContextSpace", space)?;
     let reference = &space.spec["dataModelRef"];
@@ -44,22 +71,25 @@ async fn space_model(
     let linkml = crate::api::datamodels::read_source(state, namespace, model)
         .await
         .ok()?;
-    Some((model.to_owned(), serde_norway::from_str(&linkml).ok()?))
+    let parsed = serde_norway::from_str(&linkml).ok()?;
+    Some((model.to_owned(), linkml, parsed))
 }
 
-/// Whether the spec or one of its rules lists an attribute name.
+/// Whether the spec or one of its rules lists an attribute name or capability key.
 fn has_names(spec: &Value) -> bool {
     entries(spec).any(|(_, info)| {
         ["propertyNames", "relationshipNames"].iter().any(|list| {
             info[*list]
                 .as_array()
                 .is_some_and(|names| !names.is_empty())
-        })
+        }) || info["attributes"]
+            .as_object()
+            .is_some_and(|keys| !keys.is_empty())
     })
 }
 
-/// Every `information` entry with its field path: the spec's own, then each rule's.
-fn entries(spec: &Value) -> impl Iterator<Item = (String, &Value)> {
+/// The spec and each of its rules, with their field paths: what holds a grant.
+fn holders(spec: &Value) -> impl Iterator<Item = (String, &Value)> {
     let own = std::iter::once(("spec".to_owned(), spec));
     let rules = spec["rules"]
         .as_array()
@@ -67,26 +97,97 @@ fn entries(spec: &Value) -> impl Iterator<Item = (String, &Value)> {
         .flatten()
         .enumerate()
         .map(|(n, rule)| (format!("spec.rules.{n}"), rule));
-    own.chain(rules).flat_map(|(at, holder)| {
-        holder["information"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .enumerate()
-            .map(move |(n, info)| (format!("{at}.information.{n}"), info))
-    })
+    own.chain(rules)
+}
+
+/// The `information` entries of one holder, with their field paths.
+fn entries_of(at: String, holder: &Value) -> impl Iterator<Item = (String, &Value)> {
+    holder["information"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .enumerate()
+        .map(move |(n, info)| (format!("{at}.information.{n}"), info))
+}
+
+/// Every `information` entry with its field path: the spec's own, then each rule's.
+fn entries(spec: &Value) -> impl Iterator<Item = (String, &Value)> {
+    holders(spec).flat_map(|(at, holder)| entries_of(at, holder))
+}
+
+/// The entity types an entry's selectors name.
+fn entry_types(info: &Value) -> Vec<&str> {
+    info["entities"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|selector| selector["type"].as_str())
+        .collect()
+}
+
+/// One error per capability key that lets a public grant read the versions of an attribute its
+/// model marks personal (DM-151): the attribute's own key, or `*` when it sets no `versions`.
+fn public_personal_versions(spec: &Value, marks: &crate::personal_data::Marks) -> Vec<Finding> {
+    let mut out = Vec::new();
+    let public = |holder: &Value| {
+        holder["effect"].as_str() != Some("prohibition")
+            && holder["assignee"]["kind"].as_str() == Some("role")
+            && holder["assignee"]["id"].as_str() == Some("public")
+    };
+    // A rule takes the spec's assignee when it names none.
+    let own_public = public(spec);
+    for (at, holder) in holders(spec) {
+        let named = holder.get("assignee").is_some();
+        if !(public(holder) || (!named && own_public)) {
+            continue;
+        }
+        for (at, info) in entries_of(at, holder) {
+            let Some(caps) = info["attributes"].as_object() else {
+                continue;
+            };
+            let listed: Vec<&str> = ["propertyNames", "relationshipNames"]
+                .iter()
+                .flat_map(|list| info[*list].as_array().into_iter().flatten())
+                .filter_map(Value::as_str)
+                .collect();
+            let personal: BTreeSet<&str> = entry_types(info)
+                .iter()
+                .filter_map(|t| marks.get(*t))
+                .flatten()
+                .map(String::as_str)
+                .filter(|name| listed.is_empty() || listed.contains(name))
+                .collect();
+            for name in personal {
+                let key = if caps.get(name).is_some_and(|c| c.get("versions").is_some()) {
+                    name
+                } else {
+                    "*"
+                };
+                let reads = caps
+                    .get(key)
+                    .and_then(|c| c["versions"].as_array())
+                    .is_some_and(|versions| versions.iter().any(|v| v.as_str() == Some("read")));
+                if reads {
+                    out.push(Finding {
+                        level: Level::Error,
+                        path: format!("{at}.attributes.{key}.versions"),
+                        message: format!(
+                            "'{name}' is personal data in the model, so a public grant never \
+                             reads its versions; set `{name}: {{versions: []}}` or drop read"
+                        ),
+                    });
+                }
+            }
+        }
+    }
+    out
 }
 
 /// The findings for `spec` against the parsed LinkML `linkml` of the DataModel `model`.
 fn unknown_names(spec: &Value, linkml: &serde_norway::Value, model: &str) -> Vec<Finding> {
     let mut out = Vec::new();
     for (at, info) in entries(spec) {
-        let types: Vec<&str> = info["entities"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(|selector| selector["type"].as_str())
-            .collect();
+        let types = entry_types(info);
         let mut known: BTreeSet<String> = CORE.iter().map(|name| (*name).to_owned()).collect();
         let mut judged = !types.is_empty();
         for entity_type in &types {
@@ -105,19 +206,54 @@ fn unknown_names(spec: &Value, linkml: &serde_norway::Value, model: &str) -> Vec
                 if name.contains(':') || known.contains(name) {
                     continue;
                 }
-                out.push(Finding {
-                    level: Level::Error,
-                    path: format!("{at}.{list}.{n}"),
-                    message: format!(
-                        "'{name}' is no Attribute of {} in the DataModel {model}; name one of: {}",
-                        types.join(", "),
-                        known.iter().cloned().collect::<Vec<_>>().join(", ")
-                    ),
-                });
+                out.push(unknown(
+                    format!("{at}.{list}.{n}"),
+                    name,
+                    &types,
+                    &known,
+                    model,
+                ));
             }
+        }
+        // A capability key names an Attribute too (ADR-N-066, DM-148).
+        for name in info["attributes"]
+            .as_object()
+            .into_iter()
+            .flatten()
+            .map(|(k, _)| k)
+        {
+            if name == "*" || name.contains(':') || known.contains(name) {
+                continue;
+            }
+            out.push(unknown(
+                format!("{at}.attributes.{name}"),
+                name,
+                &types,
+                &known,
+                model,
+            ));
         }
     }
     out
+}
+
+/// The error for `name`, which no type of `types` declares.
+fn unknown(
+    path: String,
+    name: &str,
+    types: &[&str],
+    known: &BTreeSet<String>,
+    model: &str,
+) -> Finding {
+    Finding {
+        level: Level::Error,
+        path,
+        message: format!(
+            "'{name}' is no Attribute of {} in the DataModel {model}; name one of: {}",
+            types.join(", "),
+            known.iter().cloned().collect::<Vec<_>>().join(", ")
+        ),
+    }
 }
 
 /// The slots and inline attributes of `class` and of every class it reaches by `is_a` and
@@ -243,5 +379,106 @@ classes:
         assert!(!has_names(
             &json!({"information": [{"entities": [{"type": "OnStreetParking"}]}]})
         ));
+    }
+
+    #[test]
+    fn an_endpoint_audit_is_named_superseded() {
+        let audited = json!({"kind": "Endpoint", "spec": {"audit": "changes"}});
+        let found = superseded_audit(&audited).expect("a warning");
+        assert_eq!(
+            (found.level, found.path.as_str()),
+            (Level::Warning, "spec.audit")
+        );
+        assert!(
+            found.message.contains("versions: [keep]"),
+            "{}",
+            found.message
+        );
+        assert_eq!(
+            superseded_audit(&json!({"kind": "Endpoint", "spec": {}})),
+            None
+        );
+        assert_eq!(
+            superseded_audit(&json!({"kind": "Policy", "spec": {"audit": "changes"}})),
+            None
+        );
+    }
+
+    #[test]
+    fn a_capability_key_the_class_lacks_is_an_error_on_its_key() {
+        let spec = json!({
+            "information": [{
+                "entities": [{"type": "OnStreetParking"}],
+                "attributes": {"*": {"read": true}, "address": {"history": true}, "typo": {"read": false}},
+            }],
+        });
+        assert!(has_names(&spec));
+        let found = unknown_names(&spec, &model(), "parking");
+        let paths: Vec<&str> = found.iter().map(|f| f.path.as_str()).collect();
+        assert_eq!(paths, ["spec.information.0.attributes.typo"]);
+    }
+
+    fn marks() -> crate::personal_data::Marks {
+        crate::personal_data::marks(
+            "classes:\n  OnStreetParking:\n    attributes:\n      ownerName:\n        annotations: { personalData: true }\n      address: {}\n",
+        )
+    }
+
+    #[test]
+    fn a_public_grant_never_reads_the_versions_of_personal_data() {
+        let public = |attributes: Value| {
+            json!({
+                "assignee": {"kind": "role", "id": "public"},
+                "information": [{"entities": [{"type": "OnStreetParking"}], "attributes": attributes}],
+            })
+        };
+        assert_eq!(
+            marks().get("OnStreetParking").map(|m| m.len()),
+            Some(1),
+            "{:?}",
+            marks()
+        );
+        let found =
+            public_personal_versions(&public(json!({"*": {"versions": ["read"]}})), &marks());
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].path, "spec.information.0.attributes.*.versions");
+        assert!(
+            found[0].message.contains("'ownerName'"),
+            "{}",
+            found[0].message
+        );
+        let own = public_personal_versions(
+            &public(json!({"ownerName": {"versions": ["read"]}})),
+            &marks(),
+        );
+        assert_eq!(
+            own[0].path,
+            "spec.information.0.attributes.ownerName.versions"
+        );
+        // The attribute's own empty list narrows `*`; a non-personal attribute stays public.
+        let narrowed = json!({"*": {"versions": ["read"]}, "ownerName": {"versions": []}});
+        assert_eq!(
+            public_personal_versions(&public(narrowed), &marks()),
+            Vec::new()
+        );
+        let other = json!({"address": {"versions": ["read"]}});
+        assert_eq!(
+            public_personal_versions(&public(other), &marks()),
+            Vec::new()
+        );
+        // An internal grant may read them.
+        let mut internal = public(json!({"*": {"versions": ["read"]}}));
+        internal["assignee"]["id"] = json!("city-staff");
+        assert_eq!(public_personal_versions(&internal, &marks()), Vec::new());
+        // A rule without its own assignee takes the spec's.
+        let ruled = json!({
+            "assignee": {"kind": "role", "id": "public"},
+            "rules": [{"information": [{"entities": [{"type": "OnStreetParking"}], "attributes": {"*": {"versions": ["read"]}}}]}],
+        });
+        let found = public_personal_versions(&ruled, &marks());
+        assert_eq!(
+            found[0].path,
+            "spec.rules.0.information.0.attributes.*.versions"
+        );
     }
 }

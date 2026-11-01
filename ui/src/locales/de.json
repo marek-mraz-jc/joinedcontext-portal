@@ -6813,6 +6813,39 @@
     "more": "Weitere Aktionen für {name}"
   },
   "policies": {
+    "capabilities": {
+      "title": "Was die Berechtigung mit jedem Attribut erlaubt",
+      "about": "Grenzt diesen Eintrag je Attribut ein; sie gibt nie mehr als die Operationen oben. Eine Zelle auf ihrem Standard behält das heutige Verhalten.",
+      "caption": "Attributfähigkeiten von {types}",
+      "every": "Alle Attribute (*)",
+      "asGrant": "Wie die Berechtigung",
+      "asEvery": "Wie *",
+      "yes": "Ja",
+      "no": "Nein",
+      "members": "{count} gewählt",
+      "noType": "Wählen Sie oben einen Entitätstyp, um seine Attribute zu sehen; bis dahin deckt die Zeile * alle ab.",
+      "needsTemporal": "Braucht queryTemporal oder retrieveTemporal in den Operationen.",
+      "needsWrite": "Braucht eine schreibende Operation, etwa updateAttrs.",
+      "needsReadVersions": "Braucht die Aktion readVersions (YAML-Ansicht).",
+      "neverPublicWrite": "Eine öffentliche Berechtigung schreibt nie.",
+      "neverPublicKeep": "Eine öffentliche Berechtigung bewahrt nie Versionen.",
+      "neverPublicActor": "modifiedBy.actor und provenance sind nie öffentlich: ein Akteur ist das Konto einer Person.",
+      "column": {
+        "attribute": "Attribut",
+        "read": "Lesen",
+        "history": "Verlauf",
+        "versions": "Versionen",
+        "metadata": "Metadaten",
+        "write": "Bearbeiten"
+      },
+      "hint": {
+        "read": "Der aktuelle Wert. Beispiel: Nein bei pm10 behält ihn nur für den Verlauf.",
+        "history": "Frühere Werte über die Zeit. Beispiel: Ja bei pm10 liefert die Messungen der letzten Woche.",
+        "versions": "read liefert frühere Versionen eines Werts, keep bewahrt jeden Schreibvorgang als Version. Beispiel: keep bei name.",
+        "metadata": "Welche Angaben mit dem Wert reisen. Beispiel: observedAt und unitCode.",
+        "write": "Welche Änderungen erlaubt sind. Beispiel: update bei name, nichts bei pm10."
+      }
+    },
     "title": "Richtlinien",
     "filter": {
       "label": "Richtlinie finden",
