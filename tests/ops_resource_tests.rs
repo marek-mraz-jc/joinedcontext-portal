@@ -560,7 +560,7 @@ async fn a_secret_typed_into_a_manifest_is_refused_before_a_branch_exists() {
     )
     .await;
 
-    assert_eq!(status, StatusCode::BAD_REQUEST, "{problem}");
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{problem}");
     assert!(problem.to_string().contains("secretRef"), "{problem}");
     let branches = gitea
         .received_requests()

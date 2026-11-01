@@ -629,3 +629,20 @@ pub async fn stream_requests(runner: &MockServer) -> Vec<wiremock::Request> {
         .filter(|r| !r.url.path().contains("/resources/rate_limit/"))
         .collect()
 }
+
+/// The paths a deletion removed in its one commit, `POST /contents` (F-R2POR3-019), sorted.
+pub async fn removed_in_one_commit(gitea: &wiremock::MockServer) -> Vec<String> {
+    let mut paths: Vec<String> = gitea
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|r| r.method.as_str() == "POST" && r.url.path() == format!("{REPO}/contents"))
+        .filter_map(|r| serde_json::from_slice::<serde_json::Value>(&r.body).ok())
+        .flat_map(|commit| commit["files"].as_array().cloned().unwrap_or_default())
+        .filter(|file| file["operation"] == "delete")
+        .filter_map(|file| file["path"].as_str().map(str::to_owned))
+        .collect();
+    paths.sort();
+    paths
+}

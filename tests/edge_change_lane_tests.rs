@@ -37,6 +37,7 @@ const RED_WHATEVER_THEY_HOLD: &[&str] = &[
     "ScopeDefinition",
     "Organization",
     "Project",
+    "DelegationPolicy", // the connector ceiling: access, like a Role (AG-151)
 ];
 
 /// Green: a change nobody needs to review, because undoing it costs nothing.

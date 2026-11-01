@@ -222,20 +222,23 @@ async fn each_member_at_fault_is_named_in_a_422() {
     for (body, member) in [
         (
             json!({"account": "cam-east", "topic": "cameras/x", "payload": ""}),
-            "account: ",
+            "account",
         ),
         (
             json!({"account": "cam-west", "topic": "cameras/#", "payload": ""}),
-            "topic: ",
+            "topic",
         ),
         (
             json!({"account": "cam-west", "topic": "cameras/x", "payload": "x".repeat(1024 * 1024 + 1)}),
-            "payload: ",
+            "payload",
         ),
     ] {
         let (status, answer) = test(&state, "jana", body).await;
         assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{answer}");
-        assert!(answer.to_string().contains(member), "{member}: {answer}");
+        let named = answer["errors"]
+            .as_array()
+            .is_some_and(|errors| errors.iter().any(|e| e["path"] == member));
+        assert!(named, "{member}: {answer}");
     }
 }
 

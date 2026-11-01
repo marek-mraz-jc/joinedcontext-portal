@@ -78,6 +78,18 @@ describe("plain, of what a source writes otherwise", () => {
     expect(plain(cell({ type: "Property", value: [1, 2] }), "sk")).toBe("[1,2]");
     expect(plain([cell({ type: "Property", value: 1 }), cell({ type: "Property", value: 2 })].flat() as never, "sk")).toBe(1);
   });
+
+  it("reads a cell a source hands over as it is, without the SDK's row", () => {
+    const raw = (c: Record<string, unknown>) => plain(c as never, "en");
+    expect(raw({ kind: "property", languageMap: {} })).toBeNull();
+    expect(raw({ kind: "property", languageMap: { de: "Burg" } })).toBe("Burg");
+    expect(raw({ kind: "relationship" })).toBeNull();
+    expect(raw({ kind: "property" })).toBeNull();
+    expect(raw({ kind: "property", value: { "@value": "2026-10-06" } })).toBe("2026-10-06");
+    expect(raw({ kind: "property", value: { start: "2025-01-01", end: "2025-12-31" } })).toBe("2025-01-01/2025-12-31");
+    expect(raw({ kind: "property", value: { type: "Point", coordinates: [18.7, 49.2] } })).toEqual({ type: "Point", coordinates: [18.7, 49.2] });
+    expect(plain(undefined, "en")).toBeNull();
+  });
 });
 
 describe("exportCsv", () => {
