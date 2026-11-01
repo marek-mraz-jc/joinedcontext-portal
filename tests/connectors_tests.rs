@@ -52,15 +52,50 @@ async fn state(url: &str) -> AppState {
         .refresh()
         .await
         .expect("jwks");
-    for (name, audience) in [("air", "public"), ("inner", "organization")] {
+    for (name, project, audience) in [
+        ("air", "mesto", "public"),
+        ("inner", "mesto", "organization"),
+        // Another project's Endpoint none of this suite's people reads (T-6362).
+        ("secret", "tajne", "organization"),
+    ] {
         state.mirror.upsert(common::envelope(
             "Endpoint",
             name,
-            "mesto",
-            json!({ "contextSpaceRef": "mesto", "slug": slug(name), "audience": audience }),
+            project,
+            json!({ "contextSpaceRef": project, "slug": slug(name), "audience": audience }),
         ));
     }
+    let org = joinedcontext_portal::permissions::ORG_NAMESPACE;
+    state.mirror.upsert(common::envelope(
+        "Role",
+        "endpoint-readers",
+        org,
+        json!({ "rules": [{ "kinds": ["Endpoint", "ContextSpace"], "verbs": ["read"] }] }),
+    ));
     state
+}
+
+/// Binds `{who}@hel.fi` to reading Endpoints in project `mesto`.
+fn reader_in_mesto(state: &AppState, who: &str) {
+    state.mirror.upsert(common::envelope(
+        "RoleBinding",
+        &format!("{who}-reads-mesto"),
+        joinedcontext_portal::permissions::ORG_NAMESPACE,
+        json!({ "subjects": [{ "user": format!("{who}@hel.fi") }], "role": "endpoint-readers",
+                "scope": { "project": "mesto" } }),
+    ));
+}
+
+/// The signed-in read of preferences that moves `who`'s old connectors.
+async fn sign_in(state: &AppState, who: &str) -> common::Answer {
+    common::send(
+        state,
+        common::person(who),
+        "GET",
+        "/api/v1/preferences",
+        None,
+    )
+    .await
 }
 
 /// A person no other run of this suite uses, so runs share one database.
@@ -120,13 +155,23 @@ async fn old_connectors_move_once_read_only_and_reach_the_gateway_alone() {
                 { "name": "fav", "select": { "endpoints": [slug("air")] } },
                 { "name": "whole", "select": {} },
                 { "name": "nothing", "select": { "themes": ["AGRI"] } },
+                { "name": "hidden", "select": { "endpoints": [slug("secret")] } },
             ],
         }),
     )
     .await
     .expect("an old row");
+    reader_in_mesto(&state, &a);
 
     let gateway = common::REALM.workload(GATEWAY_CLIENT);
+    let (status, body) = internal(&state, &sub_a, &gateway).await;
+    assert_eq!(
+        (status, body),
+        (StatusCode::OK, json!({ "connectors": [] })),
+        "the gateway's listener knows no groups, so it moves nothing"
+    );
+    let prefs = sign_in(&state, &a).await;
+    assert_eq!(prefs.status, StatusCode::OK, "{}", prefs.text);
     let (status, body) = internal(&state, &sub_a, &gateway).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     let mut moved: Vec<Value> = body["connectors"].as_array().expect("a list").clone();
@@ -145,8 +190,10 @@ async fn old_connectors_move_once_read_only_and_reach_the_gateway_alone() {
     assert_eq!(moved[1]["name"], "whole");
     assert_eq!(
         moved[1]["scope"],
-        json!([{ "project": "mesto", "access": "read" }])
+        json!([{ "project": "mesto", "access": "read" }]),
+        "an empty selector reaches only the project its owner reads, never tajne"
     );
+    assert!(!body.to_string().contains("tajne") && !body.to_string().contains("secret"));
     assert!(moved
         .iter()
         .all(|c| c["id"].as_str().is_some_and(|id| id.len() == 26)));
@@ -178,19 +225,16 @@ async fn old_connectors_move_once_read_only_and_reach_the_gateway_alone() {
             "connectorsNotMoved": [{
                 "name": "nothing",
                 "select": { "projects": [], "spaces": [], "domains": [], "themes": ["AGRI"], "accessLevel": [], "endpoints": [] },
-                "reason": "takes no Endpoint today",
+                "reason": "takes no Endpoint you may read today",
+            }, {
+                "name": "hidden",
+                "select": { "projects": [], "spaces": [], "domains": [], "themes": [], "accessLevel": [], "endpoints": [slug("secret")] },
+                "reason": "takes no Endpoint you may read today",
             }],
         }),
-        "the moved ones left, the one taking nothing stayed aside, the rest stayed"
+        "the moved ones left, the ones taking nothing readable stayed aside, the rest stayed"
     );
-    let prefs = common::send(
-        &state,
-        common::person(&a),
-        "GET",
-        "/api/v1/preferences",
-        None,
-    )
-    .await;
+    let prefs = sign_in(&state, &a).await;
     assert_eq!(prefs.status, StatusCode::OK);
     assert!(
         prefs.text.contains("dark")
@@ -238,6 +282,7 @@ async fn a_save_of_preferences_never_drops_old_connectors_and_refuses_the_old_fi
     )
     .await
     .expect("an old row");
+    reader_in_mesto(&state, &a);
     let saved = common::send(
         &state,
         common::person(&a),
@@ -337,7 +382,7 @@ async fn an_unreadable_old_list_stays_in_place_and_a_save_keeps_it() {
     .await
     .expect("an old row");
 
-    let one = joinedcontext_portal::personal_connectors::move_one(&state, &sub_a)
+    let one = joinedcontext_portal::personal_connectors::move_one(&state, &common::person(&a))
         .await
         .expect("a move");
     assert_eq!((one.unreadable, one.moved), (1, 0), "{one:?}");
@@ -395,10 +440,11 @@ async fn an_old_connector_whose_name_is_taken_is_kept_aside_and_a_save_keeps_it(
     let sub_a = format!("sub-{a}");
     let pool = state.db.clone().expect("a pool");
     let old = json!({ "connectors": [{ "name": "fav", "select": { "projects": ["mesto"] } }] });
+    reader_in_mesto(&state, &a);
     joinedcontext_portal::db::save_preferences(&pool, &sub_a, &old)
         .await
         .expect("an old row");
-    let first = joinedcontext_portal::personal_connectors::move_one(&state, &sub_a)
+    let first = joinedcontext_portal::personal_connectors::move_one(&state, &common::person(&a))
         .await
         .expect("a move");
     assert_eq!(first.moved, 1);
@@ -406,7 +452,7 @@ async fn an_old_connector_whose_name_is_taken_is_kept_aside_and_a_save_keeps_it(
     joinedcontext_portal::db::save_preferences(&pool, &sub_a, &old)
         .await
         .expect("the old row again");
-    let second = joinedcontext_portal::personal_connectors::move_one(&state, &sub_a)
+    let second = joinedcontext_portal::personal_connectors::move_one(&state, &common::person(&a))
         .await
         .expect("a move");
     assert_eq!((second.moved, second.present), (0, 1), "{second:?}");

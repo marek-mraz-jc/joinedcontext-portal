@@ -632,6 +632,7 @@ pub async fn forget_import_check(state: &AppState, identity: &Identity, project:
 /// a client reads `verdict_required` wherever it knocks (ADR-N-021, T-0947).
 pub async fn verdict_refusal(
     state: &AppState,
+    identity: &crate::auth::session::Identity,
     op: &Operation,
     project: &str,
     input: &Value,
@@ -639,11 +640,12 @@ pub async fn verdict_refusal(
     if op.verb != Some(Verb::Propose) && op.name != "jc_resource_propose" {
         return None;
     }
-    let draft_ref = input.get("draft")?;
-    let kind = draft_ref.get("kind").and_then(Value::as_str)?;
-    let name = draft_ref.get("name").and_then(Value::as_str)?;
-    let draft = draft_store(state).get(project, kind, name).await.ok()??;
-    match apply_verdict_gate(state, &draft, check_for_kind(kind)) {
+    let draft_ref: DraftRef = serde_json::from_value(input.get("draft")?.clone()).ok()?;
+    // A draft in a space the caller may not read is not there: its verdict says nothing (JC2-38).
+    let draft = super::drafts::readable_draft(state, identity, project, &draft_ref)
+        .await
+        .ok()?;
+    match apply_verdict_gate(state, &draft, check_for_kind(&draft_ref.kind)) {
         Err(OpError::Conflict(body)) => Some(body),
         _ => None,
     }
@@ -730,16 +732,7 @@ pub(crate) async fn propose_with_optional_draft(
     input: ManifestInput,
 ) -> Result<Value, OpError> {
     if let Some(d) = &input.draft {
-        let draft = draft_store(state)
-            .get(project, &d.kind, &d.name)
-            .await
-            .map_err(|e| OpError::Api(ApiError::Internal(e.to_string())))?
-            .ok_or_else(|| {
-                ApiError::NotFound(format!(
-                    "draft '{}/{}' not found in project '{project}'",
-                    d.kind, d.name
-                ))
-            })?;
+        let draft = super::drafts::readable_draft(state, &caller.identity, project, d).await?;
         let warning = apply_verdict_gate(state, &draft, check_op)?;
         let mut out = mutate_manifest(
             caller,
@@ -1014,6 +1007,91 @@ pub(crate) fn datasource_verdict(out: &Value, manifest: &Value) -> Verdict {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    /// JC2-38: a draft the caller may not read answers no verdict refusal, so its verdict state
+    /// tells a stranger nothing; the approver who reads it still gets `verdict_required`.
+    #[tokio::test]
+    async fn an_unreadable_draft_answers_no_verdict_refusal() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let manifest = json!({ "kind": "Policy", "metadata": { "name": "hidden", "namespace": "p" },
+            "spec": { "contextSpaceRef": { "name": "closed" } } });
+        draft_store(&state)
+            .put("p", "Policy", "hidden", manifest, None, "sub-a", "person")
+            .await
+            .expect("kept");
+        let person = |groups: Vec<String>| crate::auth::session::Identity {
+            client: None,
+            subject: "f:1:x".into(),
+            username: "x".into(),
+            email: None,
+            name: None,
+            roles: vec![],
+            groups,
+            second_factor: true,
+        };
+        let op = crate::ops::find("jc_resource_propose").expect("registered");
+        let input = json!({ "draft": { "kind": "Policy", "name": "hidden" } });
+        let stranger = person(vec![]);
+        assert!(verdict_refusal(&state, &stranger, op, "p", &input)
+            .await
+            .is_none());
+        let approver = person(vec!["portal-approver".into()]);
+        assert!(verdict_refusal(&state, &approver, op, "p", &input)
+            .await
+            .is_some());
+    }
+
+    /// JC2-38: a proposal from a draft the caller may not read answers 404, the answer of a draft
+    /// that is not there, and leaves the draft in place.
+    #[tokio::test]
+    async fn a_proposal_from_an_unreadable_draft_is_not_found() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let manifest = json!({ "kind": "Policy", "metadata": { "name": "hidden", "namespace": "p" },
+            "spec": { "contextSpaceRef": { "name": "closed" } } });
+        draft_store(&state)
+            .put("p", "Policy", "hidden", manifest, None, "sub-a", "person")
+            .await
+            .expect("kept");
+        let stranger = Caller::new(
+            crate::auth::session::Identity {
+                client: None,
+                subject: "f:1:x".into(),
+                username: "x".into(),
+                email: None,
+                name: None,
+                roles: vec![],
+                groups: vec![],
+                second_factor: true,
+            },
+            Via::Session,
+        );
+        let input = ManifestInput {
+            manifest: None,
+            draft: Some(DraftRef {
+                kind: "Policy".into(),
+                name: "hidden".into(),
+            }),
+        };
+        let refused = propose_with_optional_draft(
+            &stranger,
+            &state,
+            "p",
+            "policies",
+            "jc_manifest_dry_run",
+            input,
+        )
+        .await
+        .expect_err("refused");
+        assert!(
+            matches!(refused, OpError::Api(ApiError::NotFound(_))),
+            "{refused}"
+        );
+        assert!(draft_store(&state)
+            .get("p", "Policy", "hidden")
+            .await
+            .expect("read")
+            .is_some());
+    }
 
     /// F-POR3-020: a check of manifest M is never recorded on draft D of another kind or name.
     #[test]
