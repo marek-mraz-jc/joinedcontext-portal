@@ -313,15 +313,31 @@ impl Driver {
             via: crate::ops::Via::Agent,
             access: None,
         };
-        match crate::ops::call(
+        let called = crate::ops::call(
             op,
             &caller,
             &self.state,
             &self.project,
             call.arguments.clone(),
         )
-        .await
-        {
+        .await;
+        // What a conversation reads reaches the model provider: the attributes the project's
+        // models mark personal leave it, as they leave a connector's answer (AG-158, JC1-03).
+        let called = match called {
+            Ok(output) if crate::personal_data::carries_entities(&output) => {
+                let marks = crate::personal_data::of_project(&self.state, &self.project).await;
+                match super::connector_turn::without_personal(output, marks) {
+                    Ok(output) => Ok(output),
+                    Err(why) => {
+                        self.event("tool", failed_step(&call.name, started, &call.arguments, &why))
+                            .await?;
+                        return Ok(format!("error: {why}"));
+                    }
+                }
+            }
+            other => other,
+        };
+        match called {
             Ok(output) => {
                 self.event(
                     "tool",
