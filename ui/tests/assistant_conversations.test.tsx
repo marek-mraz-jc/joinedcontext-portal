@@ -6,6 +6,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { narrowsAndOrders } from "./grid_checks";
+import { pageFindings } from "./pageChecks";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -302,7 +303,10 @@ describe("Asistent → Konverzácie", () => {
       expect(calls.some((c) => c.url.searchParams.get("status") === "timeout")).toBe(true);
     });
 
-    await user.click(within(screen.getByRole("table")).getByRole("button", { name: "Aké je PM10?" }));
+    // Each row holds its record's link, which the walker's row-link check asks for (T-6322).
+    expect(within(screen.getByRole("table")).getByRole("link", { name: "Aké je PM10?" })).toHaveAttribute("href", `?open=${ONE}`);
+    expect(pageFindings({ namespaces: [], layout: false }).filter((finding) => finding.startsWith("row-link"))).toEqual([]);
+    await user.click(within(screen.getByRole("table")).getByRole("link", { name: "Aké je PM10?" }));
     expect(await screen.findByText("PM10 je dnes 31 µg/m³.")).toBeInTheDocument();
     // The list row names the model too; the transcript's step is the one outside the table.
     const outside = screen.getAllByText(/google\/gemini-3.8-flash/).filter((e) => !screen.getByRole("table").contains(e));
@@ -406,7 +410,7 @@ describe("Asistent → Konverzácie", () => {
   it("one who may delete erases a conversation after confirming", async () => {
     const user = userEvent.setup();
     const calls = renderAs(["read", "approve", "delete"]);
-    await user.click(await screen.findByRole("button", { name: "Aké je PM10?" }));
+    await user.click(await screen.findByRole("link", { name: "Aké je PM10?" }));
     await user.click(await screen.findByRole("button", { name: i18n.t("conversations.erase") }));
     const dialog = await screen.findByRole("alertdialog");
     await user.click(within(dialog).getByRole("button", { name: i18n.t("conversations.erase") }));
@@ -420,7 +424,7 @@ describe("Asistent → Konverzácie", () => {
     const writeText = vi.fn(() => Promise.resolve());
     Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
     const calls = renderAs(["read", "approve"]);
-    await user.click(await screen.findByRole("button", { name: "Aké je PM10?" }));
+    await user.click(await screen.findByRole("link", { name: "Aké je PM10?" }));
     await user.click(await screen.findByRole("button", { name: i18n.t("conversations.same") }));
     const same = await screen.findByRole("list", { name: i18n.t("conversations.same") });
     // The turn itself is not offered against itself.

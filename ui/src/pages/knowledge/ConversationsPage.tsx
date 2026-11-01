@@ -21,7 +21,10 @@ import { CodeBlock,
   PageHeader,
   Select,
   Switch,
+  safeHref,
 } from "../../components/ui";
+import { clsx } from "clsx";
+import { RECORD_LINK_STYLE } from "../../components/RecordLink";
 import { UsageSummary } from "./UsageSummary";
 import { timeText } from "./knowledge";
 import {
@@ -187,9 +190,20 @@ export function ConversationsPage({
             // The question first: on a phone the first column stays in view while the rest scrolls.
             cell: (row) => (
               <>
-                <Button variant="ghost" size="sm" className="h-auto text-left underline" onClick={() => setOpen(row.id)}>
+                {/* The row's link (T-2875, T-6322): a plain click opens the conversation below, a
+                    modified one opens its own address (`?open=`) in a new tab. */}
+                <a
+                  data-row-link=""
+                  href={safeHref(`?open=${encodeURIComponent(row.id)}`)}
+                  className={clsx(RECORD_LINK_STYLE, "text-left underline")}
+                  onClick={(event) => {
+                    if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+                    event.preventDefault();
+                    setOpen(row.id);
+                  }}
+                >
                   {visible(row.firstQuestion)}
-                </Button>
+                </a>
                 <div className="text-caption text-fg-muted">{row.deployment}</div>
               </>
             ),
