@@ -10830,6 +10830,8 @@
     "loadingOptions": "Načítá se, co smíte předat",
     "needsApproval": "vyžaduje schválení vaší organizací",
     "aboveCeiling": "Vaše organizace zatím nedovoluje konektoru nést tuto předvolbu.",
+    "projectAboveCeiling": "Vaše organizace zatím nedovoluje konektoru sáhnout na tento projekt: požádejte administrátora, aby ho přidal do pravidel vaší organizace pro konektory.",
+    "endpointsOnly": "Vaše organizace dovoluje konektoru sáhnout jen na některé Endpointy tohoto projektu: požádejte administrátora, aby přidal další do pravidel vaší organizace pro konektory.",
     "binds": "použít ho může jen tento klient",
     "clientRefused": "politika vaší organizace ho nedovoluje",
     "intendedFor": "říká, pro koho je; uvést ho mohou i jiné lokální programy",

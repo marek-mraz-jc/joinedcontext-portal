@@ -2557,7 +2557,7 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
     assert_eq!(
         options["projects"],
         json!([{ "project": own, "spaces": ["lot-tree"], "endpoints": ["lot-tree-cars"],
-                 "pipelines": ["lot-tree-load"] }])
+                 "pipelines": ["lot-tree-load"], "allowed": true }])
     );
     assert_eq!(
         options["ceiling"],
