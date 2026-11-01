@@ -25,6 +25,8 @@ const LINKML = [
   "",
 ].join("\n");
 
+const SPARSE = ["description", "dataProvider", "source", "address", "areaServed", "stationCode", "stationName", "reliability"];
+
 const endpoint = (e: { name: string; slug: string }, spec: Record<string, unknown>, annotations?: Record<string, string>) => ({
   apiVersion: "joinedcontext.com/v1alpha1",
   kind: "Endpoint",
@@ -40,6 +42,8 @@ interface Options {
   refuse?: boolean;
   /** The project holds no space at all. */
   noSpaces?: boolean;
+  /** Only the first row carries the SPARSE attributes: the others show empty cells, as Helsinki's Events do. */
+  sparse?: boolean;
 }
 
 async function stub(page: Page, withApp: boolean, options: Options = {}): Promise<string[]> {
@@ -59,7 +63,10 @@ async function stub(page: Page, withApp: boolean, options: Options = {}): Promis
       if (options.refuse) {
         return route.fulfill({ status: 403, contentType: "application/problem+json", body: JSON.stringify({ type: "https://uri.etsi.org/ngsi-ld/errors/Forbidden", title: "Forbidden", status: 403, detail: "the policy of this endpoint does not let you read AirQualityObserved" }) });
       }
-      const rows = [1, 2, 3].map((n) => ({ id: `urn:ngsi-ld:${TYPE}:hel.fi:helsinki:fmi-${n}`, type: TYPE, name: `Station ${n}`, pm10: 10 + n }));
+      const property = (value: unknown) => ({ type: "Property", value });
+      const rows = options.sparse
+        ? [1, 2, 3].map((n) => ({ id: `urn:ngsi-ld:${TYPE}:hel.fi:helsinki:fmi-${n}`, type: TYPE, name: property(`Station ${n}`), ...(n === 1 ? Object.fromEntries(SPARSE.map((slot) => [slot, property(`${slot} of station 1`)])) : {}) }))
+        : [1, 2, 3].map((n) => ({ id: `urn:ngsi-ld:${TYPE}:hel.fi:helsinki:fmi-${n}`, type: TYPE, name: `Station ${n}`, pm10: 10 + n }));
       return json(rows, { "NGSILD-Results-Count": "3" });
     }
     if (path === "/api/v1/projects") return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ProjectList", items: [{ name: "helsinki" }] });
@@ -203,5 +210,18 @@ for (const width of [1440, 400]) {
     await expect(page.getByText("This project has no context space yet")).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
     await page.screenshot({ path: `${AFTER}/empty-project-${width}.png`, fullPage: true });
+  });
+
+  // T-6325: every empty cell holds a screen-reader "not set" placed absolutely; outside the grid's
+  // scroll box they widened the whole page (1603 px sideways on Helsinki's Events at 400 px).
+  test(`rows with empty cells keep the page within the screen at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await stub(page, false, { sparse: true });
+    await page.goto(`/projects/helsinki/explore?space=helsinki&type=${TYPE}&lang=en`);
+    await expect(page.locator("tbody tr").first()).toBeVisible();
+    await expect(page.locator("thead th", { hasText: "reliability" })).toBeAttached();
+    const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(sideways).toBeLessThanOrEqual(1);
+    await page.screenshot({ path: `${AFTER}/sparse-${width}.png`, fullPage: true });
   });
 }
