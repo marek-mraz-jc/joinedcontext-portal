@@ -195,10 +195,8 @@ pub(crate) fn model_classes(mirror: &Mirror, project: &str, space: &str) -> Vec<
     let Some(space) = mirror.get(project, "ContextSpace", space) else {
         return Vec::new();
     };
-    let reference = &space.spec["dataModelRef"];
-    let namespace = reference["namespace"].as_str().unwrap_or(project);
-    crate::resource::reference_name(reference)
-        .and_then(|name| mirror.get(namespace, "DataModel", name))
+    crate::resource::model_reference(&space.spec["dataModelRef"], project)
+        .and_then(|(namespace, name)| mirror.get(namespace, "DataModel", name))
         .map(|model| {
             model.spec["classes"]
                 .as_array()

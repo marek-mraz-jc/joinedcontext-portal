@@ -125,9 +125,10 @@ pub async fn of_endpoint(
 ) -> Option<Value> {
     let space = ref_name(&endpoint["contextSpaceRef"])?;
     let space = state.mirror.get(project, "ContextSpace", &space)?;
-    let model = ref_name(&space.spec["dataModelRef"])?;
-    state.mirror.get(project, "DataModel", &model)?;
-    let linkml = crate::api::datamodels::read_source(state, project, &model)
+    let (namespace, model) =
+        crate::resource::model_reference(&space.spec["dataModelRef"], project)?;
+    state.mirror.get(namespace, "DataModel", model)?;
+    let linkml = crate::api::datamodels::read_source(state, namespace, model)
         .await
         .ok()?;
     Some(field_schema(&linkml, types))

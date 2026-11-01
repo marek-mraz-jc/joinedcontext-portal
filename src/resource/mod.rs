@@ -283,6 +283,19 @@ pub fn reference_name(reference: &serde_json::Value) -> Option<&str> {
         .or_else(|| reference.get("name").and_then(serde_json::Value::as_str))
 }
 
+/// The namespace and name of the DataModel a ContextSpace's `dataModelRef` names: its own
+/// `namespace` (an organization model, `org`), else the space's `project` (JC1-53).
+pub fn model_reference<'a>(
+    reference: &'a serde_json::Value,
+    project: &'a str,
+) -> Option<(&'a str, &'a str)> {
+    let namespace = reference
+        .get("namespace")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or(project);
+    Some((namespace, reference_name(reference)?))
+}
+
 /// A title written either way a manifest may write it: one string, or a text per language,
 /// English first, else the first language's (F-R2POR1-016). A blank title is none.
 pub fn title_text(title: &serde_json::Value) -> Option<String> {
