@@ -11,8 +11,8 @@ const IDENTITY = { subject: "b7c1e0f4", username: "jana.kovacova", name: "Jana K
 const ID = "abcdefghijklmnopqrstuvwxyz";
 const URL_OF = `https://portal.dev.example/c/${ID}`;
 const OPTIONS = {
-  segments: ["data-read", "context", "pipeline", "access", "publish", "apps", "operate", "admin"],
-  ceiling: { segments: ["data-read"], writes: false, maxDays: 30 },
+  segments: ["data-read", "context", "pipeline", "access", "publish", "apps", "operate", "knowledge", "admin"],
+  ceiling: { segments: ["data-read", "knowledge"], writes: false, maxDays: 30 },
   projects: [
     { project: "doprava", spaces: ["parking", "traffic"], endpoints: ["bike-counters", "parking-lots"], pipelines: ["load-counters"] },
     { project: "ovzdusie", spaces: ["air"], endpoints: ["air-quality"], pipelines: [] },
@@ -109,6 +109,7 @@ for (const width of [1440, 400]) {
       await dialog.getByRole("textbox", { name: /Name/ }).fill("doprava-in-claude");
       await dialog.getByRole("checkbox", { name: "bike-counters" }).check();
       await dialog.getByRole("checkbox", { name: /Claude Code, VS Code/ }).check();
+      await dialog.getByRole("checkbox", { name: "Knowledge" }).check();
       await shot(page, `ai-connectors-form-${width}`);
       await dialog.getByRole("button", { name: "Create" }).click();
 
@@ -116,7 +117,8 @@ for (const width of [1440, 400]) {
       await expect(card.getByText(`claude mcp add --transport http doprava-in-claude ${URL_OF}`)).toBeVisible();
       await card.getByRole("button", { name: "Copy: Claude Code" }).click();
       expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`claude mcp add --transport http doprava-in-claude ${URL_OF}`);
-      const created = requests.find((one) => one.method === "POST")?.body as { scope: unknown; allowedClients: string[] };
+      const created = requests.find((one) => one.method === "POST")?.body as { segments: string[]; scope: unknown; allowedClients: string[] };
+      expect(created.segments).toContain("knowledge");
       expect(created.scope).toEqual([{ project: "doprava", endpoint: "bike-counters", access: "read" }]);
       expect(created.allowedClients).toEqual(["mcp-local"]);
       await card.getByRole("button", { name: "Activity" }).click();

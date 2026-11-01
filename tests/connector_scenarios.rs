@@ -90,6 +90,8 @@ const KINDS: &[&str] = &[
     "CkanInstance",
     "Layer",
     "Dashboard",
+    "KnowledgeSource",
+    "AssistantDeployment",
     // The data itself: a steward's pipeline writes only into a space whose entities the steward
     // reads (PL-94).
     "Entity",
@@ -354,6 +356,13 @@ fn seed_project(mirror: &Mirror, project: &str, catalogue: &str) {
             "mode": "mirror",
             "conflictPolicy": "replace"
         }),
+    ));
+    // The city's website the knowledge assistant crawls (S-88); its store answers on the mock.
+    mirror.upsert(envelope(
+        "KnowledgeSource",
+        "city-web",
+        project,
+        json!({ "source": "website", "startUrls": ["https://city.example/"], "maxDepth": 2 }),
     ));
     mirror.upsert(envelope(
         "ContextSpace",
@@ -1211,6 +1220,38 @@ fn forge_views(
 /// The open-data catalogue's search, holding one public school dataset whose description carries
 /// an injected instruction and one private dataset (S-08), and the gateway's `access/simulate`,
 /// which grants group `scn-writers` writes on BikeCounter and everybody else reads (S-30).
+/// jc-assistant's store of every project's sources (S-88): the crawl state, the failed reads and
+/// one search, as the assistant answers them. The Portal never reaches a crawled page itself.
+async fn knowledge_assistant(server: &MockServer) {
+    use wiremock::matchers::path_regex;
+    let sources = "^/internal/v1/projects/[a-z0-9-]+/knowledge/sources";
+    Mock::given(method("GET"))
+        .and(path_regex(format!("{sources}$")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "items": [{
+            "source": "city-web", "state": "crawled", "lastCrawl": "2026-10-31T22:00:00Z",
+            "pages": 12, "pagesIncluded": 12, "documents": 2, "passages": 40, "embedded": 40,
+            "pending": 0, "failed": 1, "languages": ["sk"], "job": null
+        }] })))
+        .mount(server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path_regex(format!("{sources}/city-web/errors$")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "items": [
+            { "url": "https://city.example/old-fees", "kind": "page", "reason": "HTTP 404" }
+        ] })))
+        .mount(server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path_regex(format!("{sources}/city-web/search$")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "hits": [{
+            "title": "Parking permits", "url": "https://city.example/parking",
+            "publisher": "city", "text": "A resident parking permit costs 30 EUR a year.",
+            "score": 0.82, "chunkId": 7, "page": 3
+        }] })))
+        .mount(server)
+        .await;
+}
+
 async fn catalogue_and_pdp(server: &MockServer) {
     use wiremock::matchers::{body_string_contains, path_regex, query_param};
     Mock::given(method("GET"))
@@ -1335,6 +1376,7 @@ impl Harness {
         data_plane(server).await;
         realm_admin(server).await;
         catalogue_and_pdp(server).await;
+        knowledge_assistant(server).await;
         let gateway = public_gateway(server, &issuer).await;
         let csv_url = format!("http://localhost:{}/counters.csv", server.address().port());
         let runner: &'static MockServer = Box::leak(Box::new(MockServer::start().await));
@@ -1364,6 +1406,7 @@ impl Harness {
         std::fs::write(&token_file, BROKER_TOKEN).expect("broker token file");
         config.broker_admin_token_file = Some(token_file.clone());
         config.gateway_url = Some(server.uri());
+        config.knowledge_url = Some(server.uri());
         config.pipeline_runner_url = Some(format!("{}/{{project}}", runner.uri()));
         config.pipeline_test_capture_url = Some("http://portal-internal:9090".to_owned());
         config.pipeline_runner_client_id = Some(RUNNER_CLIENT.to_owned());
@@ -2001,8 +2044,8 @@ fn the_catalogue_holds_the_connector_scenarios_well_formed() {
     let scenarios = catalogue();
     // S-01..S-50 of the owner's order and S-51..S-55 added with T-5971..T-5976; the UI
     // scenarios S-56..S-85 are browser journeys of the user agent (T-5981), not MCP calls, and
-    // S-86 (T-6082) and S-87 (T-6265) follow them.
-    assert_eq!(scenarios.len(), 57);
+    // S-86 (T-6082), S-87 (T-6265) and S-88 (T-6284) follow them.
+    assert_eq!(scenarios.len(), 58);
     for (n, s) in scenarios.iter().enumerate() {
         // The MCP ids skip S-56..S-85, the UI journeys' ids (T-6082).
         let number = if n < 55 { n + 1 } else { n + 31 };
@@ -2518,7 +2561,7 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
         options["ceiling"],
         json!({ "segments": ["data-read"], "writes": false, "maxDays": 30 })
     );
-    assert_eq!(options["segments"].as_array().map(Vec::len), Some(8));
+    assert_eq!(options["segments"].as_array().map(Vec::len), Some(9));
     assert_eq!(
         options["clients"][2],
         json!({ "id": "mcp-local", "isBoundary": false })
