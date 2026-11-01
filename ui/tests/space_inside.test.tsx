@@ -896,6 +896,38 @@ describe("the space's own data", () => {
     });
   });
 
+  it("opens a saved view of a kind the page no longer has as the grid, with its query (T-6210)", async () => {
+    const view = {
+      id: "7f1c2a9e-4b1d-4a57-9a0e-2f6d1c3b8e09",
+      type: "AirQualityObserved",
+      kind: "kanban",
+      mode: "collaborative",
+      title: "Old board",
+      owner: "jana.kovacova",
+      config: { q: "no2>40" },
+      version: 1,
+      createdAt: "2026-10-06T19:00:00Z",
+      updatedAt: "2026-10-06T19:00:00Z",
+    };
+    const fetchMock = renderInside({ status: 200, count: 1 }, { status: 200 }, { views: [view] });
+    // Only the grid and the API are offered.
+    const tabs = within(await screen.findByRole("tablist", { name: en.spaces.views.label })).getAllByRole("tab");
+    expect(tabs.map((tab) => tab.textContent)).toEqual([en.spaces.views.kind.grid, en.spaces.views.kind.api]);
+
+    const picker = await screen.findByLabelText(en.spaces.saved.view);
+    await waitFor(() => expect(within(picker).getAllByRole("option")).toHaveLength(2));
+    await userEvent.selectOptions(picker, view.id);
+
+    await waitFor(() => {
+      const asked = fetchMock.mock.calls
+        .map((call) => urlOf(call[0]))
+        .filter((url) => url.pathname.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities"));
+      expect(asked.some((url) => url.searchParams.get("q") === "no2>40")).toBe(true);
+    });
+    expect(screen.getByRole("tab", { name: en.spaces.views.kind.grid })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+  });
+
   it("marks the rows a view's colour rule matches, and hides the fields it hides (T-3099)", async () => {
     const rows = [
       { id: "urn:ngsi-ld:AirQualityObserved:banskabystrica.sk:ovzdusie:1", type: "AirQualityObserved", pm10: { type: "Property", value: 52 }, no2: { type: "Property", value: 9 } },
