@@ -19,7 +19,7 @@ use axum::{Json, Router};
 use serde_json::{json, Value};
 
 use super::{
-    call_result, dispatch, error, failure_result, json_response, result, too_large,
+    call_result, dispatch, elicitation, error, failure_result, json_response, result, too_large,
     tool_definition, GROUNDING_META, MAX_REQUEST_BYTES, MAX_RESPONSE_BYTES, WITHHELD_META,
 };
 use crate::agents::oneshot::ui_actions::{self, UI_TOOLS};
@@ -500,6 +500,11 @@ async fn judge(
                     response,
                     &connector.projects(),
                     &state.config.public_base_url,
+                    state.paired_tabs.is_paired(
+                        &connector.id,
+                        &connector.owner,
+                        crate::auth::session::now_unix(),
+                    ),
                 )
                 .await,
                 "allowed".to_owned(),
@@ -529,6 +534,7 @@ async fn judge(
                     "refused: target".to_owned(),
                 );
             }
+            let client = caller.identity.client.clone();
             let response = dispatch(state.clone(), caller, body).await;
             let shows = project
                 .as_deref()
@@ -538,13 +544,106 @@ async fn judge(
             } else {
                 without_personal(state, project.as_deref(), response).await
             };
-            verdict_of(response, id, limits.result_bytes).await
+            let (response, verdict) = verdict_of(response, id, limits.result_bytes).await;
+            let followed = Followed {
+                connector,
+                client,
+                project: project.as_deref(),
+                tool: name,
+            };
+            (
+                follow_in_tab(state, &followed, response, &verdict).await,
+                verdict,
+            )
         }
         _ => (
             dispatch(state.clone(), caller, body).await,
             "allowed".to_owned(),
         ),
     }
+}
+
+/// What `initialize` adds while the person's tab is paired (T-6501).
+const PAIRED_TAB_NOTE: &str = " The person watches a Portal tab connected to this connector: \
+    it opens each approval and confirmation you start by itself, and re-reads its page after each \
+    call. Once a change is merged, open what you work on next with jc_ui_navigate.";
+
+/// One answered connector call, for the person's paired tab.
+struct Followed<'a> {
+    connector: &'a Connector,
+    client: Option<String>,
+    project: Option<&'a str>,
+    tool: &'a str,
+}
+
+/// The page that needs the person after `tool` answered `envelope`: a confirmation it asks, or
+/// the change it opened (several open the approvals list). The ids come from the Portal's own
+/// answer, and the page is one the person could open by hand.
+fn page_needing_the_person(project: &str, tool: &str, envelope: &Value) -> Option<String> {
+    let result = &envelope["result"];
+    if let Some(id) =
+        result["_meta"][elicitation::ELICITATION_META]["elicitation"]["elicitationId"].as_str()
+    {
+        return Some(format!("/projects/{project}/mcp-elicitations/{id}"));
+    }
+    if tool != "jc_change_apply" {
+        return None;
+    }
+    match result["structuredContent"]["changeRequests"]
+        .as_array()?
+        .as_slice()
+    {
+        [] => None,
+        [one] => Some(format!(
+            "/projects/{project}/approvals/{}",
+            one["id"].as_str()?
+        )),
+        _ => Some(format!("/projects/{project}/approvals")),
+    }
+}
+
+/// Keeps the person's paired tab beside the work (T-6501): a call that needs them opens that page,
+/// any other answered call tells the tab to re-read its page. The tab hears no value of the call,
+/// only its tool name, and a client that never calls a UI tool is followed all the same.
+async fn follow_in_tab(
+    state: &AppState,
+    call: &Followed<'_>,
+    response: Response,
+    verdict: &str,
+) -> Response {
+    let connector = call.connector;
+    let now = crate::auth::session::now_unix();
+    let Some(project) = call.project.filter(|_| verdict == "allowed") else {
+        return response;
+    };
+    if !state
+        .paired_tabs
+        .is_paired(&connector.id, &connector.owner, now)
+    {
+        return response;
+    }
+    let (parts, body) = response.into_parts();
+    let Ok(bytes) = axum::body::to_bytes(body, MAX_RESPONSE_BYTES).await else {
+        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
+    };
+    let envelope: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    let (frame, payload) = match page_needing_the_person(project, call.tool, &envelope) {
+        Some(route) => ("navigate", json!({ "route": route })),
+        None => ("refresh", json!({})),
+    };
+    let action = json!({
+        "frame": frame,
+        "payload": payload,
+        "tool": call.tool,
+        "project": project,
+        "from": { "connector": connector.name, "client": call.client },
+        "at": chrono::Utc::now(),
+    });
+    // A tab closed or reloading misses this one; the next call tells it again.
+    let _ = state
+        .paired_tabs
+        .deliver(&connector.id, &connector.owner, action, now);
+    Response::from_parts(parts, Body::from(bytes))
 }
 
 /// A UI action for the person's paired tab (T-5967): checked as the assistant checks it, held to
@@ -666,7 +765,12 @@ fn optional_project(tools: &mut [Value]) {
 /// The `initialize` answer with a sentence naming the projects the connector reaches, so a
 /// client never has to guess or ask the person (T-6064), and the address that draws a map, since
 /// nothing on a connector draws one (T-6442).
-async fn with_projects_named(response: Response, projects: &[&str], portal: &url::Url) -> Response {
+async fn with_projects_named(
+    response: Response,
+    projects: &[&str],
+    portal: &url::Url,
+    tab_paired: bool,
+) -> Response {
     let (parts, body) = response.into_parts();
     let Ok(bytes) = axum::body::to_bytes(body, MAX_RESPONSE_BYTES).await else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -689,7 +793,8 @@ async fn with_projects_named(response: Response, projects: &[&str], portal: &url
          explore?endpoint=<endpoint>&type=<type>&colorBy=<number attribute>&view=map; it draws \
          what they may read, and a Layer alone draws nothing."
     );
-    answer["result"]["instructions"] = json!(format!("{instructions} {reach} {map}"));
+    let tab = if tab_paired { PAIRED_TAB_NOTE } else { "" };
+    answer["result"]["instructions"] = json!(format!("{instructions} {reach} {map}{tab}"));
     // Only what [`METHODS`] and the plan view serve: the Portal MCP's prompts and tasks are
     // refused here, so a client is never told it may call them (JC2-21).
     answer["result"]["capabilities"] = json!({ "tools": {}, "resources": {} });
@@ -999,7 +1104,7 @@ mod tests {
         );
         let portal = url::Url::parse("https://portal.example/").expect("url");
         let answer =
-            answer_of(with_projects_named(init, &connector.projects(), &portal).await).await;
+            answer_of(with_projects_named(init, &connector.projects(), &portal, false).await).await;
         // JC2-21: no capability a connector refuses is offered.
         assert_eq!(
             answer["result"]["capabilities"],
@@ -1073,6 +1178,99 @@ mod tests {
             .await
             .expect("body");
         serde_json::from_slice(&bytes).expect("json")
+    }
+
+    #[tokio::test]
+    async fn a_call_needing_the_person_opens_their_paired_tab_and_any_other_rereads_it() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let connector = connectors::of_conversation("r1", "f:1:ana", "doprava", "pipeline");
+        let now = crate::auth::session::now_unix();
+        let answered = |result: Value| {
+            json_response(
+                StatusCode::OK,
+                &json!({ "jsonrpc": "2.0", "id": 1, "result": result }),
+            )
+        };
+        let follow = |tool: &'static str, result: Value, verdict: &'static str| {
+            let call = Followed {
+                connector: &connector,
+                client: Some("claude-code".to_owned()),
+                project: Some("doprava"),
+                tool,
+            };
+            let state = &state;
+            let response = answered(result);
+            async move { answer_of(follow_in_tab(state, &call, response, verdict).await).await }
+        };
+        let opened = json!({ "structuredContent": { "changeRequests": [{ "id": "chg-1" }] } });
+
+        // No tab paired: the answer passes untouched.
+        let body = follow("jc_change_apply", opened.clone(), "allowed").await;
+        assert_eq!(
+            body["result"]["structuredContent"]["changeRequests"][0]["id"],
+            "chg-1"
+        );
+
+        let tab = state
+            .paired_tabs
+            .pair(&connector.id, "f:1:ana", 5, now + 3600);
+        let (mut heard, _) = state
+            .paired_tabs
+            .listen(&connector.id, &tab, "f:1:ana", 5, now + 3600, now)
+            .expect("paired");
+
+        follow("jc_change_apply", opened.clone(), "allowed").await;
+        let action = heard.try_recv().expect("the tab opens the change");
+        assert_eq!(action["frame"], "navigate");
+        assert_eq!(
+            action["payload"]["route"],
+            "/projects/doprava/approvals/chg-1"
+        );
+
+        let two =
+            json!({ "structuredContent": { "changeRequests": [{ "id": "a" }, { "id": "b" }] } });
+        follow("jc_change_apply", two, "allowed").await;
+        let action = heard.try_recv().expect("the tab opens the list");
+        assert_eq!(action["payload"]["route"], "/projects/doprava/approvals");
+
+        let question = elicitation::document("eli-1", "Run it?", "https://portal/x", None);
+        follow("jc_pipeline_run", question, "allowed").await;
+        let action = heard.try_recv().expect("the tab opens the question");
+        assert_eq!(
+            action["payload"]["route"],
+            "/projects/doprava/mcp-elicitations/eli-1"
+        );
+
+        let secret = json!({ "structuredContent": { "value": "a-private-value" } });
+        follow("jc_data_query", secret, "allowed").await;
+        let action = heard.try_recv().expect("the tab reads its page again");
+        assert_eq!(action["frame"], "refresh");
+        assert!(!action.to_string().contains("a-private-value"), "{action}");
+
+        // A refused call moves nothing.
+        follow("jc_change_apply", opened, "refused: tool").await;
+        assert!(heard.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn initialize_names_the_paired_tab_only_while_one_is_paired() {
+        let portal = url::Url::parse("https://portal.example/").expect("url");
+        let answer = || {
+            json_response(
+                StatusCode::OK,
+                &json!({ "result": { "instructions": "Fenced data." } }),
+            )
+        };
+        let told =
+            answer_of(with_projects_named(answer(), &["doprava"], &portal, true).await).await;
+        assert!(told["result"]["instructions"]
+            .to_string()
+            .contains("jc_ui_navigate"));
+        let bare =
+            answer_of(with_projects_named(answer(), &["doprava"], &portal, false).await).await;
+        assert!(!bare["result"]["instructions"]
+            .to_string()
+            .contains("jc_ui_navigate"));
     }
 
     #[tokio::test]
