@@ -33,6 +33,8 @@ const PROJECT: &str = "helsinki";
 const ELSEWHERE: &str = "espoo";
 const MEMBER: &str = "demo.builder";
 const STRANGER: &str = "demo.stranger";
+const EDITOR: &str = "demo.editor";
+const VIEWER: &str = "demo.viewer";
 const CSRF: &str = "csrf-token-edge-assistant";
 
 fn envelope(kind: &str, name: &str, namespace: &str, spec: Value) -> ResourceEnvelope {
@@ -83,6 +85,33 @@ fn mirror() -> Arc<Mirror> {
         "devs-here",
         "org",
         json!({ "subjects": [{ "group": "devs" }], "role": "proposer",
+                "scope": { "project": PROJECT } }),
+    ));
+    // The seeded editor's shape: proposes data objects, no App (T-6464).
+    mirror.upsert(envelope(
+        "Role",
+        "data-editor",
+        "org",
+        json!({ "rules": [{ "kinds": ["Endpoint"], "verbs": ["read", "propose"] }] }),
+    ));
+    mirror.upsert(envelope(
+        "RoleBinding",
+        "editors-here",
+        "org",
+        json!({ "subjects": [{ "group": "editors" }], "role": "data-editor",
+                "scope": { "project": PROJECT } }),
+    ));
+    mirror.upsert(envelope(
+        "Role",
+        "reader",
+        "org",
+        json!({ "rules": [{ "kinds": ["App", "Endpoint"], "verbs": ["read"] }] }),
+    ));
+    mirror.upsert(envelope(
+        "RoleBinding",
+        "viewers-here",
+        "org",
+        json!({ "subjects": [{ "group": "viewers" }], "role": "reader",
                 "scope": { "project": PROJECT } }),
     ));
     mirror.upsert(envelope(
@@ -455,17 +484,28 @@ async fn what_the_share_cannot_render_is_one_message_and_never_half_a_proposal()
 // T-1988 `start_conversation`
 // -------------------------------------------------------------------------------------------------
 
-/// PF-50: a person who may not propose an App in a project starts no conversation in it, and the
-/// refusal comes before the message is read — an empty message from a stranger is still the 403.
+/// PF-50: a person who may propose nothing in a project starts no conversation in it, a reader of
+/// the project included (AG-67), and the refusal comes before the message is read: an empty
+/// message from a stranger is still the 403.
 #[tokio::test]
-async fn a_person_who_may_not_propose_an_app_starts_no_conversation() {
-    let (state, app, _, _, stranger) = world();
+async fn a_person_who_may_propose_nothing_starts_no_conversation() {
+    let (state, app, config, _, stranger) = world();
+    let viewer = cookie(&config, VIEWER, &["viewers"]);
     let uri = format!("/api/v1/projects/{PROJECT}/assistant/conversations");
 
-    for message in ["", "   ", "what data do we have?"] {
-        let (status, body) = post(&app, &stranger, &uri, &json!({ "message": message })).await;
-        assert_eq!(status, StatusCode::FORBIDDEN, "{message:?}: {body}");
+    for who in [&stranger, &viewer] {
+        for message in ["", "   ", "what data do we have?"] {
+            let (status, body) = post(&app, who, &uri, &json!({ "message": message })).await;
+            assert_eq!(status, StatusCode::FORBIDDEN, "{message:?}: {body}");
+        }
     }
+    let (_, refused) = post(&app, &viewer, &uri, &json!({ "message": "hello" })).await;
+    assert!(
+        refused["detail"]
+            .as_str()
+            .is_some_and(|d| d.contains("propose on some kind")),
+        "the refusal says what is missing: {refused}"
+    );
     assert!(
         state
             .agents
@@ -475,6 +515,78 @@ async fn a_person_who_may_not_propose_an_app_starts_no_conversation() {
             .is_empty(),
         "a refused conversation created a run",
     );
+}
+
+/// T-6464: an editor who proposes data but no App asks about their own data and keeps talking.
+/// What ends in an App stays refused, on the path and on a run that writes one.
+#[tokio::test]
+async fn an_editor_without_an_app_grant_converses_and_builds_no_app() {
+    let (state, app, config, _, _) = world();
+    let editor = cookie(&config, EDITOR, &["editors"]);
+    let uri = format!("/api/v1/projects/{PROJECT}/assistant/conversations");
+
+    for body in [
+        json!({ "message": "Which endpoints publish bikes?" }),
+        json!({ "message": "", "path": "find-data" }),
+        json!({ "message": "", "path": "share-data" }),
+    ] {
+        let (status, run) = post(&app, &editor, &uri, &body).await;
+        assert_eq!(status, StatusCode::ACCEPTED, "{body}: {run}");
+    }
+
+    let (status, refused) = post(
+        &app,
+        &editor,
+        &uri,
+        &json!({ "message": "", "path": "build-app" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{refused}");
+    assert!(refused["detail"].to_string().contains("App"), "{refused}");
+
+    let (_, run) = post(&app, &editor, &uri, &json!({ "message": "bikes?" })).await;
+    let id = run["id"].as_str().expect("a run id").to_owned();
+    let runs = format!("/api/v1/projects/{PROJECT}/agent-runs");
+    let (status, answer) = post(
+        &app,
+        &editor,
+        &format!("{runs}/{id}/messages"),
+        &json!({ "text": "and scooters?" }),
+    )
+    .await;
+    assert_ne!(status, StatusCode::FORBIDDEN, "a follow-up: {answer}");
+    let (status, answer) = post(&app, &editor, &format!("{runs}/{id}/cancel"), &json!({})).await;
+    assert_ne!(status, StatusCode::FORBIDDEN, "a cancel: {answer}");
+
+    // A run that writes an App is not a conversation: the same person is refused on it.
+    let mut build = state
+        .agents
+        .get_run(&id)
+        .await
+        .expect("the store")
+        .expect("the run");
+    build.id = format!("{id}-b");
+    build.kind = "app".to_owned();
+    state.agents.create_run(&build).await.expect("stored");
+    let (status, answer) = post(
+        &app,
+        &editor,
+        &format!("{runs}/{}/messages", build.id),
+        &json!({ "text": "publish it" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{answer}");
+
+    // A viewer's message to a run is refused before the id is looked up.
+    let viewer = cookie(&config, VIEWER, &["viewers"]);
+    let (status, answer) = post(
+        &app,
+        &viewer,
+        &format!("{runs}/{id}/messages"),
+        &json!({ "text": "hello" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{answer}");
 }
 
 /// T-2463: a conversation whose run has not finished never stands in the way of the next one.
