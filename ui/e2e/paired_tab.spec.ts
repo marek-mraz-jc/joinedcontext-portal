@@ -25,7 +25,7 @@ const CONNECTOR = {
   expiresAt: "2026-11-20T23:59:59Z",
   allowedClients: ["mcp-local"],
   clientIsBoundary: false,
-  limits: { callsPerMinute: 60, parallelCalls: 4, resultBytes: 1048576 },
+  limits: { parallelCalls: 4, resultBytes: 1048576 },
   state: "active",
   createdAt: "2026-10-28T12:00:00Z",
   lastUsedAt: "2026-10-29T08:00:00Z",

@@ -151,11 +151,6 @@ pub struct AppState {
     /// ponytail: per-replica map; move it to the preferences database when the portal
     /// runs more than one replica (the reconciler is leader-elected, the UI is not).
     revocations: Arc<RwLock<HashMap<String, i64>>>,
-    /// What each bearer subject has spent on `/api/v1/mcp` in the current minute (AG-60): the
-    /// unix second the window opened and the calls counted in it.
-    /// ponytail: per-replica map, like `revocations`; one bucket per subject is enough while
-    /// the Portal is one replica.
-    mcp_calls: Arc<RwLock<HashMap<String, (i64, u32)>>>,
     /// The calls each key is answering right now (T-5968); a key leaves at zero.
     mcp_in_flight: Arc<Mutex<HashMap<String, u32>>>,
     /// The forge reads of the open changes, per head and base commit (T-6347).
@@ -270,7 +265,6 @@ impl AppState {
             kube: None,
             app_tests: None,
             revocations: Arc::new(RwLock::new(HashMap::new())),
-            mcp_calls: Arc::new(RwLock::new(HashMap::new())),
             mcp_in_flight: Arc::default(),
             change_reads: Default::default(),
             mcp_tasks: crate::mcp::tasks::McpTasks::new(),
@@ -1199,40 +1193,6 @@ impl AppState {
         }
     }
 
-    /// Counts one MCP call of this subject and says whether it is within the minute's budget
-    /// (AG-60). The Portal counts for itself: the edge's bucket is keyed by the raw token and
-    /// does not exist for a caller inside the cluster.
-    pub fn mcp_call_allowed(&self, subject: &str, limit: u32, now: i64) -> bool {
-        self.mcp_admit(&[(subject, limit)], now).is_ok()
-    }
-
-    /// Counts one call in every window of `windows` (key, calls a minute) or in none: the first
-    /// window that is full refuses with its index and the seconds until it opens again
-    /// (T-5968). One person's connectors share the person's window, each also has its own.
-    pub fn mcp_admit(&self, windows: &[(&str, u32)], now: i64) -> Result<(), (usize, i64)> {
-        let Ok(mut calls) = self.mcp_calls.write() else {
-            // A poisoned lock must not open the door wider than it was.
-            return Err((0, 60));
-        };
-        // ponytail: a fixed window that restarts a minute after its first call; a sliding
-        // window is the upgrade if bursts at the boundary ever matter.
-        for (index, (key, limit)) in windows.iter().enumerate() {
-            let entry = calls.entry((*key).to_owned()).or_insert((now, 0));
-            if now - entry.0 >= 60 {
-                *entry = (now, 0);
-            }
-            if entry.1 >= *limit {
-                return Err((index, (entry.0 + 60 - now).max(1)));
-            }
-        }
-        for (key, _) in windows {
-            if let Some(entry) = calls.get_mut(*key) {
-                entry.1 += 1;
-            }
-        }
-        Ok(())
-    }
-
     /// Holds one call in every key of `slots` (key, calls at once) until the guard drops, or
     /// refuses with the index of the first full one (T-5968).
     pub fn mcp_enter(&self, slots: &[(&str, u32)]) -> Result<InFlight, usize> {
@@ -1356,27 +1316,6 @@ mod tests {
             .with_leadership(Arc::new(Leadership::reconciler(pool)));
         let state = AppState::new(Config::for_tests(), None).with_syncer(Arc::new(follower));
         assert!(!state.leads());
-    }
-
-    #[test]
-    fn mcp_windows_count_together_refuse_with_the_wait_and_reset_after_a_minute() {
-        let state = AppState::new(Config::for_tests(), None);
-        let windows = [("person", 3), ("connector", 2)];
-        assert_eq!(state.mcp_admit(&windows, 1_000), Ok(()));
-        assert_eq!(state.mcp_admit(&windows, 1_010), Ok(()));
-        // The connector's own window is full 10 s in: it opens again 50 s later.
-        assert_eq!(state.mcp_admit(&windows, 1_010), Err((1, 50)));
-        // The refused call counted in no window: the person has one call left.
-        assert_eq!(
-            state.mcp_admit(&[("person", 3), ("other", 2)], 1_020),
-            Ok(())
-        );
-        assert_eq!(
-            state.mcp_admit(&[("person", 3), ("other", 2)], 1_059),
-            Err((0, 1))
-        );
-        // A minute after its first call each window starts again.
-        assert_eq!(state.mcp_admit(&windows, 1_060), Ok(()));
     }
 
     #[test]
