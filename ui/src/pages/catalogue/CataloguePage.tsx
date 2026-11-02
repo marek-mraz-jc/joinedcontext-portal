@@ -66,7 +66,7 @@ export function CataloguePage({
   const header = (
     <PageHeader
       title={t("catalogue.title")}
-      description={t("catalogue.lead")}
+      description={t(signedIn ? "catalogue.leadSignedIn" : "catalogue.lead")}
       actions={
         project ? (
           <PermissionGuard project={project} kind="Endpoint" verb="propose">

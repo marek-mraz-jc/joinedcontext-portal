@@ -74,7 +74,7 @@ export function ReadableDatasets(): JSX.Element {
 export function ReadableRow({ dataset }: { dataset: ReadableDataset }): JSX.Element {
   const { t } = useTranslation();
   return (
-    <li className="flex min-w-0 flex-col gap-2 rounded-md border border-border p-3">
+    <li className="flex min-w-0 flex-col gap-2 rounded-md border border-border p-3 transition-colors hover:border-primary">
       <div className="flex flex-wrap items-center gap-2">
         <Link
           to="/catalogue/endpoint/$slug"
@@ -83,6 +83,7 @@ export function ReadableRow({ dataset }: { dataset: ReadableDataset }): JSX.Elem
           aria-label={`${t("catalogue.readable.open")}: ${dataset.title ?? dataset.name}`}
         >
           {dataset.title ?? dataset.name}
+          <Icon name="chevronRight" className="ml-0.5 inline size-4 align-text-bottom" />
         </Link>
         <AccessBadge dataset={dataset} />
       </div>

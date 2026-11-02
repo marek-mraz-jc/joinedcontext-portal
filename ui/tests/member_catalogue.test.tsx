@@ -71,7 +71,7 @@ describe("the datasets a signed-in person may read (T-6411)", () => {
     expect(screen.getByText("Group traffic-analysts")).toBeInTheDocument();
     // The public one is listed by the open-data search below, not twice.
     expect(screen.queryByRole("link", { name: /Bikes/ })).toBeNull();
-    expect(screen.getByText("Plus 1 public datasets, listed below.")).toBeInTheDocument();
+    expect(screen.getByText("Public datasets, listed below: 1.")).toBeInTheDocument();
     await expectNoViolations(container);
   });
 

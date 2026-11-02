@@ -31,9 +31,9 @@ export function EndpointDatasetPage({ slug }: { slug: string }): JSX.Element {
         {t("catalogue.dataset.back")}
       </Link>
       <PageHeader
-        title={dataset?.title ?? dataset?.name ?? t("catalogue.title")}
+        title={dataset?.title ?? dataset?.name ?? t("catalogue.readable.endpoint.title")}
         titleAction={dataset ? <AccessBadge dataset={dataset} /> : undefined}
-        description={dataset?.description ?? t("catalogue.readable.endpoint.lead", { slug })}
+        description={dataset?.description ?? t("catalogue.readable.endpoint.lead")}
       />
       <Suspense fallback={<PageLoading label={t("catalogue.dataset.loading")} />}>
         <EndpointDataView project={dataset?.project ?? "catalogue"} slug={slug} csv={dataset?.representations.includes("csv") ?? false} />
