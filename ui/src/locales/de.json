@@ -11108,7 +11108,7 @@
     },
     "nothingToReach": "Noch nichts zu erreichen: Bitten Sie zuerst um Zugriff.",
     "otherPresets": "{count, plural, one {# weitere Vorgabe braucht} other {# weitere Vorgaben brauchen}} die Freigabe der Organisation.",
-    "segmentHintShared": "liest die mit Ihnen geteilten Endpoints, z. B. um Fragen zu Daten zu beantworten",
+    "segmentHintShared": "liest die mit Ihnen geteilten Endpoints und beantwortet Fragen zu Daten",
     "organizationRead": "Daten der Organisation, lesen",
     "clientNotAllowed": "nicht erlaubt",
     "clientRefusedWhy": "Ihre Organisation erlaubt nur die Clients, die ihre Richtlinie nennt.",

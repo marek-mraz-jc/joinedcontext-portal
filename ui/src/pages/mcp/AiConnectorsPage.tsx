@@ -181,7 +181,9 @@ export function AiConnectorCard({ connector, justCreated }: { connector: AiConne
             </div>
           </Alert>
         ) : null}
-        <dl className="grid gap-x-6 gap-y-2 text-body sm:grid-cols-2">
+        {/* Above the facts: right after Create the address is the next thing to reach for. */}
+        {showSetup && active ? <SetupPanel name={connector.name} url={connector.url} /> : null}
+        <dl className="grid gap-x-6 gap-y-2 text-body sm:grid-cols-2 lg:grid-cols-3">
           <div>
             <dt className="text-caption font-semibold">{t("aiConnectors.field.scope")}</dt>
             <dd>
@@ -225,7 +227,6 @@ export function AiConnectorCard({ connector, justCreated }: { connector: AiConne
             <dd>{when(connector.expiresAt)}</dd>
           </div>
         </dl>
-        {showSetup && active ? <SetupPanel name={connector.name} url={connector.url} /> : null}
         {showActivity ? <ActivityTable id={connector.id} name={connector.name} /> : null}
         {editing ? <CreateDialog stored={connector} onClose={() => setEditing(false)} onCreated={() => setEditing(false)} /> : null}
       </section>
@@ -242,15 +243,20 @@ export function SetupPanel({ name, url }: { name: string; url: string }): JSX.El
       <h3 className="text-body font-semibold">{t("aiConnectors.setupTitle")}</h3>
       <CopyValue label={t("mcp.address")} value={url} />
       <CopyValue label={t("aiConnectors.client.claudeCode")} value={snippets.claudeCode} code />
-      <div>
-        <h4 className="text-caption font-semibold">{t("aiConnectors.client.claudeAi")}</h4>
-        <p className="text-body text-fg">{t("aiConnectors.steps.claudeAi")}</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <h4 className="text-caption font-semibold">{t("aiConnectors.client.claudeAi")}</h4>
+          <p className="text-body text-fg">{t("aiConnectors.steps.claudeAi")}</p>
+        </div>
+        <div>
+          <h4 className="text-caption font-semibold">{t("aiConnectors.client.chatgpt")}</h4>
+          <p className="text-body text-fg">{t("aiConnectors.steps.chatgpt")}</p>
+        </div>
       </div>
-      <div>
-        <h4 className="text-caption font-semibold">{t("aiConnectors.client.chatgpt")}</h4>
-        <p className="text-body text-fg">{t("aiConnectors.steps.chatgpt")}</p>
-      </div>
-      <CopyValue label={t("aiConnectors.client.vscode")} value={snippets.vscode} code />
+      <details>
+        <summary className="cursor-pointer text-caption font-semibold">{t("aiConnectors.client.vscode")}</summary>
+        <CopyValue label={t("aiConnectors.client.vscode")} value={snippets.vscode} code />
+      </details>
     </div>
   );
 }

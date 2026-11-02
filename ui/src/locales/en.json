@@ -11108,7 +11108,7 @@
     },
     "nothingToReach": "Nothing to reach yet: ask for access first.",
     "otherPresets": "{count, plural, one {# other preset needs} other {# other presets need}} your organization's approval.",
-    "segmentHintShared": "reads the Endpoints shared with you, e.g. to answer questions about data",
+    "segmentHintShared": "reads the Endpoints shared with you, to answer questions about data",
     "organizationRead": "organization data, read",
     "clientNotAllowed": "not allowed",
     "clientRefusedWhy": "Your organization allows only the clients its policy lists.",

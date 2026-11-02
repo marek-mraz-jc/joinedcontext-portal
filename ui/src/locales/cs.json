@@ -11108,7 +11108,7 @@
     },
     "nothingToReach": "Zatím není k čemu přistupovat: nejprve požádejte o přístup.",
     "otherPresets": "{count, plural, one {# další předvolba vyžaduje} few {# další předvolby vyžadují} other {# dalších předvoleb vyžaduje}} schválení organizací.",
-    "segmentHintShared": "čte Endpointy sdílené s vámi, např. pro odpovědi na otázky o datech",
+    "segmentHintShared": "čte Endpointy sdílené s vámi a odpovídá na otázky o datech",
     "organizationRead": "data organizace, čtení",
     "clientNotAllowed": "nepovolený",
     "clientRefusedWhy": "Vaše organizace povoluje jen klienty, které uvádí její politika.",
