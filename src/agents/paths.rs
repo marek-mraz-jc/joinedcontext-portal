@@ -281,6 +281,7 @@ impl Path {
                 "jc_pipeline_validate",
                 "jc_pipeline_test",
                 "jc_pipeline_metrics",
+                "jc_pipeline_run",
                 "jc_manifest_dry_run",
                 "jc_draft_put",
             ],
