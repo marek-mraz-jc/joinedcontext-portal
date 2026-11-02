@@ -62,6 +62,12 @@ export function AiConnectorsPage(): JSX.Element {
   const [created, setCreated] = useState<string | null>(null);
   const items = list.data?.items ?? [];
   const live = items.filter((one) => one.state === "active").length;
+  // What was revoked before this visit folds away; a card revoked just now stays to say so.
+  const [seenLive, setSeenLive] = useState<ReadonlySet<string>>(new Set());
+  const newlyLive = items.filter((one) => one.state !== "revoked" && !seenLive.has(one.id));
+  if (newlyLive.length > 0) setSeenLive(new Set([...seenLive, ...newlyLive.map((one) => one.id)]));
+  const isFolded = (one: AiConnector) => one.state === "revoked" && !seenLive.has(one.id);
+  const folded = items.filter(isFolded);
   const create = (
     <Button disabled={live >= 20} disabledReason={t("aiConnectors.full")} onClick={() => setCreating(true)}>
       {t("aiConnectors.new")}
@@ -75,9 +81,23 @@ export function AiConnectorsPage(): JSX.Element {
       {list.isSuccess && items.length === 0 ? (
         <EmptyState title={t("aiConnectors.empty")} description={t("aiConnectors.emptyHint")} icon="endpoints" action={create} />
       ) : null}
-      {items.map((connector) => (
-        <AiConnectorCard key={connector.id} connector={connector} justCreated={connector.id === created} />
-      ))}
+      {items
+        .filter((one) => !isFolded(one))
+        .map((connector) => (
+          <AiConnectorCard key={connector.id} connector={connector} justCreated={connector.id === created} />
+        ))}
+      {folded.length > 0 ? (
+        <details>
+          <summary className="focus-ring w-fit cursor-pointer rounded-sm text-body font-medium">
+            {t("aiConnectors.revokedList", { count: folded.length })}
+          </summary>
+          <div className="mt-3 space-y-6">
+            {folded.map((connector) => (
+              <AiConnectorCard key={connector.id} connector={connector} />
+            ))}
+          </div>
+        </details>
+      ) : null}
       {creating ? (
         <CreateDialog
           onClose={() => setCreating(false)}
@@ -309,6 +329,9 @@ function picked(form: AiConnectorForm, project: string, kind: PickKind, name?: s
   return form.picks.find((pick) => pickKey(pick) === pickKey({ project, kind, name, access: "read" }));
 }
 
+/** Above this many spaces, Endpoints and pipelines a project folds them, and the tree gets a search. */
+const FOLD_OVER = 12;
+
 /** The tick tree: only what the server lists for this person, so nothing past their own rights. */
 export function ScopeTree({
   options,
@@ -320,9 +343,13 @@ export function ScopeTree({
   onChange: (picks: Pick[]) => void;
 }): JSX.Element {
   const { t } = useTranslation();
+  const [find, setFind] = useState("");
   if (options.projects.length === 0) {
     return <Alert tone="info">{t("aiConnectors.noProjects")}</Alert>;
   }
+  const sizeOf = (project: ConnectorOptions["projects"][number]) => project.spaces.length + project.endpoints.length + project.pipelines.length;
+  const searchable = options.projects.reduce((sum, project) => sum + sizeOf(project), 0) > FOLD_OVER;
+  const word = find.trim().toLowerCase();
   const toggle = (project: string, kind: PickKind, name: string | undefined, on: boolean) => {
     const key = pickKey({ project, kind, name, access: "read" });
     const rest = form.picks.filter((pick) => pickKey(pick) !== key);
@@ -360,56 +387,78 @@ export function ScopeTree({
     );
   };
   return (
-    <ul className="flex flex-col gap-3" aria-label={t("aiConnectors.field.scope")}>
-      {options.projects.map((project) => {
-        const whole = Boolean(picked(form, project.project, "project"));
-        const inWhole = whole ? t("aiConnectors.inWholeProject") : undefined;
-        const onlyEndpoints = project.allowedEndpoints ?? undefined;
-        // Organization data (ADR-N-067 §2.4): Endpoints shared with the person, read only, never the project.
-        const shared = project.organizationData;
-        // A hint only: Create checks every item against the ceiling again (T-6307).
-        const refused = !project.allowed
-          ? t("aiConnectors.projectAboveCeiling")
-          : shared
-            ? t("aiConnectors.organizationDataHint")
-            : onlyEndpoints
-              ? t("aiConnectors.endpointsOnly")
-              : undefined;
-        const open = (name: string) => project.allowed && (onlyEndpoints ?? (shared ? [name] : [])).includes(name);
-        const reason = (kind: PickKind, name: string) => (kind === "endpoint" && open(name) ? inWhole : (refused ?? inWhole));
-        const groups: [PickKind, string[]][] = [
-          ["space", project.spaces],
-          ["endpoint", project.endpoints],
-          ["pipeline", project.pipelines],
-        ];
-        return (
-          <li key={project.project} className="rounded-md border border-border p-2">
-            {shared ? (
-              <p className="text-body font-semibold">{t("aiConnectors.organizationData", { project: project.project })}</p>
-            ) : (
-              <ul className="flex flex-col gap-1">
-                {row(project.project, "project", undefined, t("aiConnectors.wholeProject", { project: project.project }), refused)}
-              </ul>
-            )}
-            {refused ? (
-              <p className={clsx("text-caption", shared ? "text-fg-muted" : "ml-6 text-fg")} aria-hidden={!shared}>
-                {refused}
-              </p>
-            ) : null}
-            {groups.map(([kind, names]) =>
-              names.length > 0 ? (
-                <fieldset key={kind} className="ml-6 mt-2">
-                  <legend className={clsx("text-caption font-semibold", !project.allowed && "text-fg-muted")}>
-                    {t(`aiConnectors.kinds.${kind}`)}
-                  </legend>
-                  <ul className="flex flex-col gap-1">{names.map((name) => row(project.project, kind, name, name, reason(kind, name), shared))}</ul>
-                </fieldset>
-              ) : null,
-            )}
-          </li>
-        );
-      })}
-    </ul>
+    <>
+      {searchable ? (
+        <Field id="connector-find" label={t("aiConnectors.find")} help={t("aiConnectors.findHint")}>
+          <Input id="connector-find" type="search" value={find} onChange={(event) => setFind(event.target.value)} />
+        </Field>
+      ) : null}
+      <ul className="flex flex-col gap-3" aria-label={t("aiConnectors.field.scope")}>
+        {options.projects.map((project) => {
+          const whole = Boolean(picked(form, project.project, "project"));
+          const inWhole = whole ? t("aiConnectors.inWholeProject") : undefined;
+          const onlyEndpoints = project.allowedEndpoints ?? undefined;
+          // Organization data (ADR-N-067 §2.4): Endpoints shared with the person, read only, never the project.
+          const shared = project.organizationData;
+          // A hint only: Create checks every item against the ceiling again (T-6307).
+          const refused = !project.allowed
+            ? t("aiConnectors.projectAboveCeiling")
+            : shared
+              ? t("aiConnectors.organizationDataHint")
+              : onlyEndpoints
+                ? t("aiConnectors.endpointsOnly")
+                : undefined;
+          const open = (name: string) => project.allowed && (onlyEndpoints ?? (shared ? [name] : [])).includes(name);
+          const reason = (kind: PickKind, name: string) => (kind === "endpoint" && open(name) ? inWhole : (refused ?? inWhole));
+          const groups: [PickKind, string[]][] = [
+            ["space", project.spaces],
+            ["endpoint", project.endpoints],
+            ["pipeline", project.pipelines],
+          ];
+          const found = groups.map(([kind, names]): [PickKind, string[]] => [
+            kind,
+            names.filter((name) => !word || project.project.includes(word) || name.toLowerCase().includes(word)),
+          ]);
+          const shown = found.reduce((sum, [, names]) => sum + names.length, 0);
+          if (word && shown === 0) return null;
+          const items = found.map(([kind, names]) =>
+            names.length > 0 ? (
+              <fieldset key={kind} className="ml-6 mt-2">
+                <legend className={clsx("text-caption font-semibold", !project.allowed && "text-fg-muted")}>{t(`aiConnectors.kinds.${kind}`)}</legend>
+                <ul className="flex flex-col gap-1">{names.map((name) => row(project.project, kind, name, name, reason(kind, name), shared))}</ul>
+              </fieldset>
+            ) : null,
+          );
+          const ticked = form.picks.some((pick) => pick.project === project.project && pick.kind !== "project");
+          return (
+            <li key={project.project} className="rounded-md border border-border p-2">
+              {shared ? (
+                <p className="text-body font-semibold">{t("aiConnectors.organizationData", { project: project.project })}</p>
+              ) : (
+                <ul className="flex flex-col gap-1">
+                  {row(project.project, "project", undefined, t("aiConnectors.wholeProject", { project: project.project }), refused)}
+                </ul>
+              )}
+              {refused ? (
+                <p className={clsx("text-caption", shared ? "text-fg-muted" : "ml-6 text-fg")} aria-hidden={!shared}>
+                  {refused}
+                </p>
+              ) : null}
+              {sizeOf(project) > FOLD_OVER && !word ? (
+                <details open={ticked} className="ml-6 mt-2">
+                  <summary className="focus-ring w-fit cursor-pointer rounded-sm text-caption font-semibold">
+                    {t("aiConnectors.narrow", { count: sizeOf(project) })}
+                  </summary>
+                  {items}
+                </details>
+              ) : (
+                items
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 }
 

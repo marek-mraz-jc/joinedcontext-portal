@@ -235,6 +235,16 @@ describe("the AI connectors page (T-5951)", () => {
     expect(screen.getByText(/paste its address into Claude Code/)).toBeInTheDocument();
   });
 
+  // Older revoked cards pushed the live ones and the new one down the page (journey clip, T-6454).
+  it("folds what was revoked before this visit under one line", async () => {
+    const items = [connector({ id: "a".repeat(26), name: "live-one" }), connector({ id: "b".repeat(26), name: "old-one", state: "revoked" })];
+    renderAt("/ai-connectors", { items }, <AiConnectorsPage />);
+    await screen.findByRole("region", { name: "live-one" });
+    const folded = screen.getByText("Revoked (1)").closest("details");
+    expect(folded).not.toHaveAttribute("open");
+    expect(folded).toContainElement(screen.getByRole("region", { name: "old-one", hidden: true }));
+  });
+
   it("shows a failed list with a retry", async () => {
     renderAt("/ai-connectors", { listFails: true }, <AiConnectorsPage />);
     expect(await screen.findByRole("button", { name: /Retry/ })).toBeInTheDocument();
@@ -555,6 +565,33 @@ describe("the scope tree", () => {
     expect(child).toHaveAttribute("aria-disabled", "true");
     await user.click(child);
     expect(picks).not.toHaveBeenCalled();
+  });
+
+  // Helsinki's whole list ran to hundreds of ticks with the client and expiry fields below (T-6454).
+  it("folds a long project and finds an item across the tree", async () => {
+    const user = userEvent.setup();
+    const endpoints = Array.from({ length: 13 }, (_, at) => `point-${at}`);
+    const options = { ...OPTIONS, projects: [{ project: "doprava", spaces: [], endpoints, pipelines: [], allowed: true }, { project: "ovzdusie", spaces: [], endpoints: ["air-quality"], pipelines: [], allowed: true }] };
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ScopeTree options={options} form={emptyForm(options, NOW)} onChange={vi.fn()} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText("Or pick only some of it (13 items)").closest("details")).not.toHaveAttribute("open");
+    await user.type(screen.getByRole("searchbox", { name: /Find a project/ }), "POINT-12");
+    expect(screen.getByRole("checkbox", { name: "point-12" })).toBeVisible();
+    expect(screen.queryByRole("checkbox", { name: "point-11" })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: /air-quality/ })).toBeNull();
+  });
+
+  it("keeps a short tree open and without a search", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ScopeTree options={OPTIONS} form={emptyForm(OPTIONS, NOW)} onChange={vi.fn()} />
+      </I18nextProvider>,
+    );
+    expect(screen.queryByRole("searchbox")).toBeNull();
+    expect(screen.getByRole("checkbox", { name: "bike-counters" })).toBeVisible();
   });
 
   it("greys a project and the objects the ceiling refuses, with the reason (T-6307)", async () => {

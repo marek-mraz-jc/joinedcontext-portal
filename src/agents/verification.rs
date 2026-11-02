@@ -76,7 +76,12 @@ pub fn check(samples: &Value, since: &[AgentRunEvent], observation: Option<&Valu
     let Some(observation) = observation else {
         return found;
     };
-    for failed in array(observation, "failedRequests") {
+    // The SDK grid reads `access/attributes` for its column decisions and goes on without it, so
+    // its refusal in the sandboxed frame is no fault of the App (T-6385).
+    let failed = array(observation, "failedRequests")
+        .iter()
+        .filter(|failed| !text(failed, "path").contains("/access/attributes"));
+    for failed in failed {
         push(format!(
             "the request {} answered {}",
             text(failed, "path"),
@@ -175,7 +180,15 @@ pub fn rendered(observation: &Value) -> String {
 /// What identifies an entity on a page: its name, then its local id (the URN's last segment).
 fn marks_of(entity: &Value) -> Vec<String> {
     let mut marks = Vec::new();
-    if let Some(name) = entity.get("name").and_then(Value::as_str) {
+    let name = entity.get("name");
+    // keyValues gives a LanguageProperty as `{languageMap: {fi: "…"}}` (T-6385).
+    let languages = name
+        .and_then(|name| name.get("languageMap"))
+        .and_then(Value::as_object);
+    let names = name
+        .into_iter()
+        .chain(languages.into_iter().flat_map(|map| map.values()));
+    for name in names.filter_map(Value::as_str) {
         if !name.trim().is_empty() {
             marks.push(name.trim().to_owned());
         }
@@ -312,6 +325,32 @@ mod tests {
         assert_eq!(
             found.summary(),
             "Checked 2 pages: 1 of 2 sampled entities shown, no errors."
+        );
+    }
+
+    /// T-6385: dev's bike stations name themselves in a languageMap, and the grid's optional
+    /// access read is refused in the frame: both were reported as faults of a working App, and
+    /// each report spent a repair turn.
+    #[test]
+    fn a_language_name_counts_as_shown_and_the_grids_access_read_is_no_fault() {
+        let sampled = json!({ "BikeHireDockingStation": [{
+            "id": "urn:ngsi-ld:BikeHireDockingStation:hel.fi:helsinki:001",
+            "name": { "languageMap": { "fi": "Kaivopuisto" } }
+        }] });
+        let observation = json!({
+            "version": 1,
+            "pages": [{ "label": "Map", "h1": 1, "text": "Kaivopuisto 3 bikes" }],
+            "failedRequests": [{ "path": "/api/endpoint/x/access/attributes?type=T", "status": 403 }]
+        });
+        let found = check(&sampled, &[], Some(&observation));
+        assert_eq!(found.problems, Vec::<String>::new());
+        assert_eq!((found.shown, found.sampled), (1, 1));
+
+        let refused = json!({ "pages": [{ "label": "Map", "h1": 1, "text": "Kaivopuisto" }],
+            "failedRequests": [{ "path": "/api/endpoint/x/ngsi-ld/v1/entities", "status": 403 }] });
+        assert_eq!(
+            check(&sampled, &[], Some(&refused)).problems,
+            ["the request /api/endpoint/x/ngsi-ld/v1/entities answered 403"]
         );
     }
 

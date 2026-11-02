@@ -574,13 +574,8 @@ pub async fn execute_propose_endpoint(
     if !is_dns1123(project) {
         return Err(ApiError::NotFound(format!("project '{project}' not found")));
     }
-    let proposal = share::render(
-        project,
-        &org_domain(state, project),
-        &params,
-        &declared_groups(state, project),
-    )
-    .map_err(ApiError::BadRequest)?;
+    let proposal = share::render(project, &params, &declared_groups(state, project))
+        .map_err(ApiError::BadRequest)?;
     crate::permissions::for_request(state, identity, project).check(
         "Endpoint",
         Verb::Propose,
@@ -751,7 +746,7 @@ fn form_context(request: &StartConversation) -> Result<oneshot::FormContext, Api
     post,
     path = "/api/v1/projects/{project}/assistant/conversations",
     summary = "Start A Conversation",
-    description = "Starts a conversation with the assistant on the caller's first message and answers the queued run. Needs `propose` on App in the project; the assistant reads and drafts as the caller and proposes nothing on its own.",
+    description = "Starts a conversation with the assistant on the caller's first message and answers the queued run. Needs `propose` on any kind in the project; a path also needs `propose` on the kind it ends by proposing; the assistant reads and drafts as the caller and proposes nothing on its own.",
     tag = "agents",
     params(
         ("project" = String, Path, description = "Project name"),
@@ -765,7 +760,7 @@ fn form_context(request: &StartConversation) -> Result<oneshot::FormContext, Api
         (status = 202, description = "The conversation run, queued", body = CreatedRun),
         (status = 400, description = "Invalid request or invalid continuation", body = ProblemDetails),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
-        (status = 403, description = "No role grants proposing an App here, or `X-JC-Run-Origin` from anyone but the Portal's own live journeys", body = ProblemDetails),
+        (status = 403, description = "No role grants proposing anything here, none grants the kind the path proposes, or `X-JC-Run-Origin` from anyone but the Portal's own live journeys", body = ProblemDetails),
         (status = 503, description = "No agent runner, or no such profile", body = ProblemDetails)
     )
 )]
@@ -780,7 +775,7 @@ pub async fn start_conversation(
     let settings = agent_settings(&state)?;
 
     let grants = crate::permissions::for_request(&state, &user.0.identity, &project);
-    grants.check("App", Verb::Propose, None)?;
+    grants.check_converses(&project)?;
     if let Some(hidden) = request.path.and_then(|path| path.hidden_by(&state.config)) {
         return Err(ApiError::BadRequest(hidden));
     }

@@ -9,6 +9,7 @@ use super::{Caller, OpError};
 use crate::api::catalogue::{endpoint_url, served_representations};
 use crate::auth::session::Identity;
 use crate::permissions::{organization_of, ORG_NAMESPACE};
+use crate::reconciler::groups::organization_group;
 use crate::resource::ResourceEnvelope;
 use crate::state::AppState;
 use crate::store::ListOptions;
@@ -30,7 +31,9 @@ fn project_of_group(group: &str) -> &str {
 
 /// Why the gateway refuses `identity` at an Endpoint of `project` with this `spec`, by the rule of
 /// its `admit_on` (EP-14, EP-15, ADR-N-067 2.3): a group of an admitted project, and for
-/// `organization` also a group inside that Organization or of one of its projects. `None` when the
+/// `organization` also the Organization's own: a group inside it, a group named as one of its
+/// projects, or the group of its Organization-scoped bindings. A sibling project's
+/// `-readers` is not one: a vendor's binding reaches that project alone (T-6470). `None` when the
 /// person is admitted or the Endpoint is public: only the Policies decide those. The caller reads
 /// the Endpoint already, so this says nothing they could not read. The gateway answers such a
 /// person 404 or 403, which alone reads as "not deployed yet" (PF-32).
@@ -40,32 +43,34 @@ pub(super) fn not_admitted(
     project: &str,
     spec: &Value,
 ) -> Option<String> {
-    let groups = || {
-        identity
-            .groups
-            .iter()
-            .map(|g| g.trim_start_matches('/'))
+    let names = || identity.groups.iter().map(|g| g.trim_start_matches('/'));
+    let listed: Vec<&str> = spec["allowedProjects"]
+        .as_array()
+        .map(|all| all.iter().filter_map(Value::as_str).collect())
+        .unwrap_or_default();
+    let of_admitted_project = || {
+        names()
             .flat_map(|g| [g, project_of_group(g)])
+            .any(|g| g == project || listed.contains(&g))
     };
     let admits = match spec["audience"].as_str()? {
         "organization" => {
             let organization = organization_of(&state.mirror, project)?;
             let inside = format!("{organization}/");
+            let bound = organization_group(&organization);
             let its_project = |g: &str| {
                 state.mirror.get(ORG_NAMESPACE, "Project", g).is_some()
                     && organization_of(&state.mirror, g).as_deref() == Some(&organization)
             };
-            if groups().any(|g| g.starts_with(&inside) || its_project(g)) {
+            if of_admitted_project()
+                || names().any(|g| g.starts_with(&inside) || g == bound || its_project(g))
+            {
                 return None;
             }
             format!("audience organization admits members of Organization {organization}")
         }
         "project-list" => {
-            let listed: Vec<&str> = spec["allowedProjects"]
-                .as_array()
-                .map(|all| all.iter().filter_map(Value::as_str).collect())
-                .unwrap_or_default();
-            if groups().any(|g| g == project || listed.contains(&g)) {
+            if of_admitted_project() {
                 return None;
             }
             format!("audience project-list admits the group of project {project} and of its allowedProjects")
@@ -361,8 +366,14 @@ mod tests {
         assert_eq!(refused(&["/hel/members"], &organization), None);
         assert_eq!(refused(&["city"], &organization), None);
         // T-6461: the groups a binding fills, of this project or a sibling, never of a far one.
+        // T-6470: the project's own bound group admits, a sibling's only with the Organization.
         assert_eq!(refused(&["/city-readers"], &organization), None);
-        assert_eq!(refused(&["other-writers"], &organization), None);
+        assert!(refused(&["other-writers"], &organization).is_some());
+        assert_eq!(
+            refused(&["other-writers", "hel_bound"], &organization),
+            None
+        );
+        assert!(refused(&["other-writers", "espoo_bound"], &organization).is_some());
         assert!(refused(&["far-readers"], &organization).is_some());
         assert_eq!(refused(&["other"], &organization), None);
         let list = json!({ "audience": "project-list", "allowedProjects": ["other"] });

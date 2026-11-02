@@ -72,12 +72,12 @@ test.describe("a published data view", () => {
     await shoot(page, "filled");
   });
 
-  const states: Array<[string, (route: Route) => Promise<void>, string]> = [
+  const states: Array<[string, (route: Route) => Promise<void>, string | RegExp]> = [
     ["not-published", problem(404), "This view is not published, or not any more."],
     ["closed", problem(403), "This view is not open to the public."],
     ["busy", problem(429, { "Retry-After": "30" }), "Too many visits just now. Try again in 30 s."],
-    ["down", problem(503), "The data service did not answer. Try again."],
-    ["offline", (route) => route.abort("internetdisconnected"), "The data service did not answer. Try again."],
+    ["down", problem(503), /the data service did not answer\. Try again in a minute/],
+    ["offline", (route) => route.abort("internetdisconnected"), /the data service did not answer\. Try again in a minute/],
   ];
   for (const [name, fail, message] of states) {
     test(`a ${name} read shows its own state`, async ({ page }) => {
@@ -92,6 +92,16 @@ test.describe("a published data view", () => {
     });
   }
 
+  test("a failed read names the view when its catalogue entry answered", async ({ page }) => {
+    await anonymous(page, []);
+    await endpoint(page);
+    await page.route("**/ngsi-ld/v1/types", problem(503));
+    await page.goto(`/v/${SLUG}?lang=en`);
+    await expect(page.getByRole("alert")).toContainText("“City bike stations in Helsinki” cannot be shown just now", { timeout: 10_000 });
+    await expect(page.getByRole("heading", { level: 1, name: "City bike stations in Helsinki" })).toBeVisible();
+    await shoot(page, "down-named");
+  });
+
   test("a failed read comes back on Retry", async ({ page }) => {
     let down = true;
     await anonymous(page, []);
@@ -104,7 +114,7 @@ test.describe("a published data view", () => {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([{ id: "urn:ngsi-ld:BikeHireDockingStation:x:1", name: "Kamppi" }]) });
     });
     await page.goto(`/v/${SLUG}?lang=en`);
-    await expect(page.getByRole("alert")).toContainText("The data service did not answer.", { timeout: 10_000 });
+    await expect(page.getByRole("alert")).toContainText("the data service did not answer.", { timeout: 10_000 });
     down = false;
     await page.getByRole("button", { name: "Retry" }).click();
     await expect(page.getByRole("table").getByText("Kamppi")).toBeVisible();

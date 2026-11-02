@@ -808,7 +808,7 @@
       "lead": "How a program reads {type}: through an Endpoint of this space, with its own token, and the webhooks that tell it when something changes.",
       "noEndpoint": "No Endpoint serves this space yet, so no program can read it. Create one on the space's Endpoints.",
       "pick": "Endpoint",
-      "pickHint": "{count} Endpoints of this space. Each has its own address and token, and its Policy decides which rows it answers, for example air-quality.",
+      "pickHint": "{count, plural, one {# Endpoint} other {# Endpoints}} of this space. Each has its own address and token, and its Policy decides which rows it answers, for example air-quality.",
       "endpoint": "Through {name}",
       "call": {
         "list": "List",
@@ -847,7 +847,9 @@
         "websocket": "WebSocket",
         "ical": "iCal"
       },
-      "copySurface": "Copy the {surface} URL"
+      "copy": "Copy",
+      "copySurface": "Copy the {surface} URL",
+      "calls": "Calls for a program"
     },
     "share": {
       "title": "Publish this type as a public link",
@@ -863,7 +865,8 @@
       "closed": "This view is not open to the public.",
       "busy": "Too many visits just now. Try again in {seconds} s.",
       "busyLater": "Too many visits just now. Try again in a minute.",
-      "down": "The data service did not answer. Try again.",
+      "down": "“{name}” cannot be shown just now: the data service did not answer. Try again in a minute; the link stays the same.",
+      "downUnnamed": "This view cannot be shown just now: the data service did not answer. Try again in a minute; the link stays the same.",
       "types": "Types",
       "first": "The first {count} entities.",
       "count": "{count, plural, one {# entity} other {# entities}}.",
@@ -1169,6 +1172,7 @@
     },
     "toolbar": {
       "filter": "Filter",
+      "tools": "Tools",
       "hide": "Hide fields",
       "group": "Group",
       "colour": "Row colour",
@@ -6436,6 +6440,8 @@
     },
     "trail": "Pages the assistant opened",
     "prefilledNotice": "The assistant filled this in. Check it before you propose.",
+    "readOnly": "Your role here can read but not change anything, so the assistant cannot start. A project steward or an administrator can give you the editor role.",
+    "readOnlyComposer": "Your role can only read here",
     "pathsDenied": "Some paths are greyed: your role lets you look, not create. A project steward or an administrator can give you that right.",
     "paths": {
       "integrate-pipeline": {
@@ -11109,6 +11115,10 @@
     "noProjects": "You read no project and nothing is shared with you yet, so a connector has nothing to reach. Ask a project owner or your organization's administrator for access.",
     "accessOf": "Access for {what}",
     "inWholeProject": "Already in: the whole project is ticked.",
+    "revokedList": "Revoked ({count})",
+    "find": "Find a project, space or Endpoint",
+    "findHint": "Type part of a name, e.g. air-quality.",
+    "narrow": "Or pick only some of it ({count} items)",
     "wholeProject": "{project}: the whole project",
     "newTitle": "New AI connector",
     "formLead": "Tick what the connector may reach. The list holds only what you may read, and the Portal checks every item again when you create it.",

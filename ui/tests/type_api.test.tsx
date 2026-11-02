@@ -118,6 +118,31 @@ describe("the API tab", () => {
     expect(within(query).getByRole("button", { name: "Copy the OData URL" })).toBeInTheDocument();
   });
 
+  it.each([
+    ["sk", 2, "2 Endpointy tohto"],
+    ["sk", 5, "5 Endpointov tohto"],
+    ["cs", 3, "3 Endpointy tohoto"],
+    ["cs", 7, "7 Endpointů tohoto"],
+    ["en", 2, "2 Endpoints of"],
+  ])("counts the Endpoints in %s: %i", async (language, count, words) => {
+    await i18n.changeLanguage(language);
+    const hint = i18n.t("spaces.api.pickHint", { count });
+    await i18n.changeLanguage("en");
+    expect(hint).toContain(words);
+  });
+
+  it("gives every call its own copy button and copies that call's address", async () => {
+    show();
+    const calls = await screen.findByTestId("api-calls");
+    for (const call of ["List", "Count", "One entity", "History"]) {
+      expect(within(calls).getByRole("button", { name: `Copy the ${call} URL` })).toBeInTheDocument();
+    }
+    const writeText = vi.fn(async () => undefined);
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText } });
+    await userEvent.click(within(calls).getByRole("button", { name: "Copy the Count URL" }));
+    expect(writeText).toHaveBeenCalledWith(expect.stringMatching(/entities\?type=BikeHireDockingStation&count=true&limit=0$/));
+  });
+
   it("shows each Endpoint's calls for the type, tries one with the session, and lists its webhooks", async () => {
     show();
     const api = await screen.findByTestId("view-api");

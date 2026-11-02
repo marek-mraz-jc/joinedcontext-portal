@@ -85,8 +85,9 @@ their words, no file names unless they asked.\n\
 Every model call costs the person time and money, so make each one count: the files shown in \
 the request are as the turn began, do not read them again unless you changed them; put several \
 tool calls in one answer when they do not depend on each other, every edit the request needs \
-in one answer, then check once. Only your last calls come back whole; the earlier ones are one \
-line each: call a tool again only if you need its answer.";
+in one answer, then check once. Your last calls come back whole, the newest files you read stay \
+in the request while they are unchanged, and every other earlier call is one line: call a tool \
+again only if you need its answer.";
 
 /// The tools of the loop, in the shape both providers read.
 fn tools() -> Vec<ToolSpec> {
@@ -261,6 +262,8 @@ struct Round {
 const SUMMARY_CHARS: usize = 2_000;
 /// How much of a result's first line one summary line repeats.
 const SUMMARY_LINE: usize = 120;
+/// What the reads of earlier rounds may keep in the request, about 4000 tokens (T-6385).
+const KEPT_READS: usize = 2 * RESULT_CAP;
 
 /// The earlier rounds of a turn as one short text (T-3074): the files changed so far, always,
 /// then one line per tool call (its name, its file, the first line of its result), the newest
@@ -323,10 +326,56 @@ fn summary(rounds: &[Round]) -> String {
     out
 }
 
+/// The newest reads of the rounds before the last, whole, while the file stands as it was read
+/// (T-6385). A model that reads one file per call lost each file on the next call, read it again
+/// and spent all of `EDIT_CALLS` on reading without one edit: a two-line follow-up on dev.
+fn kept_reads(rounds: &[Round]) -> String {
+    let mut changed = std::collections::BTreeSet::new();
+    let mut seen = std::collections::BTreeSet::new();
+    let mut kept = String::new();
+    for (age, round) in rounds.iter().rev().enumerate() {
+        for call in round.answer.calls.iter().rev() {
+            let Some(path) = call.input.get("path").and_then(Value::as_str) else {
+                continue;
+            };
+            if call.name != "read_file" {
+                if matches!(
+                    call.name.as_str(),
+                    "edit_file" | "write_file" | "delete_file"
+                ) {
+                    changed.insert(path.to_owned());
+                }
+                continue;
+            }
+            let window = call.input.to_string();
+            let result = round.results.iter().find(|(id, _)| *id == call.id);
+            match result {
+                Some((_, text))
+                    if age > 0
+                        && !changed.contains(path)
+                        && !seen.contains(&window)
+                        && text.starts_with(&format!("{path}: lines "))
+                        && kept.len() + text.len() <= KEPT_READS =>
+                {
+                    kept.push_str(text);
+                    kept.push('\n');
+                }
+                _ => {}
+            }
+            seen.insert(window);
+        }
+    }
+    if kept.is_empty() {
+        return kept;
+    }
+    format!("Files you read earlier in this turn, unchanged since:\n{kept}")
+}
+
 /// What the next call sends (T-3074, SDK-20): the opening, the same bytes on every call of the
-/// turn and cached by the provider (T-3073); the running summary of the rounds before the last;
-/// and the last round whole, the model's calls and their results. An older result is never
-/// sent again, so what follows the opening stays bounded however long the turn runs.
+/// turn and cached by the provider (T-3073); the running summary of the rounds before the last
+/// with the reads that still hold (T-6385); and the last round whole, the model's calls and
+/// their results. Any other older result is never sent again, so what follows the opening stays
+/// bounded however long the turn runs.
 fn transcript(provider: &str, opening: &str, rounds: &[Round]) -> Vec<Value> {
     let mut messages = vec![json!({ "role": "user", "content": opening })];
     let Some((last, earlier)) = rounds.split_last() else {
@@ -334,7 +383,8 @@ fn transcript(provider: &str, opening: &str, rounds: &[Round]) -> Vec<Value> {
     };
     let earlier = summary(earlier);
     if !earlier.is_empty() {
-        messages.push(json!({ "role": "user", "content": earlier }));
+        let content = format!("{earlier}{}", kept_reads(rounds));
+        messages.push(json!({ "role": "user", "content": content }));
     }
     messages.push(assistant_turn_message(provider, &last.answer));
     for (id, result) in &last.results {
@@ -1300,6 +1350,78 @@ mod tests {
             "{} tokens after the opening",
             after_opening / 4
         );
+    }
+
+    fn reading(n: usize, path: &str, text: &str) -> Round {
+        Round {
+            answer: ToolAnswer {
+                calls: vec![ToolCall {
+                    id: format!("c{n}"),
+                    name: "read_file".into(),
+                    input: json!({ "path": path }),
+                }],
+                ..ToolAnswer::default()
+            },
+            results: vec![(format!("c{n}"), format!("{path}: lines 1-1 of 1\n{text}"))],
+        }
+    }
+
+    /// T-6385: a model reading one file per call still holds the first file on its third call.
+    /// Without it gemini-3.8-flash read the same two windows until the call limit, no edit made.
+    #[test]
+    fn an_earlier_read_stays_in_the_request_until_the_file_changes() {
+        let rounds = [
+            reading(0, "src/A.tsx", "first-file"),
+            reading(1, "src/B.tsx", "second-file"),
+            reading(2, "src/C.tsx", "third-file"),
+        ];
+        let sent = Value::Array(transcript("anthropic", "opening", &rounds)).to_string();
+        assert!(
+            sent.contains("first-file") && sent.contains("second-file"),
+            "{sent}"
+        );
+        assert_eq!(
+            sent.matches("third-file").count(),
+            1,
+            "the last round is sent once"
+        );
+
+        let mut edit = round(3);
+        edit.answer.calls[0].input = json!({ "path": "src/A.tsx", "content": "new" });
+        let rounds = [
+            reading(0, "src/A.tsx", "first-file"),
+            reading(1, "src/B.tsx", "second-file"),
+            edit,
+        ];
+        let sent = Value::Array(transcript("anthropic", "opening", &rounds)).to_string();
+        assert!(
+            !sent.contains("first-file"),
+            "a changed file is stale: {sent}"
+        );
+        assert!(sent.contains("second-file"), "{sent}");
+    }
+
+    /// T-6385: thirty big reads keep the newest within the bound, the same window once.
+    #[test]
+    fn kept_reads_stay_within_their_bound_and_hold_a_window_once() {
+        let big = "z".repeat(RESULT_CAP - 100);
+        let rounds: Vec<Round> = (0..30)
+            .map(|n| reading(n, &format!("src/F{n}.tsx"), &big))
+            .collect();
+        let kept = kept_reads(&rounds);
+        assert!(kept.len() <= KEPT_READS + 100, "{}", kept.len());
+        assert!(kept.contains("src/F28.tsx") && !kept.contains("src/F20.tsx"));
+
+        let again = [
+            reading(0, "src/A.tsx", "same"),
+            reading(1, "src/A.tsx", "same"),
+            reading(2, "src/B.tsx", "other"),
+        ];
+        assert_eq!(kept_reads(&again).matches("same").count(), 1);
+        let refused = [reading(0, "src/A.tsx", "x"), reading(1, "src/B.tsx", "y")];
+        let mut no_file = refused;
+        no_file[0].results[0].1 = "src/A.tsx: no such file".to_owned();
+        assert_eq!(kept_reads(&no_file), "", "a refusal is no read");
     }
 
     /// T-3074: the summary keeps what the next step needs: every file changed, and the newest

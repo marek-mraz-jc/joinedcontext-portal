@@ -17,7 +17,9 @@ use jc_core::kinds::GroupSpec;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::permissions::{is_person_id, organization_of, project_members, ORG_NAMESPACE};
+use crate::permissions::{
+    is_person_id, organization_of, organization_scoped_people, project_members, ORG_NAMESPACE,
+};
 use crate::store::{ListOptions, Mirror};
 
 /// The attribute that says a group is this platform's to write (PF-63).
@@ -28,39 +30,69 @@ pub const MANAGED_VALUE: &str = "joinedcontext";
 const ORGANIZATION_ATTRIBUTE: &str = "jc_org";
 const GROUPS_ATTRIBUTE: &str = "jc_groups";
 
-/// A group the platform derives (PF-87): a project's `{slug}-readers` or `{slug}-writers`, by
-/// Keycloak user id, carrying the project's Organization, so whom a binding fills it with hold
-/// `jc_org` (T-6461) until the binding goes.
+/// The ending of an Organization's group of bound people, [`organization_group`]. A project,
+/// Group or Organization name is DNS-1123, so no name of those can end in it.
+const ORGANIZATION_GROUP_ENDING: &str = "_bound";
+
+/// The root group whose members hold `jc_org` of `organization` by an Organization-scoped
+/// RoleBinding (ADR-N-067 2.2, T-6470).
+pub fn organization_group(organization: &str) -> String {
+    format!("{organization}{ORGANIZATION_GROUP_ENDING}")
+}
+
+/// The Organization an [`organization_group`] gives its members.
+pub fn organization_of_group(group: &str) -> Option<&str> {
+    group
+        .strip_suffix(ORGANIZATION_GROUP_ENDING)
+        .filter(|organization| !organization.is_empty())
+}
+
+/// A group the platform derives, by Keycloak user id, and what it adds to its members' tokens.
+/// A project's `{slug}-readers` and `{slug}-writers` (PF-87) hold whoever a binding reaches,
+/// vendors included, so they name the group (`jc_groups`) and never the Organization (`jc_org`):
+/// that comes from `/{organization}/members` or from [`organization_group`] (T-6470).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DerivedGroup {
     pub name: String,
     pub members: BTreeSet<String>,
-    pub organization: Option<String>,
+    pub jc_org: Option<String>,
+    pub jc_groups: Option<String>,
 }
 
-/// Every registered project's derived groups as `mirror` holds its bindings at `now`: a binding
-/// taken away or run out empties its person from them, and only a binding that reaches the
-/// project counts, so none of another Organization grants its Organization here.
+/// Every registered project's derived groups, and the group of each of their Organizations, as
+/// `mirror` holds its bindings at `now`: a binding taken away or run out empties its person from
+/// them, and only a binding that reaches the project counts, so none of another Organization
+/// grants its Organization here.
 pub fn derived_groups(
     mirror: &Mirror,
     projects: &BTreeMap<String, String>,
     now: DateTime<Utc>,
 ) -> Vec<DerivedGroup> {
-    projects
-        .keys()
-        .flat_map(|slug| {
-            let members = project_members(mirror, slug, now);
-            let organization = organization_of(mirror, slug);
-            let [(readers, _), (writers, _)] = super::project_teams::teams_of(slug);
-            [(readers, members.readers), (writers, members.writers)].map(|(name, members)| {
-                DerivedGroup {
-                    name,
-                    members,
-                    organization: organization.clone(),
-                }
-            })
+    let of_projects = projects.keys().flat_map(|slug| {
+        let members = project_members(mirror, slug, now);
+        let organization = organization_of(mirror, slug);
+        let [(readers, _), (writers, _)] = super::project_teams::teams_of(slug);
+        [(readers, members.readers), (writers, members.writers)].map(|(name, members)| {
+            let jc_groups = organization.as_ref().map(|org| format!("/{org}/{name}"));
+            DerivedGroup {
+                name,
+                members,
+                jc_org: None,
+                jc_groups,
+            }
         })
-        .collect()
+    });
+    let organizations: BTreeSet<String> = projects
+        .keys()
+        .filter_map(|slug| organization_of(mirror, slug))
+        .collect();
+    let of_organizations = organizations.into_iter().map(|organization| DerivedGroup {
+        name: organization_group(&organization),
+        members: organization_scoped_people(mirror, &organization, now),
+        jc_org: Some(organization),
+        jc_groups: None,
+    });
+    of_projects.chain(of_organizations).collect()
 }
 
 /// What one run did with one group, in the shape the mirror and the feed both carry.
@@ -225,9 +257,8 @@ impl GroupSync {
                 continue;
             }
             let held = existing.iter().find(|group| &group.name == name);
-            let organization = derived.organization.as_deref();
             outcomes.push(
-                self.converge_one(&token, name, &derived.members, organization, held)
+                self.converge_one(&token, name, &derived.members, Some(derived), held)
                     .await,
             );
         }
@@ -266,7 +297,7 @@ impl GroupSync {
         token: &str,
         name: &str,
         wanted: &BTreeSet<String>,
-        organization: Option<&str>,
+        derived: Option<&DerivedGroup>,
         held: Option<&KcGroup>,
     ) -> GroupOutcome {
         let mut outcome = GroupOutcome::of(name);
@@ -288,7 +319,7 @@ impl GroupSync {
                         token,
                         reqwest::Method::POST,
                         "/groups",
-                        Some(&json!({ "name": name, "attributes": attributes_of(name, organization) })),
+                        Some(&json!({ "name": name, "attributes": attributes_of(derived) })),
                     )
                     .await
                 {
@@ -321,8 +352,7 @@ impl GroupSync {
             }
         };
 
-        self.keep_organization(token, held, organization, &mut outcome)
-            .await;
+        self.keep_claims(token, held, derived, &mut outcome).await;
 
         // A manifest written before ADR-N-061 names members by e-mail. Matching those against
         // the realm's ids would take every such person out, so the group is left as the realm
@@ -400,20 +430,21 @@ impl GroupSync {
         outcome
     }
 
-    /// Brings a derived group already in the realm to its project's Organization: a group made
-    /// before T-6461 carries none, and a project can move to another one. A manifest's group
-    /// (no Organization) is left as it is.
-    async fn keep_organization(
+    /// Brings a derived group already in the realm to the claims it should give: a group made
+    /// before T-6461 carries none, one of T-6461 still names the Organization to every person a
+    /// binding reaches (T-6470), and a project can move to another one. A manifest's group is
+    /// left as it is.
+    async fn keep_claims(
         &self,
         token: &str,
         held: Option<&KcGroup>,
-        organization: Option<&str>,
+        derived: Option<&DerivedGroup>,
         outcome: &mut GroupOutcome,
     ) {
-        let (Some(group), Some(organization)) = (held, organization) else {
+        let (Some(group), Some(derived)) = (held, derived) else {
             return;
         };
-        let attributes = attributes_of(&group.name, Some(organization));
+        let attributes = attributes_of(Some(derived));
         let says = |key: &str| group.attributes.get(key).map(|values| json!(values));
         if [ORGANIZATION_ATTRIBUTE, GROUPS_ATTRIBUTE]
             .iter()
@@ -432,9 +463,10 @@ impl GroupSync {
             )
             .await;
         match sent {
-            Ok(_) => outcome.drift.push(format!(
-                "the group did not name Organization {organization}; it does now"
-            )),
+            Ok(_) => outcome.drift.push(
+                "the group's Organization claims were not what its project says; they are now"
+                    .to_owned(),
+            ),
             Err(err) => outcome.error = Some(err),
         }
     }
@@ -445,14 +477,16 @@ impl GroupSync {
     }
 }
 
-/// What a group the platform writes carries: the managed mark and, for a derived group, its
-/// Organization as the token claims read it. The path in `jc_groups` is a name, not the group's
-/// place in the realm: the group is a root group so that the forge's team map finds it (PF-87).
-fn attributes_of(name: &str, organization: Option<&str>) -> Value {
+/// What a group the platform writes carries: the managed mark and, for a derived group, the
+/// claims it gives. The path in `jc_groups` is a name, not the group's place in the realm: the
+/// group is a root group so that the forge's team map finds it (PF-87).
+fn attributes_of(derived: Option<&DerivedGroup>) -> Value {
     let mut attributes = json!({ MANAGED_BY: [MANAGED_VALUE] });
-    if let Some(organization) = organization {
+    if let Some(organization) = derived.and_then(|group| group.jc_org.as_ref()) {
         attributes[ORGANIZATION_ATTRIBUTE] = json!([organization]);
-        attributes[GROUPS_ATTRIBUTE] = json!([format!("/{organization}/{name}")]);
+    }
+    if let Some(path) = derived.and_then(|group| group.jc_groups.as_ref()) {
+        attributes[GROUPS_ATTRIBUTE] = json!([path]);
     }
     attributes
 }

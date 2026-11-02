@@ -463,7 +463,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
   // On a phone the filter row folds under one button (T-5415); wider screens always show it.
   const [filtersOpen, setFiltersOpen] = useState(false);
   // The drawn area is a filter as much as a typed one: the folded filter row counts it (T-6345).
-  const activeFilters = Object.keys(state.filters).length + (grid.area ? 1 : 0);
+  const activeFilters = Object.values(state.filters).filter(complete).length + (grid.area ? 1 : 0);
   useEffect(() => {
     onFilterColumns?.([...filterable.values()]);
   }, [filterable, onFilterColumns]);

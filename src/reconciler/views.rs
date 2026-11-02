@@ -697,6 +697,33 @@ pub struct Desired {
     pub refused: Vec<(Owner, String)>,
 }
 
+impl Desired {
+    /// What this asks of the broker that `before` did not. Every refusal stays: it is no write,
+    /// and an Endpoint a merge touched and the writer still refuses must not read `Live`.
+    fn beyond(mut self, before: &Desired) -> Desired {
+        self.views
+            .retain(|id, entry| before.views.get(id) != Some(&*entry));
+        self.documents
+            .retain(|tenant, entry| before.documents.get(tenant) != Some(&*entry));
+        self.schemas
+            .retain(|tenant, entry| before.schemas.get(tenant) != Some(&*entry));
+        self.retention
+            .retain(|tenant, entry| before.retention.get(tenant) != Some(&*entry));
+        self.quality
+            .retain(|tenant, entry| before.quality.get(tenant) != Some(&*entry));
+        self
+    }
+}
+
+/// How much of the broker a pass answers for.
+#[derive(Clone, Copy, PartialEq)]
+enum Pass {
+    /// All of it: what the desired state lacks is removed.
+    Whole,
+    /// Only what it names: what it lacks is simply not its business.
+    Merged,
+}
+
 /// Every view and rule document the repository declares (plan 2.1, 3.3, 5.1).
 pub fn desired(sources: &Sources) -> Desired {
     let mut out = Desired {
@@ -1518,7 +1545,21 @@ impl ViewSync {
     /// per Endpoint and Context Space what happened.
     pub async fn converge(&self, repo: &Repository) -> Vec<(Owner, ViewOutcome)> {
         let sources = self.remember(repo);
-        self.apply(desired(&sources)).await
+        self.apply(desired(&sources), Pass::Whole).await
+    }
+
+    /// Writes only what `repo` asks of the broker beyond the last read, and removes nothing: a
+    /// merged change reaches the broker without a whole run (CC-65, T-6455). What is gone from
+    /// `repo` stays for the whole run behind it, except a rule document: it is one object, so a
+    /// revoked Policy leaves here. Compiled by the same [`desired`] as a whole run.
+    pub async fn converge_merged(&self, repo: &Repository) -> Vec<(Owner, ViewOutcome)> {
+        let before = lock(&self.last).clone();
+        let sources = self.remember(repo);
+        let Some(before) = before else {
+            return Vec::new();
+        };
+        self.apply(desired(&sources).beyond(&desired(&before)), Pass::Merged)
+            .await
     }
 
     /// Reads `repo` as the one a draft compiles against, and writes nothing: a replica that does
@@ -1734,9 +1775,11 @@ impl ViewSync {
         Ok((status, body.unwrap_or(Value::Null)))
     }
 
-    async fn apply(&self, desired: Desired) -> Vec<(Owner, ViewOutcome)> {
+    async fn apply(&self, desired: Desired, pass: Pass) -> Vec<(Owner, ViewOutcome)> {
         // A tenant whose space lost its model, or is gone, keeps no compiled schema (T-4353).
-        lock(&self.compiled).retain(|tenant, _| desired.schemas.contains_key(tenant));
+        if pass == Pass::Whole {
+            lock(&self.compiled).retain(|tenant, _| desired.schemas.contains_key(tenant));
+        }
         let mut outcomes: BTreeMap<Owner, ViewOutcome> = BTreeMap::new();
         for (owner, reason) in &desired.refused {
             outcomes.insert(owner.clone(), ViewOutcome::Refused(reason.clone()));
@@ -1847,16 +1890,18 @@ impl ViewSync {
         }
         // A broker that held a document or schema and now holds no space still gets its pass,
         // so what a deleted space left there is removed.
-        let held: Vec<String> = lock(&self.written_documents)
-            .values()
-            .chain(lock(&self.written_schemas).values())
-            .cloned()
-            .collect();
-        for base in held {
-            passes.entry(base).or_default();
+        if pass == Pass::Whole {
+            let held: Vec<String> = lock(&self.written_documents)
+                .values()
+                .chain(lock(&self.written_schemas).values())
+                .cloned()
+                .collect();
+            for base in held {
+                passes.entry(base).or_default();
+            }
         }
         for (base, part) in &passes {
-            self.apply_on(base, &token, part, &mut note).await;
+            self.apply_on(base, &token, part, pass, &mut note).await;
         }
         outcomes.into_iter().collect()
     }
@@ -1867,6 +1912,7 @@ impl ViewSync {
         base: &str,
         token: &str,
         part: &Desired,
+        pass: Pass,
         note: &mut impl FnMut(&Owner, ViewOutcome),
     ) {
         let listed = match self.get(base, token, "/q/views").await {
@@ -1897,7 +1943,7 @@ impl ViewSync {
             note(owner, outcome);
         }
         for id in listed.keys() {
-            if owned(id) && !part.views.contains_key(id) {
+            if pass == Pass::Whole && owned(id) && !part.views.contains_key(id) {
                 match self.delete(base, token, &format!("/q/views/{id}")).await {
                     Ok(()) => tracing::info!(view = %id, "view removed with its Endpoint or space"),
                     Err(reason) => tracing::warn!(view = %id, %reason, "view not removed"),
@@ -1920,7 +1966,9 @@ impl ViewSync {
         }
         let gone: Vec<String> = lock(&self.written_schemas)
             .iter()
-            .filter(|(tenant, at)| at.as_str() == base && !part.schemas.contains_key(*tenant))
+            .filter(|(tenant, at)| {
+                pass == Pass::Whole && at.as_str() == base && !part.schemas.contains_key(*tenant)
+            })
             .map(|(tenant, _)| tenant.clone())
             .collect();
         for tenant in gone {
@@ -2011,7 +2059,9 @@ impl ViewSync {
         let gone: Vec<String> = self
             .written()
             .iter()
-            .filter(|(tenant, at)| at.as_str() == base && !part.documents.contains_key(*tenant))
+            .filter(|(tenant, at)| {
+                pass == Pass::Whole && at.as_str() == base && !part.documents.contains_key(*tenant)
+            })
             .map(|(tenant, _)| tenant.clone())
             .collect();
         for tenant in gone {
@@ -2855,6 +2905,21 @@ mod tests {
             unread.draft_view("city", "air-public", &Draft::default()),
             Ok(None)
         );
+    }
+
+    /// T-6455: an Endpoint a merge touched and the writer still refuses stays refused, or the
+    /// merge would show it `Live` until the whole run.
+    #[test]
+    fn a_refusal_a_merge_did_not_change_still_counts() {
+        let refused = Desired {
+            refused: vec![(Owner::space("city", "air"), "no such type".into())],
+            ..Desired::default()
+        };
+        let before = Desired {
+            refused: refused.refused.clone(),
+            ..Desired::default()
+        };
+        assert_eq!(refused.beyond(&before).refused.len(), 1);
     }
 
     /// T-3813: the page is asked with the admin token, the candidate view as the body and the
@@ -4017,7 +4082,7 @@ mod tests {
         let file = token_file();
         let sync = ViewSync::new(server.uri(), &file);
         let outcomes: BTreeMap<String, ViewOutcome> = sync
-            .apply(desired)
+            .apply(desired, Pass::Whole)
             .await
             .into_iter()
             .map(|(owner, outcome)| (owner.name, outcome))
@@ -4077,7 +4142,7 @@ mod tests {
         let file = token_file();
         let sync = ViewSync::new(server.uri(), &file);
         let started = std::time::Instant::now();
-        let outcomes = sync.apply(desired).await;
+        let outcomes = sync.apply(desired, Pass::Whole).await;
         let elapsed = started.elapsed();
         let _ = std::fs::remove_file(&file);
 
@@ -4142,12 +4207,12 @@ mod tests {
             .insert("city-air".into(), "127.0.0.1".into());
         let file = token_file();
         let sync = ViewSync::new(main.uri(), &file).with_broker_template(Some(canary_host));
-        let written = sync.apply(desired(&on_canary)).await;
+        let written = sync.apply(desired(&on_canary), Pass::Whole).await;
 
         let mut nowhere = sources(vec![("cars", cars())]);
         nowhere.brokers.insert("city-air".into(), String::new());
         let refused = ViewSync::new(main.uri(), &file)
-            .apply(desired(&nowhere))
+            .apply(desired(&nowhere), Pass::Whole)
             .await;
         let _ = std::fs::remove_file(&file);
 
@@ -4204,7 +4269,7 @@ mod tests {
         let file = token_file();
         let sync = ViewSync::new(server.uri(), &file);
         sync.written().insert("old-space".into(), server.uri());
-        let outcomes = sync.apply(desired(&s)).await;
+        let outcomes = sync.apply(desired(&s), Pass::Whole).await;
         assert_eq!(
             outcomes,
             [(Owner::space("city", "air"), ViewOutcome::Written)]
@@ -4229,7 +4294,7 @@ mod tests {
             .mount(&no_engine)
             .await;
         let outcomes = ViewSync::new(no_engine.uri(), &file)
-            .apply(desired(&s))
+            .apply(desired(&s), Pass::Whole)
             .await;
         let _ = std::fs::remove_file(&file);
         assert_eq!(
@@ -4249,7 +4314,9 @@ mod tests {
             .mount(&server)
             .await;
         let sync = ViewSync::new(server.uri(), "/nonexistent/broker-admin-token");
-        let outcomes = sync.apply(desired(&sources(vec![("cars", cars())]))).await;
+        let outcomes = sync
+            .apply(desired(&sources(vec![("cars", cars())])), Pass::Whole)
+            .await;
         assert!(
             matches!(&outcomes[..], [(_, ViewOutcome::Failed(r))] if r.contains("/nonexistent/broker-admin-token")),
             "{outcomes:?}"
@@ -4310,7 +4377,7 @@ mod tests {
         }
         let file = token_file();
         let outcomes = ViewSync::new(server.uri(), &file)
-            .apply(desired(&Sources::default()))
+            .apply(desired(&Sources::default()), Pass::Whole)
             .await;
         let _ = std::fs::remove_file(&file);
         assert!(outcomes.is_empty(), "{outcomes:?}");
@@ -4323,7 +4390,7 @@ mod tests {
         let file = token_file();
         let s = sources(vec![("cars", cars())]);
         let down = ViewSync::new("http://127.0.0.1:9", &file)
-            .apply(desired(&s))
+            .apply(desired(&s), Pass::Whole)
             .await;
         assert!(
             matches!(&down[..], [(_, ViewOutcome::Failed(r))] if r.contains("did not answer")),
@@ -4336,7 +4403,9 @@ mod tests {
             .expect(0)
             .mount(&vanilla)
             .await;
-        let outcomes = ViewSync::new(vanilla.uri(), &file).apply(desired(&s)).await;
+        let outcomes = ViewSync::new(vanilla.uri(), &file)
+            .apply(desired(&s), Pass::Whole)
+            .await;
         let _ = std::fs::remove_file(&file);
         assert!(
             matches!(&outcomes[..], [(_, ViewOutcome::Failed(r))] if r.contains("views feature")),
@@ -4405,7 +4474,7 @@ mod tests {
 
         let file = token_file();
         let sync = ViewSync::new(server.uri(), &file).with_model_tools(format!("{}/", tools.uri()));
-        let outcomes = sync.apply(desired(&s)).await;
+        let outcomes = sync.apply(desired(&s), Pass::Whole).await;
         let _ = std::fs::remove_file(&file);
         let endpoint = outcomes
             .iter()
@@ -4612,11 +4681,13 @@ mod tests {
 
         let file = token_file();
         let sync = ViewSync::new(server.uri(), &file).with_model_tools(format!("{}/", tools.uri()));
-        let first = sync.apply(desired(&s)).await;
-        let second = sync.apply(desired(&s)).await;
+        let first = sync.apply(desired(&s), Pass::Whole).await;
+        let second = sync.apply(desired(&s), Pass::Whole).await;
         let held = lock(&sync.written_schemas).clone();
         let compiled = lock(&sync.compiled).keys().cloned().collect::<Vec<_>>();
-        let third = sync.apply(desired(&sources(vec![("cars", cars())]))).await;
+        let third = sync
+            .apply(desired(&sources(vec![("cars", cars())])), Pass::Whole)
+            .await;
         let _ = std::fs::remove_file(&file);
         // The compiled schema leaves with the model, after one run (T-4353).
         assert_eq!(compiled, ["city-air"]);
@@ -4680,10 +4751,10 @@ mod tests {
 
         let file = token_file();
         let sync = ViewSync::new(server.uri(), &file).with_model_tools(tools.uri());
-        let first = sync.apply(desired(&s)).await;
+        let first = sync.apply(desired(&s), Pass::Whole).await;
         s.retention
             .insert(("city".into(), "air".into()), Vec::new());
-        let second = sync.apply(desired(&s)).await;
+        let second = sync.apply(desired(&s), Pass::Whole).await;
         let _ = std::fs::remove_file(&file);
         for outcomes in [&first, &second] {
             assert!(
@@ -4845,9 +4916,9 @@ mod tests {
 
         let file = token_file();
         let sync = ViewSync::new(server.uri(), &file).with_model_tools(tools.uri());
-        let first = sync.apply(desired(&s)).await;
+        let first = sync.apply(desired(&s), Pass::Whole).await;
         s.quality.insert(("city".into(), "air".into()), Vec::new());
-        let second = sync.apply(desired(&s)).await;
+        let second = sync.apply(desired(&s), Pass::Whole).await;
         let _ = std::fs::remove_file(&file);
         for outcomes in [&first, &second] {
             assert!(
@@ -4881,7 +4952,7 @@ mod tests {
             .await;
         let refused = ViewSync::new(server.uri(), &file)
             .with_model_tools(broken.uri())
-            .apply(desired(&s))
+            .apply(desired(&s), Pass::Whole)
             .await;
 
         let tools = model_tools(
@@ -4904,11 +4975,11 @@ mod tests {
             .await;
         let failed = ViewSync::new(unbound.uri(), &file)
             .with_model_tools(tools.uri())
-            .apply(desired(&s))
+            .apply(desired(&s), Pass::Whole)
             .await;
 
         let unconfigured = ViewSync::new(broker_with_the_space_view(&s).await.uri(), &file)
-            .apply(desired(&s))
+            .apply(desired(&s), Pass::Whole)
             .await;
         let _ = std::fs::remove_file(&file);
 
@@ -5071,7 +5142,7 @@ mod tests {
         // Create.
         let made = desired(&s);
         let outcomes: BTreeMap<String, ViewOutcome> = sync
-            .apply(desired(&s))
+            .apply(desired(&s), Pass::Whole)
             .await
             .into_iter()
             .map(|(owner, outcome)| (owner.name, outcome))
@@ -5108,7 +5179,7 @@ mod tests {
         let changed = jc_changed();
         let wanted = desired(&changed);
         assert_ne!(wanted.views[SLUG].1, made.views[SLUG].1);
-        let outcomes = sync.apply(desired(&changed)).await;
+        let outcomes = sync.apply(desired(&changed), Pass::Whole).await;
         assert!(
             outcomes.iter().all(|(_, o)| *o == ViewOutcome::Written),
             "{outcomes:?}"
@@ -5121,7 +5192,7 @@ mod tests {
         assert_eq!(document["document"], wanted.documents["city-air"].1);
 
         // Delete: nothing declared, so every owned view, the document and the schema go.
-        let outcomes = sync.apply(Desired::default()).await;
+        let outcomes = sync.apply(Desired::default(), Pass::Whole).await;
         assert!(outcomes.is_empty(), "{outcomes:?}");
         let (_, listed) = get("/q/views").await;
         assert!(
