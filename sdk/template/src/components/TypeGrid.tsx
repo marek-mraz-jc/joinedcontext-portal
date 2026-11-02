@@ -11,6 +11,8 @@ export interface TypeGridProps {
   endpoint?: string;
   /** Without them the type's model picks: its name, measures, categories and time. */
   columns?: GridColumn[];
+  /** Keeps only these rows, an NGSI-LD query: `availableBikeNumber==0`. */
+  q?: string;
   pageSize?: number;
   /** Opens a row, by its name in the first column. */
   onSelect?: (id: string) => void;
@@ -20,7 +22,7 @@ export interface TypeGridProps {
  * One type in the SDK's `EntityGrid`, read, paged and filtered at the endpoint. A column: `{ attr }`
  * or `{ attr, formula }`. Each row leads with its name, so a phone sees a value beside it.
  */
-export function TypeGrid({ type, endpoint, columns, pageSize = 50, onSelect }: TypeGridProps) {
+export function TypeGrid({ type, endpoint, columns, q, pageSize = 50, onSelect }: TypeGridProps) {
   const { config, transport } = useClient();
   const { typeSchema } = useSchema(type);
   const slug = config.endpoints?.find((each) => each.name === endpoint)?.slug ?? config.slug;
@@ -40,8 +42,8 @@ export function TypeGrid({ type, endpoint, columns, pageSize = 50, onSelect }: T
     return [{ ...name, pinned: true }, ...asked.filter((each) => each.attr !== nameAttr)];
   }, [columns, shape, nameAttr]);
   const { config: grid, findings } = useMemo(
-    () => parseGridConfig({ source: { kind: "endpoint", slug }, type, pageSize, ...(listed.length > 0 ? { columns: listed } : {}) }),
-    [slug, type, pageSize, listed],
+    () => parseGridConfig({ source: { kind: "endpoint", slug }, type, pageSize, ...(listed.length > 0 ? { columns: listed } : {}), ...(q ? { filters: { preset: { q } } } : {}) }),
+    [slug, type, pageSize, listed, q],
   );
   const hidden = useMemo(() => (nameAttr ? ["id", "entity:type"] : ["entity:type"]), [nameAttr]);
   const renderers = useMemo(

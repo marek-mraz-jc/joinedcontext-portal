@@ -849,7 +849,8 @@ impl Driver {
                  maps, exports and functions the request and the data call for, and a test \
                  beside every page, component and function the application has. Keep the design \
                  and the page of the first version; change them only where completing needs it. \
-                 Answer with SEARCH/REPLACE blocks over the files above.\n",
+                 Every list of entities you add is a `TypeGrid`, a narrowed one with its `q` prop, \
+                 never a `<table>`. Answer with SEARCH/REPLACE blocks over the files above.\n",
             ),
             None if conversation.is_empty() && instruction == self.prompt => pack.push_str(
                 "Write the FIRST VERSION of the application for the request above, which goes on \
@@ -1344,6 +1345,22 @@ fn repair_instruction(request: &str, found: &[String]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn the_completing_call_keeps_a_narrowed_list_in_a_type_grid() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let driver = Driver::for_tests(state, "helsinki");
+        let pack = driver
+            .code_pack(
+                &json!({}),
+                &BTreeMap::new(),
+                &[],
+                "A list",
+                Some(Fix::Complete),
+            )
+            .await;
+        assert!(pack.contains("a narrowed one with its `q` prop"), "{pack}");
+    }
 
     /// T-3076: the first code call over the template carries the SDK, the components by their
     /// exports and the application's own files: within 26.5k tokens (~25.8k measured since the

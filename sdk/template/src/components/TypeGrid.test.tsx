@@ -40,6 +40,19 @@ describe("TypeGrid", () => {
     expect(client.transport.calls.some((call) => call.path.includes("options=sysAttrs"))).toBe(true);
   });
 
+  it("reads only the rows its q keeps, at the endpoint", async () => {
+    const client = stubClient({ entities: STATIONS });
+    render(
+      <JcProvider client={client}>
+        <TypeGrid type="Station" q="bikes==0" />
+      </JcProvider>,
+    );
+    await screen.findByRole("grid");
+    const reads = client.transport.calls.filter((call) => call.path.includes("/entities"));
+    expect(reads.length).toBeGreaterThan(0);
+    expect(reads.every((call) => decodeURIComponent(call.path).includes("q=bikes==0"))).toBe(true);
+  });
+
   it("works a formula column out of each row", async () => {
     shown([{ attr: "name" }, { attr: "occupancy", formula: "bikes / slots * 100" }]);
     expect(await screen.findByText("50")).toBeInTheDocument();
