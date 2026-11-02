@@ -14,7 +14,7 @@ import type { EntitySource, FilterColumn, FilterGroup, GridQuery } from "@joined
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { conditionCount, conditionText, EMPTY_GROUP, FilterChips, FilterPanel, readGroup } from "../src/components/entities/FilterPanel";
-import { FooterAggregate, footerText, percent, ToolbarPopover } from "../src/components/entities/GridToolbar";
+import { FooterAggregate, footerText, GroupPanel, percent, SortPanel, ToolbarPopover } from "../src/components/entities/GridToolbar";
 import { mayDelete } from "../src/components/entities/AccessPanel";
 import type { Aggregation } from "../src/components/entities/GridToolbar";
 import { viewerWriteFindings } from "./pageChecks";
@@ -164,6 +164,29 @@ describe("FilterPanel", () => {
     await user.selectOptions(screen.getByRole("combobox", { name: L.field }), "category");
     await user.selectOptions(screen.getByRole("listbox", { name: L.value }), ["music", "sport"]);
     expect(queryFromGroup(COLUMNS, seen.mock.lastCall![0] as FilterGroup)).toBe('category=="music","sport"');
+  });
+});
+
+describe("SortPanel and GroupPanel", () => {
+  // T-6427: the live walker read "Add a sort key" and "Add a group field" on /catalogue/$name as
+  // writes a viewer could press; they only edit the view in hand, and pressing them calls no server.
+  it("adds a key to the view in hand, and the walker's viewer-write rule still finds a real write beside it", async () => {
+    const user = userEvent.setup();
+    const sorted = vi.fn();
+    const grouped = vi.fn();
+    const fields = [{ value: "city", label: "City" }];
+    wrap(
+      <main>
+        <SortPanel fields={fields} value={[]} onChange={sorted} />
+        <GroupPanel fields={fields} value={[]} onChange={grouped} />
+        <button type="button">Add a sort rule</button>
+      </main>,
+    );
+    await user.click(screen.getByRole("button", { name: L.sortAdd }));
+    await user.click(screen.getByRole("button", { name: L.groupAdd }));
+    expect(sorted).toHaveBeenCalledWith([{ attr: "city", dir: "asc" }]);
+    expect(grouped).toHaveBeenCalledWith(["city"]);
+    expect(viewerWriteFindings(false)).toEqual(['viewer-write: "Add a sort rule" can be pressed']);
   });
 });
 
