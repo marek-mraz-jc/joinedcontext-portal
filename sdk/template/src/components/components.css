@@ -583,6 +583,11 @@ body {
   .jc-shell .jc-grid td.jc-grid-pinned {
     max-width: none;
   }
+  /* The name's 44 px target already spaces the row. */
+  .jc-shell .jc-grid td {
+    padding-block: 0;
+    vertical-align: middle;
+  }
 }
 
 .jc-embedded-frame {
