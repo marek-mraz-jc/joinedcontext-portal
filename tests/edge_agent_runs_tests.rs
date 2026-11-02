@@ -967,6 +967,7 @@ async fn a_run_started_at_the_edge_hands_its_persons_token_to_the_proxy_and_keep
     let app = server::app(state.clone());
 
     let response = app
+        .clone()
         .oneshot(
             Request::builder()
                 .method(Method::POST)
@@ -1010,4 +1011,64 @@ async fn a_run_started_at_the_edge_hands_its_persons_token_to_the_proxy_and_keep
         !format!("{stored:?}").contains(&person),
         "the run record holds the person's token"
     );
+
+    // Each later turn of the person hands it over again, so a grant the start could not leave or
+    // a proxy restart took is back before the run acts on the turn (T-6483).
+    proxy.reset().await;
+    Mock::given(method("POST"))
+        .and(path(format!("/internal/runs/{id}/identity")))
+        .and(wm_header("authorization", "Bearer portal-service-token"))
+        .and(body_json(json!({ "subjectToken": person })))
+        .respond_with(ResponseTemplate::new(204))
+        .expect(2)
+        .mount(&proxy)
+        .await;
+    state
+        .agents
+        .append_event(
+            &id,
+            "question",
+            json!({ "questionId": "which-space", "question": "Which space?", "options": ["doprava"] }),
+        )
+        .await
+        .expect("a question");
+    let turn = |route: &str, body: Value, token: Option<&str>| {
+        let mut request = Request::builder()
+            .method(Method::POST)
+            .uri(format!(
+                "/api/v1/projects/{PROJECT}/agent-runs/{id}/{route}"
+            ))
+            .header(header::COOKIE, format!("__Host-jc_csrf={CSRF}"))
+            .header("x-csrf-token", CSRF)
+            .header(header::CONTENT_TYPE, "application/json");
+        if let Some(token) = token {
+            request = request.header("x-access-token", token);
+        }
+        app.clone().oneshot(
+            request
+                .body(Body::from(body.to_string()))
+                .expect("a request"),
+        )
+    };
+    let message = turn("messages", json!({ "text": "And now?" }), Some(&person));
+    assert_eq!(
+        message.await.expect("a response").status(),
+        StatusCode::NO_CONTENT
+    );
+    let answer = json!({ "questionId": "which-space", "answers": { "answer": "doprava" } });
+    let answered = turn("answers", answer, Some(&person));
+    assert_eq!(
+        answered.await.expect("a response").status(),
+        StatusCode::NO_CONTENT
+    );
+    proxy.verify().await;
+
+    // A request with no token of the person's has nothing to hand over.
+    let unsigned = turn("messages", json!({ "text": "And now?" }), None);
+    assert!(unsigned
+        .await
+        .expect("a response")
+        .status()
+        .is_client_error());
+    proxy.verify().await;
 }

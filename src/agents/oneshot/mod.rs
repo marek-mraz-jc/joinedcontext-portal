@@ -38,6 +38,7 @@ mod conversation;
 mod edit_loop;
 mod integrate;
 mod model;
+mod run_now;
 mod tools_change;
 mod tools_data;
 mod tools_registry;
