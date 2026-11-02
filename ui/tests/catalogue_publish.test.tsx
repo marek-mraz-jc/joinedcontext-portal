@@ -112,6 +112,7 @@ describe("publish a dataset in one step (EP-83)", () => {
       if (path === "/api/v1/projects") return json({ apiVersion: LIST, kind: "List", items: [{ name: "bbsk" }] });
       if (path.endsWith("/permissions/me")) return json({ project: "bbsk", bootstrap: true, grants: [] });
       if (path === "/api/v1/catalogue") return json(PAGE);
+      if (path === "/api/v1/catalogue/readable") return json({ datasets: [], unanswered: 0 });
       if (path === "/api/v1/projects/bbsk/catalogue/drafts") {
         // F-R2UI2-018: the endpoint is read beside the draft, not after its answer.
         await new Promise((resolve) => setTimeout(resolve, 20));

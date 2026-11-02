@@ -33,7 +33,7 @@ export function ReadableDatasets(): JSX.Element {
     if (readable.isPending) {
       return <PageLoading label={t("catalogue.readable.loading")} />;
     }
-    if (readable.isError) {
+    if (readable.isError || !Array.isArray(readable.data.datasets)) {
       return <PageFailed error={readable.error} onRetry={() => void readable.refetch()} />;
     }
     const internal = readable.data.datasets.filter((dataset) => dataset.access !== "public");

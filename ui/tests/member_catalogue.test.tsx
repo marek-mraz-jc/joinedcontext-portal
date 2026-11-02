@@ -76,6 +76,13 @@ describe("the datasets a signed-in person may read (T-6411)", () => {
     await expectNoViolations(container);
   });
 
+  it("shows the failure state, not a crash, when the answer holds no dataset list", async () => {
+    renderPart(<ReadableDatasets />, {
+      answer: (url: URL) => (url.pathname === "/api/v1/catalogue/readable" ? json({ unanswered: 0 }) : undefined),
+    });
+    expect(await screen.findByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
+  });
+
   it("says what to do next when nothing internal is shared, and warns of what it could not check", async () => {
     renderPart(<ReadableDatasets />, { answer: readable([row("bikes", "public")], 2) });
     expect(await screen.findByText(en.catalogue.readable.empty.title)).toBeInTheDocument();
