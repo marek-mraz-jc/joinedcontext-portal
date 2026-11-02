@@ -1297,7 +1297,7 @@ pub(crate) async fn propose_model(
         proposal.creating,
         proposal.lane,
     );
-    let (title, body) = (proposal.title.clone(), proposal.body.clone());
+    let (title, body) = (proposal.title.as_str(), proposal.body.as_str());
     let files = model_files(&proposal)?;
 
     let gitea = state
@@ -1314,12 +1314,12 @@ pub(crate) async fn propose_model(
     let branch = branch_name(project, "datamodel", name, operation);
     let held = crate::api::mutate::turn(gitea, &branch).await;
     let branch = create_or_reuse_branch(gitea, &held, &default_branch).await?;
-    commit_model(gitea, identity, project, &title, &branch, files).await?;
+    commit_model(gitea, identity, project, title, &branch, files).await?;
 
     crate::telemetry::proposed(lane, "DataModel");
 
     let pr = gitea
-        .create_pull_request(&branch, &default_branch, &title, &body)
+        .create_pull_request(&branch, &default_branch, title, body)
         .await?;
 
     let change_meta = crate::api::changes::change_meta(state, gitea, pr.number, project);
