@@ -301,6 +301,8 @@ struct Driver {
     /// The path the conversation is on (AG-89): the one the person picked, the one `choose_path`
     /// or a hand-over took, or none. It changes during a turn, so it is behind a lock.
     path: std::sync::Mutex<Option<crate::agents::paths::Path>>,
+    /// The kinds whose schema went back to the model this turn: each once (T-6488).
+    schema_read: std::sync::Mutex<std::collections::BTreeSet<String>>,
     /// The newest page the person was on as they spoke (T-2763).
     page: std::sync::Mutex<Option<crate::agents::page::PageContext>>,
     /// The capabilities the person chose (AG-92): the opening's, then each message's.
@@ -408,6 +410,7 @@ pub fn spawn(
         max_tokens_per_run: profile.max_tokens_per_run,
         form,
         path: std::sync::Mutex::new(path),
+        schema_read: std::sync::Mutex::default(),
         page: std::sync::Mutex::new(page),
         capabilities: std::sync::Mutex::new(access),
         started: std::time::Instant::now(),
@@ -471,6 +474,7 @@ impl Driver {
             max_tokens_per_run: 2_000_000,
             form: FormContext::default(),
             path: std::sync::Mutex::new(None),
+            schema_read: std::sync::Mutex::default(),
             page: std::sync::Mutex::new(None),
             capabilities: std::sync::Mutex::new(None),
             started: std::time::Instant::now(),
