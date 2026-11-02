@@ -4053,6 +4053,10 @@ output_error{stream="kpi"} 6
             !written.contains(&"PUT /q/views/cccccccccccccccccccccccccc".to_owned()),
             "{written:?}"
         );
+        assert!(
+            !written.iter().any(|c| c.starts_with("DELETE")),
+            "{written:?}"
+        );
 
         let seen = broker.received_requests().await.unwrap_or_default().len();
         next_revision(&shared, &base, &[vendor_endpoint()]);
