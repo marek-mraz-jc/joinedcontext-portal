@@ -895,6 +895,13 @@ routes:
     rule: "project-verb:propose:App, the right of Rebuild (AP-171)"
     body: { commit: "9a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b" }
     expect: [403, 403, 403, allow, 403, allow, 404, 403]
+  - route: GET /projects/{project}/apps/{name}/dashboard
+    rule: "project-verb:read:App"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/apps/{name}/dashboard
+    rule: "project-verb:propose:App, and the App's type read in its space (T-6402)"
+    body: { config: {}, dryRun: true }
+    expect: [403, 403, 403, allow, 403, allow, 404, 403]
   - route: GET /projects/{project}/assistant/access
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]

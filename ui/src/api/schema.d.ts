@@ -1982,6 +1982,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/apps/{name}/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The Editable Dashboard Of An Application
+         * @description The App's src/dashboard.json, the attributes of its type the caller may read, and whether the caller may propose an edit (T-6402).
+         */
+        get: operations["dashboard"];
+        put?: never;
+        /**
+         * Propose An Edit Of An Application's Dashboard
+         * @description Checks the new src/dashboard.json (formulas parsed, never run; every attribute one of the App's type the caller may read; the grid's source and type unchanged), then commits it on a branch of the App's repository and proposes the App at that commit as a Change; approving it merges the branch and builds the App. dryRun answers the file before and after and writes nothing (T-6402).
+         */
+        post: operations["propose"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/apps/{name}/export": {
         parameters: {
             query?: never;
@@ -7305,6 +7329,18 @@ export interface components {
         AppChecks: {
             checks: components["schemas"]["AppCheck"][];
         };
+        /** @description The App's dashboard file and what the editor offers for it. */
+        AppDashboard: {
+            /** @description The attributes of that type the person may read: every attribute dropdown offers these. */
+            attributes: components["schemas"]["Attribute"][];
+            /** @description The file as the default branch holds it; `null` when the App keeps none. */
+            config: Record<string, never>;
+            edit: components["schemas"]["EditOffer"];
+            /** @description The entity type the dashboard lists, from its grid. */
+            entityType?: string | null;
+            /** @description The file's path in the App's repository: `src/dashboard.json`. */
+            path: string;
+        };
         /**
          * @description The caller as a published App sees them: the object the static host writes into
          *     `#jc-config` as `user` (AP-95).
@@ -8597,6 +8633,21 @@ export interface components {
         CreatedRun: components["schemas"]["AgentRun"] & {
             ticket?: string | null;
         };
+        /** @description The edited file, and whether to only preview it. */
+        DashboardEdit: {
+            /** @description The whole new `src/dashboard.json`. */
+            config: Record<string, never>;
+            /** @description `true` answers the file before and after and writes nothing. */
+            dryRun?: boolean;
+        };
+        /** @description What an edit proposes: the file before and after, and the Change once it is proposed. */
+        DashboardProposal: {
+            after: string;
+            before: string;
+            change?: null | components["schemas"]["Change"];
+            /** @description The App repository's merge request the approval merges; absent on a dry run. */
+            pullRequestUrl?: string | null;
+        };
         /** @description A saved view as the API answers it. */
         DataView: {
             config: components["schemas"]["ViewConfig"];
@@ -8844,6 +8895,11 @@ export interface components {
          * @enum {string}
          */
         EdgeKind: "registers" | "serves" | "feeds" | "consumes" | "publishes";
+        /** @description Whether Edit is offered, and why not when it is not. */
+        EditOffer: {
+            allowed: boolean;
+            reason?: string | null;
+        };
         EditPerson: {
             email?: string | null;
             firstName?: string | null;
@@ -17860,6 +17916,188 @@ export interface operations {
                 };
             };
             /** @description No forge is configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    dashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description App name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The dashboard file and what may go in it */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AppDashboard"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such App the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No forge, or the forge did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    propose: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description App name */
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "config": {
+                 *         "colour": {
+                 *           "attr": "occupancy",
+                 *           "bands": [
+                 *             {
+                 *               "below": 10,
+                 *               "label": "Almost empty",
+                 *               "tone": "danger"
+                 *             },
+                 *             {
+                 *               "label": "Bikes available",
+                 *               "tone": "success"
+                 *             }
+                 *           ]
+                 *         },
+                 *         "grid": {
+                 *           "columns": [
+                 *             {
+                 *               "attr": "name"
+                 *             },
+                 *             {
+                 *               "attr": "occupancy",
+                 *               "formula": "availableBikeNumber / totalSlotNumber * 100",
+                 *               "label": "Occupancy %"
+                 *             }
+                 *           ],
+                 *           "source": {
+                 *             "kind": "endpoint",
+                 *             "slug": "bikes"
+                 *           },
+                 *           "type": "BikeHireDockingStation"
+                 *         }
+                 *       },
+                 *       "dryRun": true
+                 *     }
+                 */
+                "application/json": components["schemas"]["DashboardEdit"];
+            };
+        };
+        responses: {
+            /** @description Dry run: the file before and after */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardProposal"];
+                };
+            };
+            /** @description The Change that proposes the edit */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardProposal"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not propose App here, or reads none of its attributes */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such App the caller may read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not built on the forge, no dashboard file, or nothing changed */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A field of the file is refused; each error names its path */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No forge, or the forge refused */
             503: {
                 headers: {
                     [name: string]: unknown;

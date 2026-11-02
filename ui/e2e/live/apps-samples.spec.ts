@@ -267,3 +267,40 @@ test("a steward reads an App's earlier builds, the build it serves is not restor
     await viewer.context.close();
   }
 });
+
+// T-6402: the dashboard editor of an App reads its src/dashboard.json and the attributes it may
+// offer; a sample App keeps no such file, so Edit is not offered and a proposal is refused with
+// the reason, and a viewer may not propose an edit at all. The edit itself, committed and
+// proposed as a Change, is the route's own test (app_dashboard_tests).
+test("a steward reads an App's dashboard file, an App without one is not edited, and a viewer may not propose an edit", async ({
+  browser,
+}) => {
+  const app = "helsinki-bikes";
+  const route = `/api/v1/projects/${PROJECT}/apps/${app}/dashboard`;
+  const edit = { config: { grid: { source: { kind: "endpoint", slug: "bikes" }, type: "BikeHireDockingStation" } }, dryRun: true };
+  const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/apps/${app}?lang=en`);
+  try {
+    const { page, context } = steward;
+    const answer = await page.request.get(route);
+    expect(answer.status(), "the steward reads the dashboard").toBe(200);
+    const read = (await answer.json()) as { path: string; config: unknown; edit: { allowed: boolean; reason?: string } };
+    expect(read.path).toBe("src/dashboard.json");
+    if (read.config === null) {
+      expect(read.edit.allowed, "an App without the file is not edited").toBe(false);
+      expect(read.edit.reason ?? "").toContain("src/dashboard.json");
+      const proposed = await page.request.post(route, { headers: { "x-csrf-token": await csrf(context) }, data: edit });
+      expect(proposed.status(), "nothing to edit").toBe(409);
+    }
+    await page.getByText("Edit the dashboard").click();
+    await expect(page.getByText(read.config === null ? "This dashboard cannot be edited here" : "Columns").first()).toBeVisible();
+  } finally {
+    await steward.context.close();
+  }
+  const viewer = await signIn(browser, VIEWER, `/projects/${PROJECT}/apps?lang=en`);
+  try {
+    const refused = await viewer.page.request.post(route, { headers: { "x-csrf-token": await csrf(viewer.context) }, data: edit });
+    expect(refused.status(), "a viewer may not propose a dashboard edit").toBe(403);
+  } finally {
+    await viewer.context.close();
+  }
+});

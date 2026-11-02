@@ -266,14 +266,13 @@ const DEFAULT_GRID_MAP_LABELS: GridMapLabels
 The map is a second view of the same page, never a second query. `config.map` turns it on
 (`{ enabled, attr?, position? }`); the attribute is the one it names or the page's first geometry,
 and a type with none gets no panel and no action. A click on a shape moves the grid's active cell to
-that row (`setActive`), and the active row's shape is drawn chosen — one selection, both ways. In
-edit mode the active row's geometry is edited in `GeoEditor` with every other row behind it to draw
-against; what comes back joins the grid's pending edits, is reviewed as "Point moved 38 m" or
-"Polygon reshaped: 2 vertices added, area +4 %", and is applied by the same `applyChanges` as any
-cell — as a **GeoProperty**, because writing a geometry as a Property would change what the
-attribute is at the broker. `setArea` holds the drawn rectangle, which `areaQuery` turns into
-`georel=within` + `geometry` + `coordinates` + `geoproperty`; the ring is rounded to six decimals and
-then evenly decimated to fit the URL, and the panel says so when the filter is no longer the shape.
+that row (`setActive`), and the active row's shape is drawn chosen. In edit mode the active row's
+geometry is edited in `GeoEditor`, reviewed ("Point moved 38 m") and applied by `applyChanges` as a
+**GeoProperty**. `areaQuery` turns the drawn rectangle into `georel=within` + `geometry` +
+`coordinates` + `geoproperty`.
+
+### Dashboard (T-6402)
+`Dashboard` draws `src/dashboard.json` read by `parseDashboardConfig(raw)`: `{ grid, filters?: [{ attr, op, value }], colour?: { attr, bands: [{ below?, tone, label }] }, chart?: { x, y, agg }, kpis?: [{ label, agg, attr?, where? }] }`.
 
 ### Geometry: view and edit (UI-72, SDK-29)
 ```ts
