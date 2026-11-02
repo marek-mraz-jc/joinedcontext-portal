@@ -152,6 +152,16 @@ describe("the API tab", () => {
     expect(window.location.search).toMatch(/^\?draft=webhook-bikehiredockingstation-/);
   });
 
+  it("shows one Endpoint at a time and the picker changes which", async () => {
+    show([endpoint("public-bikes", "abc"), endpoint("second", "def")]);
+    const picker = await screen.findByRole("combobox", { name: /Endpoint/ });
+    expect(screen.getByRole("heading", { name: "Through public-bikes" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Through second" })).toBeNull();
+    await userEvent.selectOptions(picker, "second");
+    expect(screen.getByRole("heading", { name: "Through second" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Through public-bikes" })).toBeNull();
+  });
+
   it("says no program can read a space no Endpoint serves", async () => {
     show([]);
     expect(await screen.findByText(en.spaces.api.noEndpoint)).toBeInTheDocument();

@@ -354,6 +354,30 @@ pub(super) fn unshared(project: &str, name: &str) -> OpError {
     )))
 }
 
+/// A 404 on the caller's own Endpoint the gateway answers because it does not admit them: a
+/// refusal that names the fix. Any other answer goes on to speak for itself.
+pub(super) fn not_admitted(
+    status: u16,
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+    name: &str,
+) -> Result<(), OpError> {
+    let endpoint = state
+        .mirror
+        .get(project, "Endpoint", name)
+        .filter(|_| status == 404);
+    let why = endpoint.and_then(|endpoint| {
+        super::endpoint_reach::not_admitted(state, &caller.identity, project, &endpoint.spec)
+    });
+    match why {
+        Some(why) => Err(OpError::Api(ApiError::Denied(format!(
+            "Endpoint {name}: {why}"
+        )))),
+        None => Ok(()),
+    }
+}
+
 /// The gateway's status for an NGSI-LD read, as the error the caller can act on; `Ok` on 200.
 fn refusal_of(
     status: u16,
@@ -424,6 +448,7 @@ async fn run(
     let name = &input.endpoint;
     let target = readable_slug(caller, state, project, name)?;
     let shared = matches!(target, Target::Shared(_));
+    let own = matches!(target, Target::Own(_));
     // A shared Endpoint answers every failure before the gateway's 200 (no bearer, a realm
     // refusal, a gateway status or outage) as a missing one: any other text would tell a caller
     // without a right that it exists, and some would name its slug.
@@ -488,6 +513,11 @@ async fn run(
     }
     let bytes = capped_page(answer).await?;
     let body: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    // The caller's groups mean nothing on a public read, and a project Endpoint named like its
+    // slug may be one they cannot see (T-6451 review).
+    if own {
+        not_admitted(status, caller, state, project, name)?;
+    }
     refusal_of(status, input.temporal.is_some(), name, &slug, &body)?;
     answer_of(&input, body, total)
 }
@@ -788,6 +818,44 @@ mod tests {
                 .all(|r| !r.headers.contains_key("authorization")),
             "a public read carries no token"
         );
+    }
+
+    /// T-6451 review: a project Endpoint named like a public slug, which the caller cannot read,
+    /// stays out of a public read's refusal: their groups mean nothing there.
+    #[tokio::test]
+    async fn a_public_read_names_no_hidden_endpoint_of_the_same_name() {
+        use wiremock::matchers::method;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let gateway = MockServer::start().await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&gateway)
+            .await;
+        let (state, caller) = helsinki(Some(gateway.uri()));
+        state.mirror.upsert(crate::resource::ResourceEnvelope {
+            api_version: crate::resource::API_VERSION.to_owned(),
+            kind: "Endpoint".to_owned(),
+            metadata: crate::resource::ObjectMeta::new(PUBLIC, "t6025-full"),
+            spec: json!({ "audience": "organization" }),
+            status: None,
+        });
+        state.mirror.upsert(crate::resource::ResourceEnvelope {
+            api_version: crate::resource::API_VERSION.to_owned(),
+            kind: "Organization".to_owned(),
+            metadata: crate::resource::ObjectMeta::new("hel", crate::permissions::ORG_NAMESPACE),
+            spec: json!({}),
+            status: None,
+        });
+        let err = run(
+            &caller,
+            &state,
+            "t6025-full",
+            input(json!({ "endpoint": PUBLIC, "type": "GtfsStop" })),
+        )
+        .await
+        .expect_err("the gateway answered 404");
+        let text = err.to_string();
+        assert!(!text.contains("audience"), "{text}");
     }
 
     /// Every way a read of a shared Endpoint can fail before the gateway's 200 answers in the

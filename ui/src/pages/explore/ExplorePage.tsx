@@ -10,6 +10,7 @@ import { spaceUsageQuery } from "../../api/spaceUsage";
 import { asManifests, localized, refName } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { AccessPanel, useAccess } from "../../components/entities/AccessPanel";
+import { AttributeHistory } from "../../components/entities/history/AttributeHistory";
 import { deniedOf, explainAttribute, useAccessCheck, useAttributeAccess, writableOf } from "../../api/access";
 import { EntityFilters } from "../../components/entities/EntityFilters";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
@@ -330,6 +331,13 @@ export function ExplorePage({
       />
     ) : null;
 
+  // A plain value of a person who may write it: what the row's "Correct values" tab offers (T-5326).
+  const correctable = slots.filter((slot) => slot.kind === "Property" && editableAttrs.includes(slot.name)).map((slot) => slot.name);
+  const detailTabs = (row: RichRow) =>
+    slug && correctable.length > 0
+      ? [{ id: "values", label: t("attributeHistory.tab"), content: <AttributeHistory slug={slug} entityId={row.id} attributes={correctable} /> }]
+      : [];
+
   function changeQuery(next: EntityQuery) {
     setQuery(next);
     setSelected(null);
@@ -519,6 +527,7 @@ export function ExplorePage({
             openRow={selected}
             onOpenRow={setSelected}
             detailExtra={detailExtra}
+            detailTabs={detailTabs}
             access={attributeAccess.isError ? null : attributeAccess.data}
             explainAccess={endpointName ? explainAccess : undefined}
             accessRequestHref={`/projects/${encodeURIComponent(project)}/access`}

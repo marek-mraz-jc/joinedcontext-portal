@@ -105,6 +105,7 @@ describe("the form view", () => {
     await userEvent.clear(screen.getByRole("textbox", { name: /capacity/ }));
     await userEvent.click(screen.getByRole("button", { name: en.spaces.form.submit }));
     expect(await screen.findByText(/the policy does not grant createEntity/)).toBeInTheDocument();
+    expect(screen.getByText(/Ask a project owner for a Policy that lets you create ParkingSpot/)).toBeInTheDocument();
     expect(posts).toBe(1);
   });
 

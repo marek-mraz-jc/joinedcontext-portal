@@ -533,6 +533,7 @@
     "empty": "Projekt zatiaľ nemá kontextový priestor.",
     "add": "Nový kontextový priestor",
     "addHint": "Uložením vznikne návrh zmeny; priestor pribudne po jeho schválení.",
+    "fromFile": "Začať zo súboru",
     "propose": "Navrhnúť zmenu",
     "sandbox": "pieskovisko, {days} dní",
     "field": {
@@ -640,7 +641,6 @@
         "Layer": "Mapová vrstva",
         "Dashboard": "Dashboard"
       },
-      "drafted": "Pripravené",
       "alreadyThere": "Už existuje",
       "checkPassed": "Kontrola prešla",
       "checkFailed": "Kontrola neprešla",
@@ -659,6 +659,11 @@
         "Dashboard": "Mapový dashboard s {count, plural, one {# stranou} other {# stranami}}"
       },
       "onApproval": "Navrhnúť všetko pošle tieto koncepty na schválenie spolu. Po schválení sa zdroj začne načítavať a priestor sa naplní.",
+      "onApprovalRows": "Navrhnúť všetko pošle tieto koncepty na schválenie spolu. Po schválení táto stránka ponúkne načítanie {count, plural, one {# riadka} few {# riadkov} many {# riadka} other {# riadkov}} zo súboru. Zostaňte tu alebo si súbor ponechajte: riadky sa zatiaľ neposielajú.",
+      "inChange": "Čo obsahuje táto zmena ({count})",
+      "tooLarge": "To je spolu viac ako 10 MB. Vyberte menšie súbory alebo použite Nahrať CSV, kde je limit 50 MB.",
+      "urlHint": "Adresa živého zdroja namiesto súboru. Príklad: https://example.org/stations.json",
+      "failedNext": "Zatiaľ sa nedá nič navrhnúť. Opravte v súbore, čo kontrola uvádza, a vyberte ho znova.",
       "title": "Doplniť tento priestor",
       "lead": "Zadajte vzorový súbor alebo adresu zdroja. Portál navrhne dátový model, priestor, zdroj údajov a pipeline a každý návrh skontroluje.",
       "space": "Názov priestoru",
@@ -802,6 +807,8 @@
     "api": {
       "lead": "Ako program číta {type}: cez endpoint tohto priestoru, s vlastným tokenom, a webhooky, ktoré mu povedia, keď sa niečo zmení.",
       "noEndpoint": "Tento priestor zatiaľ neobsluhuje žiadny endpoint, takže ho žiadny program nemôže čítať. Vytvorte ho v endpointoch priestoru.",
+      "pick": "Endpoint",
+      "pickHint": "{count} Endpointov tohto priestoru. Každý má vlastnú adresu a token a jeho Policy určuje, ktoré riadky vráti, napríklad air-quality.",
       "endpoint": "Cez {name}",
       "call": {
         "list": "Zoznam",
@@ -945,6 +952,7 @@
       },
       "fix": "Pred odoslaním treba opraviť odpovede: {count}.",
       "refused": "Nevytvorené: {reason}",
+      "forbidden": "Požiadajte vlastníka projektu o Policy, ktorá vám v tomto priestore dovolí vytvárať {type}.",
       "created": "Vytvorené {id}.",
       "noFields": "Model typu {type} nemá pole, na ktoré by sa formulár mohol pýtať.",
       "problem": {
@@ -956,6 +964,7 @@
         "date": "Zadajte platný dátum."
       },
       "notPublished": "Tento formulár nie je zverejnený alebo už nie je.",
+      "publicTitle": "Formulár",
       "publicLead": "Vaše odpovede vytvoria jeden záznam. Nič z toho, čo pošlete, sa vám nezobrazí späť.",
       "publicData": "Vaše odpovede sa stanú verejnými údajmi tohto priestoru: prečíta ich každý, komu priestor údaje zverejňuje. Neposielajte osobné údaje.",
       "trap": "Toto pole nechajte prázdne",
@@ -1152,7 +1161,11 @@
       "noSlots": "Navrhnutý model nedeklaruje pre tento typ žiadne polia: nie je čo zapísať.",
       "write": "{count, plural, =0 {Nie je čo zapísať} one {Zapísať # riadok} few {Zapísať # riadky} other {Zapísať # riadkov}}",
       "done": "{written, plural, =0 {Nezapísal sa žiadny riadok} one {Zapísaný # riadok} few {Zapísané # riadky} other {Zapísaných # riadkov}}, {refused, plural, =0 {žiadny odmietnutý.} other {odmietnutých: #.}}",
-      "preview": "Náhľad {count, plural, one {prvej # entity} few {prvých # entít} other {prvých # entít}} ako NGSI-LD"
+      "preview": "Náhľad {count, plural, one {prvej # entity} few {prvých # entít} other {prvých # entít}} ako NGSI-LD",
+      "firstRefusal": "Riadok {row}: {reason}",
+      "liveNow": "Zmena je aktívna. Zapíšte riadky do {space} ako {type}. Opätovný zápis toho istého súboru aktualizuje tie isté entity.",
+      "goingLive": "Schválené. Do niekoľkých minút sa zmena prejaví a toto tlačidlo sa odomkne samo; zostaňte na tejto stránke.",
+      "openSpace": "Otvoriť priestor"
     },
     "toolbar": {
       "filter": "Filter",
@@ -3513,6 +3526,7 @@
       },
       "choice": "Čo vypočítať",
       "choices": {
+        "rest": "Využitý podiel: jedna mínus prvý súčet delený druhým súčtom",
         "count": "Počet riadkov prvého zdroja",
         "sum": "Súčet čísla prvého zdroja",
         "average": "Priemer čísla prvého zdroja",
@@ -3535,6 +3549,7 @@
       "runPreview": "Vypočítať teraz",
       "previewing": "Počíta sa…",
       "previewHint": "Prečíta najviac 100 riadkov každého zdroja tak, ako ich vidíte vy, a vypočíta {formula}.",
+      "partial": "Náhľad sa zastavil pri {rows} riadkoch zdroja, preto táto hodnota nie je konečná: beh prečíta všetky riadky.",
       "noKeys": "Žiadny kľúč sa nenachádza vo všetkých zdrojoch, teraz by sa teda nezapísal žiadny ukazovateľ.",
       "indicator": "Ukazovateľ",
       "value": "Hodnota",
@@ -3547,6 +3562,7 @@
         "target": "Najprv vyberte endpoint, cez ktorý sa ukazovateľ zapíše."
       },
       "hint": {
+        "typeFirst": "Najprv vyberte typ entity; jeho čísla sa zobrazia tu.",
         "name": "Malé písmená, číslice a pomlčky, najviac 48, napríklad parking-per-stop.",
         "title": "Čo ľudia čítajú v zoznamoch, napríklad Obsadené parkovacie miesta na zastávku.",
         "sources": "Každý zdroj číta jeden typ entity cez jeden endpoint, napríklad parkoviská cez helsinki-parking.",
@@ -6379,7 +6395,7 @@
     "sideView": "Vedľa stránky",
     "floatView": "Plávať nad stránkou",
     "cancel": "Zastaviť asistenta",
-    "attach": "Priložiť vzorku (CSV, Excel, JSON alebo PDF) a navrhnúť dátový model",
+    "attach": "Priložiť tabuľku (CSV alebo Excel) a vytvoriť z nej priestor, alebo vzorku JSON či PDF a navrhnúť dátový model",
     "backToChat": "Späť k asistentovi",
     "empty": {
       "lead": "Vyberte, čo chcete urobiť, alebo sa opýtajte vlastnými slovami.",
@@ -11440,5 +11456,58 @@
     "title": "Obráťte sa na administrátora organizácie",
     "contacts": "Kontakty vašej organizácie",
     "back": "Späť na vaše projekty"
+  },
+  "attributeHistory": {
+    "attribute": "Atribút",
+    "timeline": "Časová os",
+    "observedAt": "Čas pozorovania",
+    "value": "Hodnota",
+    "current": "Posledná",
+    "superseded": "Nahradená",
+    "reason": "Dôvod",
+    "reasonHint": "Napíšte jednou-dvoma vetami prečo; zostane pri zmene.",
+    "noHistory": "Zatiaľ žiadna história",
+    "versionsRestricted": "Verzie sú dostupné iba s oprávnením readVersions.",
+    "older": "Staršie",
+    "newest": "Najnovšie",
+    "revert": "Vrátiť",
+    "revertTitle": "Vrátiť na staršiu verziu",
+    "correct": "Opraviť",
+    "correctTitle": "Opraviť meranie",
+    "editCurrent": "Upraviť aktuálnu hodnotu",
+    "save": "Uložiť",
+    "addOldValue": "Pridať staršiu hodnotu",
+    "importCsv": "Importovať staršie hodnoty z CSV",
+    "file": "Súbor CSV",
+    "csvPreview": "Nové: {added} · Duplicity: {duplicates} · Opravy: {corrections}",
+    "csvUnchecked": "{count, plural, one {# riadok je} few {# riadky sú} other {# riadkov je}} starších ako zobrazená história a odošlú sa ako nové: broker pri rovnakej hodnote v tom istom čase ponechá jeden záznam a inú hodnotu zapíše ako opravu.",
+    "csvProblems": "Riadok {line}: {reason}",
+    "confirmImport": "Potvrdiť import",
+    "importProgress": "Odoslaných {sent} z {total}",
+    "importResult": "Odoslané hodnoty: {sent}",
+    "importFailed": "Riadok {line} sa neuložil: {reason}. Opravte ho v súbore a importujte znova.",
+    "cancel": "Zrušiť",
+    "needsReason": "Najprv napíšte dôvod a platnú hodnotu.",
+    "tab": "Opraviť hodnoty",
+    "attributeHint": "Pole, ktorého hodnoty opravujete. Napríklad: pm10.",
+    "valueHint": "Tak, ako ju pole uchováva. Napríklad: 21.5.",
+    "valueInvalid": "Zadajte hodnotu typu tohto poľa, napríklad číslo.",
+    "observedAtHint": "Kedy bola nameraná, vo vašom časovom pásme. Napríklad: 3. marca 2026, 14:00.",
+    "observedAtInvalid": "Zadajte dátum a čas, ktorý nie je v budúcnosti.",
+    "fileHint": "CSV so stĺpcami observedAt a value, najviac {max} riadkov. Napríklad: 2026-03-03T14:00:00Z,21.5.",
+    "revertTo": "Zapíše {value} znova ako novú verziu; verzie po nej zostanú na časovej osi.",
+    "csvProblem": {
+      "emptyFile": "Súbor je prázdny.",
+      "tooLarge": "Súbor má viac ako 1 MB. Rozdeľte ho a importujte každú časť.",
+      "tooManyRows": "Súbor má viac ako {max} riadkov. Rozdeľte ho a importujte každú časť.",
+      "columns": "Prvý riadok musí obsahovať stĺpce observedAt a value.",
+      "badInstant": "observedAt nie je dátum a čas.",
+      "futureInstant": "observedAt je v budúcnosti.",
+      "badValue": "Hodnota sa do tohto poľa nehodí."
+    },
+    "csvLeftOut": "Riadky s problémom sa vynechajú; ostatné môžete importovať.",
+    "saved": "Uložené. Zmena je na časovej osi.",
+    "csvNeedsReason": "Najprv napíšte dôvod.",
+    "csvNothing": "Súbor neobsahuje žiadnu novú hodnotu na import."
   }
 }

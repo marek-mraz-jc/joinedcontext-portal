@@ -152,7 +152,6 @@ pub async fn rename_shapes(
         &project,
         Proposal {
             files,
-            verb: "rename",
             branch,
             title: format!("rename the App shapes of {project} (AP-124)"),
             body,

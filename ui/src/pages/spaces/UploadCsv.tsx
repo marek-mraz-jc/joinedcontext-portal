@@ -2,29 +2,23 @@
  * Upload a CSV into a Context Space (DM-81, T-3840): the file is ranked against the Smart Data
  * Models types of the city subjects, the person takes a type or their own, `jc_space_complete`
  * proposes the model, the space, its Endpoint and the person's write grant as one Change, and once
- * that Change is live the rows are upserted through the gateway with the person's own session.
+ * that Change is live {@link LoadRows} upserts the rows through the gateway with the person's own session.
  */
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
-import { download, originTransport } from "@joinedcontext/sdk";
-import { api, queryKeys, unwrap } from "../../api/client";
+import { api, unwrap } from "../../api/client";
 import { callOperation } from "../../api/operations";
-import { useOrgDomain } from "../../api/projects";
 import type { Change } from "../../api/manifest";
-import { ChangeNotice } from "../../components/ChangeNotice";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 import { usePermissions } from "../../api/permissions";
-import { CodeBlock, Alert, Button, Card, Field, FilePicker, Input, PageHeader, RadioGroup } from "../../components/ui";
+import { Alert, Button, Card, Field, FilePicker, Input, PageHeader, RadioGroup } from "../../components/ui";
 import { CITY_SUBJECTS, SAMPLE_BYTES, modelsOf, rankModels, sampleOf, uploadInput } from "./csvUpload";
 import type { CatalogueModel, SdmMatch } from "./csvUpload";
-import { createInBatches, csvOf, decodeAs, importSlotsOf, MAX_ROWS, readSheets, rejectedCsv, sheetFileName, suggestMapping, toEntities, unreadableText } from "./importRows";
-import type { Rejected, Sheet, Table } from "./importRows";
+import { csvOf, decodeAs, MAX_ROWS, readSheets, sheetFileName, unreadableText } from "./importRows";
+import type { Sheet, Table } from "./importRows";
+import { LoadRows } from "./LoadRows";
 import { SheetChoice } from "./SheetChoice";
-
-/** How many entities the preview shows as NGSI-LD before they are written. */
-const PREVIEW = 10;
 
 /** A type name the person writes for their own model: PascalCase, as the op names the class. */
 const TYPE_NAME = /^[A-Z][A-Za-z0-9]{0,62}$/;
@@ -50,7 +44,6 @@ type Proposed = { space: string; type: string; source: string | undefined; chang
 
 export function UploadCsv({ project, space: given = "" }: { project: string; space?: string }): JSX.Element {
   const { t } = useTranslation();
-  const orgDomain = useOrgDomain(project);
   const permissions = usePermissions(project);
   const [read, setRead] = useState<Read | null>(null);
   // The chosen Smart Data Models id, or "" for the person's own model.
@@ -62,19 +55,6 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
   const [reading, setReading] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [proposed, setProposed] = useState<Proposed | null>(null);
-  const [progress, setProgress] = useState<{ sent: number; total: number } | null>(null);
-  const [done, setDone] = useState<{ written: number; rejected: Rejected[]; denied?: string } | null>(null);
-
-  // The rows go in once the Change is live: a write before that is refused row by row (T-5109).
-  const changeId = proposed?.change?.metadata.name ?? "";
-  const followed = useQuery({
-    queryKey: queryKeys.change(project, changeId),
-    enabled: changeId !== "",
-    queryFn: async () => unwrap(await api.GET("/api/v1/projects/{project}/changes/{id}", { params: { path: { project, id: changeId } } })),
-    refetchInterval: (query) => (query.state.data?.status.phase === "Applied" || query.state.data?.status.phase === "Rejected" ? false : 5_000),
-  });
-  const change = followed.data ?? proposed?.change ?? null;
-  const live = change === null || change.status.phase === "Applied";
 
   const reason = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
@@ -82,7 +62,6 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
     setProblem(null);
     setRead(null);
     setProposed(null);
-    setDone(null);
     setReading(file.name);
     try {
       const sheets = (await readSheets(file)).filter((sheet) => sheet.table.rows.length > 0);
@@ -154,24 +133,6 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
     } finally {
       setBusy(false);
     }
-  };
-
-  const slots = useMemo(() => importSlotsOf(proposed?.source, proposed?.type ?? ""), [proposed]);
-  const checked = useMemo(() => {
-    if (!read || !proposed || slots.length === 0) return null;
-    const target = { type: proposed.type, orgDomain, space: proposed.space };
-    return toEntities(read.table, suggestMapping(read.table.columns, slots), slots, target);
-  }, [read, proposed, slots, orgDomain]);
-
-  const write = async () => {
-    if (!proposed || !checked) return;
-    const total = checked.entities.length;
-    setProgress({ sent: 0, total });
-    // Upsert: the same file uploaded again writes the same entities, not a second copy.
-    const answer = await createInBatches(originTransport(), proposed.space, checked.entities, (sent) => setProgress({ sent, total }), "upsert");
-    setProgress(null);
-    // A 401 or 403 stops the write: the person reads who can change it, not "none refused" (JC1-41).
-    setDone({ written: answer.created, rejected: [...checked.rejected, ...answer.rejected].sort((a, b) => a.row - b.row), denied: answer.denied });
   };
 
   // A role that may not propose a space reads why, not a form whose every step ends in a 403 (T-4263).
@@ -255,59 +216,7 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
           ) : null}
         </Card>
       ) : null}
-      {proposed ? (
-        <Card className="flex flex-col gap-4">
-          {change ? <ChangeNotice change={change} project={project} /> : null}
-          <p className="text-body">{t("spaces.upload.afterApproval", { space: proposed.space, type: proposed.type })}</p>
-          {checked ? (
-            <p role="status" className="text-body">
-              {t("spaces.import.checked", { valid: checked.entities.length, refused: checked.rejected.length })}
-            </p>
-          ) : (
-            <Alert tone="warning">{t("spaces.upload.noSlots")}</Alert>
-          )}
-          {checked && checked.entities.length > 0 ? (
-            <details>
-              <summary className="focus-ring cursor-pointer rounded-md text-body font-medium text-fg">
-                {t("spaces.upload.preview", { count: Math.min(PREVIEW, checked.entities.length) })}
-              </summary>
-              <CodeBlock label={t("spaces.upload.preview", { count: Math.min(PREVIEW, checked.entities.length) })} className="max-h-80 rounded-md bg-surface-muted p-3 font-mono text-caption" data-testid="upload-preview">
-                {JSON.stringify(checked.entities.slice(0, PREVIEW).map((each) => each.entity), null, 2)}
-              </CodeBlock>
-            </details>
-          ) : null}
-          {progress ? (
-            <p role="status" className="text-body">
-              {t("spaces.import.writing", progress)}
-            </p>
-          ) : (
-            <Button className="w-fit" onClick={() => void write()} disabled={!live || !checked || checked.entities.length === 0} disabledReason={t(live ? "spaces.import.nothingToCreate" : "spaces.upload.notLive")}>
-              {t("spaces.upload.write", { count: checked?.entities.length ?? 0 })}
-            </Button>
-          )}
-          {done ? (
-            <>
-              {done.denied !== undefined ? (
-                <Alert role="alert" tone="danger">
-                  {t("spaces.import.denied", { type: proposed.type, space: proposed.space, reason: done.denied })}
-                </Alert>
-              ) : null}
-              <Alert role="status" tone={done.rejected.length === 0 ? "success" : done.written > 0 ? "warning" : "danger"}>
-                {t("spaces.upload.done", { written: done.written, refused: done.rejected.length })}
-              </Alert>
-              {done.rejected.length > 0 ? (
-                <Button
-                  variant="secondary"
-                  className="w-fit"
-                  onClick={() => download(new Blob([rejectedCsv(done.rejected)], { type: "text/csv" }), `${proposed.type}-refused.csv`)}
-                >
-                  {t("spaces.import.downloadRefused")}
-                </Button>
-              ) : null}
-            </>
-          ) : null}
-        </Card>
-      ) : null}
+      {proposed && read ? <LoadRows project={project} space={proposed.space} type={proposed.type} source={proposed.source} table={read.table} change={proposed.change} /> : null}
     </div>
   );
 }

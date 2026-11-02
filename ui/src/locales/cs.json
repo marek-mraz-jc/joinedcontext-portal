@@ -533,6 +533,7 @@
     "empty": "Projekt zatím nemá kontextový prostor.",
     "add": "Nový kontextový prostor",
     "addHint": "Uložením vznikne návrh změny; prostor přibude po jeho schválení.",
+    "fromFile": "Začít ze souboru",
     "propose": "Navrhnout změnu",
     "sandbox": "pískoviště, {days} dní",
     "field": {
@@ -640,7 +641,6 @@
         "Layer": "Mapová vrstva",
         "Dashboard": "Dashboard"
       },
-      "drafted": "Připraveno",
       "alreadyThere": "Už existuje",
       "checkPassed": "Kontrola prošla",
       "checkFailed": "Kontrola neprošla",
@@ -659,6 +659,11 @@
         "Dashboard": "Mapový dashboard s {count, plural, one {# stránkou} other {# stránkami}}"
       },
       "onApproval": "Navrhnout vše pošle tyto koncepty ke schválení společně. Po schválení se zdroj začne načítat a prostor se naplní.",
+      "onApprovalRows": "Navrhnout vše pošle tyto koncepty ke schválení společně. Po schválení tato stránka nabídne načtení {count, plural, one {# řádku} few {# řádků} many {# řádku} other {# řádků}} ze souboru. Zůstaňte zde nebo si soubor ponechte: řádky se zatím neposílají.",
+      "inChange": "Co obsahuje tato změna ({count})",
+      "tooLarge": "To je dohromady více než 10 MB. Vyberte menší soubory nebo použijte Nahrát CSV, kde je limit 50 MB.",
+      "urlHint": "Adresa živého zdroje místo souboru. Příklad: https://example.org/stations.json",
+      "failedNext": "Zatím nelze nic navrhnout. Opravte v souboru, co kontrola uvádí, a vyberte ho znovu.",
       "title": "Doplnit tento prostor",
       "lead": "Zadejte vzorový soubor nebo adresu zdroje. Portál navrhne datový model, prostor, zdroj dat a pipeline a každý návrh zkontroluje.",
       "space": "Název prostoru",
@@ -802,6 +807,8 @@
     "api": {
       "lead": "Jak program čte {type}: přes endpoint tohoto prostoru, s vlastním tokenem, a webhooky, které mu řeknou, když se něco změní.",
       "noEndpoint": "Tento prostor zatím neobsluhuje žádný endpoint, takže ho žádný program nemůže číst. Vytvořte ho v endpointech prostoru.",
+      "pick": "Endpoint",
+      "pickHint": "{count} Endpointů tohoto prostoru. Každý má vlastní adresu a token a jeho Policy určuje, které řádky vrátí, například air-quality.",
       "endpoint": "Přes {name}",
       "call": {
         "list": "Seznam",
@@ -945,6 +952,7 @@
       },
       "fix": "Před odesláním je třeba opravit odpovědi: {count}.",
       "refused": "Nevytvořeno: {reason}",
+      "forbidden": "Požádejte vlastníka projektu o Policy, která vám v tomto prostoru dovolí vytvářet {type}.",
       "created": "Vytvořeno {id}.",
       "noFields": "Model typu {type} nemá pole, na které by se formulář mohl ptát.",
       "problem": {
@@ -956,6 +964,7 @@
         "date": "Zadejte platné datum."
       },
       "notPublished": "Tento formulář není zveřejněn nebo už není.",
+      "publicTitle": "Formulář",
       "publicLead": "Vaše odpovědi vytvoří jeden záznam. Nic z toho, co pošlete, se vám nezobrazí zpět.",
       "publicData": "Vaše odpovědi se stanou veřejnými daty tohoto prostoru: přečte je každý, komu prostor data zveřejňuje. Neposílejte osobní údaje.",
       "trap": "Toto pole nechte prázdné",
@@ -1152,7 +1161,11 @@
       "noSlots": "Navržený model pro tento typ nedeklaruje žádná pole: není co zapsat.",
       "write": "{count, plural, =0 {Není co zapsat} one {Zapsat # řádek} few {Zapsat # řádky} other {Zapsat # řádků}}",
       "done": "{written, plural, =0 {Nezapsal se žádný řádek} one {Zapsán # řádek} few {Zapsány # řádky} other {Zapsáno # řádků}}, {refused, plural, =0 {žádný odmítnutý.} other {odmítnutých: #.}}",
-      "preview": "Náhled {count, plural, one {první # entity} few {prvních # entit} other {prvních # entit}} jako NGSI-LD"
+      "preview": "Náhled {count, plural, one {první # entity} few {prvních # entit} other {prvních # entit}} jako NGSI-LD",
+      "firstRefusal": "Řádek {row}: {reason}",
+      "liveNow": "Změna je aktivní. Zapište řádky do {space} jako {type}. Opětovný zápis téhož souboru aktualizuje tytéž entity.",
+      "goingLive": "Schváleno. Během několika minut se změna projeví a toto tlačítko se odemkne samo; zůstaňte na této stránce.",
+      "openSpace": "Otevřít prostor"
     },
     "toolbar": {
       "filter": "Filtr",
@@ -3513,6 +3526,7 @@
       },
       "choice": "Co spočítat",
       "choices": {
+        "rest": "Využitý podíl: jedna minus první součet dělený druhým součtem",
         "count": "Počet řádků prvního zdroje",
         "sum": "Součet čísla prvního zdroje",
         "average": "Průměr čísla prvního zdroje",
@@ -3535,6 +3549,7 @@
       "runPreview": "Spočítat teď",
       "previewing": "Počítá se…",
       "previewHint": "Přečte nejvýše 100 řádků každého zdroje tak, jak je vidíte vy, a spočítá {formula}.",
+      "partial": "Náhled se zastavil u {rows} řádků zdroje, proto tato hodnota není konečná: běh přečte všechny řádky.",
       "noKeys": "Žádný klíč není ve všech zdrojích, teď by se tedy nezapsal žádný ukazatel.",
       "indicator": "Ukazatel",
       "value": "Hodnota",
@@ -3547,6 +3562,7 @@
         "target": "Nejprve vyberte koncový bod, přes který se ukazatel zapíše."
       },
       "hint": {
+        "typeFirst": "Nejprve vyberte typ entity; jeho čísla se zobrazí zde.",
         "name": "Malá písmena, číslice a pomlčky, nejvýše 48, například parking-per-stop.",
         "title": "Co lidé čtou v seznamech, například Obsazená parkovací místa na zastávku.",
         "sources": "Každý zdroj čte jeden typ entity přes jeden koncový bod, například parkoviště přes helsinki-parking.",
@@ -6379,7 +6395,7 @@
     "sideView": "Vedle stránky",
     "floatView": "Plovat nad stránkou",
     "cancel": "Zastavit asistenta",
-    "attach": "Přiložit vzorek (CSV, Excel, JSON nebo PDF) a navrhnout datový model",
+    "attach": "Přiložit tabulku (CSV nebo Excel) a vytvořit z ní prostor, nebo vzorek JSON či PDF a navrhnout datový model",
     "backToChat": "Zpět k asistentovi",
     "empty": {
       "lead": "Vyberte, co chcete udělat, nebo se zeptejte vlastními slovy.",
@@ -11440,5 +11456,58 @@
     "title": "Obraťte se na administrátora organizace",
     "contacts": "Kontakty vaší organizace",
     "back": "Zpět na vaše projekty"
+  },
+  "attributeHistory": {
+    "attribute": "Atribut",
+    "timeline": "Časová osa",
+    "observedAt": "Čas pozorování",
+    "value": "Hodnota",
+    "current": "Poslední",
+    "superseded": "Nahrazená",
+    "reason": "Důvod",
+    "reasonHint": "Napište jednou dvěma větami proč; zůstane u změny.",
+    "noHistory": "Zatím žádná historie",
+    "versionsRestricted": "Verze jsou dostupné pouze s oprávněním readVersions.",
+    "older": "Starší",
+    "newest": "Nejnovější",
+    "revert": "Vrátit",
+    "revertTitle": "Vrátit na starší verzi",
+    "correct": "Opravit",
+    "correctTitle": "Opravit měření",
+    "editCurrent": "Upravit aktuální hodnotu",
+    "save": "Uložit",
+    "addOldValue": "Přidat starší hodnotu",
+    "importCsv": "Importovat starší hodnoty z CSV",
+    "file": "Soubor CSV",
+    "csvPreview": "Nové: {added} · Duplicity: {duplicates} · Opravy: {corrections}",
+    "csvUnchecked": "{count, plural, one {# řádek je} few {# řádky jsou} other {# řádků je}} starších než zobrazená historie a odešlou se jako nové: broker při stejné hodnotě ve stejném čase ponechá jeden záznam a jinou hodnotu zapíše jako opravu.",
+    "csvProblems": "Řádek {line}: {reason}",
+    "confirmImport": "Potvrdit import",
+    "importProgress": "Odesláno {sent} z {total}",
+    "importResult": "Odeslané hodnoty: {sent}",
+    "importFailed": "Řádek {line} se neuložil: {reason}. Opravte ho v souboru a importujte znovu.",
+    "cancel": "Zrušit",
+    "needsReason": "Nejdřív napište důvod a platnou hodnotu.",
+    "tab": "Opravit hodnoty",
+    "attributeHint": "Pole, jehož hodnoty opravujete. Například: pm10.",
+    "valueHint": "Tak, jak ji pole uchovává. Například: 21.5.",
+    "valueInvalid": "Zadejte hodnotu typu tohoto pole, například číslo.",
+    "observedAtHint": "Kdy byla naměřena, ve vašem časovém pásmu. Například: 3. března 2026, 14:00.",
+    "observedAtInvalid": "Zadejte datum a čas, který není v budoucnosti.",
+    "fileHint": "CSV se sloupci observedAt a value, nejvýše {max} řádků. Například: 2026-03-03T14:00:00Z,21.5.",
+    "revertTo": "Zapíše {value} znovu jako novou verzi; verze po ní zůstanou na časové ose.",
+    "csvProblem": {
+      "emptyFile": "Soubor je prázdný.",
+      "tooLarge": "Soubor má více než 1 MB. Rozdělte ho a importujte každou část.",
+      "tooManyRows": "Soubor má více než {max} řádků. Rozdělte ho a importujte každou část.",
+      "columns": "První řádek musí obsahovat sloupce observedAt a value.",
+      "badInstant": "observedAt není datum a čas.",
+      "futureInstant": "observedAt je v budoucnosti.",
+      "badValue": "Hodnota se do tohoto pole nehodí."
+    },
+    "csvLeftOut": "Řádky s problémem se vynechají; ostatní můžete importovat.",
+    "saved": "Uloženo. Změna je na časové ose.",
+    "csvNeedsReason": "Nejprve napište důvod.",
+    "csvNothing": "Soubor neobsahuje žádnou novou hodnotu k importu."
   }
 }

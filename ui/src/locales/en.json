@@ -533,6 +533,7 @@
     "empty": "This project has no Context Space yet.",
     "add": "New Context Space",
     "addHint": "Saving proposes a change; a space appears once the change is approved.",
+    "fromFile": "Start from a file",
     "propose": "Propose change",
     "sandbox": "sandbox, {days} days",
     "field": {
@@ -640,7 +641,6 @@
         "Layer": "Map layer",
         "Dashboard": "Dashboard"
       },
-      "drafted": "Drafted",
       "alreadyThere": "Already there",
       "checkPassed": "Check passed",
       "checkFailed": "Check failed",
@@ -659,6 +659,11 @@
         "Dashboard": "A map dashboard with {count, plural, one {# page} other {# pages}}"
       },
       "onApproval": "Propose all sends these drafts for approval together. Once a person approves them, the source is fetched and the space fills.",
+      "onApprovalRows": "Propose all sends these drafts for approval together. Once a person approves them, this page offers to load the {count, plural, one {# row} other {# rows}} of the file. Stay here or keep the file: the rows are not sent yet.",
+      "inChange": "What this Change holds ({count})",
+      "tooLarge": "That is more than 10 MB together. Choose smaller files, or use Upload a CSV, which takes up to 50 MB.",
+      "urlHint": "The address of a live feed, instead of a file. Example: https://example.org/stations.json",
+      "failedNext": "Nothing can be proposed yet. Fix what the check names in the file and choose it again.",
       "title": "Complete this space",
       "lead": "Give a sample file or the address of a feed. The Portal drafts the data model, the space, the data source and the pipeline, and checks each draft.",
       "space": "Space name",
@@ -802,6 +807,8 @@
     "api": {
       "lead": "How a program reads {type}: through an Endpoint of this space, with its own token, and the webhooks that tell it when something changes.",
       "noEndpoint": "No Endpoint serves this space yet, so no program can read it. Create one on the space's Endpoints.",
+      "pick": "Endpoint",
+      "pickHint": "{count} Endpoints of this space. Each has its own address and token, and its Policy decides which rows it answers, for example air-quality.",
       "endpoint": "Through {name}",
       "call": {
         "list": "List",
@@ -945,6 +952,7 @@
       },
       "fix": "{count, plural, one {# answer needs} other {# answers need}} fixing before the form can be sent.",
       "refused": "Not created: {reason}",
+      "forbidden": "Ask a project owner for a Policy that lets you create {type} in this space.",
       "created": "Created {id}.",
       "noFields": "The model of {type} has no field a form can ask for.",
       "problem": {
@@ -956,6 +964,7 @@
         "date": "Enter a date the calendar knows, such as 2026-10-11."
       },
       "notPublished": "This form is not published, or no longer.",
+      "publicTitle": "Form",
       "publicLead": "Your answers create one record. Nothing you send is read back to you.",
       "publicData": "Your answers become public data of this space: anyone the space publishes to can read them. Do not send personal details.",
       "trap": "Leave this field empty",
@@ -1152,7 +1161,11 @@
       "noSlots": "The proposed model declares no fields for this type: there is nothing to write.",
       "write": "{count, plural, =0 {Nothing to write} one {Write # row} other {Write # rows}}",
       "done": "{written, plural, =0 {No row was written} one {# row written} other {# rows written}}, {refused, plural, =0 {none refused.} one {# refused.} other {# refused.}}",
-      "preview": "Preview the first {count, plural, one {# entity} other {# entities}} as NGSI-LD"
+      "preview": "Preview the first {count, plural, one {# entity} other {# entities}} as NGSI-LD",
+      "firstRefusal": "Row {row}: {reason}",
+      "liveNow": "The change is live. Write the rows into {space} as {type}. Writing the same file again updates the same entities.",
+      "goingLive": "Approved. It goes live in a few minutes and this button unlocks by itself; stay on this page.",
+      "openSpace": "Open the space"
     },
     "toolbar": {
       "filter": "Filter",
@@ -3513,6 +3526,7 @@
       },
       "choice": "What to compute",
       "choices": {
+        "rest": "Share in use: one minus first sum divided by second sum",
         "count": "Count the rows of the first source",
         "sum": "Sum of the first source's number",
         "average": "Average of the first source's number",
@@ -3535,6 +3549,7 @@
       "runPreview": "Compute now",
       "previewing": "Computing…",
       "previewHint": "Reads up to 100 rows of each source as you see them and computes {formula}.",
+      "partial": "The preview stopped at {rows} rows of a source, so this value is not the final one: a run reads every row.",
       "noKeys": "No key appears in every source, so no indicator would be written now.",
       "indicator": "Indicator",
       "value": "Value",
@@ -3547,6 +3562,7 @@
         "target": "Pick the endpoint the indicator is written through first."
       },
       "hint": {
+        "typeFirst": "Pick the entity type first; its numbers appear here.",
         "name": "Lower-case letters, digits and hyphens, at most 48, for example parking-per-stop.",
         "title": "What people read in lists, for example Occupied parking places per transit stop.",
         "sources": "Each source reads one entity type through one endpoint, for example parking sites through helsinki-parking.",
@@ -6379,7 +6395,7 @@
     "sideView": "Beside the page",
     "floatView": "Float over the page",
     "cancel": "Stop the assistant",
-    "attach": "Attach a sample file (CSV, Excel, JSON or PDF) to draft a data model",
+    "attach": "Attach a table (CSV or Excel) to build a space from it, or a JSON or PDF sample to draft a data model",
     "backToChat": "Back to the assistant",
     "empty": {
       "lead": "Pick what you want to do, or ask in your own words.",
@@ -11440,5 +11456,58 @@
     "title": "Ask an organization administrator",
     "contacts": "Your organization's contacts",
     "back": "Back to your projects"
+  },
+  "attributeHistory": {
+    "attribute": "Attribute",
+    "timeline": "Timeline",
+    "observedAt": "Observed at",
+    "value": "Value",
+    "current": "Latest",
+    "superseded": "Superseded",
+    "reason": "Reason",
+    "reasonHint": "Say why in a sentence or two; it stays with the change.",
+    "noHistory": "No history yet",
+    "versionsRestricted": "Versions are shown to roles with readVersions only.",
+    "older": "Older",
+    "newest": "Newest",
+    "revert": "Revert",
+    "revertTitle": "Revert to older version",
+    "correct": "Correct",
+    "correctTitle": "Correct measurement",
+    "editCurrent": "Edit current value",
+    "save": "Save",
+    "addOldValue": "Add an old value",
+    "importCsv": "Import old values from CSV",
+    "file": "CSV file",
+    "csvPreview": "New: {added} · Duplicates: {duplicates} · Corrections: {corrections}",
+    "csvUnchecked": "{count, plural, one {# row lies} other {# rows lie}} before the history shown and {count, plural, one {goes} other {go}} as new: the broker keeps one row for the same value at that instant and records another value as a correction.",
+    "csvProblems": "Line {line}: {reason}",
+    "confirmImport": "Confirm import",
+    "importProgress": "Sent {sent} of {total}",
+    "importResult": "Values sent: {sent}",
+    "importFailed": "The row on line {line} was not saved: {reason}. Fix it in the file and import again.",
+    "cancel": "Cancel",
+    "needsReason": "Write a reason and a valid value first.",
+    "tab": "Correct values",
+    "attributeHint": "The field whose values you correct. For example: pm10.",
+    "valueHint": "As the field holds it. For example: 21.5.",
+    "valueInvalid": "Enter a value of this field's type, for example a number.",
+    "observedAtHint": "When it was measured, in your time zone. For example: 3 March 2026, 14:00.",
+    "observedAtInvalid": "Enter a date and time that is not in the future.",
+    "fileHint": "A CSV with the columns observedAt and value, at most {max} rows. For example: 2026-03-03T14:00:00Z,21.5.",
+    "revertTo": "Writes {value} again as a new version; the versions after it stay in the timeline.",
+    "csvProblem": {
+      "emptyFile": "The file is empty.",
+      "tooLarge": "The file is over 1 MB. Split it and import each part.",
+      "tooManyRows": "The file has more than {max} rows. Split it and import each part.",
+      "columns": "The first row needs the columns observedAt and value.",
+      "badInstant": "observedAt is not a date and time.",
+      "futureInstant": "observedAt lies in the future.",
+      "badValue": "The value does not fit this field."
+    },
+    "csvLeftOut": "Rows with a problem are left out; the others can be imported.",
+    "saved": "Saved. The change stands in the timeline.",
+    "csvNeedsReason": "Write a reason first.",
+    "csvNothing": "The file holds no new value to import."
   }
 }

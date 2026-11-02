@@ -490,6 +490,13 @@ async fn checked(
             findings.extend(warnings);
         }
     }
+    super::endpoint_reach::warn_outside(
+        &mut answer,
+        state,
+        &caller.identity,
+        &home,
+        manifest.as_ref(),
+    );
     let model = match change.source {
         None => None,
         Some(_) => Some(model_checked(caller, state, at, &home, change, manifest.as_ref()).await?),

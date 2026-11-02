@@ -225,15 +225,18 @@ pub(crate) async fn open_change_on(
 /// change writes (T-2674): another spec, labels, annotations, title or description. Only what both
 /// say for certain counts: a resource the mirror does not hold yet (the branch read covers that),
 /// no file at that path (a manifest kept under another path) or one the envelope cannot read is no
-/// evidence, and the namespace is left out, which a file may leave to its path.
+/// evidence, and the namespace is left out, which a file may leave to its path. The mirror holds
+/// a manifest as the loader rendered it, so main's `{orgDomain}` (CC-74) is compared rendered:
+/// without that every Policy written the way the plan demands read as moved (T-6451).
 fn moved_on_main(
     judged: Option<&ResourceEnvelope>,
     on_main: Option<&crate::git::RepoFile>,
+    org_domain: &str,
 ) -> bool {
-    let (Some(judged), Some(Ok(main))) = (
-        judged,
-        on_main.map(|file| serde_norway::from_str::<ResourceEnvelope>(&file.content)),
-    ) else {
+    let rendered = |file: &crate::git::RepoFile| {
+        serde_norway::from_str::<ResourceEnvelope>(&file.content.replace("{orgDomain}", org_domain))
+    };
+    let (Some(judged), Some(Ok(main))) = (judged, on_main.map(rendered)) else {
         return false;
     };
     let (a, b) = (&judged.metadata, &main.metadata);
@@ -1155,7 +1158,8 @@ async fn propose_engine(
                 ));
             }
         }
-        if moved_on_main(current.as_ref(), on_main.as_ref()) {
+        let domain = crate::api::assistant::org_domain(state, project);
+        if moved_on_main(current.as_ref(), on_main.as_ref(), &domain) {
             return Err(ApiError::Conflict(format!(
                 "{} '{}' changed on {default_branch} after the Portal last read it; read it \
                  again and send the change once more",
@@ -3117,6 +3121,28 @@ fn keep_languages(sent: &mut Option<jc_core::i18n::Text>, stored: Option<&jc_cor
 mod tests {
     use super::*;
     use crate::auth::session::{Identity, Session};
+
+    /// T-6451: main keeps `{orgDomain}`, the mirror the rendered domain; only a real move counts.
+    #[test]
+    fn an_org_domain_placeholder_on_main_is_no_move() {
+        let manifest = |assigner: &str| {
+            format!(
+                "apiVersion: joinedcontext.com/v1alpha1\nkind: Policy\nmetadata:\n  name: p\n\
+                 spec:\n  assigner: {assigner}\n"
+            )
+        };
+        let file = |content: String| crate::git::RepoFile {
+            sha: "s".to_owned(),
+            content,
+        };
+        let judged: ResourceEnvelope =
+            serde_norway::from_str(&manifest("did:web:hel.fi")).expect("manifest");
+        let on_main = file(manifest("\"did:web:{orgDomain}\""));
+        assert!(!moved_on_main(Some(&judged), Some(&on_main), "hel.fi"));
+        assert!(moved_on_main(Some(&judged), Some(&on_main), "espoo.fi"));
+        let moved = file(manifest("did:web:espoo.fi"));
+        assert!(moved_on_main(Some(&judged), Some(&moved), "hel.fi"));
+    }
 
     /// F-POR2-004: a YAML file beside a manifest is only the kind's own native file; a second
     /// manifest smuggled in as a sidecar is refused, a JSON test fixture in a subfolder is not.
