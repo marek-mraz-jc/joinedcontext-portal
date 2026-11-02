@@ -55,22 +55,33 @@ if [ $(( now - seen_at )) -lt "$settle" ]; then
   exit 1
 fi
 
-# dev's last apply as the jc-release ConfigMap records it (deployment commit and appliedAt); empty
-# without a readable kubeconfig.
+# dev's last apply as the jc-release ConfigMap records it (deployment commit, appliedAt and the
+# applyStartedAt of the newest apply); empty without a readable kubeconfig.
 kubeconfig=${WALK_KUBECONFIG:-/workspace/.secrets/kubeconfig-dev.yaml}
 release() {
   [ -r "$kubeconfig" ] && KUBECONFIG=$kubeconfig kubectl get configmap jc-release -n "${WALK_NAMESPACE:-dev}" \
-    -o jsonpath='{.data.commit} {.data.appliedAt}' 2>/dev/null
+    -o jsonpath='{.data.commit} {.data.appliedAt} {.data.applyStartedAt}' 2>/dev/null
 }
 release_before=$(release) || release_before=
 # T-6263: an apply that keeps the Portal commit restarts no clock above. The 21:15Z walk of 5fb4aa4
 # began 1-3 min after the full sync of deployment dfa8139a recorded jc-release, and one document load
 # of /projects/helsinki/settings/roles answered 502 (0 B, 31 ms), fine on retry. dev is walked once
 # its last apply is WALK_SETTLE_S old too; an unreadable record leaves the commit clock alone.
-read -r _ applied_at <<<"$release_before"
+read -r _ applied_at started_at <<<"$release_before"
 applied_s=$(date -u -d "$applied_at" +%s 2>/dev/null) || applied_s=
 if [ -n "$applied_at" ] && [[ $applied_s =~ ^[0-9]+$ ]] && [ $(( now - applied_s )) -lt "$settle" ]; then
   echo "rollout-walk: dev was applied $(( now - applied_s )) s ago ($release_before), under $settle s: walk of $sha deferred until the apply settles" >&2
+  exit 1
+fi
+
+# T-6425: jc-release appliedAt is written when an apply ends, so the 07:15Z walk of e5b27f1 began
+# inside the full sync of abcbe12f (k3s restarted, node at 94-99 % memory) and met all 3 /api reads of one page at 503;
+# nothing in the record moved during the walk. An apply runs while applyStartedAt is newer than appliedAt.
+# A dead apply never records: its stamp holds walks for WALK_APPLY_MAX_S (2 h), then is ignored.
+started_s=$(date -u -d "$started_at" +%s 2>/dev/null) || started_s=
+if [ -n "$started_at" ] && [[ $started_s =~ ^[0-9]+$ ]] && [ "$started_s" -gt "${applied_s:-0}" ] \
+  && [ $(( now - started_s )) -lt "${WALK_APPLY_MAX_S:-7200}" ]; then
+  echo "rollout-walk: an apply of dev began $(( now - started_s )) s ago ($release_before): walk of $sha deferred until it ends" >&2
   exit 1
 fi
 
@@ -134,7 +145,8 @@ echo "rollout-walk: walks done (logs $dir/walk-steward.log, $dir/walk-viewer.log
 # 06:55Z walk of 8ee371d met the Portal's 503 when the next apply rolled it to d8f3d24 (T-6174); the
 # 07:25Z walk of d8f3d24 met 8 /api reads answering 502 at 07:31:48Z while the deployer applied
 # deployment 6215c731 (jc-release appliedAt 07:29:59Z), the Portal commit unchanged (T-6179); both
-# fine on retry. When dev names another Portal commit or another jc-release after the walk, its
+# fine on retry. When dev names another Portal commit or another jc-release after the walk (an apply
+# that only began during it counts, T-6425: applyStartedAt is part of the record), its
 # findings judge dev mid-apply: nothing is filed, and the next tick walks again once dev has
 # settled. A read that fails is no proof of an apply, so that walk is judged as usual.
 after=$(curl -fsS -m 20 "$PORTAL_URL/api/v1/version" | jq -r '.portal.commit // empty' 2>/dev/null) || after=
