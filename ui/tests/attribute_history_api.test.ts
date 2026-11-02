@@ -65,7 +65,7 @@ describe("readHistory", () => {
 
   it("names a refused read by the gateway's words", async () => {
     capture(500);
-    await expect(readHistory("slug", "urn:ngsi-ld:S:1", "level")).rejects.toThrow("500: no grant");
+    await expect(readHistory("slug", "urn:ngsi-ld:S:1", "level")).rejects.toThrow("no grant");
   });
 });
 
@@ -90,7 +90,7 @@ describe("writeMeasurement", () => {
 
   it("says what the gateway refused", async () => {
     capture(403);
-    await expect(writeMeasurement("slug", "urn:ngsi-ld:S:1", "level", { value: 1, observedAt: NOW }, "why")).rejects.toThrow("403: no grant");
+    await expect(writeMeasurement("slug", "urn:ngsi-ld:S:1", "level", { value: 1, observedAt: NOW }, "why")).rejects.toThrow("no grant");
   });
 });
 
@@ -180,6 +180,6 @@ describe("runImport", () => {
 
   it("stops at the first refusal and names its line", async () => {
     capture(403);
-    expect(await runImport(target, plan, "why")).toEqual({ sent: 0, failed: { line: 2, message: "403: no grant" } });
+    expect(await runImport(target, plan, "why")).toEqual({ sent: 0, failed: { line: 2, message: "no grant" } });
   });
 });

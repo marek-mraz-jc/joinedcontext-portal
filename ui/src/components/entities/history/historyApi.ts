@@ -51,7 +51,7 @@ function endpointBase(slug: string): string {
 async function problemOf(response: Response): Promise<Error> {
   const body = (await response.json().catch(() => null)) as { detail?: unknown; title?: unknown } | null;
   const detail = [body?.detail, body?.title].find((text) => typeof text === "string");
-  return new Error(detail ? `${response.status}: ${String(detail)}` : String(response.status));
+  return new Error(detail ? String(detail) : String(response.status));
 }
 
 /** The instances of one attribute, the ones of the default instance only: a write here names no `datasetId`. */

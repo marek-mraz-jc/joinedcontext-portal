@@ -396,12 +396,9 @@ export function TimelinePanel({
   );
 }
 
-/** One attribute's measurements and every form that writes them. */
-function OneAttribute({ slug, entityId, attribute }: { slug: string; entityId: string; attribute: string }): JSX.Element {
-  const queryClient = useQueryClient();
+/** One attribute's pages of measurements: the read, the way to older pages, and its newest value. */
+function useMeasurements(slug: string, entityId: string, attribute: string) {
   const [before, setBefore] = useState<string | undefined>(undefined);
-  const [editing, setEditing] = useState<{ measurement: Measurement; revertTo?: Version } | null>(null);
-  const [saved, setSaved] = useState(false);
   const history = useQuery({
     queryKey: ["attribute-history", slug, entityId, attribute, before],
     retry: false,
@@ -411,6 +408,25 @@ function OneAttribute({ slug, entityId, attribute }: { slug: string; entityId: s
   // The newest page holds the newest value; an older page never stands in for it.
   const [newest, setNewest] = useState<Version | undefined>(undefined);
   if (before === undefined && measurements[0] && measurements[0].current !== newest) setNewest(measurements[0].current);
+  // A short page is the last one: nothing older to ask for.
+  const oldest = measurements.length >= PAGE ? measurements.at(-1)?.observedAt : undefined;
+  return {
+    history,
+    measurements,
+    newest,
+    // Fewer than a page on the newest page is the whole history: every CSV row compares.
+    complete: before === undefined && measurements.length < PAGE,
+    older: oldest ? () => setBefore(oldest) : undefined,
+    toNewest: before ? () => setBefore(undefined) : undefined,
+  };
+}
+
+/** One attribute's measurements and every form that writes them. */
+function OneAttribute({ slug, entityId, attribute }: { slug: string; entityId: string; attribute: string }): JSX.Element {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState<{ measurement: Measurement; revertTo?: Version } | null>(null);
+  const [saved, setSaved] = useState(false);
+  const { history, measurements, newest, complete, older, toNewest } = useMeasurements(slug, entityId, attribute);
   const target: Target = {
     slug,
     entityId,
@@ -422,10 +438,6 @@ function OneAttribute({ slug, entityId, attribute }: { slug: string; entityId: s
       setSaved(true);
     },
   };
-  // Fewer than a page on the newest page is the whole history: every CSV row compares.
-  const complete = before === undefined && measurements.length < PAGE;
-  // A short page is the last one: nothing older to ask for.
-  const oldest = measurements.length >= PAGE ? measurements.at(-1)?.observedAt : undefined;
 
   const form = editing
     ? {
@@ -440,8 +452,8 @@ function OneAttribute({ slug, entityId, attribute }: { slug: string; entityId: s
         history={history}
         measurements={measurements}
         saved={saved}
-        older={oldest ? () => setBefore(oldest) : undefined}
-        newest={before ? () => setBefore(undefined) : undefined}
+        older={older}
+        newest={toNewest}
         open={(measurement, revertTo) => setEditing({ measurement, revertTo })}
         form={form}
       />
