@@ -166,6 +166,7 @@ describe("walker sign-in tab", () => {
       ),
     ).rejects.toThrow("no password");
   });
+});
 
 describe("walker Tab when the machine's network changes (T-6476)", () => {
   const change = () => new Error("page.goto: net::ERR_NETWORK_CHANGED at https://portal.dev/catalogue?lang=en");
