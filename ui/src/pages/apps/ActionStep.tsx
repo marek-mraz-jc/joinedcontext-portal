@@ -247,12 +247,13 @@ export function ActionStep({
   const failure = failureOf(payload);
   const reason = failed ? errorText(payload, t) : "";
   const said = failure !== null ? t(`agentRun.failure.${failure}`) : reason;
-  const error = typeof payload.error === "object" ? reason : payload.error === undefined ? undefined : reason;
+  const error = payload.error === undefined ? undefined : reason;
+  // An MCP refusal's output is its error again, unscrubbed.
+  const output = (payload.output as { isError?: unknown } | null | undefined)?.isError === true ? undefined : payload.output;
   const refused = Array.isArray(payload.refused) && payload.refused.length > 0 ? payload.refused : undefined;
   const sections: Array<[string, unknown]> = [
     [t("agentRun.step.input"), payload.input ?? payload.command],
-    // A failed assistant step's output is its error again, with no scrubbing.
-    [t("agentRun.step.output"), failure !== null ? undefined : payload.output],
+    [t("agentRun.step.output"), output],
     [t("agentRun.step.error"), error],
     [t("agentRun.step.refused"), refused],
     [t("agentRun.step.diff"), payload.diff],
@@ -265,7 +266,7 @@ export function ActionStep({
       status: failed ? "failed" : "ok",
       durationMs: duration,
       input: payload.input ?? payload.command,
-      output: failure !== null ? undefined : payload.output,
+      output,
       error,
       diff: payload.diff,
     };
