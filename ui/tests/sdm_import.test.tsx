@@ -308,6 +308,17 @@ describe("Smart Data Models import wizard", () => {
     await expectNoViolations(container);
   });
 
+  it("lists a model the mirror could not convert with its finding, and does not offer it", async () => {
+    const { user } = renderWizard({
+      catalogue: { ...CATALOGUE, failed: [{ id: "dataModel.Environment/Broken", finding: "the schema has no type" }] },
+    });
+    const summary = await screen.findByText("Models that could not be converted: 1");
+    expect(screen.queryByRole("button", { name: /Broken/ })).not.toBeInTheDocument();
+    await user.click(summary);
+    expect(screen.getByText("dataModel.Environment/Broken")).toBeVisible();
+    expect(screen.getByText(/the schema has no type/)).toBeVisible();
+  });
+
   it("works from the cached index when a refresh did not reach the catalogue", async () => {
     const { user, fetchMock } = renderWizard({
       catalogue: { ...CATALOGUE, stale: true },

@@ -3,16 +3,17 @@
  * description), removes a value, and gives each enum its own box for a new value.
  */
 import { useState } from "react";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { enumUses } from "../src/pages/models/EnumValues";
 import { LinkmlVisualEditor } from "../src/pages/models/LinkmlVisualEditor";
+import { NameField } from "../src/pages/models/NameField";
 import { parseModel } from "../src/pages/models/linkml";
-import { applyOperations } from "../src/pages/models/operations";
+import { applyOperations, type Operation } from "../src/pages/models/operations";
 
 const SOURCE = `# alerts
 id: https://hel.fi/models/alerts
@@ -150,5 +151,89 @@ enums:
 `);
     expect(enumUses(model, "AlertCategory")).toEqual([{ field: "category", types: ["Alert", "Notice"] }]);
     expect(enumUses(model, "Nothing")).toEqual([]);
+  });
+});
+
+describe("renaming an import before Save (T-6353)", () => {
+  const source = [
+    "id: https://example.org/air",
+    "name: air",
+    "classes:",
+    "  Air:",
+    "    slots: [level, status]",
+    "  Reading:",
+    "    is_a: Air",
+    "slots:",
+    "  level:",
+    "    range: Level",
+    "  status:",
+    "    range: Air",
+    "enums:",
+    "  Level:",
+    "    permissible_values:",
+    "      low:",
+    "        title: Low",
+    "      high: {}",
+    "",
+  ].join("\n");
+  const one = (operation: Operation) => {
+    const applied = applyOperations(source, [operation]);
+    return { model: parseModel(applied.source), reason: applied.refused[0]?.reason };
+  };
+
+  it("renames the type, in the class that specialises it and the slot that ranges over it", () => {
+    const { model } = one({ op: "renameClass", name: "Air", to: "AirReading" });
+    expect(model.classes.map((klass) => klass.name)).toContain("AirReading");
+    expect(model.classes.find((klass) => klass.name === "Reading")?.is_a).toBe("AirReading");
+    expect(model.slots.find((slot) => slot.name === "status")?.range).toBe("AirReading");
+  });
+
+  it("renames a field in every class that lists it", () => {
+    const { model } = one({ op: "renameSlot", name: "level", to: "airLevel" });
+    expect(model.classes.find((klass) => klass.name === "Air")?.slots).toEqual(["airLevel", "status"]);
+  });
+
+  it("renames an enumeration and the field that uses it", () => {
+    const { model } = one({ op: "renameEnum", name: "Level", to: "AirLevel" });
+    expect(model.enums.map((entry) => entry.name)).toEqual(["AirLevel"]);
+    expect(model.slots.find((slot) => slot.name === "level")?.range).toBe("AirLevel");
+  });
+
+  it("renames a stored value and keeps its label", () => {
+    const { model } = one({ op: "renameEnumValue", enum: "Level", value: "low", to: "minimal" });
+    const values = model.enums[0].permissible_values;
+    expect(values.map((value) => value.name)).toEqual(["minimal", "high"]);
+    expect(values[0].title?.en).toBe("Low");
+  });
+
+  it("refuses a name another of its kind has, and an empty value", () => {
+    expect(one({ op: "renameEnumValue", enum: "Level", value: "low", to: "high" }).reason).toContain("already has");
+    expect(one({ op: "renameEnumValue", enum: "Level", value: "low", to: " " }).reason).toContain("needs a name");
+    expect(one({ op: "renameEnum", name: "Level", to: "Level" }).reason).toContain("already exists");
+    expect(one({ op: "renameEnum", name: "Nothing", to: "Other" }).reason).toContain("unknown enum");
+  });
+});
+
+describe("NameField", () => {
+  it("applies on Enter, and goes back to the name when the model refuses", () => {
+    const onRename = vi.fn(() => false);
+    render(<NameField id="n" label="Name" help="For example Air" name="Air" onRename={onRename} />);
+    const box = screen.getByRole("textbox", { name: /Name/ });
+    fireEvent.change(box, { target: { value: "Water" } });
+    expect(onRename).not.toHaveBeenCalled();
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(onRename).toHaveBeenCalledWith("Water");
+    expect(box).toHaveValue("Air");
+  });
+
+  it("renames nothing on leaving an empty or unchanged box", () => {
+    const onRename = vi.fn(() => true);
+    render(<NameField id="n" label="Name" help="For example Air" name="Air" onRename={onRename} />);
+    const box = screen.getByRole("textbox", { name: /Name/ });
+    fireEvent.blur(box);
+    fireEvent.change(box, { target: { value: "" } });
+    fireEvent.blur(box);
+    expect(onRename).not.toHaveBeenCalled();
+    expect(box).toHaveValue("Air");
   });
 });
