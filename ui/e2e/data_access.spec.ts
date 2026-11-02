@@ -113,7 +113,7 @@ async function stubApi(page: Page, state: State): Promise<void> {
       const rule =
         state === "refused"
           ? { kinds: ["*"], verbs: ["read"] }
-          : { kinds: ["RoleBinding", "Person", "Group"], verbs: ["read", "update", "propose", "approve", "delete"] };
+          : { kinds: ["RoleBinding", "Person", "Group"], verbs: ["read", "create", "update", "disable", "propose", "approve", "delete"] };
       return json({ project: "org", bootstrap: false, grants: [{ role: "r", binding: "b", rule }] });
     }
     if (path === "/api/v1/organization/data-access") {
