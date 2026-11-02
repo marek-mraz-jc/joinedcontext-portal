@@ -1906,8 +1906,8 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
 
       {!loading && rows.length === 0 && !error && (
         <div className="jc-grid-empty">
-          {/* The filter row went with the rows: the way to another type stays (T-5181). */}
-          {typeChoice && <TypeChoiceCell choice={typeChoice} />}
+          {/* A type with no rows and no model has no filter row: the way to another type stays. */}
+          {typeChoice && filterable.size === 0 && <TypeChoiceCell choice={typeChoice} />}
           {emptySlot ?? labels.empty}
         </div>
       )}

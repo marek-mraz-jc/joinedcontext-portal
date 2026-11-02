@@ -281,7 +281,8 @@
     }
 
     button,
-    [role="button"] {
+    [role="button"],
+    summary {
       min-width: 44px;
     }
 

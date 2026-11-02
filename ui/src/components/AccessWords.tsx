@@ -143,7 +143,7 @@ export function OperationsInWords({ operations }: { operations: readonly string[
   const words = [...areas.map(({ area }) => t(`access.words.area.${area}`)), ...other];
   return (
     <details>
-      <summary className="focus-ring min-w-[44px] cursor-pointer rounded-sm text-fg">{words.join(", ")}</summary>
+      <summary className="focus-ring cursor-pointer rounded-sm text-fg">{words.join(", ")}</summary>
       <p className="mt-1 font-mono text-caption text-fg-muted [overflow-wrap:anywhere]">
         {covered.join(", ")}
       </p>
