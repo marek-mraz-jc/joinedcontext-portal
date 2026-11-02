@@ -533,6 +533,7 @@
     "empty": "Projekt zatím nemá kontextový prostor.",
     "add": "Nový kontextový prostor",
     "addHint": "Uložením vznikne návrh změny; prostor přibude po jeho schválení.",
+    "fromFile": "Začít ze souboru",
     "propose": "Navrhnout změnu",
     "sandbox": "pískoviště, {days} dní",
     "field": {
