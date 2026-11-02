@@ -1358,6 +1358,7 @@
       "confirmTitle": "Navrhnúť vymazanie údajov tejto osoby z {space}?",
       "confirmLead": "Vymazanie najprv schváli ďalší vlastník tohto priestoru; dovtedy sa nič nevymaže. Po schválení sa nedá vrátiť: odstráni hodnoty z aktuálneho stavu, zo všetkých verzií histórie a zo všetkých kópií a zostane záznam bez hodnôt.",
       "confirm": "Navrhnúť vymazanie",
+      "moreHint": "Požiadajte o ďalšie riadky a uvidíte viac",
       "nothing": "Priestor teraz o tejto osobe nič neobsahuje. Návrh žiadosť aj tak zaznamená; priestor sa prehľadá znova, keď ho schváli ďalší vlastník.",
       "wouldErase": {
         "attrs": "{count, plural, one {{type}: osobné atribúty ({attrs}) # entity} few {{type}: osobné atribúty ({attrs}) # entít} many {{type}: osobné atribúty ({attrs}) # entít} other {{type}: osobné atribúty ({attrs}) # entít}}",

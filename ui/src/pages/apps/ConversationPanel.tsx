@@ -8,7 +8,7 @@ import { AppBuildCard, appBuildOf } from "./AppBuildCard";
 import type { JsonSchema } from "../../components/forms/types";
 import { Alert, Button, EmptyState, ExternalLink, Textarea } from "../../components/ui";
 import { openQuestions, TERMINAL_STATES, withdrawnQuestions } from "./useAgentRun";
-import { ActionStep, noticesOf, StepNotice } from "./ActionStep";
+import { ActionStep, noticesOf, repeatedSlips, StepNotice } from "./ActionStep";
 import { CatalogCards, catalogDatasetsOf, catalogItemsOf } from "./CatalogCards";
 import { ChangeFollowCard, followedChangeOf } from "./ChangeFollowCard";
 import { ChangeTestCard, changeTestOf } from "./ChangeTestCard";
@@ -422,6 +422,7 @@ export function ConversationPanel({
   const progress = progressOf(events);
   const answered = answeredSearches(events);
   const notices = noticesOf(events);
+  const slips = repeatedSlips(events);
   const questions = openQuestions(events);
   const withdrawn = withdrawnQuestions(events);
   const titles = new Map(
@@ -618,7 +619,7 @@ export function ConversationPanel({
                     <ChangeFollowCard project={project} followed={followed} onOpenLink={onOpenLink} />
                   ) : null}
                   {queried !== null ? <QueryResultCard result={queried} project={project} /> : null}
-                  <ActionStep event={event} live={live} onSend={onSend} count={count} noticed={notice !== undefined} />
+                  <ActionStep event={event} live={live} onSend={onSend} count={count} noticed={notice !== undefined || slips.has(event.seq)} />
                   {notice !== undefined ? (
                     <StepNotice
                       kind={notice}

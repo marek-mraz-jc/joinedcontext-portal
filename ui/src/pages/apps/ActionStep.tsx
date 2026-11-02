@@ -78,6 +78,12 @@ export function noticesOf(events: RunEvent[]): Map<number, FailureKind> {
   return new Map([...standing].map(([kind, { seq }]) => [seq, kind]));
 }
 
+/** The slips a newer slip follows: a series of tries says its sentence once, on the newest. */
+export function repeatedSlips(events: RunEvent[]): Set<number> {
+  const slips = events.filter((event) => event.kind === "tool" && failureOf(event.payload) === "argument");
+  return new Set(slips.slice(0, -1).map((event) => event.seq));
+}
+
 /** The pages a person is offered when the one asked for would not open. */
 const PAGES = ["spaces", "models", "endpoints", "explore"];
 
@@ -236,7 +242,7 @@ export function ActionStep({
   onSend: (text: string) => void;
   /** How many times in a row the same step repeated; the event is the newest of them. */
   count?: number;
-  /** A `StepNotice` under the step says why, so its own row need not. */
+  /** Another line says why (a `StepNotice`, a newer slip), so the step's own row need not. */
   noticed?: boolean;
 }): JSX.Element {
   const { t } = useTranslation();

@@ -303,7 +303,7 @@ export function whenOf(value: string, language?: string): string {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(value)) {
     return value;
   }
-  return new Date(value).toLocaleString(language, { dateStyle: "medium", timeStyle: "short" });
+  return new Date(value).toLocaleString(language, { dateStyle: "short", timeStyle: "short" });
 }
 
 /** The card of a `query_endpoint` step, or none when the payload is not one. */
@@ -387,7 +387,7 @@ export function QueryAnswer({ view, project }: { view: QueryView; project?: stri
       </Table>
       <p className="mt-1 text-fg-muted">
         {view.total > view.rows.length
-          ? t("assistant.query.someRows", { shown: view.rows.length, total: view.total })
+          ? `${t("assistant.query.someRows", { shown: view.rows.length, total: view.total })}. ${t("assistant.query.moreHint")}`
           : t("assistant.query.rows", { count: view.total })}
       </p>
     </div>
@@ -430,7 +430,7 @@ export function QueryAnswer({ view, project }: { view: QueryView; project?: stri
       {view.fields.map(([key, value]) => (
         <div key={key} className="contents">
           <dt className="font-mono text-fg-muted">{key}</dt>
-          <dd className="min-w-0 break-words">{value}</dd>
+          <dd className="min-w-0 break-words">{whenOf(value, i18n.resolvedLanguage)}</dd>
         </div>
       ))}
     </dl>

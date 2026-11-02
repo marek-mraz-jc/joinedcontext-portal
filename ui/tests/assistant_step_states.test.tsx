@@ -10,7 +10,7 @@ import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
-import { ActionStep, failureOf, noticesOf, scrubbed, StepNotice } from "../src/pages/apps/ActionStep";
+import { ActionStep, failureOf, noticesOf, repeatedSlips, scrubbed, StepNotice } from "../src/pages/apps/ActionStep";
 import { ConversationPanel } from "../src/pages/apps/ConversationPanel";
 import { QueryAnswer, queryResultOf, viewOf, whenOf } from "../src/pages/apps/QueryResultCard";
 import type { RunEvent } from "../src/pages/apps/useAgentRun";
@@ -128,6 +128,14 @@ describe("the state of a failure", () => {
 
   it("is no state for a slip the assistant corrects by itself", () => {
     expect(noticesOf([tool(1, "query_endpoint", "error: argument attrs: takes 1 to 100 items")]).size).toBe(0);
+  });
+
+  it("says a series of slips once, on the newest", () => {
+    const slip = "error: argument type: takes 1 to 50 items";
+    const events = [tool(1, "query_endpoint", slip), tool(2, "jc_resource_list", slip), tool(3, "query_endpoint", slip)];
+    expect([...repeatedSlips(events)]).toEqual([1, 2]);
+    panel(events);
+    expect(screen.getAllByTestId("step-reason")).toHaveLength(1);
   });
 
   it.each([

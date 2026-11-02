@@ -191,7 +191,7 @@ for (const [label, width, height] of [
     test("slip", async ({ page }) => {
       const dock = await open(page, "slip");
       const reasons = dock.getByTestId("step-reason");
-      await expect(reasons).toHaveCount(2);
+      await expect(reasons).toHaveCount(1);
       await expect(dock.getByRole("status").filter({ hasText: "Live" })).toBeVisible();
       await expect(reasons.first()).toHaveText("This try did not fit the step, so nothing changed. The assistant goes on another way.");
       await expect(dock).not.toContainText("argument type", { useInnerText: true });
