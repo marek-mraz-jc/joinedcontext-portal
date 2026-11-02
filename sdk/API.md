@@ -2,7 +2,7 @@
 
 ### How an app is built
 `src/main.tsx` calls `startApp(App, { tokens })`.
-Pages are laid out with this package's layout primitives (`Page`, `Header`, `Grid`, `Card`, `Split`, `Sidebar`, `Tabs`) and compose the template's components with its hooks, so every screen works from a 375 px phone to a 2560 px wall without layout CSS of its own. The components are files of the application in `src/components/` (`AppShell`, `states` with `Problem`, `Loading`, `Empty` and `ErrorBoundary`, `StatTiles`, `EntityTable`, `EntityDetail`, `filters`, `EntityForm`, `ExportButton`, `charts`, `EntityMap`, `components.css`): read them in the pack and change them like any other file. This reference covers the package they stand on.
+Pages are laid out with this package's layout primitives (`Page`, `Header`, `Grid`, `Card`, `Split`, `Sidebar`, `Tabs`) and compose the template's components with its hooks, so every screen works from a 375 px phone to a 2560 px wall without layout CSS of its own. The components are files of the application in `src/components/` (`AppShell`, `states` with `Problem`, `Loading`, `Empty` and `ErrorBoundary`, `StatTiles`, `TypeGrid` (one type in the `EntityGrid`), `EntityDetail`, `filters`, `EntityForm`, `ExportButton`, `charts`, `EntityMap`, `components.css`): read them in the pack and change them like any other file. This reference covers the package they stand on.
 Backend functions live in `functions/{name}.ts` using `@joinedcontext/sdk/server`.
 Tests verify behaviors using `@joinedcontext/sdk/testing`.
 `design-tokens.json` re-themes all component styling, chart palettes, and map layers.
@@ -230,7 +230,7 @@ function spaceSource(space: string, transport: Transport, language?: string): En
 function sourceFor(source: { kind: "endpoint"; slug } | { kind: "space"; space }, transport: Transport, language?: string): EntitySource
 function fixtureSource(entities: object[], language?: string): EntitySource
 function idChunks(ids: string[], maxChars?: number): string[][]
-function transportFor(config: JcConfig): Transport // e.g. transportFor(jc().config)
+function transportFor(config: JcConfig): Transport // e.g. transportFor(jc().config); a client holds its own as `client.transport`
 function originTransport(fetchImpl?: typeof fetch, doc?: Document): Transport // a host page's own: same origin, the person's session and CSRF header
 class SourceError extends Error { status: number }
 function historyOf(body: unknown, attr: string): HistoryPoint[]
@@ -517,7 +517,7 @@ import { BarChartCard } from "../components/charts";
 import { EntityDetail } from "../components/EntityDetail";
 import { EntityForm } from "../components/EntityForm";
 import { EntityMap } from "../components/EntityMap";
-import { EntityTable } from "../components/EntityTable";
+import { TypeGrid } from "../components/TypeGrid";
 import { FilterBar, SearchBox, SelectFilter } from "../components/filters";
 import { StatTiles } from "../components/StatTiles";
 
@@ -548,7 +548,7 @@ export function StationsPage() {
       />
       <BarChartCard rows={shown} x="name" y="availableBikeNumber" top={10} title="Top Stations" />
       <EntityMap rows={shown} label="name" selected={selectedId} onSelect={(r) => setSelectedId(r.id)} />
-      <EntityTable rows={shown} error={error} loading={loading} selected={selectedId} onSelect={(r) => setSelectedId(r.id)} />
+      <TypeGrid type="BikeHireDockingStation" columns={[{ attr: "name" }, { attr: "occupancy", formula: "availableBikeNumber / totalSlotNumber * 100" }]} onSelect={setSelectedId} />
       <EntityDetail row={selectedRow} onClose={() => setSelectedId(null)} />
       {access.can("updateAttrs", "BikeHireDockingStation").ok && selectedRow && (
         <button type="button" onClick={() => setEditing(true)}>Edit</button>

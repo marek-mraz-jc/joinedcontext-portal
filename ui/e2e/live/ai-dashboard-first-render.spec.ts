@@ -170,7 +170,9 @@ for (let round = 1; round <= RUNS; round += 1) {
     const html = frame ? await frame.content() : "";
     writeFileSync(join(DIR, `${label}-events.json`), `${JSON.stringify(events, null, 1)}\n`);
     const modules = sourceOf(html);
-    const source = Object.values(modules).join("\n");
+    // What the model chose: the template's components are files of the App whether used or not.
+    const written = Object.entries(modules).filter(([file]) => !file.includes("/components/"));
+    const source = written.map(([, text]) => text).join("\n");
     writeFileSync(join(DIR, `${label}-source.json`), `${JSON.stringify(modules, null, 1)}\n`);
     results.push({
       name,
@@ -182,9 +184,9 @@ for (let round = 1; round <= RUNS; round += 1) {
       calls: usage.length,
       models: [...new Set(usage.map((each) => String(each.model ?? "")))],
       phases: phases(events),
-      usesEntityGrid: /\bEntityGrid\b.*@joinedcontext\/sdk\/grid/.test(source),
+      usesEntityGrid: /components\/TypeGrid|@joinedcontext\/sdk\/grid/.test(source),
       formulaColumn: /formula:/.test(source),
-      handTable: /["'`]table["'`]/.test(source),
+      handTable: /_jsxs?\("table"/.test(source),
       preview: new URL(page.url()).pathname,
       note,
     });
