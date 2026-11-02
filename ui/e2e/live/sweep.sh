@@ -32,10 +32,23 @@ if [ -n "${SWEEP_LIST:-}" ]; then
   exec npx playwright test --config playwright.live.config.ts --list --grep-invert '\bassistant\b' "${specs[@]}"
 fi
 
-PLAYWRIGHT_JSON_OUTPUT_NAME="$out/report.json" npx playwright test \
+# SWEEP_WORKERS specs at once (T-6404, default 4): the tests of one spec still run in order, and the
+# specs e2e/live/stateGroups.ts names keep to their group, the exclusive ones alone at the end.
+rm -f "$out"/requests-*.json
+started=$(date +%s)
+LIVE_WORKERS=${SWEEP_WORKERS:-4} PLAYWRIGHT_JSON_OUTPUT_NAME="$out/report.json" npx playwright test \
   --config playwright.live.config.ts --reporter=list,json \
   --grep-invert '\bassistant\b' "${specs[@]}"
 status=$?
+echo "sweep: $(( $(date +%s) - started )) s on ${SWEEP_WORKERS:-4} workers"
+# What the signed-in contexts sent the edge, per minute, summed over the workers (e2e/live/edgeShare.ts).
+node -e '
+  const fs = require("fs"), dir = process.argv[1], sum = {};
+  for (const f of fs.readdirSync(dir).filter((f) => /^requests-\d+\.json$/.test(f)))
+    for (const [m, n] of Object.entries(JSON.parse(fs.readFileSync(`${dir}/${f}`, "utf8")))) sum[m] = (sum[m] ?? 0) + n;
+  fs.writeFileSync(`${dir}/requests-per-minute.json`, JSON.stringify(sum, null, 1));
+  console.log(`sweep: at most ${Math.max(0, ...Object.values(sum))} edge requests in one minute (${dir}/requests-per-minute.json)`);
+' "$out" || true
 
 if [ ! -s "$out/report.json" ]; then
   echo "sweep: Playwright wrote no report (status $status); nothing to summarise" >&2

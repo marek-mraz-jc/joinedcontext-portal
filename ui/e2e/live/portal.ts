@@ -5,6 +5,7 @@ import type { APIRequestContext, Browser, BrowserContext, Locator, Page, Request
 import { axeViolations } from "../axe";
 import { blankDocument, edgeRetryMs, pageFindings, viewerWriteFindings } from "../../tests/pageChecks";
 import { type ListedChange, changeSubject } from "./staleChanges";
+import { shareEdge } from "./edgeShare";
 import { openedTwice } from "./tab";
 import { answerOtp, submitted } from "./totp";
 
@@ -148,6 +149,7 @@ export async function signIn(
   }
   const context = await browser.newContext();
   await withLocalUi(context);
+  await shareEdge(context);
   // A crash while signing in is signed in again on a fresh page of the same context (T-6011).
   const page = await openedTwice(context, (page) => goSignedIn(page, who, path, ready), `${who.user} signed in`);
   return { context, page };

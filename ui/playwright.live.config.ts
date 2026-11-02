@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { projects } from "./e2e/live/stateGroups";
 
 // The journeys of ui/e2e/live run against a live Portal (dev), signed in through Keycloak as
 // the demo people, with no stubbed API: what they prove is the whole path (T-0630, TS-12).
@@ -10,10 +11,12 @@ import { defineConfig, devices } from "@playwright/test";
 // read PROPOSER_CLIENT_SECRET, the `client-secret` of Secret
 // `keycloak-client-helsinki-pipeline-proposer` (T-2245). The forge journeys (T-2647) reach the forge
 // at JC_FORGE_URL, by default the Portal URL's host without `portal.` plus `/git` (e2e/live/forge.ts).
+// LIVE_WORKERS (default 1) runs that many specs at once; the sweep sets it (T-6404). The tests of one
+// spec still run in order on one worker, and e2e/live/stateGroups.ts keeps specs that share state apart.
 export default defineConfig({
   testDir: "./e2e/live",
   fullyParallel: false,
-  workers: 1,
+  workers: Number(process.env.LIVE_WORKERS ?? "1") || 1,
   retries: 0,
   reporter: "list",
   timeout: 420_000,
@@ -30,15 +33,10 @@ export default defineConfig({
     // beside a bearer token; anyone else who sends it is refused with 403.
     extraHTTPHeaders: { "X-JC-Run-Origin": "journey" },
   },
-  projects: [
-    {
-      name: "chromium",
-      use: {
-        ...devices["Desktop Chrome"],
-        // A container's /dev/shm is 64 MB by default: Chromium's shared memory there runs out on the
-        // walker's large pages and the tab dies ("Target crashed", T-5992). /tmp has the room.
-        launchOptions: { args: ["--disable-dev-shm-usage"] },
-      },
-    },
-  ],
+  projects: projects({
+    ...devices["Desktop Chrome"],
+    // A container's /dev/shm is 64 MB by default: Chromium's shared memory there runs out on the
+    // walker's large pages and the tab dies ("Target crashed", T-5992). /tmp has the room.
+    launchOptions: { args: ["--disable-dev-shm-usage"] },
+  }),
 });
