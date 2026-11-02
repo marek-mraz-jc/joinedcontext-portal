@@ -1113,6 +1113,8 @@
 .jc-grid-col-menu {
   /* Placed by ColumnMenu under its header cell: the grid's overflow would clip it (T-4924). */
   position: fixed;
+  /* Read by usePlaceAtCell in pixels: a host's sticky header sits above this line (T-5181). */
+  scroll-margin-top: var(--jc-grid-sticky-top, 0px);
   right: auto;
   overflow-y: auto;
   box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);

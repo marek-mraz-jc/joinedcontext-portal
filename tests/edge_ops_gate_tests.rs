@@ -408,6 +408,35 @@ fn the_callers_half_says_nothing_about_what_the_person_may_do() {
 // T-2118 `permitted`
 // -------------------------------------------------------------------------------------------------
 
+/// The one operation that passes the gate by name without a route of its own (ADR-N-067, T-6413):
+/// a Policy can share an Endpoint with a person who holds no right in its project, so only the
+/// Endpoint's Policy can decide. A stranger reads what an anonymous caller reads and nothing else:
+/// [`a_stranger_learns_nothing_from_the_data_read`].
+const DATA_QUERY: &str = joinedcontext_portal::ops::data_query::NAME;
+
+/// ADR-N-067: the data read needs no binding, so its own answer is the gate. Naming an internal
+/// Endpoint without a Policy that shares it reads as naming one that is not there.
+#[tokio::test]
+async fn a_stranger_learns_nothing_from_the_data_read() {
+    let state = state_with_bindings(Config::for_tests());
+    let stranger = Caller::new(identity("nobody", &[]), Via::Session);
+    let op = ops::find(DATA_QUERY).expect("registered");
+    let read = |name: &str| json!({ "endpoint": name, "type": "Vehicle" });
+
+    let there = ops::call(op, &stranger, &state, PROJECT, read(LEAK_CANARY))
+        .await
+        .expect_err("a stranger read an internal Endpoint");
+    let absent = ops::call(op, &stranger, &state, PROJECT, read("no-such-endpoint"))
+        .await
+        .expect_err("a stranger read an Endpoint that is not there");
+    assert_eq!(
+        there.to_string().replace(LEAK_CANARY, "x"),
+        absent.to_string().replace("no-such-endpoint", "x"),
+    );
+    assert_eq!(answered(there), StatusCode::NOT_FOUND);
+    assert_eq!(answered(absent), StatusCode::NOT_FOUND);
+}
+
 /// PF-50, PF-59: not one operation of the registry is open to a caller with no binding in the
 /// project. A read answers as a project that is not there, a write says what is missing, and the
 /// only operations that pass here are the ones whose own route function checks instead — that list
@@ -421,7 +450,7 @@ fn not_one_operation_is_open_to_a_caller_with_no_binding() {
     for op in ops::registry() {
         match ops::permitted(op, &nobody, &state, PROJECT) {
             Ok(()) => assert!(
-                waved_through.contains(&op.name),
+                waved_through.contains(&op.name) || op.name == DATA_QUERY,
                 "{} is open to a caller with no binding and is not checked by its route",
                 op.name,
             ),
@@ -474,7 +503,7 @@ fn a_binding_of_one_project_does_not_reach_another_and_a_viewer_writes_nothing()
     let waved_through = joinedcontext_portal::ops::resources::CHECKED_BY_THE_ROUTE;
 
     for op in ops::registry() {
-        if !waved_through.contains(&op.name) {
+        if !waved_through.contains(&op.name) && op.name != DATA_QUERY {
             assert!(
                 ops::permitted(op, &elsewhere, &state, PROJECT).is_err(),
                 "{} let a steward of another project in",
@@ -521,7 +550,7 @@ async fn the_gate_answers_before_the_input_is_looked_at() {
     let waved_through = joinedcontext_portal::ops::resources::CHECKED_BY_THE_ROUTE;
 
     for op in ops::registry() {
-        if waved_through.contains(&op.name) {
+        if waved_through.contains(&op.name) || op.name == DATA_QUERY {
             continue; // Their own route function decides; `call` is not their gate.
         }
         for nonsense in [

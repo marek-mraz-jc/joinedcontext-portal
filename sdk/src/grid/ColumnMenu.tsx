@@ -33,7 +33,8 @@ export interface ColumnMenuProps {
 /**
  * A popup placed fixed at its header cell, inside the window, following it as the page scrolls.
  * The grid clips what overflows it, so under a short grid a menu lost everything below its first
- * items (T-4924).
+ * items (T-4924). It stays under the host's sticky header, whose height the host gives as
+ * --jc-grid-sticky-top (the menu's scroll-margin-top in grid.css, resolved to pixels; T-5181).
  */
 export function usePlaceAtCell(): React.MutableRefObject<HTMLDivElement | null> {
   const box = useRef<HTMLDivElement | null>(null);
@@ -44,12 +45,15 @@ export function usePlaceAtCell(): React.MutableRefObject<HTMLDivElement | null> 
     const place = () => {
       const at = cell.getBoundingClientRect();
       const width = menu.offsetWidth;
-      const below = window.innerHeight - at.bottom;
+      const ceiling = parseFloat(getComputedStyle(menu).scrollMarginTop) || 0;
+      const under = Math.max(at.bottom, ceiling);
+      const below = window.innerHeight - under;
+      const above = at.top - ceiling;
       // Above the cell when it does not fit below and there is more room above; it scrolls inside.
-      const up = menu.scrollHeight > below && at.top > below;
-      const room = up ? at.top : below;
+      const up = menu.scrollHeight > below && above > below;
+      const room = up ? above : below;
       menu.style.maxHeight = `${room}px`;
-      menu.style.top = `${up ? at.top - Math.min(menu.scrollHeight, room) : at.bottom}px`;
+      menu.style.top = `${up ? at.top - Math.min(menu.scrollHeight, room) : under}px`;
       // An 8 px gutter from both screen edges, as the page keeps (UI judge, T-6344).
       const gutter = 8;
       menu.style.left = `${Math.max(gutter, Math.min(at.right - width, window.innerWidth - width - gutter))}px`;

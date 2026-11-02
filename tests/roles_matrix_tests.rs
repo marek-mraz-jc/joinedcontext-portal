@@ -181,6 +181,15 @@ fn manifest(family: &Family, name: &str) -> Value {
     })
 }
 
+/// A resource a cell adds. A space has one model (DM-61): a new DataModel takes a space of its own.
+fn fresh(family: &Family, name: &str) -> Value {
+    let mut fresh = manifest(family, name);
+    if family.kind == "DataModel" {
+        fresh["spec"]["contextSpaceRef"] = json!("helsinki-archive");
+    }
+    fresh
+}
+
 /// The resource of a family every cell reads, changes or removes.
 fn existing(family: &Family) -> String {
     format!("{}-existing", family.kind.to_ascii_lowercase())
@@ -420,7 +429,7 @@ async fn every_role_meets_every_route_and_operation_exactly_as_the_table_says() 
             check(&mut misses, &cell("get"), &answer, &allowed(StatusCode::OK));
 
             let propose = when(who.may("propose"), StatusCode::ACCEPTED, "propose", kind);
-            let fresh = manifest(family, &format!("new-{}", who.name()));
+            let fresh = fresh(family, &format!("new-{}", who.name()));
             let answer = send(&state, who, "POST", &resources, Some(fresh.clone())).await;
             check(&mut misses, &cell("POST"), &answer, &propose);
             let answer = send(&state, who, "PUT", &one, Some(changed.clone())).await;
@@ -633,7 +642,7 @@ async fn every_role_meets_every_route_and_operation_exactly_as_the_table_says() 
             &agent,
             &state,
             project,
-            json!({ "manifest": manifest(family, "new-agent") }),
+            json!({ "manifest": fresh(family, "new-agent") }),
         )
         .await;
         // A Pipeline's records are checked too (T-4840), as its workbench keeps them.
@@ -644,7 +653,7 @@ async fn every_role_meets_every_route_and_operation_exactly_as_the_table_says() 
             &agent,
             &state,
             project,
-            json!({ "manifest": manifest(family, "new-agent") }),
+            json!({ "manifest": fresh(family, "new-agent") }),
         )
         .await
         {

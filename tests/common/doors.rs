@@ -125,7 +125,10 @@ pub fn run(identity: Identity, operations: &[&str]) -> Caller {
     let kinds: Vec<Value> = operations
         .iter()
         .filter_map(|name| ops::find(name))
-        .map(|op| json!({ "kind": op.kind, "verbs": ["read", "propose", "approve", "delete"] }))
+        // A kind-`*` operation is granted per kind its input names (T-6366): these tests name a
+        // Pipeline.
+        .map(|op| if op.kind == "*" { "Pipeline" } else { op.kind })
+        .map(|kind| json!({ "kind": kind, "verbs": ["read", "propose", "approve", "delete"] }))
         .collect();
     Caller::for_run(
         identity,

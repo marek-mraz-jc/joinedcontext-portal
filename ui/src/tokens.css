@@ -150,6 +150,8 @@
   --portal-preview-height: 82vh;
   /* What a docked panel fills below the `h-14` header, beside the page (xl and up). */
   --portal-below-header: calc(100vh - var(--portal-spacing) * 14);
+  /* The SDK grid's popups open below that header, which would cover their title (T-5181). */
+  --jc-grid-sticky-top: calc(var(--portal-spacing) * 14);
   --portal-preview-min-height: 28rem;
 
   /* Radius. */
