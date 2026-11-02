@@ -182,7 +182,7 @@ for (const width of [1440, 400]) {
       await page.goto("/organization/groups/stewards?lang=en");
       await expect(page.getByRole("link", { name: "Open change chg-0000001f" })).toBeVisible();
       await expect(page.getByRole("button", { name: "Add member" })).toHaveAttribute("aria-disabled", "true");
-      await expect(page.getByRole("button", { name: `Remove Jana Novák (${JANA}) from the group` })).toHaveAttribute("aria-disabled", "true");
+      await expect(page.getByRole("button", { name: "Remove Jana Novák from the group" })).toHaveAttribute("aria-disabled", "true");
       await shot(page, `group-members-waiting-${width}`);
       expect(proposed).toEqual([]);
     });
@@ -190,7 +190,8 @@ for (const width of [1440, 400]) {
     test("a group's page names each member beside their id", async ({ page }) => {
       await mock(page);
       await page.goto("/organization/groups/stewards?lang=en");
-      await expect(page.getByText(`Jana Novák (${JANA})`).first()).toBeVisible();
+      // The name is the link; the id rides in its address (ADR-N-061), no longer printed beside it.
+      await expect(page.getByRole("link", { name: "Jana Novák", exact: true }).first()).toHaveAttribute("href", `/organization/people/${JANA}`);
       expect(await axeViolations(page)).toEqual([]);
       await shot(page, `group-names-${width}`);
     });

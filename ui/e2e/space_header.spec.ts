@@ -46,7 +46,10 @@ for (const width of [1440, 400]) {
       const h1 = page.getByRole("heading", { level: 1, name: "Air quality" });
       await expect(h1).toBeVisible();
       await expect(page.getByRole("button", { name: "ovzdusie" })).toHaveCount(0);
-      await expect(page.getByText(LONG)).toBeHidden();
+      // The purpose is in the document for a screen reader but takes no room (sr-only) until the mark is asked.
+      const purpose = page.getByRole("tooltip").filter({ hasText: LONG });
+      await expect(purpose).toHaveClass(/sr-only/);
+      expect((await purpose.boundingBox())!.height).toBeLessThanOrEqual(1);
       mkdirSync(SHOTS, { recursive: true });
       await page.screenshot({ path: join(SHOTS, `1-header-${width}.png`) });
     });

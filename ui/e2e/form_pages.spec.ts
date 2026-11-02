@@ -68,7 +68,8 @@ test.describe("forms at their own addresses", () => {
     await page.reload();
     await expect(form).toBeVisible();
 
-    await form.getByRole("button", { name: "Back to the list" }).click();
+    // The back button is gone from the form; the breadcrumb's list link returns to the list.
+    await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Policies" }).click();
     await expect(page).toHaveURL(new RegExp(`${LIST}$`));
     await expect(page.getByRole("heading", { level: 1, name: "Policies" })).toBeVisible();
   });

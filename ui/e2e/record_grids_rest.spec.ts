@@ -126,7 +126,9 @@ for (const each of LISTS) {
     await expect(table.getByText(each.kept, { exact: true }).first()).toBeVisible();
     await expect(table.getByText(each.first, { exact: true })).toHaveCount(0);
     await grid.getByRole("searchbox").fill("");
-    await table.getByRole("button", { name: /^Details of / }).first().click();
+    // The row's one control is its More actions menu since the grid rework; Details is its first item.
+    await table.getByRole("button", { name: /^More actions for / }).first().click();
+    await page.getByRole("menuitem", { name: "Details" }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await shot(page, `${each.name}-details`);
   });

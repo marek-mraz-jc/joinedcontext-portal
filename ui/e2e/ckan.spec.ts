@@ -152,13 +152,14 @@ test.describe("the open-data page", () => {
   }) => {
     const { writes } = await stubApi(page);
     await page.goto("/projects/helsinki/ckan?lang=en");
-    await page.getByLabel("Name").fill("open-data");
-    await page.getByLabel("URL").fill("https://opendata.example.org");
-    await page.getByLabel("Default organization").fill("city-office");
-    await page.getByLabel("API token secret").fill("ckan-open-data-token");
+    await page.getByRole("textbox", { name: "Name", exact: true }).fill("open-data");
+    await page.getByRole("textbox", { name: "URL", exact: true }).fill("https://opendata.example.org");
+    await page.getByRole("combobox", { name: "Default organization", exact: true }).fill("city-office");
+    await page.getByRole("option", { name: /city-office/ }).click();
+    await page.getByRole("textbox", { name: "API token secret", exact: true }).fill("ckan-open-data-token");
     await page.getByRole("button", { name: "Propose catalogue" }).click();
 
-    await expect(page.getByLabel("Name")).toHaveValue("");
+    await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("");
     expect(writes.map((write) => write.path)).toEqual([
       "/api/v1/projects/helsinki/ckaninstances?dryRun=All",
       "/api/v1/projects/helsinki/ckaninstances",
@@ -179,14 +180,14 @@ test.describe("the open-data page", () => {
   }) => {
     const { writes } = await stubApi(page);
     await page.goto("/projects/helsinki/ckan?lang=en");
-    await page.getByLabel("Name").fill("open-data");
-    await page.getByLabel("URL").fill("javascript:alert(1)");
-    await page.getByLabel("API token secret").fill("ckan-open-data-token");
+    await page.getByRole("textbox", { name: "Name", exact: true }).fill("open-data");
+    await page.getByRole("textbox", { name: "URL", exact: true }).fill("javascript:alert(1)");
+    await page.getByRole("textbox", { name: "API token secret", exact: true }).fill("ckan-open-data-token");
     await page.getByRole("button", { name: "Propose catalogue" }).click();
 
     await expect(page.getByText("The address starts with http:// or https://.")).toBeVisible();
-    await expect(page.getByLabel("URL")).toBeFocused();
-    await expect(page.getByLabel("Name")).toHaveValue("open-data");
+    await expect(page.getByRole("textbox", { name: "URL", exact: true })).toBeFocused();
+    await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("open-data");
     expect(writes).toEqual([]);
   });
 
@@ -198,7 +199,7 @@ test.describe("the open-data page", () => {
     ).toBeVisible();
     await expect(page.getByRole("table", { name: "Catalogues" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Propose catalogue" })).toHaveCount(0);
-    await expect(page.getByLabel("API token secret")).toHaveCount(0);
+    await expect(page.getByRole("textbox", { name: "API token secret", exact: true })).toHaveCount(0);
     expect(writes).toEqual([]);
   });
 

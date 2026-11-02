@@ -109,9 +109,7 @@ test.describe("the health log (T-5067)", () => {
         await stubApi(page, filled);
         await page.goto(`/projects/bbsk/health?lang=${lang}`);
         const caption = lang === "en" ? "Health checks" : "Kontroly zdravia";
-        const rows = width > 600
-          ? page.getByRole("table", { name: caption }).getByRole("row").filter({ hasNot: page.getByRole("columnheader") })
-          : page.getByRole("list", { name: caption }).getByRole("listitem");
+        const rows = page.getByRole("table", { name: caption }).getByRole("row").filter({ hasNot: page.getByRole("columnheader") });
         // The log opens on what needs attention; the two healthy checks wait behind the filter.
         await expect(rows).toHaveCount(CHECKS.filter((item) => item.status !== "ok").length);
         await expect(rows.nth(0)).toContainText("403 no policy grants this operation");
@@ -127,9 +125,7 @@ test.describe("the health log (T-5067)", () => {
       await stubApi(page, filled);
       await page.goto("/projects/bbsk/health?lang=en");
       await page.locator("#health-status").selectOption("warn");
-      const rows = width > 600
-        ? page.getByRole("table", { name: "Health checks" }).getByRole("row").filter({ hasNot: page.getByRole("columnheader") })
-        : page.getByRole("list", { name: "Health checks" }).getByRole("listitem");
+      const rows = page.getByRole("table", { name: "Health checks" }).getByRole("row").filter({ hasNot: page.getByRole("columnheader") });
       await expect(rows).toHaveCount(2);
       await shot(page, `health-filtered-${width}`);
     });

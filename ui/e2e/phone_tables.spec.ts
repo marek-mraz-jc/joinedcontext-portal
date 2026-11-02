@@ -97,8 +97,9 @@ test("a space at 1440: the types beside the grid and a Name column at least 180 
   await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
 
   await expect(page.getByRole("button", { name: `Open: ${EVENTS[0].name.value}` })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Entity types" })).toBeVisible();
-  await expect(page.getByRole("combobox", { name: "Type", exact: true })).toBeHidden();
+  // The types are the Type filter of the grid's Filters row since the grid rework (no list of types beside it).
+  await expect(page.getByRole("navigation", { name: "Entity types" })).toHaveCount(0);
+  await expect(page.getByRole("combobox", { name: "Type", exact: true })).toBeVisible();
   const name = await page.getByRole("columnheader", { name: /Sort all rows by Name/ }).boundingBox();
   expect(name?.width ?? 0).toBeGreaterThanOrEqual(180);
   await expect(page.locator("[data-assistant-bubble]")).toHaveCSS("position", "fixed");
@@ -111,9 +112,11 @@ test("a space at 400: the types are a picker above the grid, and the assistant s
   await stubApi(page);
   await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
 
+  // The Filters row holds the Type picker and starts closed on a phone.
+  await page.getByRole("button", { name: /^Filters/ }).click();
   const picker = page.getByRole("combobox", { name: "Type", exact: true });
   await expect(picker).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Entity types" })).toBeHidden();
+  await expect(page.getByRole("navigation", { name: "Entity types" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: `Open: ${EVENTS[0].name.value}` })).toBeVisible();
   // The first row is on the first screen, not two screens down under the list of types.
   const first = await page.getByRole("button", { name: `Open: ${EVENTS[0].name.value}` }).boundingBox();

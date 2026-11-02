@@ -239,7 +239,7 @@ for (const width of [1440, 400]) {
       await page.goto("/projects/helsinki/endpoints/helsinki-bikes?lang=en");
       const csv = page.getByRole("button", { name: "Download these rows as CSV" });
       await expect(csv).toHaveAttribute("aria-disabled", "true");
-      await expect(page.getByText(/does not let you read .*operatorNote/i).first()).toBeVisible();
+      await expect(page.getByText(/does not let you read Operator note/i).first()).toBeVisible();
       await csv.scrollIntoViewIfNeeded();
       await page.screenshot({ path: `${SHOTS}/export-refused-${width}.png` });
     });

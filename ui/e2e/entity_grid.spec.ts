@@ -1,4 +1,3 @@
-import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { attributeTable } from "./attributeAccess";
 import type { Page } from "@playwright/test";
@@ -58,7 +57,7 @@ const ENDPOINTS = list([
       contextSpaceRef: "mobility",
       slug: SLUG,
       audience: "public",
-      enabledRepresentations: ["ngsi-ld"],
+      enabledRepresentations: ["ngsi-ld", "csv"],
     },
     status: { phase: "Live" },
   },
@@ -269,7 +268,7 @@ test.describe("the entity grid", () => {
     );
 
     await expect(page.getByLabel("Context space")).toHaveValue("mobility");
-    await expect(page.getByLabel("Read through endpoint")).toHaveValue("helsinki-bikes");
+    await expect(page.getByLabel("Endpoint", { exact: true })).toHaveValue("helsinki-bikes");
     await expect(page.getByRole("button", { name: "Open: Rautatientori" }).first()).toBeVisible();
     await expect(page.getByRole("button", { name: "Open: Kamppi" })).toHaveCount(0);
     expect(reads.some((search) => search.includes("q=availableBikeNumber%3D%3D0"))).toBe(true);
@@ -299,9 +298,10 @@ test.describe("the entity grid", () => {
     ).toBeVisible();
   });
 
-  // T-3253: the export is the view, the grid's own filter included, in a file Excel opens.
-  test("exports the filtered view, every page of it, as CSV for Excel", async ({ page }) => {
-    const { reads } = await stubApi(page);
+  // T-3253: the export is the view, the grid's own filter included. Since T-6107 the Endpoint
+  // serves the file itself, so the filter travels in the link of its Export menu.
+  test("exports the filtered view as the Endpoint's CSV file, the grid's filter included", async ({ page }) => {
+    await stubApi(page);
 
     await page.goto(`${EXPLORE}?endpoint=helsinki-bikes&type=${TYPE}&lang=en`);
     await expect(page.getByRole("button", { name: "Open: Kamppi" }).first()).toBeVisible();
@@ -309,15 +309,10 @@ test.describe("the entity grid", () => {
     await page.getByLabel("Value: availableBikeNumber").fill("0");
     await expect(page.getByRole("button", { name: "Open: Kamppi" })).toHaveCount(0);
 
-    await page.getByLabel("Export format").selectOption("csv-excel");
-    await page.getByRole("button", { name: "Export the view" }).click();
-    const link = page.getByRole("link", { name: `Download ${TYPE}.csv (1 row)` });
-    const [download] = await Promise.all([page.waitForEvent("download"), link.click()]);
-    const text = await readFile((await download.path()) ?? "", "utf8");
-    expect(text.startsWith("\uFEFFid;")).toBe(true);
-    expect(text).toContain(EMPTY_DOCK);
-    expect(text).not.toContain(FULL_DOCK);
-    expect(reads.some((search) => search.includes("count=true") && search.includes("availableBikeNumber%3D%3D0"))).toBe(true);
+    await page.locator("summary", { hasText: "Export" }).click();
+    const href = new URL((await page.getByRole("link", { name: "CSV", exact: true }).getAttribute("href"))!, "http://x");
+    expect(href.pathname).toBe(`/api/endpoint/${SLUG}/file.csv`);
+    expect(href.searchParams.get("q")).toContain("availableBikeNumber==0");
   });
 
   test("corrects a value with the keyboard alone and applies it through the endpoint", async ({

@@ -107,7 +107,7 @@ test.describe("the data models", () => {
     // rjsf keys a select by index; the person reads the picked value.
     await expect(page.getByLabel("category").locator("option:checked")).toHaveText("weather");
 
-    await page.getByRole("tab", { name: "YAML" }).click();
+    await page.getByRole("tab", { name: "LinkML" }).click();
     await expect(page.getByLabel("The model's source (LinkML YAML)")).toContainText("permissible_values:");
 
     await page.getByRole("tab", { name: "Where used" }).click();
@@ -116,7 +116,7 @@ test.describe("the data models", () => {
       "/projects/helsinki/endpoints/helsinki-alerts",
     );
 
-    await page.getByRole("link", { name: "All data models" }).click();
+    await page.getByRole("navigation", { name: "Breadcrumb" }).getByRole("link", { name: "Data models" }).click();
     await expect(page).toHaveURL(/\/projects\/helsinki\/models$/);
   });
 
@@ -291,12 +291,15 @@ test.describe("one plain model editor (T-4829)", () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await stubKpi(page, ["read", "propose"]);
     await page.goto("/projects/helsinki/models?new=blank&lang=en");
-    const types = page.getByRole("region", { name: "Types" });
-    await expect(types.getByRole("button", { name: "Import a Smart Data Model" })).toBeVisible();
-    await types.getByRole("textbox", { name: "New type" }).fill("School");
-    await types.getByRole("button", { name: "Add type" }).click();
+    await nameNewModel(page, "Schools");
+    await page.getByRole("button", { name: "Add type", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Add type" }).getByRole("button", { name: /Import from Smart Data Models/ })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await addType(page, "School");
     await expect(page.getByRole("heading", { level: 2, name: "School" })).toBeVisible();
-    // Titles in the Organization's languages: fi for Helsinki.
+    // Titles in the Organization's languages: the reader's row, fi for Helsinki under Translations (T-6254).
+    await expect(page.getByLabel("Title (en)")).toBeVisible();
+    await page.getByText("Translations: fi").click();
     await expect(page.getByLabel("Title (fi)")).toBeVisible();
     await expect(page.getByLabel("Class IRI")).toBeHidden();
     await shot(page, "model-editor-steward-1440");
@@ -493,6 +496,7 @@ test.describe("the model editor's name line (T-6162)", () => {
       await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
       await stubKpi(page, ["read"]);
       await page.goto("/projects/helsinki/models?edit=helsinki-kpi&lang=en");
+      await page.getByText("Details", { exact: true }).click();
       await expect(page.getByText("helsinki-kpi.linkml.yaml")).toBeVisible();
       // The stub's manifest carries the title the list shows; the LinkML has none.
       await expect(page.getByText("Helsinki indicators", { exact: true })).toBeVisible();
@@ -585,8 +589,8 @@ test.describe("the model editor's import dialog, inherited fields and read-only 
       const edit = page.getByRole("button", { name: "Edit source" });
       await expect(edit).toHaveAttribute("aria-pressed", "false");
       await expect(page.locator(".monaco-editor .view-lines").first()).toContainText(
-        // Long lines wrap at a phone's width, so is_a sits below the first screen there.
-        width > 600 ? "is_a: Indicator" : "name: helsinki-kpi",
+        // The editor shows the first screen only (is_a sits below it at every width since the 80 % root size).
+        "name: helsinki-kpi",
         { timeout: 60_000 },
       );
       await shot(page, `source-read-only-${width}`);
@@ -711,9 +715,10 @@ for (const width of [1440, 400]) {
         }),
     );
     await page.goto("/projects/helsinki/models?new=blank&lang=en");
-    const types = page.getByRole("region", { name: "Types" });
-    await types.getByRole("textbox", { name: "New type" }).fill("School");
-    await types.getByRole("button", { name: "Add type" }).click();
+    await nameNewModel(page, "Schools");
+    await addType(page, "School");
+    await expect(page.getByLabel("Title (en)")).toBeVisible();
+    await page.getByText("Translations: sk").click();
     await expect(page.getByLabel("Title (sk)")).toBeVisible();
     await expect(page.getByLabel("Title (fi)")).toHaveCount(0);
     await shot(page, `model-editor-second-organization-${width}`);
@@ -960,7 +965,7 @@ test.describe("the model Overview (T-6146)", () => {
       const toolbar = page.getByRole("toolbar", { name: "Diagram tools" });
       const open = toolbar.getByRole("link", { name: "Open full screen" });
       await expect(open).toBeVisible();
-      await expect(page.getByRole("heading", { level: 1 }).locator("xpath=following-sibling::p")).not.toContainText("Context space");
+      await expect(page.getByRole("tooltip").first()).not.toContainText("Context space");
       const drawing = page.getByRole("group", { name: "The model's classes and what joins them" });
       const table = page.getByRole("table", { name: "Relationships in the drawing" });
       const [frame, rows] = [await drawing.locator("xpath=..").boundingBox(), await table.boundingBox()];
@@ -992,7 +997,7 @@ test.describe("the model Overview (T-6146)", () => {
       await page.setViewportSize({ width, height: 900 });
       await page.goto("/projects/helsinki/models/city?lang=en");
       await expect(page.getByRole("toolbar", { name: "Diagram tools" }).getByRole("link", { name: "Open full screen" })).toBeVisible();
-      await expect(page.getByRole("heading", { level: 1 }).locator("xpath=following-sibling::p")).not.toContainText("Context space");
+      await expect(page.getByRole("tooltip").first()).not.toContainText("Context space");
       await expect(page.getByRole("button", { name: "Edit model" })).toHaveAttribute("aria-disabled", "true");
       await shot(page, `overview-viewer-${width}`);
     });
