@@ -476,6 +476,7 @@ function PlatformRoles({
         {t("access.groupPage.platformRoles")}
       </h2>
       <p className="text-body text-fg-muted">{t("access.groupPage.platformLead")}</p>
+      <DeniedNote project={ORG_NAMESPACE} kind="RoleBinding" verb="propose" />
       {loading ? (
         <p role="status" className="text-body text-fg-muted">
           {t("app.loading")}
@@ -621,6 +622,7 @@ function ApplicationRoles({
         {t("access.groupPage.appRoles")}
       </h2>
       <p className="text-body text-fg-muted">{t("access.groupPage.appLead", { group })}</p>
+      <DeniedNote project={project || ORG_NAMESPACE} kind="App" verb="propose" />
       {held.length === 0 ? (
         <p className="text-body text-fg-muted">{t("access.groupPage.noAppRole")}</p>
       ) : (

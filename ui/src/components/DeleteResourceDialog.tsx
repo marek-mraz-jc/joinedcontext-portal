@@ -198,7 +198,10 @@ export function DeleteResourceAction({
   label,
 }: {
   target: ResourceTarget;
-  /** The button's words where a bare "Remove" would match another on the page (T-6423). */
+  /**
+   * The button's words where a bare "Remove" would match another on the page (T-6423). Its accessible
+   * name adds the target: the walker excuses a bare "Remove group", the grid filter's draft control.
+   */
   label?: string;
   /** The row holds the state when the action lives in its menu (T-2279). */
   open?: boolean;
@@ -226,7 +229,7 @@ export function DeleteResourceAction({
       <PermissionGuard project={target.home ?? target.project} kind={target.kind} verb="delete">
         <Button
           size="sm"
-          aria-label={label ?? t("resourceDelete.action", { name: target.label ?? target.name })}
+          aria-label={label ? `${label}: ${target.label ?? target.name}` : t("resourceDelete.action", { name: target.label ?? target.name })}
           onClick={() => setOpen(true)}
         >
           {label ?? t("resourceDelete.button")}

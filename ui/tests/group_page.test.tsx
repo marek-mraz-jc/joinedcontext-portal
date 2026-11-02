@@ -25,6 +25,7 @@ import {
 import { emailsIn } from "../src/pages/apps/members";
 import { expectDenied, expectNoViolations } from "./checks";
 import { list, renderPage } from "./page_contract";
+import { viewerWriteFindings } from "./pageChecks";
 
 const V = "joinedcontext.com/v1alpha1";
 const CHANGE = {
@@ -468,6 +469,13 @@ describe("a group's page", () => {
     await vi.waitFor(() => expectDenied(remove, "Only an organization administrator can add or change groups."));
     const platform = await section(en.access.groupPage.platformRoles);
     expectDenied(within(platform).getByRole("button", { name: en.access.groupPage.addRole }));
+    // T-6423: each card with greyed controls says why in words, not only the Members card.
+    expect(within(platform).getByText(/^Only an organization administrator/, { selector: "p" })).toBeVisible();
+    const apps = await section(en.access.groupPage.appRoles);
+    expect(within(apps).getByText(/^Only an organization administrator/, { selector: "p" })).toBeVisible();
+    // A bare "Remove group" is the grid filter's draft control to the walker; this one stays judged.
+    expect(screen.getByRole("button", { name: /^Remove group: / })).toBeInTheDocument();
+    expect(viewerWriteFindings(false)).toEqual([]);
     expect(proposals()).toHaveLength(0);
   });
 });
