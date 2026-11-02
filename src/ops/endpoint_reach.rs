@@ -122,7 +122,7 @@ fn no_public_read(state: &AppState, project: &str, spec: &Value) -> Option<Strin
         .iter()
         .any(|policy| {
             let spec = &policy.spec;
-            crate::resource::reference_name(&spec["contextSpaceRef"]).as_deref() == Some(space)
+            crate::resource::reference_name(&spec["contextSpaceRef"]) == Some(space)
                 && spec["assignee"]["kind"] == "role"
                 && spec["assignee"]["id"] == "public"
         });
