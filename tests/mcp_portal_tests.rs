@@ -203,6 +203,11 @@ async fn setup_app_and_keys() -> (axum::Router, String, EncodingKey, String) {
 async fn setup_app_with(
     extra: Vec<ResourceEnvelope>,
 ) -> (axum::Router, String, EncodingKey, String) {
+    let (state, issuer, signer, kid) = setup_state_with(extra).await;
+    (server::app(state), issuer, signer, kid)
+}
+
+async fn setup_state_with(extra: Vec<ResourceEnvelope>) -> (AppState, String, EncodingKey, String) {
     // Leaked on purpose: the router outlives this function, and a dropped wiremock server goes
     // back to the pool, where a test running beside this one resets its mocks and the forge
     // answers 404 half-way through (a flaky `ci-full` on 2026-09-18).
@@ -358,12 +363,7 @@ async fn setup_app_with(
         .with_mirror(mirror)
         .with_gitea(std::sync::Arc::new(gitea));
 
-    (
-        server::app(state),
-        issuer,
-        signer,
-        "key-mcp-test".to_string(),
-    )
+    (state, issuer, signer, "key-mcp-test".to_string())
 }
 
 #[tokio::test]
@@ -1262,10 +1262,10 @@ async fn mcp_prompts_name_the_units_and_their_operations() {
     assert_eq!(unknown["error"]["code"], -32602);
 }
 
-/// AG-60, T-0839: the route counts and bounds for itself, so a caller inside the cluster —
-/// where the edge's bucket does not exist — is bounded too.
+/// AG-60, T-0839: the route bounds for itself, so a caller inside the cluster, where the edge's
+/// bucket does not exist, is bounded too.
 #[tokio::test]
-async fn the_mcp_route_bounds_the_calls_and_the_bytes_of_one_token() {
+async fn the_mcp_route_bounds_the_bytes_of_one_token_and_not_its_calls_a_minute() {
     let (app, issuer, signer, kid) = setup_app_and_keys().await;
     let token = sign_token(
         &signer,
@@ -1307,44 +1307,54 @@ async fn the_mcp_route_bounds_the_calls_and_the_bytes_of_one_token() {
         "{body}"
     );
 
-    // 120 calls a minute, and the one past it answers 429 with the minute to wait.
-    let mut last = StatusCode::OK;
-    for _ in 0..121 {
-        last = app
+    // Calls a minute have no limit (T-6484): one token makes more than the old 120.
+    for n in 0..500 {
+        let status = app
             .clone()
             .oneshot(post(ping.clone()))
             .await
             .unwrap()
             .status();
+        assert_eq!(status, StatusCode::OK, "call {n}");
     }
-    assert_eq!(last, StatusCode::TOO_MANY_REQUESTS);
-    let resp = app.clone().oneshot(post(ping.clone())).await.unwrap();
-    assert_eq!(resp.status(), StatusCode::TOO_MANY_REQUESTS);
-    assert_eq!(resp.headers().get(header::RETRY_AFTER).unwrap(), "60");
+}
 
-    // The budget is the subject's own: another token still answers.
-    let other = sign_token(
-        &signer,
-        &kid,
-        &issuer,
-        PORTAL_AUDIENCE,
-        "second.bot",
-        &["portal-approver"],
-        &["platform-admins"],
-    );
-    let resp = app
-        .oneshot(
+/// T-6484: the route shares the person's parallel budget, its one bound on calls now the minute's
+/// window is gone; the call past it waits a second, and another person is not touched.
+#[tokio::test]
+async fn the_call_past_the_running_ones_answers_429_with_a_second_to_wait() {
+    let (state, issuer, signer, kid) = setup_state_with(Vec::new()).await;
+    let app = server::app(state.clone());
+    let ping = serde_json::to_vec(&json!({ "jsonrpc": "2.0", "id": 1, "method": "ping" })).unwrap();
+    let post = |subject: &str| {
+        let token = sign_token(
+            &signer,
+            &kid,
+            &issuer,
+            PORTAL_AUDIENCE,
+            subject,
+            &["portal-approver"],
+            &["platform-admins"],
+        );
+        app.clone().oneshot(
             Request::builder()
                 .method("POST")
                 .uri("/api/v1/mcp")
-                .header(header::AUTHORIZATION, format!("Bearer {other}"))
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
                 .header(header::CONTENT_TYPE, "application/json")
-                .body(Body::from(ping))
+                .body(Body::from(ping.clone()))
                 .unwrap(),
         )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
+    };
+    let running: Vec<_> = (0..8)
+        .map(|_| state.mcp_enter(&[("busy.bot", 8)]).expect("free"))
+        .collect();
+    let refused = post("busy.bot").await.unwrap();
+    assert_eq!(refused.status(), StatusCode::TOO_MANY_REQUESTS);
+    assert_eq!(refused.headers()[header::RETRY_AFTER], "1");
+    assert_eq!(post("other.bot").await.unwrap().status(), StatusCode::OK);
+    drop(running);
+    assert_eq!(post("busy.bot").await.unwrap().status(), StatusCode::OK);
 }
 
 /// AG-60, ADR-N-021, T-0843: a call that waits on something else answers a task, and the client

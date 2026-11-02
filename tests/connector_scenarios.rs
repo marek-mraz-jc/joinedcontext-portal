@@ -2913,6 +2913,59 @@ async fn a_replace_plan_says_when_the_stored_attributes_could_not_be_checked() {
     assert_eq!(harness.run(&scenario, &own).await, Ok(()));
 }
 
+/// T-6484: an indicator reads its Endpoint as the person, and the door holds that read to the
+/// scope and to the personal marks: the fold an answer's filter never sees.
+#[tokio::test]
+async fn an_indicator_reads_only_what_the_connector_may_read() {
+    let harness = Harness::start(36).await;
+    let own = project_of(36);
+    let reports = json!({ "name": "one-person", "type": "PotholeReport", "agg": "count",
+                          "q": "contactEmail==\"jana@example.org\"", "endpoint": "{project}-reports" });
+    let scenario: Scenario = serde_json::from_value(json!({
+        "id": "S-00", "segment": "publish", "as": "steward", "says": "selftest",
+        "expect": "selftest", "deny": "selftest", "script": [
+            { "proves": "expect", "manifest": { "kind": "Group", "name": "people",
+                  "spec": { "members": [{ "user": "scn.steward@hel.fi" }] } } },
+            { "proves": "expect", "manifest": { "kind": "DelegationPolicy", "name": "publish",
+                  "spec": { "subjects": [{ "kind": "Group", "name": "people" }], "projects": ["{project}"],
+                            "segments": ["publish"], "maxExpiry": "P90D" } } },
+            { "proves": "expect", "rest": { "method": "POST", "path": "/connectors",
+                  "body": { "name": "s00-whole", "segments": ["publish"],
+                            "scope": [{ "project": "{project}", "access": "read" }],
+                            "expiresAt": "{in7days}" } },
+              "contains": ["\"state\":\"active\""] },
+            { "proves": "expect", "via": "connector", "call": "jc_kpi_compute",
+              "args": { "name": "busy-counters", "type": "BikeCounter", "agg": "count", "q": "count>10",
+                        "endpoint": "{project}-counters" },
+              "contains": ["\"value\":1", "{project}-counters"] },
+            { "proves": "deny", "via": "connector", "call": "jc_kpi_compute",
+              "args": { "name": "bike-total", "type": "BikeCounter", "attribute": "count", "agg": "sum" },
+              "refused": true, "contains": ["name the Endpoint to read"] },
+            { "proves": "deny", "via": "connector", "call": "jc_kpi_compute",
+              "args": { "name": "longest-mail", "type": "PotholeReport", "attribute": "contactEmail",
+                        "agg": "max", "endpoint": "{project}-reports" },
+              "refused": true, "contains": ["contactEmail personal"] },
+            { "proves": "deny", "via": "connector", "call": "jc_kpi_compute", "args": reports,
+              "refused": true, "contains": ["contactEmail personal"] },
+            { "proves": "expect", "rest": { "method": "POST", "path": "/connectors",
+                  "body": { "name": "s00-counters", "segments": ["publish"],
+                            "scope": [{ "project": "{project}", "endpoint": "{project}-counters", "access": "read" }],
+                            "expiresAt": "{in7days}" } },
+              "contains": ["\"state\":\"active\""] },
+            { "proves": "expect", "via": "connector", "call": "jc_kpi_compute",
+              "args": { "name": "bike-sum", "type": "BikeCounter", "attribute": "count", "agg": "sum",
+                        "endpoint": "{project}-counters" },
+              "contains": ["\"value\":49"] },
+            { "proves": "deny", "via": "connector", "call": "jc_kpi_compute",
+              "args": { "name": "{project}-counters", "type": "PotholeReport", "agg": "count",
+                        "endpoint": "{project}-reports" },
+              "refused": true, "contains": ["{project}-reports"] }
+        ]
+    }))
+    .expect("scenario");
+    assert_eq!(harness.run(&scenario, &own).await, Ok(()));
+}
+
 /// T-6363: a connector narrowed to one Pipeline tests a planned edit of it on a sample and then
 /// plans the edit: the records gate it names is one the connector can pass. Another Pipeline's
 /// draft stays out of reach.
@@ -3268,17 +3321,18 @@ async fn an_apply_through_a_connector_signs_its_commit_and_the_activity_filters_
     assert!(refused.to_string().contains("connector"), "{refused}");
 }
 
-/// A flood of one connector stops at its own minute; a person's connectors together stop at the
-/// person's (T-5968). Each refusal is a 429 problem+json with `Retry-After`, audited, and the
-/// connector shows its limits.
+/// Calls a minute have no limit (owner 2026-11-02, T-6484): one connector makes 500 at once of a
+/// minute. What is running stays bounded: the connector's 4 and the person's 8 over all their
+/// connectors answer 429 problem+json with `Retry-After`, audited, and a caller without a token
+/// keeps the gateway's limit.
 #[tokio::test]
-async fn a_flood_hits_429_at_the_connector_and_then_the_person_limit() {
+async fn a_flood_passes_and_the_call_past_the_running_ones_answers_429() {
     let harness = Harness::start(1).await;
     let own = project_of(1);
     let expires = (chrono::Utc::now() + chrono::Duration::days(7)).to_rfc3339();
     let portal = harness.token_for("viewer", AUDIENCE, AUDIENCE);
     let mut ids = Vec::new();
-    for name in ["a", "b", "c"] {
+    for name in ["a", "b"] {
         let ask = json!({ "name": name, "segments": ["data-read"],
                           "scope": [{ "project": own, "access": "read" }], "expiresAt": expires });
         let (status, made) = harness
@@ -3287,7 +3341,7 @@ async fn a_flood_hits_429_at_the_connector_and_then_the_person_limit() {
         assert_eq!(status, StatusCode::CREATED, "{made}");
         assert_eq!(
             made["limits"],
-            json!({ "callsPerMinute": 60, "parallelCalls": 4, "resultBytes": 1_048_576 })
+            json!({ "parallelCalls": 4, "resultBytes": 1_048_576 })
         );
         ids.push(made["id"].as_str().expect("id").to_owned());
     }
@@ -3318,40 +3372,73 @@ async fn a_flood_hits_429_at_the_connector_and_then_the_person_limit() {
         let body: Value = serde_json::from_slice(&bytes).expect("json");
         assert_eq!(status, StatusCode::TOO_MANY_REQUESTS, "{body}");
         assert_eq!(headers[header::CONTENT_TYPE], "application/problem+json");
-        let wait: i64 = headers[header::RETRY_AFTER]
-            .to_str()
-            .expect("text")
-            .parse()
-            .expect("seconds");
-        assert!((1..=60).contains(&wait), "{wait}");
+        assert_eq!(headers[header::RETRY_AFTER], "1");
         body["detail"].as_str().expect("detail").to_owned()
     };
-    for (index, id) in ids.iter().take(2).enumerate() {
-        for n in 0..60 {
-            let response = call(id).await.expect("answer");
-            assert_eq!(response.status(), StatusCode::OK, "{id} call {n}");
-        }
-        let detail = refusal(call(id).await.expect("answer")).await;
-        if index == 0 {
-            assert!(detail.contains("this connector made 60 calls"), "{detail}");
-        } else {
-            // b's 61st is past both: the person's shared minute is named first.
-            assert!(detail.contains("over all your connectors"), "{detail}");
-        }
+    for n in 0..500 {
+        let response = call(&ids[0]).await.expect("answer");
+        assert_eq!(response.status(), StatusCode::OK, "call {n}");
     }
-    // a and b spent the person's 120: c, never called, is refused at its first call.
-    let detail = refusal(call(&ids[2]).await.expect("answer")).await;
-    assert!(detail.contains("120 MCP calls"), "{detail}");
+    // Calls in flight, as a client's parallel tool calls hold them: the connector's four refuse
+    // that connector alone, and the person's eight refuse every connector.
+    let key = format!("\u{0}c/{}", ids[0]);
+    let running: Vec<_> = (0..4)
+        .map(|_| harness.state.mcp_enter(&[(key.as_str(), 4)]).expect("free"))
+        .collect();
+    let detail = refusal(call(&ids[0]).await.expect("answer")).await;
+    assert!(detail.contains("4 calls of this connector"), "{detail}");
+    assert_eq!(
+        call(&ids[1]).await.expect("answer").status(),
+        StatusCode::OK
+    );
+    drop(running);
+    let running: Vec<_> = (0..8)
+        .map(|_| {
+            harness
+                .state
+                .mcp_enter(&[("sub-scn-viewer", 8)])
+                .expect("free")
+        })
+        .collect();
+    let detail = refusal(call(&ids[1]).await.expect("answer")).await;
+    assert!(detail.contains("8 of your calls"), "{detail}");
+    drop(running);
+    assert_eq!(
+        call(&ids[1]).await.expect("answer").status(),
+        StatusCode::OK
+    );
+    // The gateway's anonymous limit per address stands: that caller has no identity.
+    let mut anonymous = StatusCode::OK;
+    for _ in 0..200 {
+        anonymous = harness
+            .gateway
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method("POST")
+                    .uri("/api/mcp")
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .body(Body::from(ping.to_string()))
+                    .expect("request"),
+            )
+            .await
+            .expect("answer")
+            .status();
+    }
+    assert_eq!(anonymous, StatusCode::TOO_MANY_REQUESTS);
     let (status, calls) = harness
         .send(
             "GET",
-            &format!("/api/v1/connectors/{}/activity", ids[2]),
+            &format!("/api/v1/connectors/{}/activity", ids[1]),
             portal,
             None,
         )
         .await;
     assert_eq!(status, StatusCode::OK);
-    assert!(calls.to_string().contains("refused: rate limit"), "{calls}");
+    assert!(
+        calls.to_string().contains("refused: parallel calls"),
+        "{calls}"
+    );
 }
 
 /// T-5979: the three connector events each reach, once, the people who may act on them, and

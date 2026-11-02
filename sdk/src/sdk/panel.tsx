@@ -44,7 +44,7 @@ export interface PanelSource {
   language?: string;
 }
 
-interface Selection {
+export interface Selection {
   /** Whether a shell holds the panel: outside one, a grid keeps its own row detail. */
   inShell: boolean;
   source?: PanelSource;

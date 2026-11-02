@@ -21,6 +21,7 @@ use utoipa::ToSchema;
 use crate::auth::CurrentUser;
 use crate::error::{ApiError, ProblemDetails};
 use crate::state::AppState;
+use crate::tools::sdm_mirror::Mirrored;
 
 /// How long a compilation may take. The editor asks on every pause in typing, so a slow answer
 /// is worse than no answer: the view shows the source without a preview and asks again.
@@ -43,7 +44,7 @@ pub struct GenerateRequest {
 }
 
 /// One model of the Smart Data Models catalogue index, as the wizard lists and searches it.
-#[derive(Debug, Default, Deserialize, Serialize, ToSchema, PartialEq)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, ToSchema, PartialEq)]
 pub struct CatalogueModel {
     /// The catalogue identifier, `dataModel.Environment/AirQualityObserved`.
     pub id: String,
@@ -54,10 +55,13 @@ pub struct CatalogueModel {
     /// Attribute names, so the wizard can search by attribute without fetching the model.
     #[serde(default)]
     pub attributes: Vec<String>,
+    /// The upstream commit the model was converted from (DM-08), where the mirror answers.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub commit: Option<String>,
 }
 
 /// One subject of the catalogue: `dataModel.Environment` and the models under it.
-#[derive(Debug, Default, Deserialize, Serialize, ToSchema, PartialEq)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize, ToSchema, PartialEq)]
 pub struct CatalogueSubject {
     pub name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -66,8 +70,17 @@ pub struct CatalogueSubject {
     pub models: Vec<CatalogueModel>,
 }
 
-/// The catalogue index Model Tools caches and refreshes daily (DM-12).
-#[derive(Debug, Default, Deserialize, Serialize, ToSchema, PartialEq)]
+/// A catalogue model the mirror could not convert, listed instead of offered half broken.
+#[derive(Debug, Clone, Default, Deserialize, Serialize, ToSchema, PartialEq)]
+pub struct CatalogueFailure {
+    /// The catalogue identifier.
+    pub id: String,
+    /// Why it did not convert, in the converter's words.
+    pub finding: String,
+}
+
+/// The catalogue index: the mirror's, or the one Model Tools caches and refreshes daily (DM-12).
+#[derive(Debug, Clone, Default, Deserialize, Serialize, ToSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct Catalogue {
     #[serde(default)]
@@ -79,6 +92,9 @@ pub struct Catalogue {
     /// An index a browser cannot refresh is still an index it can work from (DM-12).
     #[serde(default)]
     pub stale: bool,
+    /// The models the mirror could not convert, each with its finding.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub failed: Vec<CatalogueFailure>,
 }
 
 /// `?refresh=true`: ask Model Tools to fill its cache now instead of waiting for the daily run.
@@ -320,7 +336,24 @@ pub async fn import_sdm(
                 .into(),
         ));
     }
-    compile(&state, "import-sdm", &request).await
+    match mirrored(&state, &request.model).await {
+        Mirrored::Model(linkml) => Ok(Json(Artifacts {
+            linkml: Some(linkml),
+            ..Artifacts::default()
+        })),
+        Mirrored::Failed(finding) => Ok(Json(Artifacts {
+            errors: vec![finding],
+            ..Artifacts::default()
+        })),
+        Mirrored::Unknown => compile(&state, "import-sdm", &request).await,
+    }
+}
+
+async fn mirrored(state: &AppState, model: &str) -> Mirrored {
+    match &state.sdm_mirror {
+        Some(mirror) => mirror.model(model).await,
+        None => Mirrored::Unknown,
+    }
 }
 
 #[utoipa::path(
@@ -364,6 +397,10 @@ pub async fn fetch_catalogue(
     refresh: bool,
     subject: Option<&str>,
 ) -> Result<Catalogue, ApiError> {
+    // The mirror holds every model's attributes already, and a refresh is its nightly run.
+    if let Some(mirror) = &state.sdm_mirror {
+        return Ok(mirror.catalogue().clone());
+    }
     let route = "catalog";
     let url = model_tools_url(state, route)?;
     let mut query = vec![("refresh", refresh.to_string())];

@@ -117,6 +117,10 @@
       "class": "FREE",
       "reason": "a search box: the text filters the model's own type list in the rail, nothing is written"
     },
+    "src/pages/models/NameField.tsx :: (no label)": {
+      "class": "FREE",
+      "reason": "the new name of a type, field, enumeration or stored value of the model open in the editor; its label comes from the caller and the operation refuses a name already taken"
+    },
     "src/pages/models/LinkmlVisualEditor.tsx :: New type": {
       "class": "FREE",
       "reason": "the name of a new class"
