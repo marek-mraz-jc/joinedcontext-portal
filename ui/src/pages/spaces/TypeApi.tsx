@@ -21,7 +21,7 @@ import {
   representationUrl,
   servedRepresentations,
 } from "../../components/endpoints/links";
-import { CodeBlock, Alert, Button, Card, ExternalLink } from "../../components/ui";
+import { CodeBlock, Alert, Button, Card, ExternalLink, Field, Select } from "../../components/ui";
 
 /** The calls one Endpoint answers for one type, as a program writes them. */
 export function callsOf(
@@ -121,6 +121,9 @@ export function TypeApi({
   });
   const hooks = webhooksOf(asManifests(subscriptions.data?.items ?? []), space, type);
   const served = endpoints.filter((endpoint) => typeof (endpoint.spec as { slug?: unknown }).slug === "string");
+  // One Endpoint at a time: a space with 60 of them printed 21 000 px of the same calls (T-5064).
+  const [chosen, setChosen] = useState<string | null>(null);
+  const shown = served.find((endpoint) => endpoint.metadata.name === chosen) ?? served[0];
 
   const tryIt = async (slug: string) => {
     setFailed(null);
@@ -168,7 +171,18 @@ export function TypeApi({
         </Alert>
       ) : null}
       {served.length === 0 ? <p className="text-body text-fg-muted">{t("spaces.api.noEndpoint")}</p> : null}
-      {served.map((endpoint) => {
+      {served.length > 1 ? (
+        <Field id="type-api-endpoint" label={t("spaces.api.pick")} help={t("spaces.api.pickHint", { count: served.length })}>
+          <Select id="type-api-endpoint" value={shown?.metadata.name} onChange={(event) => setChosen(event.target.value)}>
+            {served.map((endpoint) => (
+              <option key={endpoint.metadata.name} value={endpoint.metadata.name}>
+                {endpoint.metadata.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      ) : null}
+      {(shown ? [shown] : []).map((endpoint) => {
         const slug = (endpoint.spec as { slug: string }).slug;
         return (
           <Card padding="sm" key={endpoint.metadata.name} className="flex flex-col gap-2">
@@ -184,7 +198,7 @@ export function TypeApi({
                 {viewQueryUrls(slug, type, q, servedRepresentations(endpoint.spec as Record<string, unknown>)).map((each) => (
                   <li key={each.key} className="flex flex-wrap items-center gap-2">
                     <span className="w-28 shrink-0 text-caption font-semibold text-fg-muted">{t(`spaces.api.surface.${each.key}`)}</span>
-                    <code className="min-w-0 flex-1 font-mono text-caption text-fg [overflow-wrap:anywhere]">{each.url}</code>
+                    <code className="order-last min-w-0 basis-full font-mono text-caption text-fg [overflow-wrap:anywhere] sm:order-none sm:flex-1 sm:basis-0">{each.url}</code>
                     <CopyUrlButton url={each.url} label={t("spaces.api.copySurface", { surface: t(`spaces.api.surface.${each.key}`) })} />
                   </li>
                 ))}
@@ -198,7 +212,7 @@ export function TypeApi({
                 </div>
               ))}
             </dl>
-            <CodeBlock label={t("codeBlock.curl")} className="overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">
+            <CodeBlock label={t("codeBlock.curl")} className="whitespace-pre-wrap rounded-md bg-surface-subtle p-2 font-mono text-caption [overflow-wrap:anywhere]">
               {`curl -H "Authorization: Bearer $TOKEN" \\\n  "${endpointUrl(slug, `/ngsi-ld/v1/entities?type=${encodeURIComponent(type)}&limit=10`)}"`}
             </CodeBlock>
             <div className="flex flex-wrap items-center gap-2">
