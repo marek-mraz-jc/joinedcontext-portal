@@ -301,6 +301,14 @@
         "endpoint_grants_words.test.tsx"
       ]
     },
+    "src/components/entities/history/AttributeHistory.tsx": {
+      "controls": {
+        "Button": 6
+      },
+      "tests": [
+        "attribute_history.test.tsx"
+      ]
+    },
     "src/components/entities/AddFieldDialog.tsx": {
       "controls": {
         "Button": 3,
