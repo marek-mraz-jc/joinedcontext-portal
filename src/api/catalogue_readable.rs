@@ -87,6 +87,21 @@ pub async fn get_readable(
     Ok(Json(readable(&state, subject.as_ref(), ask).await))
 }
 
+/// The catalogue of a signed-in person, as the gateway answers for them: what a member connector
+/// may name (ADR-N-067 §2.4, T-6413).
+pub(crate) async fn readable_by(
+    state: &AppState,
+    session: &Session,
+    headers: &HeaderMap,
+) -> ReadableCatalogue {
+    let subject = subject_of(session, headers, state.config.trust_edge_token);
+    let ask = |slug: String, question: Value| {
+        let state = state.clone();
+        async move { ask_gateway(&state, &slug, &question).await }
+    };
+    readable(state, Some(&subject), ask).await
+}
+
 /// The organization claims of the token this request was verified with: `jc_org` and
 /// `jc_groups` (ADR-N-067 2.2), which the session's identity does not keep.
 #[derive(Debug, Default, Deserialize, PartialEq)]

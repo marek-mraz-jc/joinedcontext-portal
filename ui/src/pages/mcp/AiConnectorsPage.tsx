@@ -310,7 +310,7 @@ export function ScopeTree({
 }): JSX.Element {
   const { t } = useTranslation();
   if (options.projects.length === 0) {
-    return <p className="text-caption text-fg-muted">{t("aiConnectors.noProjects")}</p>;
+    return <Alert tone="info">{t("aiConnectors.noProjects")}</Alert>;
   }
   const toggle = (project: string, kind: PickKind, name: string | undefined, on: boolean) => {
     const key = pickKey({ project, kind, name, access: "read" });
@@ -319,7 +319,7 @@ export function ScopeTree({
   };
   const setAccess = (pick: Pick, access: "read" | "write") =>
     onChange(form.picks.map((one) => (pickKey(one) === pickKey(pick) ? { ...one, access } : one)));
-  const row = (project: string, kind: PickKind, name: string | undefined, label: string, disabledReason?: string) => {
+  const row = (project: string, kind: PickKind, name: string | undefined, label: string, disabledReason?: string, readOnly = false) => {
     const pick = picked(form, project, kind, name);
     // A ticked row stays enabled so an edit can drop an item the ceiling no longer allows.
     const reason = pick ? undefined : disabledReason;
@@ -332,7 +332,7 @@ export function ScopeTree({
           disabledReason={reason}
           onChange={(event) => toggle(project, kind, name, event.target.checked)}
         />
-        {pick ? (
+        {pick && !readOnly ? (
           <Select
             aria-label={t("aiConnectors.accessOf", { what: label })}
             value={pick.access}
@@ -354,14 +354,18 @@ export function ScopeTree({
         const whole = Boolean(picked(form, project.project, "project"));
         const inWhole = whole ? t("aiConnectors.inWholeProject") : undefined;
         const onlyEndpoints = project.allowedEndpoints ?? undefined;
+        // Organization data (ADR-N-067 §2.4): Endpoints shared with the person, read only, never the project.
+        const shared = project.organizationData;
         // A hint only: Create checks every item against the ceiling again (T-6307).
         const refused = !project.allowed
           ? t("aiConnectors.projectAboveCeiling")
-          : onlyEndpoints
-            ? t("aiConnectors.endpointsOnly")
-            : undefined;
-        const reason = (kind: PickKind, name: string) =>
-          kind === "endpoint" && onlyEndpoints?.includes(name) ? inWhole : (refused ?? inWhole);
+          : shared
+            ? t("aiConnectors.organizationDataHint")
+            : onlyEndpoints
+              ? t("aiConnectors.endpointsOnly")
+              : undefined;
+        const open = (name: string) => project.allowed && (onlyEndpoints ?? (shared ? [name] : [])).includes(name);
+        const reason = (kind: PickKind, name: string) => (kind === "endpoint" && open(name) ? inWhole : (refused ?? inWhole));
         const groups: [PickKind, string[]][] = [
           ["space", project.spaces],
           ["endpoint", project.endpoints],
@@ -369,11 +373,15 @@ export function ScopeTree({
         ];
         return (
           <li key={project.project} className="rounded-md border border-border p-2">
-            <ul className="flex flex-col gap-1">
-              {row(project.project, "project", undefined, t("aiConnectors.wholeProject", { project: project.project }), refused)}
-            </ul>
+            {shared ? (
+              <p className="text-body font-semibold">{t("aiConnectors.organizationData", { project: project.project })}</p>
+            ) : (
+              <ul className="flex flex-col gap-1">
+                {row(project.project, "project", undefined, t("aiConnectors.wholeProject", { project: project.project }), refused)}
+              </ul>
+            )}
             {refused ? (
-              <p className="ml-6 text-caption text-fg" aria-hidden>
+              <p className={clsx("text-caption", shared ? "text-fg-muted" : "ml-6 text-fg")} aria-hidden={!shared}>
                 {refused}
               </p>
             ) : null}
@@ -383,7 +391,7 @@ export function ScopeTree({
                   <legend className={clsx("text-caption font-semibold", !project.allowed && "text-fg-muted")}>
                     {t(`aiConnectors.kinds.${kind}`)}
                   </legend>
-                  <ul className="flex flex-col gap-1">{names.map((name) => row(project.project, kind, name, name, reason(kind, name)))}</ul>
+                  <ul className="flex flex-col gap-1">{names.map((name) => row(project.project, kind, name, name, reason(kind, name), shared))}</ul>
                 </fieldset>
               ) : null,
             )}
@@ -534,6 +542,8 @@ export function CreateDialog({
     if (Object.keys(problems).length === 0) create.mutate();
   };
   const ceiling = options.data?.ceiling;
+  // A member reaches only datasets shared with them, read only: no change verbs to choose (T-6413).
+  const readsOnly = Boolean(options.data?.projects.every((project) => project.organizationData));
   return (
     <Dialog
       open
@@ -596,22 +606,24 @@ export function CreateDialog({
             })}
             {errorsOf("segments") ? <Alert tone="danger">{errorsOf("segments")?.[0]}</Alert> : null}
           </fieldset>
-          <fieldset className="flex flex-col gap-1" aria-describedby="ai-connector-kinds-help">
-            <legend className="text-body font-semibold">{t("aiConnectors.field.kinds")}</legend>
-            <KindVerbsPicker
-              options={options.data}
-              form={current}
-              onChange={(verbs) => set({ verbs })}
-              refusal={refused?.section === "kinds" ? { kind: refusedKind(refused.field, current, options.data), message: withoutField(refused.message) } : undefined}
-            />
-            <p id="ai-connector-kinds-help" className="text-caption text-fg-muted">
-              {t("aiConnectors.help.kinds")}
-            </p>
-          </fieldset>
+          {readsOnly ? null : (
+            <fieldset className="flex flex-col gap-1" aria-describedby="ai-connector-kinds-help">
+              <legend className="text-body font-semibold">{t("aiConnectors.field.kinds")}</legend>
+              <KindVerbsPicker
+                options={options.data}
+                form={current}
+                onChange={(verbs) => set({ verbs })}
+                refusal={refused?.section === "kinds" ? { kind: refusedKind(refused.field, current, options.data), message: withoutField(refused.message) } : undefined}
+              />
+              <p id="ai-connector-kinds-help" className="text-caption text-fg-muted">
+                {t("aiConnectors.help.kinds")}
+              </p>
+            </fieldset>
+          )}
           <fieldset className="flex flex-col gap-1" aria-describedby="ai-connector-scope-help">
             <legend className="text-body font-semibold">{t("aiConnectors.field.scope")}</legend>
             <p id="ai-connector-scope-help" className="text-caption text-fg-muted">
-              {t("aiConnectors.help.scope")}
+              {t(readsOnly ? "aiConnectors.help.scopeShared" : "aiConnectors.help.scope")}
             </p>
             <ScopeTree options={options.data} form={current} onChange={(picks) => set({ picks })} />
             {errorsOf("scope") ? <Alert tone="danger">{errorsOf("scope")?.[0]}</Alert> : null}

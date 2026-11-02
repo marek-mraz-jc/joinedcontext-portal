@@ -233,6 +233,13 @@ fn listed(
             // Answered inline at this door, never as a task (T-6028).
             let mut tool = tool_definition(summary);
             tool["execution"]["taskSupport"] = json!("forbidden");
+            // The Endpoints a narrowed scope names, so the client offers exactly those (T-6413).
+            if let (Some(names), Some(endpoint)) = (
+                connector.endpoints_named(project),
+                tool["inputSchema"]["properties"]["endpoint"].as_object_mut(),
+            ) {
+                endpoint.insert("enum".into(), json!(names));
+            }
             tool
         })
         .collect();
@@ -249,14 +256,27 @@ fn merged(lists: impl Iterator<Item = Vec<Value>>) -> Vec<Value> {
             out.push(tool);
             continue;
         };
-        if let (Some(have), Some(more)) = (
-            seen["inputSchema"]["properties"]["kind"]["enum"].as_array_mut(),
-            tool["inputSchema"]["properties"]["kind"]["enum"].as_array(),
-        ) {
-            for kind in more {
-                if !have.contains(kind) {
-                    have.push(kind.clone());
+        for field in ["kind", "endpoint"] {
+            let more = &tool["inputSchema"]["properties"][field]["enum"];
+            let have = &mut seen["inputSchema"]["properties"][field];
+            match (
+                have.get_mut("enum").and_then(Value::as_array_mut),
+                more.as_array(),
+            ) {
+                (Some(have), Some(more)) => {
+                    for value in more {
+                        if !have.contains(value) {
+                            have.push(value.clone());
+                        }
+                    }
                 }
+                // One project reaches every Endpoint: the list holds no bound.
+                (Some(_), None) if field == "endpoint" => {
+                    if let Some(have) = have.as_object_mut() {
+                        have.remove("enum");
+                    }
+                }
+                _ => {}
             }
         }
     }
@@ -776,6 +796,30 @@ mod tests {
             tools[0]["inputSchema"]["properties"]["kind"]["enum"],
             json!(["Endpoint", "Pipeline"])
         );
+    }
+
+    /// T-6413: the Endpoints two narrowed projects name are one list; a project that reaches
+    /// every Endpoint drops the bound.
+    #[test]
+    fn the_named_endpoints_of_every_project_bound_one_list() {
+        let tool = |names: Option<&[&str]>| {
+            let mut endpoint = json!({ "type": "string" });
+            if let Some(names) = names {
+                endpoint["enum"] = json!(names);
+            }
+            vec![
+                json!({ "name": "jc_data_query", "inputSchema": { "properties": { "endpoint": endpoint } } }),
+            ]
+        };
+        let both = merged([tool(Some(&["air"])), tool(Some(&["air", "noise"]))].into_iter());
+        assert_eq!(
+            both[0]["inputSchema"]["properties"]["endpoint"]["enum"],
+            json!(["air", "noise"])
+        );
+        let open = merged([tool(Some(&["air"])), tool(None)].into_iter());
+        assert!(open[0]["inputSchema"]["properties"]["endpoint"]
+            .get("enum")
+            .is_none());
     }
 
     /// JC2-41: a refused call names the same problem type base as every Portal error.

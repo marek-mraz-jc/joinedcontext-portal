@@ -587,6 +587,10 @@ pub fn permitted(
         ("Change", Some(_)) => crate::api::changes::may_approve_anything(state, identity, project)?,
         (kind, Some(verb)) => effective.check(kind, verb, None)?,
         (_, None) if resources::CHECKED_BY_THE_ROUTE.contains(&op.name) => {}
+        // An Endpoint shared with the caller's Organization or a group of theirs is read without
+        // a right in its project (ADR-N-067 §2.4, T-6413): the gateway decides that read on the
+        // caller's own token, and the operation answers a refused one as a missing Endpoint.
+        (_, None) if op.name == data_query::NAME => {}
         // A read of a project the caller may not read is the answer of a project that is not
         // there (PF-59, R20); a write keeps its 403, which names what is missing (PF-50).
         (_, None) if !effective.may_read_project() && op.annotations.read_only_hint => {
@@ -1266,14 +1270,19 @@ mod tests {
         };
         let viewer_caller = Caller::new(viewer_id, Via::Session);
 
-        // Without a binding: the reads among the resource operations, which check the caller as
-        // their routes do; a write their route would refuse is not offered (AG-63, T-5608).
+        // Without a binding: the data read, which the gateway decides on an Endpoint shared with
+        // the caller (ADR-N-067, T-6413), and the reads among the resource operations, which check
+        // the caller as their routes do; a write their route would refuse is not offered (AG-63,
+        // T-5608).
         let list = listing(&viewer_caller, &state, "ovzdusie");
         let names: Vec<_> = list.iter().map(|o| o.name.as_str()).collect();
-        let reads: Vec<_> = resources::CHECKED_BY_THE_ROUTE
-            .iter()
-            .copied()
-            .filter(|name| find(name).is_some_and(|op| op.annotations.read_only_hint))
+        let reads: Vec<_> = std::iter::once(data_query::NAME)
+            .chain(
+                resources::CHECKED_BY_THE_ROUTE
+                    .iter()
+                    .copied()
+                    .filter(|name| find(name).is_some_and(|op| op.annotations.read_only_hint)),
+            )
             .collect();
         assert_eq!(names, reads);
 

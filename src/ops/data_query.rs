@@ -293,11 +293,13 @@ pub(super) fn detail_of(body: &Value) -> String {
 
 /// The Endpoint a read goes to: one of the project, read as the caller, or a public one of any
 /// project named by its slug, read anonymously so a connector never reads more there than an
-/// anonymous caller does (T-6272).
+/// anonymous caller does (T-6272), or one of the project whose manifest the caller may not read,
+/// read as the caller so the gateway decides whether a Policy shares it with them (ADR-N-067).
 #[derive(Debug, PartialEq)]
 pub(super) enum Target {
     Own(String),
     Public(String),
+    Shared(String),
 }
 
 /// The Endpoint `name` names: the project's Endpoint of that name when the caller may read its
@@ -314,13 +316,17 @@ pub(super) fn readable_slug(
             "no Endpoint {name} in project {project}, and no public Endpoint has slug {name}"
         )))
     };
+    let mut shared = None;
     let own = match state.mirror.get(project, "Endpoint", name) {
         Some(envelope) => {
             let manifest = serde_json::to_value(&envelope)?;
             // A space-living kind: the grant of the Endpoint's own space decides (T-5112).
-            crate::permissions::for_request(state, &caller.identity, project)
-                .may_read_manifest("Endpoint", &manifest)
-                .then_some(envelope)
+            let readable = crate::permissions::for_request(state, &caller.identity, project)
+                .may_read_manifest("Endpoint", &manifest);
+            if !readable && envelope.spec["audience"].as_str() != Some("public") {
+                shared = envelope.spec["slug"].as_str().map(str::to_owned);
+            }
+            readable.then_some(envelope)
         }
         None => None,
     };
@@ -332,9 +338,20 @@ pub(super) fn readable_slug(
         })?;
         return Ok(Target::Own(slug.to_owned()));
     }
-    crate::api::catalogue::public_endpoint(state, name)
-        .map(|_| Target::Public(name.to_owned()))
-        .ok_or_else(missing)
+    if let Some(target) =
+        crate::api::catalogue::public_endpoint(state, name).map(|_| Target::Public(name.to_owned()))
+    {
+        return Ok(target);
+    }
+    shared.map(Target::Shared).ok_or_else(missing)
+}
+
+/// The one answer for an Endpoint the gateway does not let the caller read as shared with them:
+/// the same as for one that is not there.
+pub(super) fn unshared(project: &str, name: &str) -> OpError {
+    OpError::Api(ApiError::NotFound(format!(
+        "no Endpoint {name} in project {project}, and no public Endpoint has slug {name}"
+    )))
 }
 
 /// The gateway's status for an NGSI-LD read, as the error the caller can act on; `Ok` on 200.
@@ -406,22 +423,31 @@ async fn run(
     let (path, query) = request_of(&input)?;
     let name = &input.endpoint;
     let target = readable_slug(caller, state, project, name)?;
-    let base = state.config.gateway_url.as_deref().ok_or_else(|| {
-        ApiError::Unavailable("this Portal has no gateway address (JC_PORTAL_GATEWAY_URL)".into())
-    })?;
+    let shared = matches!(target, Target::Shared(_));
+    // A shared Endpoint answers every failure before the gateway's 200 (no bearer, a realm
+    // refusal, a gateway status or outage) as a missing one: any other text would tell a caller
+    // without a right that it exists, and some would name its slug.
+    let hide = |err: OpError| {
+        if shared {
+            tracing::info!(error = %err, endpoint = name.as_str(), "a shared Endpoint read failed; answered as missing");
+            unshared(project, name)
+        } else {
+            err
+        }
+    };
+    let base = state
+        .config
+        .gateway_url
+        .as_deref()
+        .ok_or_else(|| {
+            OpError::from(ApiError::Unavailable(
+                "this Portal has no gateway address (JC_PORTAL_GATEWAY_URL)".into(),
+            ))
+        })
+        .map_err(hide)?;
     let (slug, token) = match target {
-        Target::Own(slug) => {
-            let bearer = caller.bearer.as_ref().ok_or_else(|| {
-                ApiError::Denied(
-                    "jc_data_query reads as you with the token your MCP client presented: call it \
-                     through /api/v1/mcp or a connector"
-                        .into(),
-                )
-            })?;
-            let oidc = state.oidc.as_ref().ok_or_else(|| {
-                ApiError::Unavailable("this Portal has no Keycloak client to read data with".into())
-            })?;
-            let token = oidc.exchange_for_endpoint(&bearer.0, &slug).await?;
+        Target::Own(slug) | Target::Shared(slug) => {
+            let token = endpoint_token(caller, state, &slug).await.map_err(hide)?;
             (slug, Some(token))
         }
         Target::Public(slug) => (slug, None),
@@ -443,18 +469,42 @@ async fn run(
         .await
         .map_err(|err| {
             tracing::warn!(error = %err.without_url(), endpoint = slug, "the gateway did not answer a data read");
-            ApiError::Unavailable("the gateway did not answer; try again shortly".into())
-        })?;
+            OpError::from(ApiError::Unavailable("the gateway did not answer; try again shortly".into()))
+        })
+        .map_err(hide)?;
     let status = answer.status().as_u16();
     let total = answer
         .headers()
         .get("ngsild-results-count")
         .and_then(|v| v.to_str().ok())
         .and_then(|v| v.parse::<u64>().ok());
+    if shared && status != 200 {
+        tracing::info!(
+            status,
+            endpoint = slug,
+            "the gateway refused a shared Endpoint read; answered as missing"
+        );
+        return Err(unshared(project, name));
+    }
     let bytes = capped_page(answer).await?;
     let body: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
     refusal_of(status, input.temporal.is_some(), name, &slug, &body)?;
     answer_of(&input, body, total)
+}
+
+/// The person's token for Endpoint `slug`: their MCP client's bearer exchanged at the realm.
+async fn endpoint_token(caller: &Caller, state: &AppState, slug: &str) -> Result<String, OpError> {
+    let bearer = caller.bearer.as_ref().ok_or_else(|| {
+        ApiError::Denied(
+            "jc_data_query reads as you with the token your MCP client presented: call it \
+             through /api/v1/mcp or a connector"
+                .into(),
+        )
+    })?;
+    let oidc = state.oidc.as_ref().ok_or_else(|| {
+        ApiError::Unavailable("this Portal has no Keycloak client to read data with".into())
+    })?;
+    Ok(oidc.exchange_for_endpoint(&bearer.0, slug).await?)
 }
 
 /// The gateway's page, read to [`MAX_BODY`]: a larger one is refused at the first byte past the
@@ -738,5 +788,75 @@ mod tests {
                 .all(|r| !r.headers.contains_key("authorization")),
             "a public read carries no token"
         );
+    }
+
+    /// Every way a read of a shared Endpoint can fail before the gateway's 200 answers in the
+    /// words of a missing Endpoint, so a caller without a right learns neither that it exists
+    /// nor its slug: no bearer, a realm refusing the exchange, a gateway 5xx (T-6413 review).
+    #[tokio::test]
+    async fn a_shared_endpoint_fails_in_the_words_of_a_missing_one() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let realm = crate::auth::oidc::tests::mock_realm().await;
+        let exchange = |code: &str| {
+            ResponseTemplate::new(400).set_body_json(json!({
+                "error": code, "error_description": "scope not linked"
+            }))
+        };
+        Mock::given(method("POST"))
+            .and(path("/realms/bb/protocol/openid-connect/token"))
+            .respond_with(exchange("invalid_scope"))
+            .up_to_n_times(1)
+            .mount(&realm)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/realms/bb/protocol/openid-connect/token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "access_token": "endpoint-token", "token_type": "Bearer", "expires_in": 300
+            })))
+            .mount(&realm)
+            .await;
+        let gateway = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/api/endpoint/{PRIVATE}/ngsi-ld/v1/entities")))
+            .respond_with(ResponseTemplate::new(503).set_body_json(json!({ "detail": PRIVATE })))
+            .mount(&gateway)
+            .await;
+        let (mut state, mut caller) = helsinki(Some(gateway.uri()));
+        let client = crate::auth::oidc::OidcClient::discover(
+            &crate::auth::oidc::tests::config_for(&realm),
+            "https://portal.test/cb",
+        )
+        .await
+        .expect("discovery");
+        state.oidc = Some(std::sync::Arc::new(client));
+        let read = || input(json!({ "endpoint": "staff", "type": "Person" }));
+        let missing = run(
+            &caller,
+            &state,
+            "helsinki",
+            input(json!({ "endpoint": "nobody", "type": "Person" })),
+        )
+        .await
+        .expect_err("a missing Endpoint");
+        let words = |err: OpError| match err {
+            OpError::Api(ApiError::NotFound(text)) => text.replace("nobody", "staff"),
+            other => panic!("not the missing answer: {other:?}"),
+        };
+        let missing = words(missing);
+        // The realm refuses the first exchange (invalid_scope), then the gateway answers 503.
+        for case in ["realm invalid_scope", "gateway 503"] {
+            let err = run(&caller, &state, "helsinki", read())
+                .await
+                .expect_err(case);
+            let text = words(err);
+            assert_eq!(text, missing, "{case}");
+            assert!(!text.contains(PRIVATE), "{case} names the slug: {text}");
+        }
+        caller.bearer = None;
+        let err = run(&caller, &state, "helsinki", read())
+            .await
+            .expect_err("no bearer");
+        assert_eq!(words(err), missing, "no bearer");
     }
 }

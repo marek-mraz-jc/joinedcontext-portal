@@ -1950,3 +1950,72 @@
       refused: true
       contains: ['not found']
       absent: ['"messages"']
+- id: S-90
+  segment: data-read
+  # A member (ADR-N-067 §2.4, T-6413): no RoleBinding anywhere; a Policy shares the project's citizen
+  # reports with the Organization, its intake Endpoint with nobody she belongs to.
+  as: member
+  says: "Which datasets are shared with me? Show the newest citizen reports."
+  expect: 'a data-read connector over the shared reports Endpoint: tools/list offers jc_data_query bounded to it, the read answers its entities without the personal attributes; no write tool'
+  deny: 'a write preset, write access, a whole project or an Endpoint not shared -> 403 naming the field; a write tool or an unshared Endpoint through the connector -> refused, nothing of it in the answer'
+  script:
+    - proves: deny
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s90-writes, segments: [context], scope: [{ project: '{project}', endpoint: '{project}-reports', access: read }], expiresAt: '{in7days}' }
+      refused: true
+      contains: ['segments']
+    - proves: deny
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s90-writes, segments: [data-read], scope: [{ project: '{project}', endpoint: '{project}-reports', access: write }], expiresAt: '{in7days}' }
+      refused: true
+      contains: ['scope[0].access']
+    - proves: deny
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s90-whole, segments: [data-read], scope: [{ project: '{project}', access: read }], expiresAt: '{in7days}' }
+      refused: true
+      contains: ['scope[0].endpoint']
+    - proves: deny
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s90-intake, segments: [data-read], scope: [{ project: '{project}', endpoint: '{project}-intake', access: read }], expiresAt: '{in7days}' }
+      refused: true
+      contains: ['scope[0].project']
+    - proves: expect
+      rest: { method: GET, path: /connectors/options }
+      contains: ['"organizationData":true', '{project}-reports']
+      absent: ['{project}-intake']
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s90-shared, segments: [data-read], scope: [{ project: '{project}', endpoint: '{project}-reports', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      via: connector
+      contains: ['jc_data_query']
+      absent: ['jc_data_write', 'jc_change_plan', 'jc_resource_list']
+    - proves: expect
+      via: connector
+      call: jc_data_query
+      args: { endpoint: '{project}-reports', type: PotholeReport }
+      contains: ['urn:ngsi-ld:PotholeReport:1']
+      absent: ['jana@example.org']
+    - proves: deny
+      via: connector
+      call: jc_data_write
+      args: { endpoint: '{project}-reports', action: create, entities: [{ id: 'urn:ngsi-ld:PotholeReport:2', type: PotholeReport }] }
+      refused: true
+    - proves: deny
+      via: connector
+      call: jc_data_query
+      args: { endpoint: '{project}-intake', type: BikeCounter }
+      refused: true
+      contains: ['{project}-reports']
+      absent: ['urn:ngsi-ld:BikeCounter']
