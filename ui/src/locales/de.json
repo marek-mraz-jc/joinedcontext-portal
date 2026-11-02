@@ -640,7 +640,6 @@
         "Layer": "Kartenebene",
         "Dashboard": "Dashboard"
       },
-      "drafted": "Entworfen",
       "alreadyThere": "Bereits vorhanden",
       "checkPassed": "Prüfung bestanden",
       "checkFailed": "Prüfung nicht bestanden",
@@ -660,6 +659,7 @@
       },
       "onApproval": "Alle vorschlagen sendet diese Entwürfe gemeinsam zur Freigabe. Nach der Freigabe wird die Quelle abgerufen und der Raum füllt sich.",
       "onApprovalRows": "Alle vorschlagen sendet diese Entwürfe gemeinsam zur Freigabe. Nach der Freigabe bietet diese Seite an, {count, plural, one {# Zeile} other {# Zeilen}} der Datei zu laden. Bleiben Sie hier oder behalten Sie die Datei: Die Zeilen werden noch nicht gesendet.",
+      "inChange": "Was diese Änderung enthält ({count})",
       "tooLarge": "Das sind zusammen mehr als 10 MB. Wählen Sie kleinere Dateien oder nutzen Sie CSV hochladen mit bis zu 50 MB.",
       "urlHint": "Die Adresse eines Live-Feeds anstelle einer Datei. Beispiel: https://example.org/stations.json",
       "failedNext": "Noch kann nichts vorgeschlagen werden. Beheben Sie in der Datei, was die Prüfung nennt, und wählen Sie sie erneut.",

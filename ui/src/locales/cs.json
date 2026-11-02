@@ -640,7 +640,6 @@
         "Layer": "Mapová vrstva",
         "Dashboard": "Dashboard"
       },
-      "drafted": "Připraveno",
       "alreadyThere": "Už existuje",
       "checkPassed": "Kontrola prošla",
       "checkFailed": "Kontrola neprošla",
@@ -660,6 +659,7 @@
       },
       "onApproval": "Navrhnout vše pošle tyto koncepty ke schválení společně. Po schválení se zdroj začne načítat a prostor se naplní.",
       "onApprovalRows": "Navrhnout vše pošle tyto koncepty ke schválení společně. Po schválení tato stránka nabídne načtení {count, plural, one {# řádku} few {# řádků} many {# řádku} other {# řádků}} ze souboru. Zůstaňte zde nebo si soubor ponechte: řádky se zatím neposílají.",
+      "inChange": "Co obsahuje tato změna ({count})",
       "tooLarge": "To je dohromady více než 10 MB. Vyberte menší soubory nebo použijte Nahrát CSV, kde je limit 50 MB.",
       "urlHint": "Adresa živého zdroje místo souboru. Příklad: https://example.org/stations.json",
       "failedNext": "Zatím nelze nic navrhnout. Opravte v souboru, co kontrola uvádí, a vyberte ho znovu.",

@@ -147,7 +147,6 @@ describe("SpaceComplete page", () => {
     const model = await screen.findByTestId("complete-draft-DataModel");
     expect(model).toHaveTextContent("Data model");
     expect(model).toHaveTextContent("Type BikeStation with 2 attributes");
-    expect(model).toHaveTextContent("Drafted");
     expect(model).toHaveTextContent("Check passed");
     expect(model).not.toHaveTextContent("DataModel");
     expect(screen.getByTestId("complete-draft-ContextSpace")).toHaveTextContent("Already there");

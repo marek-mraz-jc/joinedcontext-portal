@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import type { JSX } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
+import type { JSX, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { forPeople } from "../../api/client";
@@ -163,6 +163,19 @@ function handedOver(prefill: Record<string, unknown> | null): { result: Complete
   };
 }
 
+/** The drafts, folded once they are a Change: what comes next is then the page's subject. */
+function Drafts({ folded, count, children }: { folded: boolean; count: number; children: ReactNode }): JSX.Element {
+  const { t } = useTranslation();
+  const list = <div className="flex flex-col gap-3">{children}</div>;
+  if (!folded) return list;
+  return (
+    <details>
+      <summary className="cursor-pointer text-body text-fg">{t("spaces.complete.inChange", { count })}</summary>
+      <div className="mt-2">{list}</div>
+    </details>
+  );
+}
+
 export function SpaceComplete({ project }: { project: string }): JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -205,14 +218,15 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
     }
   };
 
+  const takeHanded = useEffectEvent((file: File) => void takeFiles([file]));
   // The agent already completed the space (AG-73): its drafts open here ready to propose. Taken
   // once the page is on screen: a render React throws away and starts over (the dock's stream
   // updates while the navigation is pending) would otherwise take them and show nothing (T-0894).
   useEffect(() => {
     const handed = handedOver(takePrefill(window.location.pathname));
     if (handed.file !== null) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- a hand-off, taken once after mount
-      void takeFiles([handed.file]);
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- a prefill is taken once after mount
+      takeHanded(handed.file);
       return;
     }
     if (handed.result === null && handed.url === "") {
@@ -221,7 +235,6 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
     // Taking the prefill empties it, so it is taken once after mount; lazy state lost it to a discarded render (T-0894).
     setUrl(handed.url);
     setResult(handed.result);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once after mount, as said above
   }, []);
 
   /** What the op reads: the text files as they are, each workbook as its chosen sheet's CSV. */
@@ -403,12 +416,12 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
       {result?.change ? <ProposedNext project={project} result={result} change={result.change} rows={rows} /> : null}
 
       {result?.drafts && result.drafts.length > 0 ? (
-        <div className="flex flex-col gap-3">
+        <Drafts folded={Boolean(result.change)} count={result.drafts.length}>
           {result.drafts.map((d) => {
             const summary = summaryOf(d, t);
             return (
               <Card key={`${d.kind}-${d.name}`} data-testid={`complete-draft-${d.kind}`}>
-                <div className="flex flex-wrap items-center justify-between gap-2 p-3">
+                <div className="flex items-center justify-between gap-2 p-3">
                   <div className="flex min-w-0 flex-col gap-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <Icon name={iconOf(d.kind, "spaces")} className="size-4 text-fg-muted" />
@@ -416,9 +429,7 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
                         {KIND_ICON[d.kind] ? t(`spaces.complete.kind.${d.kind}`) : d.kind}
                       </span>
                       <span className="font-mono text-caption text-fg-muted">{d.name}</span>
-                      <Badge tone={d.inferred ? "info" : "neutral"}>
-                        {d.inferred ? t("spaces.complete.drafted") : t("spaces.complete.alreadyThere")}
-                      </Badge>
+                      {d.inferred ? null : <Badge tone="neutral">{t("spaces.complete.alreadyThere")}</Badge>}
                       {d.verdict ? (
                         <Badge tone={d.verdict.ok ? "success" : "danger"}>
                           {d.verdict.ok ? t("spaces.complete.checkPassed") : t("spaces.complete.checkFailed")}
@@ -448,7 +459,7 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
           {result.proposeReady && !result.change ? (
             <p className="text-caption text-fg-muted">{t(rows ? "spaces.complete.onApprovalRows" : "spaces.complete.onApproval", { count: rows?.table.rows.length })}</p>
           ) : null}
-        </div>
+        </Drafts>
       ) : null}
     </div>
   );

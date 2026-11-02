@@ -185,7 +185,11 @@ test("one .xlsx makes the model, the space and its rows, read back through the E
     await page.getByRole("tab", { name: "Data model" }).click();
     await hold(page, 5_000);
     // The assistant takes a person who may propose an App (T-6464); the editor has only the page.
-    const asker = await signIn(recorded, STEWARD, `/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
+    const signedIn = await signIn(browser, STEWARD, `/projects/${PROJECT}?lang=en`);
+    const context = await browser.newContext({ recordVideo: { dir: VIDEO, size: { width: 1440, height: 900 } }, viewport: { width: 1440, height: 900 }, storageState: await signedIn.context.storageState() });
+    await signedIn.context.close();
+    const asker = { context, page: await context.newPage() };
+    await asker.page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
     await asker.page.getByRole("tab", { name: "Data model" }).click();
     await ask(asker.page, PLAIN);
     const plainWords = await settledAnswer(asker.page, PLAIN).catch((err) => `no answer: ${String(err).slice(0, 200)}`);

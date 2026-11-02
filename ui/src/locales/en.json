@@ -640,7 +640,6 @@
         "Layer": "Map layer",
         "Dashboard": "Dashboard"
       },
-      "drafted": "Drafted",
       "alreadyThere": "Already there",
       "checkPassed": "Check passed",
       "checkFailed": "Check failed",
@@ -660,6 +659,7 @@
       },
       "onApproval": "Propose all sends these drafts for approval together. Once a person approves them, the source is fetched and the space fills.",
       "onApprovalRows": "Propose all sends these drafts for approval together. Once a person approves them, this page offers to load the {count, plural, one {# row} other {# rows}} of the file. Stay here or keep the file: the rows are not sent yet.",
+      "inChange": "What this Change holds ({count})",
       "tooLarge": "That is more than 10 MB together. Choose smaller files, or use Upload a CSV, which takes up to 50 MB.",
       "urlHint": "The address of a live feed, instead of a file. Example: https://example.org/stations.json",
       "failedNext": "Nothing can be proposed yet. Fix what the check names in the file and choose it again.",
