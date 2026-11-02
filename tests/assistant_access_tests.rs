@@ -32,7 +32,7 @@ use joinedcontext_portal::state::AppState;
 use joinedcontext_portal::store::Mirror;
 use serde_json::{json, Value};
 use tower::ServiceExt;
-use wiremock::matchers::{method, path};
+use wiremock::matchers::{method, path, path_regex};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 const CSRF: &str = "test-csrf-token-access";
@@ -249,6 +249,12 @@ async fn converse_with(
 ) -> (AppState, Vec<AgentRunEvent>, String) {
     let proxy = MockServer::start().await;
     common::route_to(&proxy, conversation.path).await;
+    // The page of the source a drafted Pipeline is tested on (JC1-29: a failed read stops it).
+    Mock::given(method("GET"))
+        .and(path_regex("/ngsi-ld/v1/entities$"))
+        .respond_with(ResponseTemplate::new(200).set_body_string("[]"))
+        .mount(&proxy)
+        .await;
     Mock::given(method("POST"))
         .and(path("/v1/llm/chat/completions"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
