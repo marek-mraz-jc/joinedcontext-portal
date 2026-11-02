@@ -632,6 +632,13 @@ impl Driver {
         crate::apps::services::off_at(&self.state.mirror, &self.project, &spec, service).is_none()
     }
 
+    /// Whether this is the run's opening instruction, which `drive_code` may have framed around the
+    /// person's words (a dashboard, an analysis, a note on the look): it is the first version all
+    /// the same, small and at low effort (SDK-13, AG-72, T-6457).
+    fn opens(&self, conversation: &[(String, String)], instruction: &str) -> bool {
+        conversation.is_empty() && instruction.contains(self.prompt.as_str())
+    }
+
     /// One call over the project: the blocks applied where SDK-11 allows, then what keeps the
     /// files from building. A refused block goes back only beside a problem, so a stray path
     /// never costs a second call.
@@ -643,7 +650,7 @@ impl Driver {
         instruction: &str,
         fix: Option<Fix<'_>>,
     ) -> Result<(String, Vec<String>), String> {
-        let first = fix.is_none() && conversation.is_empty() && instruction == self.prompt;
+        let first = fix.is_none() && self.opens(conversation, instruction);
         let user = self
             .code_pack(samples, files, conversation, instruction, fix)
             .await;
@@ -800,9 +807,10 @@ impl Driver {
                 pack.push_str(&format!("Person: {asked}\nYou: {answered}\n\n"));
             }
         }
+        let opening = fix.is_none() && self.opens(conversation, instruction);
         pack.push_str(&format!(
             "\n## THE REQUEST\n\n{}\n\n## THIS CALL\n\n",
-            self.prompt
+            if opening { instruction } else { &self.prompt }
         ));
         match fix {
             Some(Fix::Build(errors)) => {
@@ -852,7 +860,7 @@ impl Driver {
                  Every list of entities you add is a `TypeGrid`, a narrowed one with its `q` prop, \
                  never a `<table>`. Answer with SEARCH/REPLACE blocks over the files above.\n",
             ),
-            None if conversation.is_empty() && instruction == self.prompt => pack.push_str(
+            None if opening => pack.push_str(
                 "Write the FIRST VERSION of the application for the request above, which goes on \
                  screen at once: `src/App.tsx`, the layout (`src/app.css`; \
                  `src/design-tokens.json` is already this application's look) and the one page the request is most about, complete and working \
@@ -1529,6 +1537,39 @@ mod tests {
             repair.contains("src/Rate.ts: calls the ai service"),
             "{repair}"
         );
+    }
+
+    /// T-6457: a run framed by a note on the look (or as a dashboard) still opens with the first
+    /// version: 20,000 tokens at low effort, its frame kept in the request. It went at the
+    /// profile's effort as one 90 to 140 s call once the project held a twin.
+    #[tokio::test]
+    async fn a_framed_opening_is_still_the_first_version() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+                "choices": [{ "message": { "content": "Nothing to change." }, "finish_reason": "stop" }],
+            })))
+            .mount(&server)
+            .await;
+        let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
+        let mut driver = Driver::for_tests(state, "helsinki");
+        driver.proxy_base = server.uri();
+        driver.provider = "openrouter".into();
+        driver.reasoning_effort = Some("medium".into());
+        driver.prompt = "Map the bikes".into();
+        let framed = "Map the bikes\n\nNOTE ON THE LOOK: lay this App out as `dashboard-grid`.";
+        let mut files = crate::agents::preview::template_files();
+        driver
+            .code_step(&json!({}), &mut files, &[], framed, None)
+            .await
+            .expect("the step ends");
+        let asked = server.received_requests().await.unwrap_or_default();
+        let body: Value = serde_json::from_slice(&asked[0].body).expect("a JSON body");
+        assert_eq!(body["max_tokens"], json!(FIRST_VERSION_BUDGET));
+        assert_eq!(body["reasoning"]["effort"], "low");
+        let text = body.to_string();
+        assert!(text.contains("FIRST VERSION"), "{text}");
+        assert!(text.contains("NOTE ON THE LOOK"), "{text}");
     }
 
     /// What the one model call a verification makes looks like, for a version of the first run

@@ -4,7 +4,8 @@
  * the current value, adds an old one, corrects it, reverts it and imports a CSV (preview counts,
  * then confirm), each in the row's Correct values tab, whose timeline names the steward and the
  * reason. An old value leaves the current one alone (DM-106). A viewer is not offered the tab and
- * the gateway refuses the same write. Needs ANTARES_HISTORY_BACKFILL=on on the broker.
+ * the gateway refuses the same write. Needs ANTARES_HISTORY_BACKFILL=on on the broker and the
+ * seeded Policy steward-history-journey, the steward's only write of this type.
  */
 import { expect, test } from "@playwright/test";
 import type { BrowserContext, Page } from "@playwright/test";
@@ -13,7 +14,7 @@ import { STEWARD, VIEWER, csrf, signIn } from "./portal";
 const SUFFIX = process.env.E2E_SUFFIX ?? new Date().toISOString().slice(11, 16).replace(":", "");
 const URN = `urn:ngsi-ld:AirQualityObserved:hel.fi:helsinki:t5326-${SUFFIX}`;
 const SPACE = "/cs/helsinki/ngsi-ld/v1";
-const ROW = `/projects/helsinki/spaces/helsinki?lang=en&row=${encodeURIComponent(URN)}`;
+const ROW = `/projects/helsinki/spaces/helsinki?lang=en&type=AirQualityObserved&row=${encodeURIComponent(URN)}`;
 const NOW = new Date(Date.now() - 3_600_000).toISOString();
 /** A `datetime-local` value of two days ago and the same instant as the CSV writes it. */
 const OLD = new Date(Date.now() - 2 * 86_400_000);
@@ -35,14 +36,14 @@ test("a steward's every hand on a value stands in the timeline, and a viewer has
   const { context, page } = await signIn(browser, STEWARD, "/projects/helsinki/spaces/helsinki?lang=en");
   let viewer: { context: BrowserContext; page: Page } | undefined;
   try {
-    const headers = { "x-csrf-token": await csrf(context), "JC-Reason": "t5326 journey", "Content-Type": "application/ld+json" };
+    // As the UI writes it: plain JSON, so the view names the attributes by the space's @context.
+    const headers = { "x-csrf-token": await csrf(context), "JC-Reason": "t5326 journey", "Content-Type": "application/json" };
     const created = await page.request.post(`${SPACE}/entities`, {
       headers,
       data: {
         id: URN,
         type: "AirQualityObserved",
         pm10: { type: "Property", value: 20, observedAt: NOW },
-        "@context": "https://uri.etsi.org/ngsi-ld/v1/ngsi-ld-core-context-v1.9.jsonld",
       },
     });
     expect(created.status(), await created.text()).toBe(201);

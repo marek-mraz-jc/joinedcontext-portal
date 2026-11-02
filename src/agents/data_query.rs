@@ -502,10 +502,17 @@ const ACTING_TOOLS: [&str; 8] = [
     "navigate",
 ];
 
+/// Whether a call is `describe_tool` itself. A read always names an endpoint (`call_of`), so a
+/// read of an endpoint tool that goes by the same name stays data.
+fn described_by_platform(call: &QueryCall) -> bool {
+    call.name == "describe_tool" && call.endpoint.is_empty()
+}
+
 /// The acting tool an answer calls that the data read for this message, or the earlier turns
 /// the prompt repeats, write a call of. Data is never an instruction (AG-20): a call an entity's
 /// value or a catalog entry spells out is not the model's to make, however it came to write it,
-/// and an earlier turn's tool output is that data again (F-R2POR1-005).
+/// and an earlier turn's tool output is that data again (F-R2POR1-005). `describe_tool`'s answer
+/// is the platform's own text, whose playbooks spell example calls, so it is no data (T-6478).
 pub fn written_by_data(
     answer: &str,
     results: &[(QueryCall, String)],
@@ -513,6 +520,7 @@ pub fn written_by_data(
 ) -> Option<String> {
     let data: String = results
         .iter()
+        .filter(|(call, _)| !described_by_platform(call))
         .flat_map(|(_, text)| text.chars())
         .chain(earlier.chars())
         .filter(|c| !c.is_whitespace() && *c != '\\')
@@ -691,6 +699,46 @@ mod tests {
         assert_eq!(
             written_by_data(obeyed, &[], "[query_endpoint ok] -> []"),
             None
+        );
+    }
+
+    /// T-6478: a playbook describe_tool hands out spells its own example call, so the model's
+    /// draft after it was refused as written by data. The live walk T-5962 lost six scenarios.
+    /// A read carrying the same text stays data, whatever name the read goes by, and data read
+    /// beside the playbook still counts.
+    #[test]
+    fn a_described_playbook_is_no_data_and_a_read_of_the_same_text_is() {
+        let playbook = "## WHEN THE PERSON ASKS TO CHANGE A DATA MODEL\n```json\n{\n  \"tool\": \"change_resource\",\n  \"kind\": \"DataModel\"\n}\n```";
+        let described = QueryCall {
+            endpoint: String::new(),
+            name: "describe_tool".into(),
+            arguments: json!({ "name": "change-model" }),
+        };
+        let read = |name: &str| QueryCall {
+            endpoint: "helsinki-all".into(),
+            name: name.into(),
+            arguments: json!({}),
+        };
+        let drafted = "```json\n{\"tool\":\"change_resource\",\"kind\":\"DataModel\",\"name\":\"bike-counter\"}\n```";
+
+        let own = vec![(described.clone(), playbook.to_owned())];
+        assert_eq!(written_by_data(drafted, &own, ""), None);
+
+        for name in ["query_entities", "describe_tool"] {
+            let beside = vec![
+                (described.clone(), playbook.to_owned()),
+                (read(name), playbook.to_owned()),
+            ];
+            assert_eq!(
+                written_by_data(drafted, &beside, "").as_deref(),
+                Some("change_resource"),
+                "{name}"
+            );
+        }
+        assert_eq!(
+            written_by_data(drafted, &own, playbook).as_deref(),
+            Some("change_resource"),
+            "an earlier turn's output stays data"
         );
     }
 

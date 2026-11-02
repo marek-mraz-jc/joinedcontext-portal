@@ -6,6 +6,7 @@
 //! on is required here, so a profile that is missing one is a 503 rather than a run with a
 //! guessed budget.
 
+use jc_core::kinds::ProviderRouting;
 use serde_json::Value;
 
 use crate::agents::access::Access;
@@ -26,6 +27,8 @@ pub struct Profile {
     pub model_provider: String,
     /// `low`, `medium` or `high`; absent, no model call carries a reasoning setting (AG-72).
     pub reasoning_effort: Option<String>,
+    /// `model.routing` as OpenRouter's `provider` member; absent, OpenRouter's default route (AG-72).
+    pub routing: Option<Value>,
     pub max_tokens_per_run: u64,
     pub steps_per_run: u32,
     pub requests_per_minute: u32,
@@ -87,6 +90,15 @@ impl Profile {
                 .pointer("/model/reasoningEffort")
                 .and_then(Value::as_str)
                 .map(str::to_owned),
+            routing: spec
+                .pointer("/model/routing")
+                .and_then(|routing| serde_json::from_value::<ProviderRouting>(routing.clone()).ok())
+                .filter(|routing| {
+                    routing
+                        .validate("model.routing", "model.routing.order")
+                        .is_ok()
+                })
+                .map(|routing| routing.openrouter()),
             max_tokens_per_run: u64_at(spec, &["model", "maxTokensPerRun"], name)?,
             steps_per_run: u64_at(spec, &["limits", "stepsPerRun"], name)? as u32,
             requests_per_minute: u64_at(spec, &["limits", "requestsPerMinute"], name)? as u32,
@@ -227,6 +239,28 @@ mod tests {
         let profile = Profile::load(&mirror_with(no_block), "app-builder").expect("profile");
         assert_eq!(profile.max_egress_bytes_per_run, 0);
         assert!(profile.allowed_hosts.is_empty());
+    }
+
+    /// AG-72: a routing the proxy would refuse on every call is no routing at all.
+    #[test]
+    fn the_routing_of_the_model_is_read_as_openrouter_writes_it() {
+        let mut spec = profile_spec();
+        let profile = Profile::load(&mirror_with(spec.clone()), "app-builder").expect("profile");
+        assert_eq!(profile.routing, None);
+
+        spec["model"]["routing"] =
+            serde_json::json!({ "order": ["google-ai-studio/flex"], "allowFallbacks": true });
+        let profile = Profile::load(&mirror_with(spec.clone()), "app-builder").expect("profile");
+        assert_eq!(
+            profile.routing,
+            Some(
+                serde_json::json!({ "order": ["google-ai-studio/flex"], "allow_fallbacks": true })
+            )
+        );
+
+        spec["model"]["routing"] = serde_json::json!({ "order": [] });
+        let profile = Profile::load(&mirror_with(spec), "app-builder").expect("profile");
+        assert_eq!(profile.routing, None);
     }
 
     #[test]

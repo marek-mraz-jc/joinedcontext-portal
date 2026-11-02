@@ -129,7 +129,7 @@ impl Driver {
                 effort
             }
         });
-        let body = with_effort(path, body, effort);
+        let body = with_effort(path, body, effort, self.routing.as_ref());
         // A provider that was busy or failed for a moment is asked once more before the person
         // is told: on dev one 502 ended an answer and had the person send it again, and a 429 or
         // a dropped connection reads the same (T-2772). A call that timed out is not asked
@@ -725,11 +725,21 @@ pub(super) struct ToolAnswer {
 /// `body` with the profile's reasoning effort (AG-72, JC1-26) in the OpenAI-compatible
 /// `reasoning` member OpenRouter reads, when there is one to add.
 /// ponytail: the Anthropic messages body gets none; add `thinking` when a profile runs on it.
-fn with_effort<'a>(path: &str, body: &'a Value, effort: Option<&str>) -> Effortful<'a> {
-    let effort = effort.filter(|_| path.ends_with("/chat/completions"));
+/// The profile's routing goes the same way, as OpenRouter's `provider` member; the proxy removes it
+/// before any other upstream (AG-72).
+fn with_effort<'a>(
+    path: &str,
+    body: &'a Value,
+    effort: Option<&str>,
+    provider: Option<&'a Value>,
+) -> Effortful<'a> {
+    let chat = path.ends_with("/chat/completions");
     Effortful {
         body,
-        reasoning: effort.map(|effort| json!({ "effort": effort })),
+        reasoning: effort
+            .filter(|_| chat)
+            .map(|effort| json!({ "effort": effort })),
+        provider: provider.filter(|_| chat),
     }
 }
 
@@ -741,6 +751,8 @@ struct Effortful<'a> {
     body: &'a Value,
     #[serde(skip_serializing_if = "Option::is_none")]
     reasoning: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider: Option<&'a Value>,
 }
 
 fn whole_answer(text: &str, budget: u32) -> Result<Value, CallError> {
@@ -1282,6 +1294,46 @@ mod effort_tests {
         assert_eq!(efforts, [json!("low"), json!("medium"), Value::Null]);
     }
 
+    /// AG-72: the profile's routing reaches a chat call, streamed or whole, and never a messages
+    /// body.
+    #[tokio::test]
+    async fn the_profiles_routing_rides_a_chat_call_and_no_messages_call() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+                "choices": [{ "message": { "content": "ok" }, "finish_reason": "stop" }],
+                "content": [{ "type": "text", "text": "ok" }],
+            })))
+            .mount(&server)
+            .await;
+        let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
+        let mut driver = Driver::for_tests(state, "helsinki");
+        driver.proxy_base = server.uri();
+        driver.provider = "openrouter".into();
+        driver.routing = Some(json!({ "sort": "latency", "allow_fallbacks": true }));
+        for stream in [false, true] {
+            driver
+                .complete_once("rules", "hello", CODE_OUTPUT_BUDGET, stream, &[])
+                .await
+                .expect("an answer");
+        }
+        driver.provider = "anthropic".into();
+        driver
+            .complete_once("rules", "hello", CODE_OUTPUT_BUDGET, false, &[])
+            .await
+            .expect("an answer");
+        let provider: Vec<Value> = server
+            .received_requests()
+            .await
+            .expect("recorded")
+            .iter()
+            .map(|request| serde_json::from_slice::<Value>(&request.body).expect("a JSON body"))
+            .map(|body| body["provider"].clone())
+            .collect();
+        let routing = json!({ "sort": "latency", "allow_fallbacks": true });
+        assert_eq!(provider, [routing.clone(), routing, Value::Null]);
+    }
+
     /// JC1-26: the profile's reasoning effort reaches every chat call the run makes.
     #[tokio::test]
     async fn every_chat_call_carries_the_profiles_reasoning_effort() {
@@ -1322,8 +1374,13 @@ mod effort_tests {
             assert_eq!(body["reasoning"], json!({ "effort": "medium" }), "{body}");
         }
         assert_eq!(
-            serde_json::to_value(with_effort("/v1/llm/chat/completions", &json!({}), None))
-                .expect("a JSON body"),
+            serde_json::to_value(with_effort(
+                "/v1/llm/chat/completions",
+                &json!({}),
+                None,
+                None
+            ))
+            .expect("a JSON body"),
             json!({}),
             "no effort named, none sent"
         );
