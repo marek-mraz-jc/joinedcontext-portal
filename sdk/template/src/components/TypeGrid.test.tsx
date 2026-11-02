@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { JcProvider } from "@joinedcontext/sdk";
 import type { GridColumn, Row, Schema } from "@joinedcontext/sdk";
@@ -67,8 +67,9 @@ describe("TypeGrid", () => {
     shown(undefined, undefined, SCHEMA);
     const grid = await screen.findByRole("grid");
     await within(grid).findByText("Kamppi");
-    await waitFor(() => expect(grid.querySelector('[data-filter-for="name"]')).not.toBeNull());
-    expect(grid.querySelector('[data-filter-for="id"]')).toBeNull();
+    const heads = within(grid).getAllByRole("columnheader");
+    expect(heads[0]).toHaveAttribute("data-col-attr", "name");
+    expect(within(heads[0]).getByRole("button", { name: /filter/i })).toBeInTheDocument();
   });
 
   it("still reads the name when the listed columns leave it out", async () => {

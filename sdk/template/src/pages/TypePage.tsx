@@ -9,7 +9,7 @@ import { StatTiles } from "../components/StatTiles";
 import type { StatTile } from "../components/StatTiles";
 import { TypeGrid } from "../components/TypeGrid";
 import { t } from "../i18n";
-import { filtersOf, shapeOf } from "./shape";
+import { filtersOf, shapeOf, wordsOf } from "./shape";
 
 function Filter({ binding }: { binding: FilterBinding }) {
   switch (binding.def.kind) {
@@ -41,9 +41,10 @@ export function TypePage({ type, schema, endpoint, label = type }: { type: strin
   const select = (id: string) => selection.select({ id, type, endpoint });
 
   const measure = shape.numbers[0];
+  const category = shape.categories[0];
   const tiles: StatTile[] = [
-    { label: type, agg: "count" },
-    ...shape.numbers.slice(0, 3).map((attr): StatTile => ({ label: t("stat.average", { attr }), agg: "avg", attr })),
+    { label, agg: "count" },
+    ...shape.numbers.slice(0, 3).map((attr): StatTile => ({ label: t("stat.average", { attr: wordsOf(attr) }), agg: "avg", attr })),
   ];
 
   return (
@@ -58,17 +59,17 @@ export function TypePage({ type, schema, endpoint, label = type }: { type: strin
         {shape.geo && (
           <EntityMap rows={shown} location={shape.geo} label={shape.label} color={measure} selected={selectedId} onSelect={(row) => select(row.id)} />
         )}
-        {shape.categories[0] && (
+        {category && (
           <BarChartCard
             rows={shown}
-            x={shape.categories[0]}
+            x={category}
             y={measure}
             agg={measure ? "avg" : "count"}
-            title={measure ? t("chart.averageBy", { measure, category: shape.categories[0] }) : t("chart.countBy", { type, category: shape.categories[0] })}
+            title={measure ? t("chart.averageBy", { measure: wordsOf(measure), category: wordsOf(category) }) : t("chart.countBy", { type: label, category: wordsOf(category) })}
           />
         )}
         {shape.time && (
-          <TimeSeriesCard rows={shown} time={shape.time} y={measure} title={t("chart.overTime", { measure: measure ?? type })} />
+          <TimeSeriesCard rows={shown} time={shape.time} y={measure} title={t("chart.overTime", { measure: measure ? wordsOf(measure) : label })} />
         )}
       </Grid>
       <TypeGrid type={type} endpoint={endpoint} onSelect={select} />

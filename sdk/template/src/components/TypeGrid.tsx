@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { displayName, endpointSource, parseGridConfig, projectRow, useClient, useSchema } from "@joinedcontext/sdk";
 import type { GridColumn, RichRow } from "@joinedcontext/sdk";
 import { EntityGrid } from "@joinedcontext/sdk/grid";
+import { t } from "../i18n";
 import { columnsOf, shapeOf, spokenName } from "../pages/shape";
 import { Problem } from "./states";
 
@@ -59,5 +60,10 @@ export function TypeGrid({ type, endpoint, columns, pageSize = 50, onSelect }: T
     [onSelect, language, nameAttr],
   );
   if (!grid) return <Problem error={new Error(findings.map((each) => `${each.path}: ${each.message}`).join("; "))} />;
-  return <EntityGrid config={grid} source={source} renderers={renderers || undefined} hidden={hidden} queryBox={false} />;
+  return (
+    <>
+      {listed.length > 3 && <p className="jc-grid-swipe">{t("grid.swipe")}</p>}
+      <EntityGrid config={grid} source={source} renderers={renderers || undefined} hidden={hidden} filterRow={false} queryBox={false} />
+    </>
+  );
 }
