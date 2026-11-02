@@ -355,7 +355,9 @@ fn a_public_or_organization_share_lists_no_consumer_project() {
         );
         assert_eq!(rendered.prefill["allowedProjects"], json!([]), "{audience}");
         assert!(rendered.groups.is_empty(), "{audience} drafted a group");
-        assert_eq!(rendered.policies.len(), 1, "{audience}");
+        // The Organization, and the owning project's own group: neither is a consumer (T-6464).
+        let grants = if audience == "public" { 1 } else { 2 };
+        assert_eq!(rendered.policies.len(), grants, "{audience}");
     }
 }
 
