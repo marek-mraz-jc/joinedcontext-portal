@@ -11484,6 +11484,7 @@
       "badInstant": "observedAt ist kein Datum mit Uhrzeit.",
       "futureInstant": "observedAt liegt in der Zukunft.",
       "badValue": "Der Wert passt nicht zu diesem Feld."
-    }
+    },
+    "csvLeftOut": "Zeilen mit einem Problem werden ausgelassen; die übrigen können Sie importieren."
   }
 }

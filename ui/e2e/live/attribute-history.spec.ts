@@ -54,12 +54,14 @@ test("a steward's every hand on a value stands in the timeline, and a viewer has
     const timeline = dialog.getByRole("list", { name: "Timeline" });
     await expect(timeline).toBeVisible();
 
+    await dialog.getByRole("region", { name: "Edit current value" }).getByText("Edit current value").click();
     await fill(dialog.getByRole("region", { name: "Edit current value" }), "21", "t5326 recalibrated");
     await dialog.getByRole("region", { name: "Edit current value" }).getByRole("button", { name: "Save" }).click();
     await expect(timeline.getByRole("listitem").filter({ hasText: "t5326 recalibrated" })).toContainText("demo.steward");
     expect(await currentValue(page)).toBe(21);
 
     const old = dialog.getByRole("region", { name: "Add an old value" });
+    await old.getByText("Add an old value").click();
     await old.getByLabel(/Observed at/).fill(OLD_LOCAL);
     await fill(old, "9", "t5326 paper log");
     await old.getByRole("button", { name: "Save" }).click();
@@ -80,6 +82,7 @@ test("a steward's every hand on a value stands in the timeline, and a viewer has
     expect(await currentValue(page), "a past correction leaves the current one alone").toBe(21);
 
     const csv = dialog.getByRole("region", { name: "Import old values from CSV" });
+    await csv.getByText("Import old values from CSV").click();
     await csv.getByLabel(/CSV file/).setInputFiles({ name: "old.csv", mimeType: "text/csv", buffer: Buffer.from(`observedAt,value\n${CSV_AT},7\n`) });
     await expect(csv.getByRole("status")).toContainText("New: 1 · Duplicates: 0 · Corrections: 0");
     await csv.getByRole("textbox", { name: /Reason/ }).fill("t5326 sheet two");

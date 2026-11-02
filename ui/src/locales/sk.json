@@ -11484,6 +11484,7 @@
       "badInstant": "observedAt nie je dátum a čas.",
       "futureInstant": "observedAt je v budúcnosti.",
       "badValue": "Hodnota sa do tohto poľa nehodí."
-    }
+    },
+    "csvLeftOut": "Riadky s problémom sa vynechajú; ostatné môžete importovať."
   }
 }

@@ -11484,6 +11484,7 @@
       "badInstant": "observedAt is not a date and time.",
       "futureInstant": "observedAt lies in the future.",
       "badValue": "The value does not fit this field."
-    }
+    },
+    "csvLeftOut": "Rows with a problem are left out; the others can be imported."
   }
 }

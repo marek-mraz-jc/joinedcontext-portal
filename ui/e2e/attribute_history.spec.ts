@@ -144,6 +144,7 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
 
     // Nothing leaves without a reason.
     const current = dialog.getByRole("region", { name: "Edit current value" });
+    await current.getByText("Edit current value").click();
     await current.getByRole("textbox", { name: /Value/ }).fill("many");
     await expect(current.getByText("Enter a value of this field's type")).toBeVisible();
     await shot(page, `history-invalid-${label}`);
@@ -154,6 +155,7 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await expect(timeline.getByText(new RegExp(PERSON)).first()).toBeVisible();
 
     const old = dialog.getByRole("region", { name: "Add an old value" });
+    await old.getByText("Add an old value").click();
     await old.getByLabel(/Observed at/).fill("2026-03-03T14:00");
     await old.getByRole("textbox", { name: /Value/ }).fill("9");
     await old.getByRole("textbox", { name: /Reason/ }).fill("From the paper log");
@@ -178,12 +180,13 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await shot(page, `history-versions-${label}`);
 
     const csv = dialog.getByRole("region", { name: "Import old values from CSV" });
+    await csv.getByText("Import old values from CSV").click();
     await csv.getByLabel(/CSV file/).setInputFiles({
       name: "old.csv",
       mimeType: "text/csv",
       buffer: Buffer.from("observedAt,value\n2026-10-20T10:00:00Z,30\n2026-10-20T09:00:00Z,28\n2026-10-20T08:00:00Z,oops\n"),
     });
-    await expect(csv.getByRole("status")).toContainText("New: 1 · Duplicates: 1 · Corrections: 0");
+    await expect(csv.getByText("New: 1 · Duplicates: 1 · Corrections: 0")).toBeVisible();
     await expect(csv.getByText(/Line 4/)).toBeVisible();
     await shot(page, `history-csv-preview-${label}`);
     const before = writes.length;

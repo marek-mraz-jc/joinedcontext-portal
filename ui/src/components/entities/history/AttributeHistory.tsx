@@ -53,11 +53,25 @@ function useWrite(target: Target) {
   return { busy, error, run };
 }
 
-function Panel({ id, title, children }: { id: string; title: string; children: ReactNode }): JSX.Element {
+function Panel({ id, title, actions, children }: { id: string; title: string; actions?: ReactNode; children: ReactNode }): JSX.Element {
   return (
     <Card as="section" padding="md" aria-labelledby={id}>
-      <CardHeader as="h3" titleId={id} title={title} />
+      <CardHeader as="h3" titleId={id} title={title} actions={actions} />
       {children}
+    </Card>
+  );
+}
+
+/** A form folded to its title: the timeline leads, and a phone scrolls past nothing it did not open. */
+function FoldedPanel({ id, title, children }: { id: string; title: string; children: ReactNode }): JSX.Element {
+  return (
+    <Card as="section" padding="md" aria-labelledby={id}>
+      <details>
+        <summary className="cursor-pointer font-semibold text-fg">
+          <span id={id}>{title}</span>
+        </summary>
+        {children}
+      </details>
     </Card>
   );
 }
@@ -74,9 +88,12 @@ function ReasonField({ id, value, onChange }: { id: string; value: string; onCha
 function SaveButton({ write, ready, label, onClick }: { write: { busy: boolean }; ready: boolean; label: string; onClick: () => void }): JSX.Element {
   const { t } = useTranslation();
   return (
-    <Button variant="primary" size="sm" loading={write.busy} disabled={!ready} disabledReason={ready ? undefined : t("attributeHistory.needsReason")} onClick={onClick}>
-      {label}
-    </Button>
+    <>
+      {ready ? null : <span className="self-center text-caption text-fg">{t("attributeHistory.needsReason")}</span>}
+      <Button variant="primary" size="sm" loading={write.busy} disabled={!ready} disabledReason={ready ? undefined : t("attributeHistory.needsReason")} onClick={onClick}>
+        {label}
+      </Button>
+    </>
   );
 }
 
@@ -98,7 +115,7 @@ function EditCurrent({ target }: { target: Target }): JSX.Element {
     }
   };
   return (
-    <Panel id="history-edit-current-title" title={t("attributeHistory.editCurrent")}>
+    <FoldedPanel id="history-edit-current-title" title={t("attributeHistory.editCurrent")}>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <Field id="history-edit-value" label={t("attributeHistory.value")} help={t("attributeHistory.valueHint")} errors={text !== "" && value === undefined ? [t("attributeHistory.valueInvalid")] : undefined}>
           <Input id="history-edit-value" value={text} onChange={(e) => setTyped(e.target.value)} />
@@ -106,10 +123,10 @@ function EditCurrent({ target }: { target: Target }): JSX.Element {
         <ReasonField id="history-edit-reason" value={reason} onChange={setReason} />
       </div>
       {write.error ? <InlineError className="mt-2">{write.error}</InlineError> : null}
-      <div className="mt-3 flex justify-end">
+      <div className="mt-3 flex flex-wrap justify-end gap-2">
         <SaveButton write={write} ready={!reasonProblem(reason) && value !== undefined} label={t("attributeHistory.save")} onClick={() => void save()} />
       </div>
-    </Panel>
+    </FoldedPanel>
   );
 }
 
@@ -132,7 +149,7 @@ function AddOldValue({ target }: { target: Target }): JSX.Element {
     }
   };
   return (
-    <Panel id="history-add-old-title" title={t("attributeHistory.addOldValue")}>
+    <FoldedPanel id="history-add-old-title" title={t("attributeHistory.addOldValue")}>
       <div className="mt-3 grid gap-3 sm:grid-cols-3">
         <Field id="history-old-date" label={t("attributeHistory.observedAt")} help={t("attributeHistory.observedAtHint")} errors={local !== "" && !observedAt ? [t("attributeHistory.observedAtInvalid")] : undefined}>
           <Input id="history-old-date" type="datetime-local" value={local} onChange={(e) => setLocal(e.target.value)} />
@@ -143,10 +160,10 @@ function AddOldValue({ target }: { target: Target }): JSX.Element {
         <ReasonField id="history-old-reason" value={reason} onChange={setReason} />
       </div>
       {write.error ? <InlineError className="mt-2">{write.error}</InlineError> : null}
-      <div className="mt-3 flex justify-end">
+      <div className="mt-3 flex flex-wrap justify-end gap-2">
         <SaveButton write={write} ready={!reasonProblem(reason) && Boolean(observedAt) && value !== undefined && text !== ""} label={t("attributeHistory.save")} onClick={() => void save()} />
       </div>
-    </Panel>
+    </FoldedPanel>
   );
 }
 
@@ -156,13 +173,16 @@ function CsvNotes({ problems, unchecked }: { problems: CsvProblem[]; unchecked: 
     <>
       {unchecked > 0 ? <p className="mt-1 text-caption text-fg-muted">{t("attributeHistory.csvUnchecked", { count: unchecked })}</p> : null}
       {problems.length > 0 ? (
-        <ul className="mt-1 list-disc pl-5 text-caption text-danger">
-          {problems.map((problem) => (
-            <li key={`${problem.line}-${problem.reason}`}>
-              {t("attributeHistory.csvProblems", { line: problem.line, reason: t(`attributeHistory.csvProblem.${problem.reason}`, { max: MAX_CSV_ROWS }) })}
-            </li>
-          ))}
-        </ul>
+        <Alert tone="warning" className="mt-2">
+          <ul className="list-disc pl-5">
+            {problems.map((problem) => (
+              <li key={`${problem.line}-${problem.reason}`}>
+                {t("attributeHistory.csvProblems", { line: problem.line, reason: t(`attributeHistory.csvProblem.${problem.reason}`, { max: MAX_CSV_ROWS }) })}
+              </li>
+            ))}
+          </ul>
+          <p>{t("attributeHistory.csvLeftOut")}</p>
+        </Alert>
       ) : null}
     </>
   );
@@ -204,7 +224,7 @@ function CsvImport({ target, measurements, complete }: { target: Target; measure
   };
 
   return (
-    <Panel id="history-import-csv-title" title={t("attributeHistory.importCsv")}>
+    <FoldedPanel id="history-import-csv-title" title={t("attributeHistory.importCsv")}>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <Field id="history-import-file" label={t("attributeHistory.file")} help={t("attributeHistory.fileHint", { max: MAX_CSV_ROWS })}>
           <Input id="history-import-file" type="file" accept=".csv,text/csv" onChange={(e) => void choose(e)} />
@@ -220,10 +240,10 @@ function CsvImport({ target, measurements, complete }: { target: Target; measure
       {progress ? <p className="mt-2 text-caption text-fg-muted">{t("attributeHistory.importProgress", progress)}</p> : null}
       {result ? <Alert tone="success" className="mt-2">{result}</Alert> : null}
       {write.error ? <InlineError className="mt-2">{write.error}</InlineError> : null}
-      <div className="mt-3 flex justify-end">
+      <div className="mt-3 flex flex-wrap justify-end gap-2">
         <SaveButton write={write} ready={!reasonProblem(reason) && count > 0} label={t("attributeHistory.confirmImport")} onClick={() => void confirm()} />
       </div>
-    </Panel>
+    </FoldedPanel>
   );
 }
 
@@ -241,26 +261,28 @@ function VersionForm({ target, measurement, revertTo, close }: { target: Target;
     const { observedAt, unitCode } = measurement.current;
     if (await write.run(() => writeMeasurement(target.slug, target.entityId, target.attribute, { value, observedAt, unitCode }, reason))) close();
   };
+  const heading = `${t(revertTo ? "attributeHistory.revertTitle" : "attributeHistory.correctTitle")}: ${when(measurement.observedAt, i18n.language)}`;
   return (
-    <Panel id="history-version-title" title={`${t(revertTo ? "attributeHistory.revertTitle" : "attributeHistory.correctTitle")}: ${when(measurement.observedAt, i18n.language)}`}>
-      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-        {revertTo ? (
-          <p className="text-caption text-fg-muted">{t("attributeHistory.revertTo", { value: formatValue(revertTo.value) })}</p>
-        ) : (
-          <Field id="history-version-value" label={t("attributeHistory.value")} help={t("attributeHistory.valueHint")} errors={value === undefined ? [t("attributeHistory.valueInvalid")] : undefined}>
-            <Input id="history-version-value" value={text} onChange={(e) => setText(e.target.value)} />
-          </Field>
-        )}
-        <ReasonField id="history-version-reason" value={reason} onChange={setReason} />
-      </div>
-      {write.error ? <InlineError className="mt-2">{write.error}</InlineError> : null}
-      <div className="mt-3 flex justify-end gap-2">
+    <section aria-labelledby="history-version-title" className="flex flex-col gap-3 border-l-2 border-primary pl-3">
+      <h4 id="history-version-title" className="text-caption font-semibold text-fg">
+        {heading}
+      </h4>
+      {revertTo ? (
+        <p className="text-caption text-fg-muted">{t("attributeHistory.revertTo", { value: formatValue(revertTo.value) })}</p>
+      ) : (
+        <Field id="history-version-value" label={t("attributeHistory.value")} help={t("attributeHistory.valueHint")} errors={value === undefined ? [t("attributeHistory.valueInvalid")] : undefined}>
+          <Input id="history-version-value" value={text} onChange={(e) => setText(e.target.value)} />
+        </Field>
+      )}
+      <ReasonField id="history-version-reason" value={reason} onChange={setReason} />
+      {write.error ? <InlineError>{write.error}</InlineError> : null}
+      <div className="flex flex-wrap justify-end gap-2">
         <Button variant="secondary" size="sm" onClick={close}>
           {t("attributeHistory.cancel")}
         </Button>
         <SaveButton write={write} ready={!reasonProblem(reason) && value !== undefined} label={t(revertTo ? "attributeHistory.revert" : "attributeHistory.save")} onClick={() => void save()} />
       </div>
-    </Panel>
+    </section>
   );
 }
 
@@ -273,13 +295,14 @@ function VersionRow({ measurement, version, first, open }: { measurement: Measur
   const actor = version.provenance?.actor?.replace(/^[^:]*:/, "");
   const who = [actor, [channel, operation].filter(Boolean).join(" "), writtenAt ? when(writtenAt, i18n.language) : ""].filter(Boolean).join(" · ");
   return (
-    <li className={`flex flex-wrap items-start justify-between gap-2 border-t border-border py-2 ${first ? "" : "pl-4"}`}>
+    <li className={`flex flex-wrap items-start justify-between gap-2 py-2 ${first ? "border-t border-border" : "ml-2 border-l-2 border-border pl-3"}`}>
       <div className="min-w-0 flex-1 basis-48">
         {first ? <p className="text-caption font-medium text-fg">{when(measurement.observedAt, i18n.language)}</p> : null}
         <p className="flex flex-wrap items-center gap-1.5">
           <span className="font-mono [overflow-wrap:anywhere]">{formatValue(version.value)}</span>
           {version.unitCode ? <span className="text-caption text-fg-muted">{version.unitCode}</span> : null}
-          <Badge tone={current ? "success" : "neutral"}>{t(current ? "attributeHistory.current" : "attributeHistory.superseded")}</Badge>
+          {/* It tells versions apart: on a lone reading it would only repeat itself down the list. */}
+          {measurement.versions.length > 1 ? <Badge tone={current ? "success" : "neutral"}>{t(current ? "attributeHistory.current" : "attributeHistory.superseded")}</Badge> : null}
         </p>
         {who ? <p className="text-caption text-fg-muted [overflow-wrap:anywhere]">{who}</p> : null}
         {reason ? <p className="text-caption text-fg [overflow-wrap:anywhere]">{`${t("attributeHistory.reason")}: ${reason}`}</p> : null}
@@ -336,19 +359,24 @@ function OneAttribute({ slug, entityId, attribute }: { slug: string; entityId: s
 
   return (
     <div className="flex flex-col gap-4 text-body">
-      <Panel id="history-timeline-title" title={t("attributeHistory.timeline")}>
-        <div className="flex justify-end gap-2 pb-3">
-          {before ? (
-            <Button size="sm" variant="secondary" onClick={() => setBefore(undefined)}>
-              {t("attributeHistory.newest")}
-            </Button>
-          ) : null}
-          {oldest ? (
-            <Button size="sm" variant="secondary" onClick={() => setBefore(oldest)}>
-              {t("attributeHistory.older")}
-            </Button>
-          ) : null}
-        </div>
+      <Panel
+        id="history-timeline-title"
+        title={t("attributeHistory.timeline")}
+        actions={
+          <>
+            {before ? (
+              <Button size="sm" variant="secondary" onClick={() => setBefore(undefined)}>
+                {t("attributeHistory.newest")}
+              </Button>
+            ) : null}
+            {oldest ? (
+              <Button size="sm" variant="secondary" onClick={() => setBefore(oldest)}>
+                {t("attributeHistory.older")}
+              </Button>
+            ) : null}
+          </>
+        }
+      >
         {history.isPending ? (
           <div role="status" aria-busy="true" aria-label={t("app.loading")}>
             <Skeleton className="h-32 w-full" />
