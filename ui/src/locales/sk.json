@@ -3517,6 +3517,7 @@
       },
       "choice": "Čo vypočítať",
       "choices": {
+        "rest": "Využitý podiel: jedna mínus prvý súčet delený druhým súčtom",
         "count": "Počet riadkov prvého zdroja",
         "sum": "Súčet čísla prvého zdroja",
         "average": "Priemer čísla prvého zdroja",
@@ -3539,6 +3540,7 @@
       "runPreview": "Vypočítať teraz",
       "previewing": "Počíta sa…",
       "previewHint": "Prečíta najviac 100 riadkov každého zdroja tak, ako ich vidíte vy, a vypočíta {formula}.",
+      "partial": "Náhľad sa zastavil pri {rows} riadkoch zdroja, preto táto hodnota nie je konečná: beh prečíta všetky riadky.",
       "noKeys": "Žiadny kľúč sa nenachádza vo všetkých zdrojoch, teraz by sa teda nezapísal žiadny ukazovateľ.",
       "indicator": "Ukazovateľ",
       "value": "Hodnota",
@@ -3551,6 +3553,7 @@
         "target": "Najprv vyberte endpoint, cez ktorý sa ukazovateľ zapíše."
       },
       "hint": {
+        "typeFirst": "Najprv vyberte typ entity; jeho čísla sa zobrazia tu.",
         "name": "Malé písmená, číslice a pomlčky, najviac 48, napríklad parking-per-stop.",
         "title": "Čo ľudia čítajú v zoznamoch, napríklad Obsadené parkovacie miesta na zastávku.",
         "sources": "Každý zdroj číta jeden typ entity cez jeden endpoint, napríklad parkoviská cez helsinki-parking.",
