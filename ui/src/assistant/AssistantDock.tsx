@@ -706,6 +706,7 @@ export function AssistantDock({
                 }}
                 disabled={!mayAsk}
                 placeholder={mayAsk ? undefined : t("assistant.readOnlyComposer")}
+                title={mayAsk ? undefined : t("assistant.readOnly")}
                 className="resize-none"
               />
             </Field>
