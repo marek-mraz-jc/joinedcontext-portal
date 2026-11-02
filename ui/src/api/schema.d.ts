@@ -31350,6 +31350,7 @@ export interface operations {
                         fields?: string;
                         kind: string;
                         more?: string;
+                        note?: string;
                         path?: string;
                         required?: string[];
                         schema?: Record<string, never>;

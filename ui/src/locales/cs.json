@@ -4954,7 +4954,7 @@
       "package": "Balíček",
       "started": "Forge dostal pokyn znovu sestavit výchozí větev; běh se zde brzy objeví.",
       "unreadable": "Kde se tato aplikace sestavuje, se teď nepodařilo z forge přečíst.",
-      "notOnForge": "Tato aplikace se nesestavuje ve forge: nemá vlastní repozitář.",
+      "notOnForge": "Tato aplikace nemá vlastní repozitář, proto nemá co sestavit ani ukázat.",
       "run": {
         "none": "Zatím neproběhlo žádné sestavení.",
         "building": "Sestavuje se {commit}…",
@@ -5966,7 +5966,11 @@
       "inView": "{shown} v tomto výřezu, celkem {total}",
       "noneInView": "V zobrazené části mapy není žádná entita tohoto pohledu.",
       "reading": "Načítám zobrazený výřez…",
-      "viewFailed": "Zobrazený výřez se nepodařilo načíst ({reason}); posuňte mapu a zkuste to znovu."
+      "viewFailed": "Zobrazený výřez se nepodařilo načíst ({reason}); posuňte mapu a zkuste to znovu.",
+      "colouredBy": "Barva ukazuje {attr} od {min} do {max}, od žluté po červenou. Šedá: bez hodnoty ({unknown}).",
+      "colouredOne": "Všechny body ukazují {attr} {min}, proto jedna barva. Šedá: bez hodnoty ({unknown}).",
+      "keyAll": "všechny stejné: {value}",
+      "keyUnknown": "bez hodnoty ({unknown})"
     },
     "chart": {
       "open": "Graf",
@@ -6028,7 +6032,7 @@
       "previewing": "Náhled je hotový",
       "awaiting_approval": "Čeká na schválení",
       "published": "Publikováno",
-      "failed": "Spuštění selhalo. Otevřete jeho kroky a uvidíte kde.",
+      "failed": "Spuštění selhalo. Požádejte asistenta, ať aplikaci sestaví znovu.",
       "cancelled": "Spuštění bylo zastaveno.",
       "expired": "Spuštění skončilo; náhled zůstává tak, jak byl postaven."
     },
@@ -6356,7 +6360,9 @@
       "running": "Zveřejnění počká, až proběhnou testy verze {version}.",
       "failed": "Verze {version} se nezveřejní, dokud selhává {failed} jejích testů: {names}. Požádejte asistenta o opravu."
     },
-    "cancelOver": "Běh skončil; není co zrušit."
+    "publishOver": "Tento běh skončil, takže nemá co zveřejnit.",
+    "failedNext": "Nic se nezveřejnilo. Na stránce Asistent aplikaci sestavte znovu.",
+    "failedOpen": "Sestavit znovu"
   },
   "assistant": {
     "newConversation": "Začít novou konverzaci",

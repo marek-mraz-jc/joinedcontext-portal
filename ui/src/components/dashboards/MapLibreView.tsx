@@ -5,7 +5,7 @@ import type { MapGeoJSONFeature, MapLayerMouseEvent, StyleSpecification } from "
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { useTranslation } from "react-i18next";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { basemapColour, outlineColour, plainColour, RAMP } from "./mapColours";
+import { basemapColour, outlineColour, ONE_VALUE_COLOUR, plainColour, RAMP, unknownColour } from "./mapColours";
 
 // MapLibre finds its worker beside its own module (`./maplibre-gl-worker.mjs`), which after
 // bundling is /assets/, where nothing of that name is emitted: every dashboard asked for it and
@@ -48,6 +48,8 @@ export interface MapLibreViewProps {
   label: string;
   /** The viewport after every pan or zoom, for the page to ask the Endpoints again (UI-22). */
   onMoveEnd?: (bbox: Bbox) => void;
+  /** Fills a box of the caller's, instead of the map's own framed height. */
+  fill?: boolean;
   /**
    * Called once the map exists, for an overlay to attach itself to it (UI-20); what it
    * returns is called when the map goes away. This is how the deck.gl overlay draws on the
@@ -87,16 +89,30 @@ export function mapStyleFor(project?: string): string | StyleSpecification {
 const DEFAULT_CENTER: [number, number] = [19.146, 48.736];
 const DEFAULT_ZOOM = 11;
 
+/**
+ * The ramp over a range. A range of one value has no ramp: MapLibre refuses an interpolate whose
+ * stops do not strictly ascend and the layer draws nothing, with no word to the person (T-6442).
+ */
+function rampOver(property: string, [min, max]: [number, number]): unknown {
+  if (min >= max) {
+    return ONE_VALUE_COLOUR;
+  }
+  return [
+    "interpolate",
+    ["linear"],
+    ["to-number", ["get", property], 0],
+    ...RAMP.flatMap((stop, index) => [min + ((max - min) * index) / (RAMP.length - 1), stop]),
+  ];
+}
+
 function paintFor(layer: MapLayer): Record<string, unknown> {
   const color = layer.colorBy
     ? [
-        "interpolate",
-        ["linear"],
-        ["to-number", ["get", layer.colorBy.property], 0],
-        ...RAMP.flatMap((stop, index) => {
-          const [min, max] = layer.colorBy?.domain ?? [0, 100];
-          return [min + ((max - min) * index) / (RAMP.length - 1), stop];
-        }),
+        "case",
+        // A feature without the number is unknown, not the ramp's low end (T-6442).
+        ["has", layer.colorBy.property],
+        rampOver(layer.colorBy.property, layer.colorBy.domain ?? [0, 100]),
+        unknownColour(),
       ]
     : plainColour();
 
@@ -108,17 +124,11 @@ function paintFor(layer: MapLayer): Record<string, unknown> {
   }
 
   const [minRadius, maxRadius] = layer.sizeBy?.range ?? [5, 5];
-  const radius = layer.sizeBy
-    ? [
-        "interpolate",
-        ["linear"],
-        ["to-number", ["get", layer.sizeBy.property], 0],
-        layer.colorBy?.domain?.[0] ?? 0,
-        minRadius,
-        layer.colorBy?.domain?.[1] ?? 100,
-        maxRadius,
-      ]
-    : minRadius;
+  const [low, high] = layer.colorBy?.domain ?? [0, 100];
+  const radius =
+    layer.sizeBy && low < high
+      ? ["interpolate", ["linear"], ["to-number", ["get", layer.sizeBy.property], 0], low, minRadius, high, maxRadius]
+      : minRadius;
   return {
     "circle-color": color,
     "circle-radius": radius,
@@ -199,6 +209,7 @@ export function MapLibreView({
   project,
   onReady,
   onMoveEnd,
+  fill,
 }: MapLibreViewProps): JSX.Element {
   const { t } = useTranslation();
   const container = useRef<HTMLDivElement | null>(null);
@@ -385,7 +396,7 @@ export function MapLibreView({
       ref={container}
       role="application"
       aria-label={label}
-      className="h-112 w-full overflow-hidden rounded border border-border"
+      className={`${fill ? "h-full" : "h-112 rounded border border-border"} w-full overflow-hidden`}
     />
   );
 }

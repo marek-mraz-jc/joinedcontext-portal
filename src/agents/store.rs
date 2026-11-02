@@ -18,9 +18,19 @@ use crate::db;
 
 /// Why a run could not be read or written. The API turns it into one 503: a builder run is not
 /// something to answer half of.
+///
+/// This text reaches the run's page and the API's answer, so it holds no driver words; the cause
+/// goes to the log where the error is made (T-6442: a person read "pool timed out ...").
 #[derive(Debug, thiserror::Error)]
-#[error("the agent run store did not answer: {0}")]
-pub struct StoreError(#[from] sqlx::Error);
+#[error("The Portal's database did not answer in time. Start the run again in a minute.")]
+pub struct StoreError(#[source] sqlx::Error);
+
+impl From<sqlx::Error> for StoreError {
+    fn from(cause: sqlx::Error) -> Self {
+        tracing::warn!(error = %cause, "the agent run store did not answer");
+        Self(cause)
+    }
+}
 
 /// Filter criteria for querying agent runs (AG-71).
 #[derive(Debug, Clone, Default)]
@@ -561,6 +571,15 @@ fn transition(status: &str, next: AgentRunStatus) -> Result<AgentRunStatus, Stat
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-6442: this text reaches the run's page; a person read "pool timed out while waiting for
+    /// an open connection" beside a stopped run.
+    #[test]
+    fn a_store_failure_reads_in_a_persons_words() {
+        let shown = StoreError::from(sqlx::Error::PoolTimedOut).to_string();
+        assert!(!shown.contains("pool"), "{shown}");
+        assert!(shown.contains("Start the run again"), "{shown}");
+    }
 
     fn run(id: &str, project: &str, created_at: &str) -> AgentRun {
         AgentRun {
