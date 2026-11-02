@@ -226,7 +226,7 @@ fn project_binding(state: &AppState, identity: &Identity, manifest: &Value) -> O
 /// What `identity` may do when removing `name` of `kind` from `project`: their permissions there,
 /// and at the organization's namespace a binding scoped to one project, or to a context space of
 /// it, also goes by whoever may delete `RoleBinding` in that project (S-32, PF-52): the revoke
-/// beside [`project_binding`]'s grant. Approval stays the organization's.
+/// beside `project_binding`'s grant. Approval stays the organization's.
 pub fn for_removal(
     state: &AppState,
     identity: &Identity,
