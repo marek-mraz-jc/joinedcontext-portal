@@ -524,7 +524,7 @@ export interface paths {
         };
         /**
          * What My Connector May Reach
-         * @description The presets, the caller's ceiling and, per project the caller reads, the spaces, Endpoints and pipelines they read: what a new connector may name. Create checks every item again (T-5951, AG-150).
+         * @description The presets, the caller's ceiling and, per project the caller reads, the spaces, Endpoints and pipelines they read: what a new connector may name. A project the caller holds no right in but reads Endpoints of, shared with their Organization or a group (ADR-N-067), comes with `organizationData` and only those Endpoints, for reading. Create checks every item again (T-5951, AG-150).
          */
         get: operations["connector_options"];
         put?: never;
@@ -10851,6 +10851,12 @@ export interface components {
              */
             allowedEndpoints?: string[] | null;
             endpoints: string[];
+            /**
+             * @description Organization data (ADR-N-067 §2.4): the caller holds no right in the project and reads only
+             *     `endpoints`, shared with their Organization or a group of theirs. An item names one of
+             *     them, for reading, and the connector is `data-read` with no writes.
+             */
+            organizationData?: boolean;
             pipelines: string[];
             project: string;
             spaces: string[];

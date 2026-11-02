@@ -1039,6 +1039,19 @@ impl Connector {
         projects
     }
 
+    /// The Endpoints the scope names in `project` when it names nothing else there: what a
+    /// data tool's `endpoint` may be (T-6413). `None` when an item reaches more.
+    pub fn endpoints_named(&self, project: &str) -> Option<Vec<&str>> {
+        let mut named = Vec::new();
+        for item in self.scope.iter().filter(|i| i.project == project) {
+            match item.narrowing() {
+                Some(("Endpoint", name)) if name != "*" => named.push(name),
+                _ => return None,
+            }
+        }
+        (!named.is_empty()).then_some(named)
+    }
+
     fn whole(&self, project: &str) -> bool {
         self.scope
             .iter()
@@ -2285,6 +2298,25 @@ pub(crate) mod tests {
             access: ItemAccess::Read,
             personal_data: false,
         }
+    }
+
+    /// T-6413: a scope of named Endpoints bounds a data tool's `endpoint`; one reaching more,
+    /// or another project, does not.
+    #[test]
+    fn a_scope_of_named_endpoints_names_them() {
+        let c = connector(
+            &["data-read"],
+            vec![
+                item("helsinki", Some("air")),
+                item("helsinki", Some("noise")),
+                item("espoo", None),
+            ],
+        );
+        assert_eq!(c.endpoints_named("helsinki"), Some(vec!["air", "noise"]));
+        assert_eq!(c.endpoints_named("espoo"), None);
+        assert_eq!(c.endpoints_named("vantaa"), None);
+        let every = connector(&["data-read"], vec![item("helsinki", Some("*"))]);
+        assert_eq!(every.endpoints_named("helsinki"), None);
     }
 
     fn connector(segments: &[&str], scope: Vec<ScopeItem>) -> Connector {

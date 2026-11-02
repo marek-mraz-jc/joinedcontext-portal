@@ -212,6 +212,8 @@ async fn run(
     let name = &input.endpoint;
     let slug = match readable_slug(caller, state, project, name)? {
         Target::Own(slug) => slug,
+        // Shared with the caller to read, never theirs to write: as missing as it was before.
+        Target::Shared(_) => return Err(super::data_query::unshared(project, name)),
         Target::Public(_) => {
             return Err(OpError::Api(ApiError::NotFound(format!(
                 "no Endpoint {name} in project {project}: a public Endpoint of another project is read, never written"

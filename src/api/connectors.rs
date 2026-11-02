@@ -134,6 +134,61 @@ pub struct ProjectReach {
     /// object of an allowed project may be named.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub allowed_endpoints: Option<Vec<String>>,
+    /// Organization data (ADR-N-067 §2.4): the caller holds no right in the project and reads only
+    /// `endpoints`, shared with their Organization or a group of theirs. An item names one of
+    /// them, for reading, and the connector is `data-read` with no writes.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub organization_data: bool,
+}
+
+/// The projects the caller holds no right in but reads Endpoints of, shared with their
+/// Organization or a group of theirs (ADR-N-067 §2.4, T-6413): only those Endpoints, for reading.
+async fn organization_reach(
+    state: &AppState,
+    session: &crate::auth::session::Session,
+    headers: &axum::http::HeaderMap,
+    ceiling: &Ceiling,
+    held: &[ProjectReach],
+) -> Vec<ProjectReach> {
+    let catalogue = crate::api::catalogue_readable::readable_by(state, session, headers).await;
+    let mut out: Vec<ProjectReach> = Vec::new();
+    for dataset in catalogue.datasets {
+        if dataset.access == "public" || held.iter().any(|p| p.project == dataset.project) {
+            continue;
+        }
+        let at = match out.iter().position(|p| p.project == dataset.project) {
+            Some(at) => at,
+            None => {
+                out.push(ProjectReach {
+                    allowed: ceiling.allows_project_name(&dataset.project),
+                    project: dataset.project.clone(),
+                    spaces: Vec::new(),
+                    endpoints: Vec::new(),
+                    pipelines: Vec::new(),
+                    allowed_endpoints: None,
+                    organization_data: true,
+                });
+                out.len() - 1
+            }
+        };
+        out[at].endpoints.push(dataset.name);
+    }
+    for reach in &mut out {
+        reach.endpoints.sort();
+        reach.endpoints.dedup();
+        if reach.allowed && !ceiling.allows_endpoint(&reach.project, None) {
+            reach.allowed_endpoints = Some(
+                reach
+                    .endpoints
+                    .iter()
+                    .filter(|e| ceiling.allows_endpoint(&reach.project, Some(e)))
+                    .cloned()
+                    .collect(),
+            );
+        }
+    }
+    out.sort_by(|a, b| a.project.cmp(&b.project));
+    out
 }
 
 /// The fields of a connector its owner may change (JSON merge patch, API/14 §2); the name stays.
@@ -228,9 +283,89 @@ fn marked(mut connector: Connector, ceiling: &Ceiling) -> Connector {
 
 /// The owner's half of a new connector: each scope item is in a project they read today, and a
 /// named object exists there (AG-150: a connector never reaches past its owner).
-fn reachable(state: &AppState, identity: &Identity, new: &NewConnector) -> Result<(), ApiError> {
+///
+/// An item of a project the owner holds no right in is organization data (ADR-N-067 §2.4,
+/// T-6413): it names one Endpoint the gateway lets the owner read today, for reading, and the
+/// connector then carries `data-read` alone and no writes, whatever the ceiling would allow.
+async fn reachable(
+    state: &AppState,
+    session: &crate::auth::session::Session,
+    headers: &axum::http::HeaderMap,
+    new: &NewConnector,
+) -> Result<(), ApiError> {
+    let identity = &session.identity;
+    let mut catalogue = None;
     for (i, item) in new.scope.iter().enumerate() {
-        reachable_item(state, identity, i, item)?;
+        if crate::permissions::for_request(state, identity, &item.project).may_read_project() {
+            reachable_item(state, identity, i, item)?;
+            continue;
+        }
+        if catalogue.is_none() {
+            catalogue =
+                Some(crate::api::catalogue_readable::readable_by(state, session, headers).await);
+        }
+        // Public Endpoints are read through the public hub; an item names a shared one.
+        let shared: Vec<&str> = catalogue
+            .iter()
+            .flat_map(|c| &c.datasets)
+            .filter(|d| d.project == item.project && d.access != "public")
+            .map(|d| d.name.as_str())
+            .collect();
+        // A project nothing of is shared keeps the plain refusal, telling nothing of its shapes.
+        if !shared.is_empty() {
+            organization_item(i, item, new)?;
+        }
+        if !item
+            .endpoint
+            .as_deref()
+            .is_some_and(|e| shared.contains(&e))
+        {
+            return Err(ApiError::Denied(format!(
+                "scope[{i}].project: you hold no right in project {}, and no Endpoint of it you name is shared with you, so a connector of yours cannot reach it",
+                item.project
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// The shape an organization-data item and its connector keep: one named Endpoint, read, under
+/// `data-read` alone, with no write and no verb past `read`. `Err` is the 403 naming the field.
+fn organization_item(
+    i: usize,
+    item: &connectors::ScopeItem,
+    new: &NewConnector,
+) -> Result<(), ApiError> {
+    let refused = |field: String, why: &str| {
+        Err(ApiError::Denied(format!(
+            "{field}: {why}; a connector over organization data (project {}) only reads the Endpoints shared with you",
+            item.project
+        )))
+    };
+    if item.space.is_some() || item.pipeline.is_some() {
+        return refused(
+            format!("scope[{i}]"),
+            "name an Endpoint, not a space or pipeline",
+        );
+    }
+    if item.endpoint.as_deref().is_none_or(|e| e == "*") {
+        return refused(format!("scope[{i}].endpoint"), "name one Endpoint");
+    }
+    if item.access != connectors::ItemAccess::Read {
+        return refused(format!("scope[{i}].access"), "the access is read");
+    }
+    if new.segments.iter().any(|s| s != "data-read") {
+        return refused("segments".into(), "the preset is data-read alone");
+    }
+    if new.writes {
+        return refused("writes".into(), "it writes nothing");
+    }
+    let verbs = new.kinds.iter().flatten().flat_map(|k| &k.verbs);
+    if verbs
+        .into_iter()
+        .any(|v| *v != jc_core::kinds::ConnectorVerb::Read)
+    {
+        return refused("kinds".into(), "every kind is read only");
     }
     Ok(())
 }
@@ -324,7 +459,7 @@ fn readable_names(
     get,
     path = "/api/v1/connectors/options",
     summary = "What My Connector May Reach",
-    description = "The presets, the caller's ceiling and, per project the caller reads, the spaces, Endpoints and pipelines they read: what a new connector may name. Create checks every item again (T-5951, AG-150).",
+    description = "The presets, the caller's ceiling and, per project the caller reads, the spaces, Endpoints and pipelines they read: what a new connector may name. A project the caller holds no right in but reads Endpoints of, shared with their Organization or a group (ADR-N-067), comes with `organizationData` and only those Endpoints, for reading. Create checks every item again (T-5951, AG-150).",
     tag = "connectors",
     responses(
         (status = 200, description = "What a connector of the caller may name", body = ConnectorOptions),
@@ -335,11 +470,12 @@ fn readable_names(
 pub async fn connector_options(
     user: CurrentUser,
     State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
 ) -> Result<Json<ConnectorOptions>, ApiError> {
     let identity = &user.0.identity;
     person(&state, identity)?;
     let ceiling = Ceiling::of(&state.mirror, identity);
-    let projects = state
+    let mut projects: Vec<ProjectReach> = state
         .mirror
         .namespaces()
         .into_iter()
@@ -362,11 +498,13 @@ pub async fn connector_options(
                     endpoints,
                     allowed,
                     allowed_endpoints,
+                    organization_data: false,
                     project,
                 }
             })
         })
         .collect();
+    projects.extend(organization_reach(&state, &user.0, &headers, &ceiling, &projects).await);
     let mut segments: Vec<String> = connectors::SEGMENTS
         .iter()
         .map(|(name, _, _)| (*name).to_owned())
@@ -451,6 +589,7 @@ fn client_choices(configured: &[String], ceiling: &Ceiling) -> Vec<ClientChoice>
 pub async fn create_connector(
     user: CurrentUser,
     State(state): State<AppState>,
+    headers: axum::http::HeaderMap,
     Query(params): Query<CreateParams>,
     body: Result<Json<NewConnector>, JsonRejection>,
 ) -> Result<Response, ApiError> {
@@ -459,7 +598,7 @@ pub async fn create_connector(
     let Json(new) = body.map_err(|e| ApiError::BadRequest(e.body_text()))?;
     let ceiling = Ceiling::of(&state.mirror, identity);
     let above = connectors::validate(&new, &ceiling, chrono::Utc::now())?;
-    reachable(&state, identity, &new)?;
+    reachable(&state, &user.0, &headers, &new).await?;
     match params.dry_run.as_deref() {
         None => {}
         Some("All") => {
@@ -533,6 +672,7 @@ pub async fn edit_connector(
     user: CurrentUser,
     State(state): State<AppState>,
     Path(id): Path<String>,
+    headers: axum::http::HeaderMap,
     body: Result<Json<ConnectorPatch>, JsonRejection>,
 ) -> Result<Json<Connector>, ApiError> {
     let identity = &user.0.identity;
@@ -557,7 +697,7 @@ pub async fn edit_connector(
         &Ceiling::of(&state.mirror, identity),
         chrono::Utc::now(),
     )?;
-    reachable(&state, identity, &new)?;
+    reachable(&state, &user.0, &headers, &new).await?;
     let approval = current
         .approval
         .filter(|_| !above.is_empty() && above.iter().all(|l| current.above_ceiling.contains(l)));
@@ -1127,6 +1267,7 @@ mod tests {
     use crate::permissions::ORG_NAMESPACE;
     use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
     use crate::store::Mirror;
+    use axum::http::HeaderMap;
     use serde_json::{json, Value};
     use std::sync::Arc;
 
@@ -1138,6 +1279,55 @@ mod tests {
             spec,
             status: None,
         }
+    }
+
+    /// T-6413: an organization-data item names one Endpoint for reading under `data-read`
+    /// alone; each other shape is the 403 naming its field.
+    #[test]
+    fn an_organization_data_item_reads_one_endpoint_and_nothing_else() {
+        use jc_core::kinds::ConnectorVerb;
+        let item = |endpoint: Option<&str>, access| connectors::ScopeItem {
+            project: "helsinki".into(),
+            space: None,
+            endpoint: endpoint.map(str::to_owned),
+            pipeline: None,
+            access,
+            personal_data: false,
+        };
+        let read = connectors::ItemAccess::Read;
+        let ask = |segments: &[&str], writes: bool, verbs: Vec<ConnectorVerb>| NewConnector {
+            name: "shared".into(),
+            segments: segments.iter().map(|s| (*s).to_owned()).collect(),
+            scope: vec![],
+            kinds: Some(vec![connectors::KindGrant {
+                kind: "Endpoint".into(),
+                verbs,
+            }]),
+            writes,
+            expires_at: chrono::Utc::now(),
+            allowed_clients: vec![],
+        };
+        let fine = ask(&["data-read"], false, vec![ConnectorVerb::Read]);
+        assert!(organization_item(0, &item(Some("air"), read), &fine).is_ok());
+        let refused = |item: connectors::ScopeItem, new: &NewConnector| match organization_item(
+            0, &item, new,
+        ) {
+            Err(ApiError::Denied(why)) => why,
+            other => panic!("{other:?}"),
+        };
+        assert!(refused(item(None, read), &fine).starts_with("scope[0].endpoint:"));
+        assert!(refused(item(Some("*"), read), &fine).starts_with("scope[0].endpoint:"));
+        let write = item(Some("air"), connectors::ItemAccess::Write);
+        assert!(refused(write, &fine).starts_with("scope[0].access:"));
+        let context = ask(&["data-read", "context"], false, vec![]);
+        assert!(refused(item(Some("air"), read), &context).starts_with("segments:"));
+        let writes = ask(&["data-read"], true, vec![]);
+        assert!(refused(item(Some("air"), read), &writes).starts_with("writes:"));
+        let create = ask(&["data-read"], false, vec![ConnectorVerb::Create]);
+        assert!(refused(item(Some("air"), read), &create).starts_with("kinds:"));
+        let mut spaced = item(Some("air"), read);
+        spaced.space = Some("air".into());
+        assert!(refused(spaced, &fine).starts_with("scope[0]:"));
     }
 
     /// A reader of project `helsinki` alone; `espoo` exists beside it.
@@ -1416,9 +1606,15 @@ mod tests {
             json!({ "subjects": [{ "user": "ana" }, { "user": "bob" }], "role": "reader", "scope": { "project": "doprava" } }),
         ));
         let state = AppState::new(Config::for_tests(), None).with_mirror(mirror);
-        create_connector(user("ana"), State(state.clone()), dry(None), body("tab"))
-            .await
-            .expect("created");
+        create_connector(
+            user("ana"),
+            State(state.clone()),
+            HeaderMap::new(),
+            dry(None),
+            body("tab"),
+        )
+        .await
+        .expect("created");
         let id = state
             .connectors
             .of_owner("f:1:ana", "")
@@ -1528,7 +1724,13 @@ mod tests {
         ));
         let state = AppState::new(Config::for_tests(), None).with_mirror(mirror);
         let create = |who: &str, run: Option<&str>, name: &str| {
-            create_connector(user(who), State(state.clone()), dry(run), body(name))
+            create_connector(
+                user(who),
+                State(state.clone()),
+                HeaderMap::new(),
+                dry(run),
+                body(name),
+            )
         };
 
         let workload = create("service-account-etl", None, "a").await;
@@ -1563,13 +1765,20 @@ mod tests {
         // is no configured connector client, manages no connector of the person it acts for.
         let mut agent = user("ana");
         agent.0.identity.client = Some("helsinki-jc-agent-proxy".into());
-        let minted =
-            create_connector(agent.clone(), State(state.clone()), dry(None), body("b")).await;
+        let minted = create_connector(
+            agent.clone(),
+            State(state.clone()),
+            HeaderMap::new(),
+            dry(None),
+            body("b"),
+        )
+        .await;
         assert!(matches!(minted, Err(ApiError::Denied(why)) if why.contains("AG-151")));
         let widened = edit_connector(
             agent.clone(),
             State(state.clone()),
             Path(mine[0].id.clone()),
+            HeaderMap::new(),
             patch(json!({ "writes": true })),
         )
         .await;
@@ -1598,9 +1807,10 @@ mod tests {
         const CLAUDE_CODE: &str = "https://claude.ai/oauth/claude-code-client-metadata";
         let state = reader_world();
         let options = |state: AppState| async move {
-            let Json(options) = connector_options(user("reader@hel.fi"), State(state))
-                .await
-                .expect("options");
+            let Json(options) =
+                connector_options(user("reader@hel.fi"), State(state), HeaderMap::new())
+                    .await
+                    .expect("options");
             options.clients
         };
         // Under the default every realm client may be named and nothing else is offered.
@@ -1663,9 +1873,13 @@ mod tests {
     #[tokio::test]
     async fn the_options_list_only_what_the_reader_reads_and_an_edit_asks_again() {
         let state = reader_world();
-        let Json(options) = connector_options(user("reader@hel.fi"), State(state.clone()))
-            .await
-            .expect("options");
+        let Json(options) = connector_options(
+            user("reader@hel.fi"),
+            State(state.clone()),
+            HeaderMap::new(),
+        )
+        .await
+        .expect("options");
         assert_eq!(
             serde_json::to_value(&options.projects).expect("json"),
             json!([{ "project": "helsinki", "spaces": ["air"], "endpoints": ["helsinki-air"], "pipelines": [], "allowed": true }])
@@ -1681,6 +1895,7 @@ mod tests {
         let created = create_connector(
             user("reader@hel.fi"),
             State(state.clone()),
+            HeaderMap::new(),
             Query(CreateParams { dry_run: None }),
             Ok(Json(new)),
         )
@@ -1700,6 +1915,7 @@ mod tests {
                 user("reader@hel.fi"),
                 State(state.clone()),
                 Path(id.clone()),
+                HeaderMap::new(),
                 patch(body),
             )
         };
@@ -1754,9 +1970,13 @@ mod tests {
             ORG_NAMESPACE,
             json!({ "members": [{ "user": "reader@hel.fi" }] }),
         ));
-        let Json(options) = connector_options(user("reader@hel.fi"), State(state.clone()))
-            .await
-            .expect("options");
+        let Json(options) = connector_options(
+            user("reader@hel.fi"),
+            State(state.clone()),
+            HeaderMap::new(),
+        )
+        .await
+        .expect("options");
         let reach: Vec<(String, bool, Option<Vec<String>>)> = options
             .projects
             .into_iter()
@@ -1815,6 +2035,7 @@ mod tests {
                 user("reader@hel.fi"),
                 State(state.clone()),
                 Path(created.id.clone()),
+                HeaderMap::new(),
                 patch(body),
             )
         };

@@ -47,6 +47,12 @@ const OPTIONS = {
   ],
 };
 
+// A member (ADR-N-067, T-6413): no project, two Endpoints of helsinki shared with her, read only.
+const MEMBER = {
+  ...OPTIONS,
+  ceiling: { segments: ["data-read"], writes: false, maxDays: 30, kinds: [] },
+  projects: [{ project: "helsinki", spaces: [], endpoints: ["air-quality", "traffic-counts"], pipelines: [], allowed: true, organizationData: true }],
+};
 const CLAUDE_AI = "https://claude.ai/oauth/mcp-oauth-client-metadata";
 const CLAUDE_CODE = "https://claude.ai/oauth/claude-code-client-metadata";
 const LISTED = "DelegationPolicy claude-only does not allow the client";
@@ -63,7 +69,8 @@ const CLAUDE_ONLY = {
 interface Stub {
   refuse?: boolean;
   refuseKinds?: boolean;
-  options?: typeof CLAUDE_ONLY;
+  options?: typeof CLAUDE_ONLY | typeof MEMBER;
+  member?: boolean;
   refuseClient?: boolean;
 }
 
@@ -76,7 +83,7 @@ async function stubApi(page: Page, stub: Stub = {}) {
     const json = (body: unknown, status = 200) =>
       route.fulfill({ status, contentType: status >= 400 ? "application/problem+json" : "application/json", body: JSON.stringify(body) });
     if (path.endsWith("/auth/me")) return json(IDENTITY);
-    if (path === "/api/v1/projects") return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ProjectList", items: [{ name: "doprava" }] });
+    if (path === "/api/v1/projects") return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ProjectList", items: stub.member ? [] : [{ name: "doprava" }] });
     if (path.startsWith("/api/v1/connectors")) {
       const body = request.method() === "POST" ? request.postDataJSON() : undefined;
       requests.push({ method: request.method(), path, body });
@@ -279,6 +286,35 @@ for (const width of [1440, 400]) {
       await expect(why).toBeVisible();
       await why.scrollIntoViewIfNeeded();
       await shot(page, `ai-connectors-client-refusal-${width}`);
+    });
+
+    test("a member builds a read-only connector over the datasets shared with her (T-6413)", async ({ page }) => {
+      const requests = await stubApi(page, { options: MEMBER, member: true });
+      await page.goto("/ai-connectors?lang=en");
+      await page.getByRole("button", { name: "New AI connector" }).first().click();
+      const dialog = page.getByRole("dialog");
+      await dialog.getByRole("textbox", { name: /Name/ }).fill("shared-in-claude");
+      await expect(dialog.getByText("helsinki: organization data, read")).toBeVisible();
+      await expect(dialog.getByRole("checkbox", { name: /the whole project/ })).toHaveCount(0);
+      await dialog.getByRole("checkbox", { name: "traffic-counts" }).check();
+      await expect(dialog.getByRole("combobox", { name: /Access for traffic-counts/ })).toHaveCount(0);
+      await dialog.getByRole("checkbox", { name: /Claude Code, VS Code/ }).check();
+      await dialog.getByText("helsinki: organization data, read").scrollIntoViewIfNeeded();
+      await shot(page, `ai-connectors-member-form-${width}`);
+      await dialog.getByRole("button", { name: "Create" }).click();
+      await expect(page.getByRole("region", { name: "shared-in-claude" })).toBeVisible();
+      const created = requests.find((one) => one.method === "POST")?.body as { segments: string[]; scope: unknown; writes?: boolean };
+      expect(created.scope).toEqual([{ project: "helsinki", endpoint: "traffic-counts", access: "read" }]);
+      expect(created.segments).toEqual(["data-read"]);
+      await shot(page, `ai-connectors-member-created-${width}`);
+    });
+
+    test("a member with nothing shared reads what to do next (T-6413)", async ({ page }) => {
+      await stubApi(page, { options: { ...MEMBER, projects: [] }, member: true });
+      await page.goto("/ai-connectors?lang=en");
+      await page.getByRole("button", { name: "New AI connector" }).first().click();
+      await expect(page.getByRole("dialog").getByText(/nothing is shared with you yet/)).toBeVisible();
+      await shot(page, `ai-connectors-member-empty-${width}`);
     });
 
     test("the old connectors address opens My AI connectors (T-5970)", async ({ page }) => {

@@ -416,6 +416,34 @@ describe("the scope tree", () => {
     expect(picks).toHaveBeenLastCalledWith([]);
   });
 
+  it("offers organization data as its shared Endpoints, read only, never the whole project (T-6413)", async () => {
+    const user = userEvent.setup();
+    const picks = vi.fn();
+    const options: ConnectorOptions = {
+      ...OPTIONS,
+      projects: [{ project: "helsinki", spaces: [], endpoints: ["traffic-counts"], pipelines: [], allowed: true, organizationData: true }],
+    };
+    const form = { ...emptyForm(options, NOW), picks: [] };
+    const { rerender } = render(
+      <I18nextProvider i18n={i18n}>
+        <ScopeTree options={options} form={form} onChange={picks} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText("helsinki: organization data, read")).toBeInTheDocument();
+    expect(screen.getByText(/Only the datasets shared with your organization or a group of yours/)).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox", { name: /the whole project/ })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("checkbox", { name: /traffic-counts/ }));
+    expect(picks).toHaveBeenLastCalledWith([{ project: "helsinki", kind: "endpoint", name: "traffic-counts", access: "read" }]);
+    const ticked = { ...form, picks: [{ project: "helsinki", kind: "endpoint" as const, name: "traffic-counts", access: "read" as const }] };
+    rerender(
+      <I18nextProvider i18n={i18n}>
+        <ScopeTree options={options} form={ticked} onChange={picks} />
+      </I18nextProvider>,
+    );
+    // Read only: no access choice to raise to write.
+    expect(screen.queryByRole("combobox", { name: /Access for traffic-counts/ })).not.toBeInTheDocument();
+  });
+
   it("ticks change verbs per kind, read always on, and greys a verb above the ceiling (T-6302)", async () => {
     const user = userEvent.setup();
     const verbs = vi.fn();
@@ -463,7 +491,7 @@ describe("the scope tree", () => {
         <ScopeTree options={{ ...OPTIONS, projects: [] }} form={emptyForm(OPTIONS, NOW)} onChange={() => undefined} />
       </I18nextProvider>,
     );
-    expect(screen.getByText(/Ask a project owner for access first/)).toBeInTheDocument();
+    expect(screen.getByText(/Ask a project owner or your organization.s administrator for access/)).toBeInTheDocument();
   });
 
   it("gives every setup line a copy button", () => {

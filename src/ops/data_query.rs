@@ -293,11 +293,13 @@ pub(super) fn detail_of(body: &Value) -> String {
 
 /// The Endpoint a read goes to: one of the project, read as the caller, or a public one of any
 /// project named by its slug, read anonymously so a connector never reads more there than an
-/// anonymous caller does (T-6272).
+/// anonymous caller does (T-6272), or one of the project whose manifest the caller may not read,
+/// read as the caller so the gateway decides whether a Policy shares it with them (ADR-N-067).
 #[derive(Debug, PartialEq)]
 pub(super) enum Target {
     Own(String),
     Public(String),
+    Shared(String),
 }
 
 /// The Endpoint `name` names: the project's Endpoint of that name when the caller may read its
@@ -314,13 +316,17 @@ pub(super) fn readable_slug(
             "no Endpoint {name} in project {project}, and no public Endpoint has slug {name}"
         )))
     };
+    let mut shared = None;
     let own = match state.mirror.get(project, "Endpoint", name) {
         Some(envelope) => {
             let manifest = serde_json::to_value(&envelope)?;
             // A space-living kind: the grant of the Endpoint's own space decides (T-5112).
-            crate::permissions::for_request(state, &caller.identity, project)
-                .may_read_manifest("Endpoint", &manifest)
-                .then_some(envelope)
+            let readable = crate::permissions::for_request(state, &caller.identity, project)
+                .may_read_manifest("Endpoint", &manifest);
+            if !readable && envelope.spec["audience"].as_str() != Some("public") {
+                shared = envelope.spec["slug"].as_str().map(str::to_owned);
+            }
+            readable.then_some(envelope)
         }
         None => None,
     };
@@ -332,9 +338,20 @@ pub(super) fn readable_slug(
         })?;
         return Ok(Target::Own(slug.to_owned()));
     }
-    crate::api::catalogue::public_endpoint(state, name)
-        .map(|_| Target::Public(name.to_owned()))
-        .ok_or_else(missing)
+    if let Some(target) =
+        crate::api::catalogue::public_endpoint(state, name).map(|_| Target::Public(name.to_owned()))
+    {
+        return Ok(target);
+    }
+    shared.map(Target::Shared).ok_or_else(missing)
+}
+
+/// The one answer for an Endpoint the gateway does not let the caller read as shared with them:
+/// the same as for one that is not there.
+pub(super) fn unshared(project: &str, name: &str) -> OpError {
+    OpError::Api(ApiError::NotFound(format!(
+        "no Endpoint {name} in project {project}, and no public Endpoint has slug {name}"
+    )))
 }
 
 /// The gateway's status for an NGSI-LD read, as the error the caller can act on; `Ok` on 200.
@@ -409,8 +426,9 @@ async fn run(
     let base = state.config.gateway_url.as_deref().ok_or_else(|| {
         ApiError::Unavailable("this Portal has no gateway address (JC_PORTAL_GATEWAY_URL)".into())
     })?;
+    let shared = matches!(target, Target::Shared(_));
     let (slug, token) = match target {
-        Target::Own(slug) => {
+        Target::Own(slug) | Target::Shared(slug) => {
             let bearer = caller.bearer.as_ref().ok_or_else(|| {
                 ApiError::Denied(
                     "jc_data_query reads as you with the token your MCP client presented: call it \
@@ -421,7 +439,14 @@ async fn run(
             let oidc = state.oidc.as_ref().ok_or_else(|| {
                 ApiError::Unavailable("this Portal has no Keycloak client to read data with".into())
             })?;
-            let token = oidc.exchange_for_endpoint(&bearer.0, &slug).await?;
+            // A realm that refuses the exchange for a shared Endpoint tells as little as the
+            // gateway's refusal would.
+            let token = match oidc.exchange_for_endpoint(&bearer.0, &slug).await {
+                Err(ApiError::Denied(_) | ApiError::NotFound(_)) if shared => {
+                    return Err(unshared(project, name))
+                }
+                token => token?,
+            };
             (slug, Some(token))
         }
         Target::Public(slug) => (slug, None),
@@ -453,6 +478,9 @@ async fn run(
         .and_then(|v| v.parse::<u64>().ok());
     let bytes = capped_page(answer).await?;
     let body: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    if shared && matches!(status, 401 | 403 | 404) {
+        return Err(unshared(project, name));
+    }
     refusal_of(status, input.temporal.is_some(), name, &slug, &body)?;
     answer_of(&input, body, total)
 }

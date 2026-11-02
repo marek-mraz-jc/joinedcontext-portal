@@ -107,6 +107,9 @@ const PERSONAS: &[&str] = &[
     // A viewer of her own, so the scenario disabling her (S-54) leaves the other personas' tokens
     // and connectors alone.
     "jana",
+    // A member of the Organization with no RoleBinding (ADR-N-067, S-90): she reads only what a
+    // Policy shares with her.
+    "member",
 ];
 /// The LinkML model of every scenario space (DataModel `bike-counter`): `name` is required
 /// (S-10), and Station is the target of a relationship (S-15).
@@ -1272,6 +1275,29 @@ async fn catalogue_and_pdp(server: &MockServer) {
         .mount(server)
         .await;
     let simulate = "^/api/endpoint/[a-z2-7]+/access/simulate$";
+    // The member (S-90): the Organization shares the citizen reports with her, nothing else.
+    Mock::given(method("POST"))
+        .and(path_regex(
+            "^/api/endpoint/[a-z2-7]+reportszz+/access/simulate$",
+        ))
+        .and(body_string_contains("sub-scn-member"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "admitted": true, "policies": ["reports-organization"],
+            "permissions": [{ "resource": { "type": "PotholeReport" },
+                              "actions": ["queryEntity", "retrieveEntity"] }]
+        })))
+        .with_priority(1)
+        .mount(server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path_regex(simulate))
+        .and(body_string_contains("sub-scn-member"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "admitted": false, "policies": [], "permissions": []
+        })))
+        .with_priority(2)
+        .mount(server)
+        .await;
     Mock::given(method("POST"))
         .and(path_regex(simulate))
         .and(body_string_contains("scn-writers"))
@@ -2047,8 +2073,8 @@ fn the_catalogue_holds_the_connector_scenarios_well_formed() {
     let scenarios = catalogue();
     // S-01..S-50 of the owner's order and S-51..S-55 added with T-5971..T-5976; the UI
     // scenarios S-56..S-85 are browser journeys of the user agent (T-5981), not MCP calls, and
-    // S-86 (T-6082), S-87 (T-6265), S-88 (T-6284) and S-89 (T-6290) follow them.
-    assert_eq!(scenarios.len(), 59);
+    // S-86 (T-6082), S-87 (T-6265), S-88 (T-6284), S-89 (T-6290) and S-90 (T-6413) follow them.
+    assert_eq!(scenarios.len(), 60);
     for (n, s) in scenarios.iter().enumerate() {
         // The MCP ids skip S-56..S-85, the UI journeys' ids (T-6082).
         let number = if n < 55 { n + 1 } else { n + 31 };
@@ -2555,10 +2581,24 @@ async fn the_connector_tree_lists_only_what_the_person_reads_and_create_asks_aga
         .send("GET", "/api/v1/connectors/options", portal.clone(), None)
         .await;
     assert_eq!(status, StatusCode::OK, "{options}");
+    // The fixture's gateway lets everybody read every Endpoint (S-30), so the projects the
+    // viewer holds no right in come as organization data: Endpoints only, read (T-6413).
+    let (shared, held): (Vec<Value>, Vec<Value>) = options["projects"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default()
+        .into_iter()
+        .partition(|p| p["organizationData"] == json!(true));
     assert_eq!(
-        options["projects"],
+        json!(held),
         json!([{ "project": own, "spaces": ["lot-tree"], "endpoints": ["lot-tree-cars"],
                  "pipelines": ["lot-tree-load"], "allowed": true }])
+    );
+    assert!(
+        shared
+            .iter()
+            .all(|p| p["spaces"] == json!([]) && p["pipelines"] == json!([])),
+        "{shared:?}"
     );
     let mut ceiling = options["ceiling"].clone();
     let kinds = ceiling
