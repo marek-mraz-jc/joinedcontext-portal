@@ -885,28 +885,7 @@ pub async fn propose(
         .into_iter()
         .map(|attr| attr.name)
         .collect();
-    if stored.is_empty() {
-        return Err(ApiError::Denied(
-            "you may read none of the attributes this dashboard shows".into(),
-        ));
-    }
-    let after = text_of(&edit.config);
-    let mut errors = check(&edit.config, &before, &stored);
-    if after.len() > MAX_FILE_BYTES {
-        errors.push(format!("config: holds at most {MAX_FILE_BYTES} bytes"));
-    }
-    if !errors.is_empty() {
-        return Err(ApiError::Unprocessable {
-            detail: errors.join("; "),
-            errors,
-        });
-    }
-    let before_text = text_of(&before);
-    if after == before_text {
-        return Err(ApiError::Conflict(format!(
-            "the edit leaves {DASHBOARD_FILE} as it is"
-        )));
-    }
+    let (before_text, after) = checked(&edit.config, &before, &stored)?;
     if edit.dry_run {
         let proposal = DashboardProposal {
             before: before_text,
@@ -916,17 +895,70 @@ pub async fn propose(
         };
         return Ok((StatusCode::OK, Json(proposal)).into_response());
     }
+    let (sha, pull_request_url) = commit(&repo, &user, &project, &name, &default, &after).await?;
+    let change = propose_at(&state, &user, &project, &name, sha).await?;
+    let proposal = DashboardProposal {
+        before: before_text,
+        after,
+        change: Some(change),
+        pull_request_url: Some(pull_request_url),
+    };
+    Ok((StatusCode::ACCEPTED, Json(proposal)).into_response())
+}
+
+/// The file before and after as text, or the refusal: no readable attribute (403), a field the
+/// rules refuse (422 naming each), a file over the cap, or nothing changed (409).
+fn checked(
+    config: &Value,
+    before: &Value,
+    stored: &[String],
+) -> Result<(String, String), ApiError> {
+    if stored.is_empty() {
+        return Err(ApiError::Denied(
+            "you may read none of the attributes this dashboard shows".into(),
+        ));
+    }
+    let after = text_of(config);
+    let mut errors = check(config, before, stored);
+    if after.len() > MAX_FILE_BYTES {
+        errors.push(format!("config: holds at most {MAX_FILE_BYTES} bytes"));
+    }
+    if !errors.is_empty() {
+        return Err(ApiError::Unprocessable {
+            detail: errors.join("; "),
+            errors,
+        });
+    }
+    let before_text = text_of(before);
+    if after == before_text {
+        return Err(ApiError::Conflict(format!(
+            "the edit leaves {DASHBOARD_FILE} as it is"
+        )));
+    }
+    Ok((before_text, after))
+}
+
+/// Commits the file on a new `dashboard/` branch and opens its merge request: the commit and the
+/// merge request's address.
+async fn commit(
+    repo: &GiteaClient,
+    user: &CurrentUser,
+    project: &str,
+    name: &str,
+    default: &str,
+    after: &str,
+) -> Result<(String, String), ApiError> {
     let refused = |err: GitError| {
         ApiError::Unavailable(format!(
             "the forge did not take the edit of '{name}': {err}"
         ))
     };
     let branch = format!("{BRANCH_PREFIX}{}", chrono::Utc::now().timestamp_millis());
-    repo.create_branch(&branch, &default)
+    repo.create_branch(&branch, default)
         .await
         .map_err(refused)?;
     let (author_name, author_email) =
-        crate::api::mutate::author_credentials(&user.0.identity, &project);
+        crate::api::mutate::author_credentials(&user.0.identity, project);
     let message = format!("Edit the dashboard of {name} (T-6402)");
     let sha = repo
         .change_files(
@@ -936,7 +968,7 @@ pub async fn propose(
                 name: &author_name,
                 email: &author_email,
             },
-            &[(DASHBOARD_FILE.to_owned(), after.clone())],
+            &[(DASHBOARD_FILE.to_owned(), after.to_owned())],
             &[],
         )
         .await
@@ -944,7 +976,7 @@ pub async fn propose(
     let pull = repo
         .create_pull_request(
             &branch,
-            &default,
+            default,
             &message,
             &format!(
                 "Changes {DASHBOARD_FILE} only. It merges when the Change that proposes App `{name}` at {sha} is approved in the Portal."
@@ -952,9 +984,21 @@ pub async fn propose(
         )
         .await
         .map_err(refused)?;
+    tracing::info!(app = %name, project = %project, branch = %branch, by = %user.0.identity.username, "dashboard edit committed");
+    Ok((sha, pull.url))
+}
+
+/// Proposes the App as the mirror holds it, at `sha`, as the person's Change.
+async fn propose_at(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    name: &str,
+    sha: String,
+) -> Result<Change, ApiError> {
     let mut manifest = state
         .mirror
-        .get(&project, "App", &name)
+        .get(project, "App", name)
         .ok_or_else(|| ApiError::NotFound(format!("app '{name}' not found")))?;
     manifest.strip_status();
     let mut manifest = serde_json::to_value(manifest)
@@ -965,28 +1009,21 @@ pub async fn propose(
     *git_ref = Value::String(sha);
     let outcome = propose_with_identity(
         &user.0.identity,
-        &state,
-        &project,
+        state,
+        project,
         "apps",
-        Some(&name),
+        Some(name),
         Operation::Update,
         false,
         manifest,
     )
     .await?;
-    let ProposeOutcome::Change(change) = outcome else {
-        return Err(ApiError::Internal(
+    match outcome {
+        ProposeOutcome::Change(change) => Ok(change),
+        _ => Err(ApiError::Internal(
             "the proposal answered with something other than a Change".into(),
-        ));
-    };
-    tracing::info!(app = %name, project = %project, branch = %branch, by = %user.0.identity.username, "dashboard edit proposed");
-    let proposal = DashboardProposal {
-        before: before_text,
-        after,
-        change: Some(change),
-        pull_request_url: Some(pull.url),
-    };
-    Ok((StatusCode::ACCEPTED, Json(proposal)).into_response())
+        )),
+    }
 }
 
 /// After an App Change is approved: the open dashboard merge request whose head is the commit

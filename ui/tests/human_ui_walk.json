@@ -881,6 +881,18 @@
         "evidence/deployer/T-3986/full-0500/portal-organization-groups-dialog-remove-air-quality-steward-steward-en-1440.png"
       ]
     },
+    "src/pages/apps/DashboardEditor.tsx": {
+      "walkedBy": "worker-t6402",
+      "date": "2026-11-01",
+      "screenshots": [
+        "tasks/evidence/T-6402/1440-2-filled.png",
+        "tasks/evidence/T-6402/1440-3-preview.png",
+        "tasks/evidence/T-6402/1440-5-refused.png",
+        "tasks/evidence/T-6402/400-2-filled.png",
+        "tasks/evidence/T-6402/400-3-preview.png",
+        "tasks/evidence/T-6402/400-5-refused.png"
+      ]
+    },
     "src/pages/apps/AppGenerator.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",

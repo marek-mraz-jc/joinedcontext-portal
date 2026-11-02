@@ -984,6 +984,14 @@
         "app_build_panel.test.tsx"
       ]
     },
+    "src/pages/apps/DashboardEditor.tsx": {
+      "controls": {
+        "Button": 9
+      },
+      "tests": [
+        "dashboard_editor.test.tsx"
+      ]
+    },
     "src/pages/apps/AppGenerator.tsx": {
       "controls": {
         "Button": 4,

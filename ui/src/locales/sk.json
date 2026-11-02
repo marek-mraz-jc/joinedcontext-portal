@@ -5222,7 +5222,7 @@
       "computedName": "Názov stĺpca",
       "computedNameHint": "Nový názov z písmen, číslic a _, napríklad occupancy.",
       "formula": "Vzorec",
-      "formulaHint": "Názvy atribútov, čísla a + - * / % < > == != && || ?:, napríklad availableBikeNumber / totalSlotNumber * 100.",
+      "formulaHint": "Názvy atribútov, čísla, aritmetika a porovnania, napríklad availableBikeNumber / totalSlotNumber * 100.",
       "addColumn": "Pridať stĺpec",
       "addComputed": "Pridať vypočítaný stĺpec",
       "filters": "Filtre",
@@ -5247,7 +5247,7 @@
       "below": "Pod",
       "belowHint": "Riadky pod touto hodnotou dostanú túto farbu, napríklad 10. Posledné pásmo nechajte prázdne pre zvyšok.",
       "tone": "Farba",
-      "toneHint": "Farba a jej slovo, napríklad Nebezpečenstvo pre prázdnu stanicu.",
+      "toneHint": "Farba riadku, napríklad Nebezpečenstvo pre prázdnu stanicu.",
       "tones": {
         "danger": "Nebezpečenstvo (červená)",
         "warning": "Upozornenie (oranžová)",
@@ -5282,10 +5282,12 @@
       "preview": "Náhľad zmeny",
       "propose": "Navrhnúť zmenu",
       "previewFirst": "Najprv náhľad: ukáže súbor pred a po. Navrhnúť potom otvorí zmenu na schválenie.",
-      "previewTitle": "Čo bude zmena obsahovať",
+      "previewTitle": "Čo bude zmena obsahovať: {path}",
       "added": "pridané",
       "removed": "odstránené",
-      "refused": "Portál odmietol polia ({n}); pri každom je dôvod."
+      "refused": "Polia, ktoré portál odmietol: {n}. Pri každom je dôvod.",
+      "previewLegend": "+ označuje riadok, ktorý zmena pridá, - riadok, ktorý odstráni.",
+      "again": "Začať ďalšiu zmenu"
     }
   },
   "appLifecycle": {

@@ -101,9 +101,9 @@ describe("the dashboard editor", () => {
     await user.click(screen.getByLabelText(words.where));
     await user.paste("availableBikeNumber == 0");
 
-    expect(screen.getByRole("button", { name: words.propose })).toBeDisabled();
+    expect(screen.getByRole("button", { name: words.propose })).toHaveAttribute("aria-disabled", "true");
     await user.click(screen.getByRole("button", { name: words.preview }));
-    expect(await screen.findByText(words.previewTitle)).toBeInTheDocument();
+    expect(await screen.findByText(words.previewTitle.replace("{path}", "src/dashboard.json"))).toBeInTheDocument();
     expect(sent[0].dryRun).toBe(true);
     expect(sent[0].config).toEqual({
       grid: {

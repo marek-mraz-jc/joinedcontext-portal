@@ -5222,7 +5222,7 @@
       "computedName": "Spaltenname",
       "computedNameHint": "Ein neuer Name aus Buchstaben, Ziffern und _, zum Beispiel occupancy.",
       "formula": "Formel",
-      "formulaHint": "Attributnamen, Zahlen und + - * / % < > == != && || ?:, zum Beispiel availableBikeNumber / totalSlotNumber * 100.",
+      "formulaHint": "Attributnamen, Zahlen, Rechenzeichen und Vergleiche, zum Beispiel availableBikeNumber / totalSlotNumber * 100.",
       "addColumn": "Spalte hinzufügen",
       "addComputed": "Berechnete Spalte hinzufügen",
       "filters": "Filter",
@@ -5247,7 +5247,7 @@
       "below": "Unter",
       "belowHint": "Zeilen unter diesem Wert erhalten diese Farbe, zum Beispiel 10. Das letzte Band leer lassen für den Rest.",
       "tone": "Farbe",
-      "toneHint": "Die Farbe und ihr Wort, zum Beispiel Gefahr für eine leere Station.",
+      "toneHint": "Die Farbe der Zeile, zum Beispiel Gefahr für eine leere Station.",
       "tones": {
         "danger": "Gefahr (rot)",
         "warning": "Warnung (orange)",
@@ -5282,10 +5282,12 @@
       "preview": "Änderung ansehen",
       "propose": "Änderung vorschlagen",
       "previewFirst": "Zuerst ansehen: zeigt die Datei vorher und nachher. Vorschlagen öffnet dann eine Änderung zur Freigabe.",
-      "previewTitle": "Was die Änderung enthält",
+      "previewTitle": "Was die Änderung enthält: {path}",
       "added": "hinzugefügt",
       "removed": "entfernt",
-      "refused": "Das Portal hat Felder abgelehnt ({n}); jedes nennt den Grund."
+      "refused": "Vom Portal abgelehnte Felder: {n}. Jedes nennt den Grund.",
+      "previewLegend": "+ markiert eine Zeile, die die Änderung hinzufügt, - eine, die sie entfernt.",
+      "again": "Weitere Änderung beginnen"
     }
   },
   "appLifecycle": {

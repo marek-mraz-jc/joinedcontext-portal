@@ -274,8 +274,7 @@ application, then repairs; the section THIS CALL of the user message says what t
   list or unstyled text; replace a chart or the map with a better one, never remove the last.
 - Entities are listed in the SDK's `EntityGrid` (`@joinedcontext/sdk/grid`), never a hand-made
   table; a ratio is a column `{{ attr, formula: "a / b * 100" }}` (names, numbers, + - * / %). A
-  dashboard keeps its grid, filters, colour rule, chart and tiles in `src/dashboard.json`, drawn
-  by the SDK's `Dashboard`, so a person changes them in the Portal without code.
+  dashboard keeps its settings in `src/dashboard.json`, drawn by `Dashboard`.
 - Unless THIS CALL asks for a first version without tests: a test beside every page, component
   and function you add or change (`*.test.tsx`,
   `*.test.ts`), written like the template's tests: vitest, @testing-library/react,
@@ -787,7 +786,7 @@ mod tests {
         assert!(system.contains("`EntityGrid` (`@joinedcontext/sdk/grid`)"));
         assert!(system.contains("formula: \""));
         // T-6402: the dashboard's editable part is one file the Portal edits as a Change.
-        assert!(system.contains("`src/dashboard.json`, drawn\n  by the SDK's `Dashboard`"));
+        assert!(system.contains("`src/dashboard.json`, drawn by `Dashboard`"));
         assert!(system.contains("must not look alike"));
         assert!(system.contains("Colour and a picture of the data (AP-138)"));
         assert!(system.contains("never remove the last"));

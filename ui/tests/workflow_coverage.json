@@ -1271,6 +1271,16 @@
           "POST /api/v1/projects/{project}/apps/{name}/restore"
         ]
       },
+      "dashboard": {
+        "live": {
+          "spec": "apps-samples.spec.ts",
+          "test": "a steward reads an App's dashboard file, an App without one is not edited, and a viewer may not propose an edit"
+        },
+        "personOnly": "a person edits a dashboard App's columns, filters, colour rule, chart and tiles without code, proposed as the App's Change; the assistant changes an application by a run, which proposes the same Change (T-6402)",
+        "routes": [
+          "POST /api/v1/projects/{project}/apps/{name}/dashboard"
+        ]
+      },
       "rename-shapes": {
         "live": {
           "spec": "apps-samples.spec.ts",
@@ -1784,8 +1794,8 @@
         "personOnly": "an administrator decides a connector request above the DelegationPolicy ceiling in the Portal; no AI client decides one (AG-150, AG-151)",
         "routes": [
           "POST /api/v1/connectors/{id}/approve"
-          ]
-        },
+        ]
+      },
       "pairTab": {
         "live": {
           "spec": "connectors.spec.ts",

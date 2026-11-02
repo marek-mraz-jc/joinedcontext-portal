@@ -27,8 +27,11 @@ const FILE = {
 const CHANGE = {
   apiVersion: "joinedcontext.com/v1alpha1",
   kind: "Change",
-  metadata: { name: "chg-0000d4b1", namespace: "helsinki", title: "Update App bike-board" },
-  status: { lane: "yellow", phase: "PendingApproval", plan: { update: 1 } },
+  metadata: { name: "chg-0000d4b1", namespace: "helsinki" },
+  summary: { key: "change.summary.update", params: { kind: "App", name: "bike-board", fields: 1 } },
+  author: { name: "Eva Editor", email: "eva@hel.fi" },
+  createdAt: "2026-11-01T23:30:00Z",
+  status: { lane: "yellow", phase: "PendingApproval", plan: { update: 1 }, mergeRequest: "https://forge.example/helsinki/config/pulls/12" },
 };
 
 const text = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
@@ -110,11 +113,11 @@ for (const width of [1440, 400]) {
     await fill(page, "availableBikeNumber / totalSlotNumber * 100");
     await shot(page, `${width}-2-filled`);
     await page.getByRole("button", { name: "Preview change" }).click();
-    await expect(page.getByText("What the Change will hold")).toBeVisible();
+    await expect(page.getByText("What the Change will hold").first()).toBeVisible();
     await shot(page, `${width}-3-preview`);
     expect(await axeViolations(page)).toEqual([]);
     await page.getByRole("button", { name: "Propose change" }).click();
-    await expect(page.getByText(/chg-0000d4b1|Update App bike-board/).first()).toBeVisible();
+    await expect(page.getByRole("region", { name: /bike-board/ })).toBeVisible();
     await shot(page, `${width}-4-proposed`);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });

@@ -5222,7 +5222,7 @@
       "computedName": "Column name",
       "computedNameHint": "A new name of letters, digits and _, for example occupancy.",
       "formula": "Formula",
-      "formulaHint": "Attribute names, numbers and + - * / % < > == != && || ?:, for example availableBikeNumber / totalSlotNumber * 100.",
+      "formulaHint": "Attribute names, numbers, arithmetic and comparisons, for example availableBikeNumber / totalSlotNumber * 100.",
       "addColumn": "Add column",
       "addComputed": "Add computed column",
       "filters": "Filters",
@@ -5247,7 +5247,7 @@
       "below": "Below",
       "belowHint": "Rows under this value take this colour, for example 10. Leave the last band empty for the rest.",
       "tone": "Colour",
-      "toneHint": "The swatch and its word, for example Danger for an empty station.",
+      "toneHint": "The row's colour, for example Danger for an empty station.",
       "tones": {
         "danger": "Danger (red)",
         "warning": "Warning (amber)",
@@ -5282,10 +5282,12 @@
       "preview": "Preview change",
       "propose": "Propose change",
       "previewFirst": "Preview first: it shows the file before and after. Propose then opens a Change for approval.",
-      "previewTitle": "What the Change will hold",
+      "previewTitle": "What the Change will hold: {path}",
       "added": "added",
       "removed": "removed",
-      "refused": "The Portal refused {n} fields; each says why beside it."
+      "refused": "Fields the Portal refused: {n}. Each says why beside it.",
+      "previewLegend": "+ marks a line the Change adds, - a line it removes.",
+      "again": "Start another change"
     }
   },
   "appLifecycle": {

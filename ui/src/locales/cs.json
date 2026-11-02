@@ -5222,7 +5222,7 @@
       "computedName": "Název sloupce",
       "computedNameHint": "Nový název z písmen, číslic a _, například occupancy.",
       "formula": "Vzorec",
-      "formulaHint": "Názvy atributů, čísla a + - * / % < > == != && || ?:, například availableBikeNumber / totalSlotNumber * 100.",
+      "formulaHint": "Názvy atributů, čísla, aritmetika a porovnání, například availableBikeNumber / totalSlotNumber * 100.",
       "addColumn": "Přidat sloupec",
       "addComputed": "Přidat vypočtený sloupec",
       "filters": "Filtry",
@@ -5247,7 +5247,7 @@
       "below": "Pod",
       "belowHint": "Řádky pod touto hodnotou dostanou tuto barvu, například 10. Poslední pásmo nechte prázdné pro zbytek.",
       "tone": "Barva",
-      "toneHint": "Barva a její slovo, například Nebezpečí pro prázdnou stanici.",
+      "toneHint": "Barva řádku, například Nebezpečí pro prázdnou stanici.",
       "tones": {
         "danger": "Nebezpečí (červená)",
         "warning": "Upozornění (oranžová)",
@@ -5282,10 +5282,12 @@
       "preview": "Náhled změny",
       "propose": "Navrhnout změnu",
       "previewFirst": "Nejdřív náhled: ukáže soubor před a po. Navrhnout pak otevře změnu ke schválení.",
-      "previewTitle": "Co bude změna obsahovat",
+      "previewTitle": "Co bude změna obsahovat: {path}",
       "added": "přidáno",
       "removed": "odebráno",
-      "refused": "Portál odmítl pole ({n}); u každého je důvod."
+      "refused": "Pole, která portál odmítl: {n}. U každého je důvod.",
+      "previewLegend": "+ značí řádek, který změna přidá, - řádek, který odebere.",
+      "again": "Začít další změnu"
     }
   },
   "appLifecycle": {

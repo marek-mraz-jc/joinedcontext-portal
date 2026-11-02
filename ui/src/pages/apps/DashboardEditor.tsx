@@ -1,10 +1,10 @@
 import type { JSX } from "react";
-import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, type UseMutationResult } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, unwrap } from "../../api/client";
 import type { components } from "../../api/schema";
-import { Alert, Button, Card, EmptyState, Field, Input, Select, Skeleton } from "../../components/ui";
+import { Alert, Button, Card, CodeBlock, EmptyState, Field, Input, Select, Skeleton } from "../../components/ui";
 import { ChangeFollowCard } from "./ChangeFollowCard";
 import {
   AGGS,
@@ -75,7 +75,7 @@ export function AttrSelect({
 function RemoveButton({ label, onClick }: { label: string; onClick: () => void }): JSX.Element {
   const { t } = useTranslation();
   return (
-    <Button size="sm" variant="ghost" aria-label={t("apps.dashboard.remove", { what: label })} onClick={onClick}>
+    <Button size="sm" variant="ghost" className="sm:mt-6" aria-label={t("apps.dashboard.remove", { what: label })} onClick={onClick}>
       {t("apps.dashboard.removeShort")}
     </Button>
   );
@@ -88,7 +88,7 @@ export function ColumnsSection({ file, onChange, attributes, errors }: SectionPr
   const set = (i: number, next: Column | null) => onChange({ ...file, grid: { ...file.grid, columns: replaced(columns, i, next) } });
   return (
     <fieldset className="space-y-3">
-      <legend className="font-medium">{t("apps.dashboard.columns")}</legend>
+      <legend className="text-base font-semibold">{t("apps.dashboard.columns")}</legend>
       {columns.length === 0 ? <p className="text-fg-muted">{t("apps.dashboard.columnsEmpty")}</p> : null}
       {columns.map((column, i) => {
         const base = `/grid/columns/${i}`;
@@ -100,11 +100,11 @@ export function ColumnsSection({ file, onChange, attributes, errors }: SectionPr
                 <Input id={`col-${i}-name`} value={column.attr} onChange={(e) => set(i, { ...column, attr: e.target.value })} />
               </Field>
             ) : (
-              <Field id={`col-${i}-attr`} label={t("apps.dashboard.attribute")} help={t("apps.dashboard.attributeHint")} errors={at(errors, `${base}/attr`)}>
+              <Field id={`col-${i}-attr`} label={t("apps.dashboard.attribute")} help={i === 0 ? t("apps.dashboard.attributeHint") : undefined} errors={at(errors, `${base}/attr`)}>
                 <AttrSelect id={`col-${i}-attr`} value={column.attr} names={attributes} onChange={(attr) => set(i, { ...column, attr })} />
               </Field>
             )}
-            <Field id={`col-${i}-label`} label={t("apps.dashboard.label")} help={t("apps.dashboard.labelHint")} errors={at(errors, `${base}/label`)}>
+            <Field id={`col-${i}-label`} label={t("apps.dashboard.label")} help={i === 0 ? t("apps.dashboard.labelHint") : undefined} errors={at(errors, `${base}/label`)}>
               <Input id={`col-${i}-label`} value={column.label ?? ""} onChange={(e) => set(i, { ...column, label: e.target.value || undefined })} />
             </Field>
             <RemoveButton label={column.label || column.attr} onClick={() => set(i, null)} />
@@ -138,14 +138,14 @@ export function FiltersSection({ file, onChange, attributes, errors }: SectionPr
   };
   return (
     <fieldset className="space-y-3">
-      <legend className="font-medium">{t("apps.dashboard.filters")}</legend>
+      <legend className="text-base font-semibold">{t("apps.dashboard.filters")}</legend>
       {filters.length === 0 ? <p className="text-fg-muted">{t("apps.dashboard.filtersEmpty")}</p> : null}
       {filters.map((filter, i) => (
-        <div key={i} className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[1fr_8rem_1fr_auto] sm:items-start">
-          <Field id={`filter-${i}-attr`} label={t("apps.dashboard.attribute")} help={t("apps.dashboard.filterAttrHint")} errors={at(errors, `/filters/${i}/attr`)}>
+        <div key={i} className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[1fr_10rem_1fr_auto] sm:items-start">
+          <Field id={`filter-${i}-attr`} label={t("apps.dashboard.attribute")} help={i === 0 ? t("apps.dashboard.filterAttrHint") : undefined} errors={at(errors, `/filters/${i}/attr`)}>
             <AttrSelect id={`filter-${i}-attr`} value={filter.attr} names={attributes} onChange={(attr) => set(i, { ...filter, attr })} />
           </Field>
-          <Field id={`filter-${i}-op`} label={t("apps.dashboard.op")} help={t("apps.dashboard.opHint")} errors={at(errors, `/filters/${i}/op`)}>
+          <Field id={`filter-${i}-op`} label={t("apps.dashboard.op")} help={i === 0 ? t("apps.dashboard.opHint") : undefined} errors={at(errors, `/filters/${i}/op`)}>
             <Select id={`filter-${i}-op`} value={filter.op} onChange={(e) => set(i, { ...filter, op: e.target.value as Op })}>
               {OPS.map((op) => (
                 <option key={op} value={op}>
@@ -154,7 +154,7 @@ export function FiltersSection({ file, onChange, attributes, errors }: SectionPr
               ))}
             </Select>
           </Field>
-          <Field id={`filter-${i}-value`} label={t("apps.dashboard.value")} help={t("apps.dashboard.valueHint")} errors={at(errors, `/filters/${i}/value`)}>
+          <Field id={`filter-${i}-value`} label={t("apps.dashboard.value")} help={i === 0 ? t("apps.dashboard.valueHint") : undefined} errors={at(errors, `/filters/${i}/value`)}>
             <Input id={`filter-${i}-value`} value={String(filter.value)} onChange={(e) => set(i, { ...filter, value: typedValue(e.target.value) })} />
           </Field>
           <RemoveButton label={filter.attr} onClick={() => set(i, null)} />
@@ -171,8 +171,8 @@ function BandRow({ band, i, onChange, errors }: { band: Band; i: number; onChang
   const { t } = useTranslation();
   const base = `/colour/bands/${i}`;
   return (
-    <div className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[8rem_10rem_1fr_auto] sm:items-start">
-      <Field id={`band-${i}-below`} label={t("apps.dashboard.below")} help={t("apps.dashboard.belowHint")} errors={at(errors, `${base}/below`)}>
+    <div className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[10rem_13rem_1fr_auto] sm:items-start">
+      <Field id={`band-${i}-below`} label={t("apps.dashboard.below")} help={i === 0 ? t("apps.dashboard.belowHint") : undefined} errors={at(errors, `${base}/below`)}>
         <Input
           id={`band-${i}-below`}
           inputMode="decimal"
@@ -180,7 +180,7 @@ function BandRow({ band, i, onChange, errors }: { band: Band; i: number; onChang
           onChange={(e) => onChange({ ...band, below: e.target.value === "" ? undefined : Number(e.target.value) })}
         />
       </Field>
-      <Field id={`band-${i}-tone`} label={t("apps.dashboard.tone")} help={t("apps.dashboard.toneHint")} errors={at(errors, `${base}/tone`)}>
+      <Field id={`band-${i}-tone`} label={t("apps.dashboard.tone")} help={i === 0 ? t("apps.dashboard.toneHint") : undefined} errors={at(errors, `${base}/tone`)}>
         <Select id={`band-${i}-tone`} value={band.tone} onChange={(e) => onChange({ ...band, tone: e.target.value as Tone })}>
           {TONES.map((tone) => (
             <option key={tone} value={tone}>
@@ -189,7 +189,7 @@ function BandRow({ band, i, onChange, errors }: { band: Band; i: number; onChang
           ))}
         </Select>
       </Field>
-      <Field id={`band-${i}-label`} label={t("apps.dashboard.label")} help={t("apps.dashboard.bandLabelHint")} errors={at(errors, `${base}/label`)}>
+      <Field id={`band-${i}-label`} label={t("apps.dashboard.label")} help={i === 0 ? t("apps.dashboard.bandLabelHint") : undefined} errors={at(errors, `${base}/label`)}>
         <Input id={`band-${i}-label`} value={band.label} onChange={(e) => onChange({ ...band, label: e.target.value })} />
       </Field>
       <RemoveButton label={band.label} onClick={() => onChange(null)} />
@@ -205,8 +205,8 @@ export function ColourSection({ file, onChange, attributes, errors }: SectionPro
   const setBand = (i: number, next: Band | null) => colour && onChange({ ...file, colour: { ...colour, bands: replaced(colour.bands, i, next) } });
   return (
     <fieldset className="space-y-3">
-      <legend className="font-medium">{t("apps.dashboard.colour")}</legend>
-      <Field id="colour-attr" label={t("apps.dashboard.colourAttr")} help={t("apps.dashboard.colourAttrHint")} errors={at(errors, "/colour/attr")}>
+      <legend className="text-base font-semibold">{t("apps.dashboard.colour")}</legend>
+      <Field id="colour-attr" className="sm:max-w-md" label={t("apps.dashboard.colourAttr")} help={t("apps.dashboard.colourAttrHint")} errors={at(errors, "/colour/attr")}>
         <AttrSelect
           id="colour-attr"
           optional
@@ -239,7 +239,7 @@ export function ChartSection({ file, onChange, attributes, errors }: SectionProp
   const chart = file.chart;
   return (
     <fieldset className="grid gap-2 sm:grid-cols-3 sm:items-start">
-      <legend className="mb-2 font-medium">{t("apps.dashboard.chart")}</legend>
+      <legend className="mb-2 text-base font-semibold">{t("apps.dashboard.chart")}</legend>
       <Field id="chart-x" label={t("apps.dashboard.chartX")} help={t("apps.dashboard.chartXHint")} errors={at(errors, "/chart/x")}>
         <AttrSelect id="chart-x" optional value={chart?.x} names={names} onChange={(x) => onChange({ ...file, chart: x === "" ? undefined : { agg: "sum", ...chart, x } })} />
       </Field>
@@ -267,11 +267,11 @@ function KpiRow({ kpi, i, names, onChange, errors }: { kpi: Kpi; i: number; name
   const { t } = useTranslation();
   const base = `/kpis/${i}`;
   return (
-    <div className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[1fr_9rem_1fr_auto] sm:items-start">
-      <Field id={`kpi-${i}-label`} label={t("apps.dashboard.label")} help={t("apps.dashboard.kpiLabelHint")} errors={at(errors, `${base}/label`)}>
+    <div className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-[1fr_10rem_1fr_auto] sm:items-start">
+      <Field id={`kpi-${i}-label`} label={t("apps.dashboard.label")} help={i === 0 ? t("apps.dashboard.kpiLabelHint") : undefined} errors={at(errors, `${base}/label`)}>
         <Input id={`kpi-${i}-label`} value={kpi.label} onChange={(e) => onChange({ ...kpi, label: e.target.value })} />
       </Field>
-      <Field id={`kpi-${i}-agg`} label={t("apps.dashboard.agg")} help={t("apps.dashboard.aggHint")} errors={at(errors, `${base}/agg`)}>
+      <Field id={`kpi-${i}-agg`} label={t("apps.dashboard.agg")} help={i === 0 ? t("apps.dashboard.aggHint") : undefined} errors={at(errors, `${base}/agg`)}>
         <Select id={`kpi-${i}-agg`} value={kpi.agg} onChange={(e) => onChange({ ...kpi, agg: e.target.value as Agg })}>
           {AGGS.map((agg) => (
             <option key={agg} value={agg}>
@@ -280,11 +280,11 @@ function KpiRow({ kpi, i, names, onChange, errors }: { kpi: Kpi; i: number; name
           ))}
         </Select>
       </Field>
-      <Field id={`kpi-${i}-attr`} label={t("apps.dashboard.attribute")} help={t("apps.dashboard.kpiAttrHint")} errors={at(errors, `${base}/attr`)}>
+      <Field id={`kpi-${i}-attr`} label={t("apps.dashboard.attribute")} help={i === 0 ? t("apps.dashboard.kpiAttrHint") : undefined} errors={at(errors, `${base}/attr`)}>
         <AttrSelect id={`kpi-${i}-attr`} optional={kpi.agg === "count"} value={kpi.attr} names={names} onChange={(attr) => onChange({ ...kpi, attr: attr || undefined })} />
       </Field>
       <RemoveButton label={kpi.label} onClick={() => onChange(null)} />
-      <Field id={`kpi-${i}-where`} className="sm:col-span-4" label={t("apps.dashboard.where")} help={t("apps.dashboard.whereHint")} errors={at(errors, `${base}/where`)}>
+      <Field id={`kpi-${i}-where`} className="sm:col-span-4" label={t("apps.dashboard.where")} help={i === 0 ? t("apps.dashboard.whereHint") : undefined} errors={at(errors, `${base}/where`)}>
         <Input id={`kpi-${i}-where`} spellCheck={false} value={kpi.where ?? ""} onChange={(e) => onChange({ ...kpi, where: e.target.value || undefined })} />
       </Field>
     </div>
@@ -302,7 +302,7 @@ export function KpisSection({ file, onChange, attributes, errors }: SectionProps
   };
   return (
     <fieldset className="space-y-3">
-      <legend className="font-medium">{t("apps.dashboard.kpis")}</legend>
+      <legend className="text-base font-semibold">{t("apps.dashboard.kpis")}</legend>
       {kpis.length === 0 ? <p className="text-fg-muted">{t("apps.dashboard.kpisEmpty")}</p> : null}
       {kpis.map((kpi, i) => (
         <KpiRow key={i} kpi={kpi} i={i} names={names} errors={errors} onChange={(next) => set(i, next)} />
@@ -314,20 +314,20 @@ export function KpisSection({ file, onChange, attributes, errors }: SectionProps
   );
 }
 
-/** The file before and after, line by line: what the Change will hold. */
-export function PreviewDiff({ before, after }: { before: string; after: string }): JSX.Element {
+/** The file before and after, line by line: what the Change will hold, with two lines around each edit. */
+export function PreviewDiff({ path, before, after }: { path: string; before: string; after: string }): JSX.Element {
   const { t } = useTranslation();
-  const lines = lineDiff(before, after).filter((line, i, all) => line.sign !== " " || all.slice(Math.max(0, i - 2), i + 3).some((l) => l.sign !== " "));
+  const lines = lineDiff(before, after);
+  const near = (i: number) => lines.slice(Math.max(0, i - 2), i + 3).some((l) => l.sign !== " ");
+  const shown = lines.map((line, i) => (line.sign !== " " || near(i) ? `${line.sign} ${line.text}` : null));
+  const text = shown.filter((line, i) => line !== null || shown[i - 1] !== null).map((line) => line ?? "  …").join("\n");
   return (
     <figure className="space-y-2">
-      <figcaption className="font-medium">{t("apps.dashboard.previewTitle")}</figcaption>
-      <pre className="max-h-80 overflow-auto rounded-md border border-border bg-surface-muted p-3 text-caption" tabIndex={0}>
-        {lines.map((line, i) => (
-          <div key={i} className={line.sign === "+" ? "text-success" : line.sign === "-" ? "text-danger" : "text-fg-muted"}>
-            <span aria-label={line.sign === "+" ? t("apps.dashboard.added") : line.sign === "-" ? t("apps.dashboard.removed") : undefined}>{line.sign}</span> {line.text}
-          </div>
-        ))}
-      </pre>
+      <figcaption className="font-medium">{t("apps.dashboard.previewTitle", { path })}</figcaption>
+      <CodeBlock label={t("apps.dashboard.previewTitle", { path })} className="max-h-96">
+        {text}
+      </CodeBlock>
+      <p className="text-caption text-fg-muted">{t("apps.dashboard.previewLegend")}</p>
     </figure>
   );
 }
@@ -335,6 +335,35 @@ export function PreviewDiff({ before, after }: { before: string; after: string }
 function refusals(error: unknown): string[] {
   if (error instanceof ApiError) return error.problem?.errors ?? [error.message];
   return [String(error)];
+}
+
+/** What follows the form: the refusals, the preview, the Change once proposed, and the buttons. */
+function EditorFooter({ project, name, path, send, errors }: { project: string; name: string; path: string; send: UseMutationResult<Proposal, Error, boolean>; errors: Map<string, string[]> }): JSX.Element {
+  const { t } = useTranslation();
+  const proposed = send.data?.change;
+  return (
+    <>
+      {errors.get("") ? <Alert tone="danger">{errors.get("")?.join(" ")}</Alert> : null}
+      {send.isError && errors.size > 0 && !errors.get("") ? <Alert tone="danger">{t("apps.dashboard.refused", { n: [...errors.values()].flat().length })}</Alert> : null}
+      {send.data && !proposed ? <PreviewDiff path={path} before={send.data.before} after={send.data.after} /> : null}
+      {proposed ? (
+        <div className="space-y-3">
+          <ChangeFollowCard project={project} followed={{ changeId: proposed.metadata.name, kind: "App", name }} />
+          <Button variant="primary" onClick={() => send.reset()}>{t("apps.dashboard.again")}</Button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => send.mutate(true)} loading={send.isPending && send.variables}>
+            {t("apps.dashboard.preview")}
+          </Button>
+          <Button variant="primary" onClick={() => send.mutate(false)} loading={send.isPending && !send.variables} disabled={!send.data || send.isPending} disabledReason={t("apps.dashboard.previewFirst")}>
+            {t("apps.dashboard.propose")}
+          </Button>
+        </div>
+      )}
+      {!send.data && !proposed ? <p className="text-caption text-fg-muted">{t("apps.dashboard.previewFirst")}</p> : null}
+    </>
+  );
 }
 
 /**
@@ -357,6 +386,10 @@ export function DashboardEditor({ project, name }: { project: string; name: stri
     mutationFn: async (dryRun: boolean): Promise<Proposal> =>
       unwrap(await api.POST("/api/v1/projects/{project}/apps/{name}/dashboard", { params: { path: { project, name } }, body: { config: file ?? {}, dryRun } })),
   });
+  // A refusal moves focus to the first field it names, which may be a screen above the buttons.
+  useEffect(() => {
+    if (send.isError) document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus();
+  }, [send.isError, send.error]);
   if (loaded.isPending) return <Skeleton className="h-40" />;
   if (loaded.isError) return <Alert tone="danger">{loaded.error.message}</Alert>;
   const offer = loaded.data;
@@ -365,30 +398,18 @@ export function DashboardEditor({ project, name }: { project: string; name: stri
   const errors = send.isError ? errorsByPath(refusals(send.error)) : new Map<string, string[]>();
   const props: SectionProps = { file, attributes, errors, onChange: (next) => (send.reset(), setFile(next)) };
   const proposed = send.data?.change;
+
   return (
     <Card className="space-y-6">
       <p className="text-fg-muted">{t("apps.dashboard.intro", { path: offer.path, type: offer.entityType ?? "" })}</p>
-      <ColumnsSection {...props} />
-      <FiltersSection {...props} />
-      <ColourSection {...props} />
-      <ChartSection {...props} />
-      <KpisSection {...props} />
-      {errors.get("") ? <Alert tone="danger">{errors.get("")?.join(" ")}</Alert> : null}
-      {send.isError && errors.size > 0 && !errors.get("") ? <Alert tone="danger">{t("apps.dashboard.refused", { n: [...errors.values()].flat().length })}</Alert> : null}
-      {send.data && !proposed ? <PreviewDiff before={send.data.before} after={send.data.after} /> : null}
-      {proposed ? (
-        <ChangeFollowCard project={project} followed={{ changeId: proposed.metadata.name, kind: "App", name }} />
-      ) : (
-        <div className="flex flex-wrap gap-2">
-          <Button onClick={() => send.mutate(true)} loading={send.isPending && send.variables}>
-            {t("apps.dashboard.preview")}
-          </Button>
-          <Button variant="primary" onClick={() => send.mutate(false)} loading={send.isPending && !send.variables} disabled={!send.data || send.isPending}>
-            {t("apps.dashboard.propose")}
-          </Button>
-        </div>
-      )}
-      {!send.data && !proposed ? <p className="text-caption text-fg-muted">{t("apps.dashboard.previewFirst")}</p> : null}
+      <fieldset disabled={Boolean(proposed)} className="space-y-6">
+        <ColumnsSection {...props} />
+        <FiltersSection {...props} />
+        <ColourSection {...props} />
+        <ChartSection {...props} />
+        <KpisSection {...props} />
+      </fieldset>
+      <EditorFooter project={project} name={name} path={offer.path} send={send} errors={errors} />
     </Card>
   );
 }
