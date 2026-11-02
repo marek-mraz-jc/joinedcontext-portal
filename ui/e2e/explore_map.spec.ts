@@ -201,7 +201,8 @@ test("a coloured map whose values are all equal still draws its points", async (
   expect(errors).toEqual([]);
   if (process.env.JC_EVIDENCE_DIR) {
     mkdirSync(process.env.JC_EVIDENCE_DIR, { recursive: true });
-    await page.getByRole("heading", { level: 1 }).scrollIntoViewIfNeeded();
+    await page.mouse.wheel(0, -2000);
+    await page.waitForTimeout(300);
     await page.screenshot({ path: `${process.env.JC_EVIDENCE_DIR}/map-all-equal-1440.png` });
   }
 });
