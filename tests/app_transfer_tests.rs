@@ -493,26 +493,7 @@ async fn an_exported_app_imports_into_another_project_under_a_new_name() {
         1
     );
 
-    let written: Vec<(String, String)> = server
-        .received_requests()
-        .await
-        .expect("requests")
-        .into_iter()
-        .filter(|r| {
-            matches!(r.method.as_str(), "PUT" | "POST")
-                && r.url.path().starts_with(&format!("{TARGET}/contents/"))
-        })
-        .map(|r| {
-            let body: Value = serde_json::from_slice(&r.body).expect("json");
-            let text = STANDARD
-                .decode(body["content"].as_str().unwrap_or_default())
-                .unwrap_or_default();
-            (
-                r.url.path().to_owned(),
-                String::from_utf8(text).unwrap_or_default(),
-            )
-        })
-        .collect();
+    let written = common::committed_files(&server, TARGET).await;
     let (route, text) = written
         .iter()
         .find(|(route, _)| route.ends_with("/app.yaml") || route.ends_with("mapa.yaml"))

@@ -35,6 +35,7 @@ import { useProjectUsage } from "../components/ProjectQuota";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
 import { EditResourceDialog } from "../components/EditResourceDialog";
 import { usePermissions } from "../api/permissions";
+import { proposeChecked } from "../api/proposal";
 import {
   Alert,
   Badge,
@@ -240,9 +241,12 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
       name,
       draft,
       files,
+      unchecked,
     }: {
       envelope: ReturnType<typeof toEnvelope>;
       name: string | null;
+      /** No check of the manifest yet: the KPI editor checks its fields, not the proposal (PF-57). */
+      unchecked?: boolean;
       /** The draft the form edited, so the proposal is taken from what was checked (AG-62). */
       draft?: { kind: string; name: string };
       /** Files beside the manifest, an edited `bento.yaml` (T-4818). */
@@ -250,6 +254,7 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
     }) => {
       setFormError(null);
       const body = files ? { ...envelope, files } : draft ? { ...envelope, draft } : envelope;
+      if (unchecked) return proposeChecked(project, "pipelines", body, true);
       return unwrap(
         name === null
           ? await api.POST("/api/v1/projects/{project}/{plural}", {
@@ -717,7 +722,7 @@ export function PipelinesPage({ project }: { project: string }): JSX.Element {
           pending={propose.isPending}
           error={formError}
           onClose={() => setKpiOpen(false)}
-          onPropose={(envelope) => propose.mutate({ envelope, name: null }, { onSuccess: () => setKpiOpen(false) })}
+          onPropose={(envelope) => propose.mutate({ envelope, name: null, unchecked: true }, { onSuccess: () => setKpiOpen(false) })}
         />
       ) : null}
     </div>

@@ -3517,6 +3517,7 @@
       },
       "choice": "What to compute",
       "choices": {
+        "rest": "Share in use: one minus first sum divided by second sum",
         "count": "Count the rows of the first source",
         "sum": "Sum of the first source's number",
         "average": "Average of the first source's number",
@@ -3539,6 +3540,7 @@
       "runPreview": "Compute now",
       "previewing": "Computing…",
       "previewHint": "Reads up to 100 rows of each source as you see them and computes {formula}.",
+      "partial": "The preview stopped at {rows} rows of a source, so this value is not the final one: a run reads every row.",
       "noKeys": "No key appears in every source, so no indicator would be written now.",
       "indicator": "Indicator",
       "value": "Value",
@@ -3551,6 +3553,7 @@
         "target": "Pick the endpoint the indicator is written through first."
       },
       "hint": {
+        "typeFirst": "Pick the entity type first; its numbers appear here.",
         "name": "Lower-case letters, digits and hyphens, at most 48, for example parking-per-stop.",
         "title": "What people read in lists, for example Occupied parking places per transit stop.",
         "sources": "Each source reads one entity type through one endpoint, for example parking sites through helsinki-parking.",

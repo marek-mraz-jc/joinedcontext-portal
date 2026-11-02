@@ -3517,6 +3517,7 @@
       },
       "choice": "Co spočítat",
       "choices": {
+        "rest": "Využitý podíl: jedna minus první součet dělený druhým součtem",
         "count": "Počet řádků prvního zdroje",
         "sum": "Součet čísla prvního zdroje",
         "average": "Průměr čísla prvního zdroje",
@@ -3539,6 +3540,7 @@
       "runPreview": "Spočítat teď",
       "previewing": "Počítá se…",
       "previewHint": "Přečte nejvýše 100 řádků každého zdroje tak, jak je vidíte vy, a spočítá {formula}.",
+      "partial": "Náhled se zastavil u {rows} řádků zdroje, proto tato hodnota není konečná: běh přečte všechny řádky.",
       "noKeys": "Žádný klíč není ve všech zdrojích, teď by se tedy nezapsal žádný ukazatel.",
       "indicator": "Ukazatel",
       "value": "Hodnota",
@@ -3551,6 +3553,7 @@
         "target": "Nejprve vyberte koncový bod, přes který se ukazatel zapíše."
       },
       "hint": {
+        "typeFirst": "Nejprve vyberte typ entity; jeho čísla se zobrazí zde.",
         "name": "Malá písmena, číslice a pomlčky, nejvýše 48, například parking-per-stop.",
         "title": "Co lidé čtou v seznamech, například Obsazená parkovací místa na zastávku.",
         "sources": "Každý zdroj čte jeden typ entity přes jeden koncový bod, například parkoviště přes helsinki-parking.",

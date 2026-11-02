@@ -1099,9 +1099,16 @@ fn kpi_source(
     })?;
     processors.retain(|p| p.get("mutation").and_then(Value::as_str) != Some(DROP_ERRORED));
     processors.push(serde_json::json!({ "catch": [{ "mapping": r#"root = { "jc_kpi_error": error().or("the source refused the request").re_replace_all("""\?[^'"\s]*""", "") }"# }] }));
+    processors.push(serde_json::json!({ "mapping": format!(
+        r#"root = if this.type() == "array" && this.length() == 0 {{ {{ "jc_kpi_error": "{EMPTY_KPI_SOURCE}" }} }} else {{ this }}"#
+    ) }));
     processors.push(serde_json::json!({ "mapping": jc_core::kpi_join::wrap_mapping(name) }));
     Ok(processors)
 }
+
+/// Why a kpi source with no rows gives no value: a sum over nothing would read as a real 0.
+pub const EMPTY_KPI_SOURCE: &str =
+    "it has no rows now, so there is no value; check its entity type and its filter";
 
 /// The mapping a kpi step compiles to (PL-104): jc-core checks the step against the sources'
 /// names and attributes again, then renders the fold.
