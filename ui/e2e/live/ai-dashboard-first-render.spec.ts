@@ -7,12 +7,18 @@
  * A run is paid, so this spec runs only with JC_LIVE_MODEL_RUN=1. `AI_DASHBOARD_DIR` receives
  * report.json and the 1440 + 400 px shots.
  *
+ * `AI_DASHBOARD_VIDEO=<dir>` (with `-g recording`, T-6385): the slide 12 recording, one desktop and
+ * one phone take in one Playwright run, clock in the frame: prompt, first dashboard, two edits asked
+ * of the assistant. Each take writes <take>.webm, <take>.json (times, the empty count beside a
+ * direct NGSI-LD count of the same minute, the conversation) and <take>-conversation.png.
+ *
  * Every wait is on the thing the step needs, never on the network going idle (T-2452).
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import type { FrameLocator, Page } from "@playwright/test";
+import { shareEdge } from "./edgeShare";
 import { STEWARD, ask, csrf, signIn } from "./portal";
 import { shot } from "./shoot";
 
@@ -27,6 +33,15 @@ const MAP = "canvas.maplibregl-canvas";
 const PAINTED = 0.25;
 /** A type no bike Endpoint serves: the App's grant lacks it. */
 const DENIED_PROMPT = "List the air quality stations of the city with their PM10 values";
+const VIDEO = process.env.AI_DASHBOARD_VIDEO;
+const FILTER_LABEL = "Only empty stations";
+const COLUMN_LABEL = "Free dock share";
+const FILTER_EDIT = `On the first page, add a checkbox "${FILTER_LABEL}" above the map: when ticked, the page shows only stations with 0 available bikes.`;
+const COLUMN_EDIT = `Add a computed column "${COLUMN_LABEL}" to the station table: freeSlotNumber / totalSlotNumber * 100, as a percentage.`;
+const TAKES = [
+  { take: "desktop", viewport: { width: 1440, height: 810 } },
+  { take: "phone", viewport: { width: 400, height: 800 } },
+];
 
 test.setTimeout(1_200_000);
 test.skip(process.env.JC_LIVE_MODEL_RUN !== "1", "a live model run is paid: JC_LIVE_MODEL_RUN=1 with the owner's go");
@@ -98,19 +113,20 @@ function phases(events: RunEvent[]): Record<string, number> {
 }
 
 /** Starts one builder run through the form a person uses; answers the run's id and when Generate was pressed. */
-async function generate(page: Page, name: string, prompt: string, label: string): Promise<{ id: string; pressed: number }> {
+async function generate(page: Page, name: string, prompt: string, label: string, pressing = (): Promise<void> => both(page, label, "prompt")): Promise<{ id: string; pressed: number }> {
   await page.goto(`/projects/${PROJECT}/apps?lang=en`, { waitUntil: "load" });
   await page.getByRole("button", { name: "Generate your own app" }).first().click();
   await page.getByLabel("Endpoint").first().selectOption(ENDPOINT);
   await page.getByLabel("What should the app do?").first().fill(prompt);
   await page.getByText("Details:", { exact: false }).first().click();
   await page.getByLabel("App name").fill(name);
-  await both(page, label, "prompt");
+  await pressing();
   // The body is read as the answer lands: the browser drops it once the page moves to the App (T-6441).
   const started = page
     .waitForResponse((answer) => answer.request().method() === "POST" && answer.url().endsWith(`/projects/${PROJECT}/agent-runs`))
     .then(async (answer) => ({ status: answer.status(), body: await answer.text() }));
   const pressed = Date.now();
+  await page.evaluate((at) => sessionStorage.setItem("clock-start", String(at)), pressed);
   await page.getByRole("button", { name: "Generate the app" }).click();
   const answer = await started;
   expect(answer.status, answer.body).toBeLessThan(300);
@@ -226,6 +242,136 @@ for (let round = 1; round <= RUNS; round += 1) {
     await cancel(page, id);
     await context.close();
     expect(firstRenderS, note).not.toBeNull();
+  });
+}
+
+/** The running clock of the recording, in the top page only; `clockMark` adds what it reached. */
+function clockOverlay(): void {
+  if (window.top !== window) return;
+  const clock = document.createElement("div");
+  clock.setAttribute("aria-hidden", "true");
+  clock.style.cssText =
+    "position:fixed;left:50%;top:4px;transform:translateX(-50%);z-index:2147483647;pointer-events:none;display:none;" +
+    "padding:6px 12px;border-radius:8px;background:rgba(18,18,18,.88);color:#fff;font:600 18px/1.3 ui-monospace,Menlo,Consolas,monospace;white-space:nowrap";
+  const time = (ms: number) => {
+    const s = Math.floor(ms / 1000);
+    return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  };
+  setInterval(() => {
+    if (!clock.isConnected) document.documentElement.append(clock);
+    const start = Number(sessionStorage.getItem("clock-start"));
+    if (!start) return;
+    const marks = JSON.parse(sessionStorage.getItem("clock-marks") ?? "[]") as [string, number][];
+    clock.style.display = "block";
+    clock.textContent = [time(Date.now() - start), ...marks.map(([what, at]) => `${what} ${time(at - start)}`)].join("  ·  ");
+  }, 200);
+}
+
+async function clockMark(page: Page, what: string): Promise<number> {
+  return page.evaluate((mark) => {
+    const at = Date.now();
+    const marks = JSON.parse(sessionStorage.getItem("clock-marks") ?? "[]") as [string, number][];
+    sessionStorage.setItem("clock-marks", JSON.stringify([...marks, [mark, at]]));
+    return at;
+  }, what);
+}
+
+/** `ngsild-results-count` of a query through the App's own Endpoint. */
+async function directCount(page: Page, slug: string, q?: string): Promise<number | null> {
+  const query = new URLSearchParams({ type: "BikeHireDockingStation", limit: "0", count: "true", ...(q ? { q } : {}) });
+  const answer = await page.request.get(`/api/endpoint/${slug}/ngsi-ld/v1/entities?${query.toString()}`);
+  const count = answer.headers()["ngsild-results-count"];
+  return count === undefined ? null : Number(count);
+}
+
+/** Asks for one edit and waits for the preview to show it. */
+async function edit(page: Page, words: string, shown: string): Promise<void> {
+  await ask(page, words);
+  await expect(page.frameLocator("iframe").first().getByText(shown, { exact: false }).first()).toBeAttached({ timeout: 300_000 });
+}
+
+/** The conversation at its whole height: a tall window, so nothing in it scrolls. */
+async function conversationShot(page: Page, path: string, width: number): Promise<string> {
+  const chat = page.locator("#run-chat");
+  const height = await chat.evaluate((element) => Math.max(...[element, ...element.querySelectorAll("*")].map((each) => each.scrollHeight)));
+  await page.setViewportSize({ width, height: Math.min(height + 320, 7_000) });
+  await page.waitForTimeout(500);
+  await chat.screenshot({ path });
+  return chat.innerText();
+}
+
+for (const { take, viewport } of TAKES) {
+  test(`recording ${take}: prompt to first dashboard, then a filter and a computed column`, async ({ browser }) => {
+    test.skip(!VIDEO, "the slide 12 recording: AI_DASHBOARD_VIDEO=<dir>");
+    const dir = VIDEO ?? "";
+    mkdirSync(dir, { recursive: true });
+    // Signed in off camera: no sign-in page, password or token reaches the recording.
+    const signedIn = await signIn(browser, STEWARD, `/projects/${PROJECT}/apps?lang=en`);
+    const storageState = await signedIn.context.storageState();
+    await signedIn.context.close();
+    const context = await browser.newContext({ viewport, recordVideo: { dir, size: viewport }, storageState });
+    await shareEdge(context);
+    await context.addInitScript(clockOverlay);
+    const page = await context.newPage();
+    const opened = Date.now();
+    const name = `city-bikes-${SUFFIX.slice(-4)}${take === "desktop" ? "d" : "p"}`;
+    const report: Record<string, unknown> = { take, name, viewport, opened };
+    const video = page.video();
+    let run = "";
+    try {
+      const { id, pressed } = await generate(page, name, PROMPT, take, async () => {
+        await page.getByLabel("What should the app do?").first().scrollIntoViewIfNeeded();
+        await page.waitForTimeout(1_500);
+      });
+      run = id;
+      Object.assign(report, { run, pressed });
+      const previewPane = page.locator("iframe").first();
+      const preview = page.frameLocator("iframe").first();
+      await expect(preview.locator(MAP)).toBeVisible({ timeout: 300_000 });
+      await previewPane.scrollIntoViewIfNeeded();
+      await expect(preview.locator(".jc-loading, [aria-busy=true]")).toHaveCount(0, { timeout: 120_000 });
+      await expect(preview.getByText("…", { exact: true })).toHaveCount(0, { timeout: 120_000 });
+      await expect.poll(() => paintedPixels(preview), { timeout: 120_000 }).toBeGreaterThanOrEqual(PAINTED);
+      const rendered = await clockMark(page, "first dashboard");
+      const config = JSON.parse((await preview.locator("#jc-config").textContent()) ?? "{}") as { slug: string };
+      Object.assign(report, {
+        slug: config.slug,
+        firstRenderS: (rendered - pressed) / 1000,
+        direct: {
+          at: new Date().toISOString(),
+          total: await directCount(page, config.slug),
+          empty: await directCount(page, config.slug, "availableBikeNumber==0"),
+          noReading: await directCount(page, config.slug, "!availableBikeNumber"),
+        },
+        firstRenderText: await preview.locator("body").innerText(),
+      });
+      await page.screenshot({ path: join(dir, `${take}-first-render.png`) });
+      await expect(page.getByTestId("run-progress").filter({ hasText: "Waiting for you" })).toBeVisible({ timeout: 420_000 });
+      report.waitingS = (Date.now() - pressed) / 1000;
+      await edit(page, FILTER_EDIT, FILTER_LABEL);
+      report.filterS = ((await clockMark(page, "filter")) - pressed) / 1000;
+      await previewPane.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(2_000);
+      await preview.getByLabel(FILTER_LABEL).first().check({ timeout: 10_000 }).catch((error: unknown) => {
+        report.filterClick = String(error).split("\n")[0];
+      });
+      await page.waitForTimeout(3_000);
+      report.filteredText = await preview.locator("body").innerText();
+      await page.screenshot({ path: join(dir, `${take}-filter.png`) });
+      await edit(page, COLUMN_EDIT, COLUMN_LABEL);
+      report.columnS = ((await clockMark(page, "computed column")) - pressed) / 1000;
+      await previewPane.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(4_000);
+      report.finalText = await preview.locator("body").innerText();
+      await page.screenshot({ path: join(dir, `${take}-column.png`) });
+      report.closed = Date.now();
+      report.conversation = await conversationShot(page, join(dir, `${take}-conversation.png`), viewport.width);
+    } finally {
+      writeFileSync(join(dir, `${take}.json`), `${JSON.stringify(report, null, 1)}\n`);
+      if (run) await cancel(page, run);
+      await context.close();
+      await video?.saveAs(join(dir, `${take}.webm`));
+    }
   });
 }
 

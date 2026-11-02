@@ -258,6 +258,8 @@ struct Driver {
     provider: String,
     /// The profile's `model.reasoningEffort`, sent on every chat call (AG-72, JC1-26).
     reasoning_effort: Option<String>,
+    /// The profile's `model.routing`, sent on every chat call (AG-72).
+    routing: Option<Value>,
     ttl: Duration,
     /// How long one model call of a conversation may take before the turn fails (T-2462).
     answer_timeout: Duration,
@@ -382,6 +384,7 @@ pub fn spawn(
         model: profile.model_name.clone(),
         provider: profile.model_provider.clone(),
         reasoning_effort: profile.reasoning_effort.clone(),
+        routing: profile.routing.clone(),
         ttl: Duration::from_secs(settings.run_ttl_secs.max(1) as u64),
         answer_timeout: ANSWER_TIMEOUT,
         passes: AtomicU32::new(0),
@@ -437,6 +440,7 @@ impl Driver {
             model: "test-model".into(),
             provider: "anthropic".into(),
             reasoning_effort: None,
+            routing: None,
             ttl: Duration::from_secs(60),
             answer_timeout: ANSWER_TIMEOUT,
             passes: AtomicU32::new(0),

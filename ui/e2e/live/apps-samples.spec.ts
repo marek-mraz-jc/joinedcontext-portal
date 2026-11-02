@@ -275,7 +275,8 @@ test("a steward reads an App's earlier builds, the build it serves is not restor
 test("a steward reads an App's dashboard file, an App without one is not edited, and a viewer may not propose an edit", async ({
   browser,
 }) => {
-  const app = "helsinki-bikes";
+  // DASHBOARD_APP names an App that keeps the file (T-6429), for the branch of this test that reads it.
+  const app = process.env.DASHBOARD_APP ?? "helsinki-bikes";
   const route = `/api/v1/projects/${PROJECT}/apps/${app}/dashboard`;
   const edit = { config: { grid: { source: { kind: "endpoint", slug: "bikes" }, type: "BikeHireDockingStation" } }, dryRun: true };
   const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}/apps/${app}?lang=en`);
