@@ -223,22 +223,18 @@ export function MatrixTable({ data }: { data: DataAccess }): JSX.Element {
           ))}
         </TableBody>
       </Table>
-      <dl className="flex flex-col gap-1 text-caption text-fg-muted">
-        <div className="flex flex-wrap items-center gap-2">
-          <dt>
-            <Badge tone="neutral" className="w-fit">
-              {t("dataAccess.throughEveryone")}
-            </Badge>
-          </dt>
-          <dd>{t("dataAccess.legend.throughEveryone")}</dd>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <dt>
-            <span aria-hidden="true">—</span>
-            <span className="sr-only">{t("dataAccess.notGranted")}</span>
-          </dt>
-          <dd>{t("dataAccess.legend.notGranted")}</dd>
-        </div>
+      <dl className="grid grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-3 gap-y-2 text-body text-fg-muted">
+        <dt>
+          <Badge tone="neutral" className="w-fit">
+            {t("dataAccess.throughEveryone")}
+          </Badge>
+        </dt>
+        <dd>{t("dataAccess.legend.throughEveryone")}</dd>
+        <dt className="text-center text-fg-subtle">
+          <span aria-hidden="true">—</span>
+          <span className="sr-only">{t("dataAccess.notGranted")}</span>
+        </dt>
+        <dd>{t("dataAccess.legend.notGranted")}</dd>
       </dl>
       <p className="text-caption text-fg-muted">{t("dataAccess.howToChange")}</p>
     </>
@@ -279,8 +275,8 @@ export function GroupDatasets({ group }: { group: string }): JSX.Element {
                 </ul>
               )}
               {everyone.length > 0 ? (
-                <div className="flex flex-col gap-1">
-                  <p className="text-caption text-fg-muted">{t("dataAccess.groupEveryone")}</p>
+                <div className="flex flex-col gap-2 border-t border-border pt-3">
+                  <p className="text-body text-fg-muted">{t("dataAccess.groupEveryone")}</p>
                   <ul className="flex flex-col gap-1">
                     {everyone.map((row) => (
                       <li key={`${row.project}/${row.name}`}>
