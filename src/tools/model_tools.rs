@@ -336,7 +336,18 @@ pub async fn import_sdm(
                 .into(),
         ));
     }
-    match mirrored(&state, &request.model).await {
+    import_mirrored(&state, &request).await
+}
+
+async fn import_mirrored(
+    state: &AppState,
+    request: &ImportSdmRequest,
+) -> Result<Json<Artifacts>, ApiError> {
+    let mirrored = match &state.sdm_mirror {
+        Some(mirror) => mirror.model(&request.model).await,
+        None => Mirrored::Unknown,
+    };
+    match mirrored {
         Mirrored::Model(linkml) => Ok(Json(Artifacts {
             linkml: Some(linkml),
             ..Artifacts::default()
@@ -345,14 +356,7 @@ pub async fn import_sdm(
             errors: vec![finding],
             ..Artifacts::default()
         })),
-        Mirrored::Unknown => compile(&state, "import-sdm", &request).await,
-    }
-}
-
-async fn mirrored(state: &AppState, model: &str) -> Mirrored {
-    match &state.sdm_mirror {
-        Some(mirror) => mirror.model(model).await,
-        None => Mirrored::Unknown,
+        Mirrored::Unknown => compile(state, "import-sdm", request).await,
     }
 }
 
