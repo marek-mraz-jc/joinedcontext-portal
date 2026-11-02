@@ -1121,7 +1121,7 @@ pub(crate) fn safe_redirect_for_tests(candidate: Option<String>) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     #[test]
@@ -1222,7 +1222,7 @@ mod tests {
 
     const REALM: &str = "/realms/bb";
 
-    async fn mock_realm() -> MockServer {
+    pub(crate) async fn mock_realm() -> MockServer {
         let server = MockServer::start().await;
         let issuer = format!("{}{REALM}", server.uri().trim_end_matches('/'));
         Mock::given(wm_method("GET"))
@@ -1250,7 +1250,7 @@ mod tests {
         server
     }
 
-    fn config_for(server: &MockServer) -> crate::config::OidcConfig {
+    pub(crate) fn config_for(server: &MockServer) -> crate::config::OidcConfig {
         let issuer = format!("{}{REALM}", server.uri().trim_end_matches('/'));
         crate::config::Config::from_vars(|k| match k {
             "JC_OIDC_ISSUER" => Some(issuer.clone()),
