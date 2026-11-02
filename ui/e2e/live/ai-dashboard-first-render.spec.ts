@@ -12,7 +12,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
-import type { Page } from "@playwright/test";
+import type { FrameLocator, Page } from "@playwright/test";
 import { STEWARD, ask, csrf, signIn } from "./portal";
 import { shot } from "./shoot";
 
@@ -22,6 +22,9 @@ const RUNS = Number(process.env.AI_DASHBOARD_RUNS ?? "1");
 const DIR = process.env.AI_DASHBOARD_DIR ?? "test-results/ai-dashboard";
 const SUFFIX = Date.now().toString(36);
 const PROMPT = "Map the shared bike stations, colour-coded by occupancy, and count the empty ones";
+const MAP = "canvas.maplibregl-canvas";
+/** Share of the canvas: dev's two T-6434 maps read 0.93 and 1.0 painted, a blank one 0. */
+const PAINTED = 0.25;
 /** A type no bike Endpoint serves: the App's grant lacks it. */
 const DENIED_PROMPT = "List the air quality stations of the city with their PM10 values";
 
@@ -37,7 +40,7 @@ interface RunEvent {
 interface Measured {
   name: string;
   run: string;
-  /** Generate to the map's canvas drawn in the preview, in seconds; null when it never drew. */
+  /** Generate to the map painted in the preview, in seconds; null when it never painted. */
   firstRenderS: number | null;
   /** Generate to the run waiting for the person, tests included. */
   waitingS: number | null;
@@ -50,6 +53,7 @@ interface Measured {
   usesEntityGrid: boolean;
   formulaColumn: boolean;
   handTable: boolean;
+  sampleLost: boolean;
   preview: string;
   note: string;
 }
@@ -127,6 +131,27 @@ async function cancel(page: Page, id: string): Promise<void> {
   await page.request.post(`/api/v1/projects/${PROJECT}/agent-runs/${id}/cancel`, { headers });
 }
 
+/**
+ * Share of the map's pixels that differ from its corner: none on a blank map. The App's map keeps
+ * its drawing buffer (EntityMap), so a 2D copy reads what a person sees; the App needs no hook.
+ */
+async function paintedPixels(preview: FrameLocator): Promise<number> {
+  return preview.locator(MAP).first().evaluate((canvas: HTMLCanvasElement) => {
+    const copy = document.createElement("canvas");
+    copy.width = canvas.width;
+    copy.height = canvas.height;
+    const context = copy.getContext("2d", { willReadFrequently: true });
+    if (!context || !copy.width || !copy.height) return 0;
+    context.drawImage(canvas, 0, 0);
+    const { data } = context.getImageData(0, 0, copy.width, copy.height);
+    let painted = 0;
+    for (let i = 0; i < data.length; i += 4) {
+      if (data[i] !== data[0] || data[i + 1] !== data[1] || data[i + 2] !== data[2]) painted += 1;
+    }
+    return painted / (copy.width * copy.height);
+  });
+}
+
 /** The App's own modules: the preview serves them as `data:` URLs in its import map. */
 function sourceOf(html: string): Record<string, string> {
   const map = /<script type="importmap">(.*?)<\/script>/s.exec(html)?.[1] ?? "{}";
@@ -145,12 +170,14 @@ for (let round = 1; round <= RUNS; round += 1) {
     const label = `run${round}`;
     const { id, pressed } = await generate(page, name, PROMPT, label);
     const preview = page.frameLocator("iframe").first();
-    // The map stands and its rows arrived: a canvas beside a `Loading` line is not a dashboard yet.
+    // The map stands, its rows arrived and its dots are on the canvas: a canvas beside a `Loading`
+    // line is not a dashboard yet, and neither is an empty one (T-6441).
     let firstRenderS: number | null = null;
     let note = "";
     try {
-      await expect(preview.locator("canvas").first()).toBeVisible({ timeout: 300_000 });
+      await expect(preview.locator(MAP)).toBeVisible({ timeout: 300_000 });
       await expect(preview.locator(".jc-loading, [aria-busy=true]")).toHaveCount(0, { timeout: 120_000 });
+      await expect.poll(() => paintedPixels(preview), { timeout: 120_000 }).toBeGreaterThanOrEqual(PAINTED);
       firstRenderS = (Date.now() - pressed) / 1000;
       await both(page, label, "first-render");
     } catch (error) {
@@ -187,6 +214,7 @@ for (let round = 1; round <= RUNS; round += 1) {
       usesEntityGrid: /components\/TypeGrid|@joinedcontext\/sdk\/grid/.test(source),
       formulaColumn: /formula:/.test(source),
       handTable: /_jsxs?\("table"/.test(source),
+      sampleLost: events.some((event) => event.kind === "thought" && String(event.payload.text).startsWith("No sample of")),
       preview: new URL(page.url()).pathname,
       note,
     });
