@@ -11,6 +11,7 @@ import { clsx } from "clsx";
 import { andQ, cellText } from "@joinedcontext/sdk";
 import type { EntitySource, RichCell } from "@joinedcontext/sdk";
 import { Button, buttonClass, Select } from "../ui";
+import { Icon } from "../ui/icons";
 
 export const ROW_SIZES = ["small", "medium", "large"] as const;
 export type RowSize = (typeof ROW_SIZES)[number];
@@ -58,9 +59,15 @@ export function ToolbarPopover({
   outlined,
   tall,
   anchored,
+  inPlace,
+  closeLabel,
   children,
 }: {
   label: string;
+  /** A sheet over the page: names a button that closes it, for a person who cannot tap beside it. */
+  closeLabel?: string;
+  /** One line of a folded menu: the panel opens under its line, inside the menu. */
+  inPlace?: boolean;
   /** Under its button on a phone too, for a row's first control: no bottom sheet over the toolbar. */
   anchored?: boolean;
   /** Drawn as a button even with nothing set: outside a toolbar row a ghost summary reads as text. */
@@ -70,25 +77,29 @@ export function ToolbarPopover({
   wide?: boolean;
   /** At the row's right end: the panel opens leftwards so it stays on the screen. */
   end?: boolean;
-  /** Reading text, not settings: on a wide screen the panel grows to its content, no inner scroll. */
+  /** Reading text or a folded menu: the panel grows to its content on a wide screen, to most of a phone's. */
   tall?: boolean;
   children: ReactNode;
 }): JSX.Element {
   const ref = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
+    // Inside a menu `name` keeps one tool open: closing it on the press would move Close from under the finger.
+    if (inPlace) return;
     const onDown = (event: PointerEvent) => {
       const box = ref.current;
       if (box?.open && !box.contains(event.target as Node)) box.open = false;
     };
     document.addEventListener("pointerdown", onDown);
     return () => document.removeEventListener("pointerdown", onDown);
-  }, []);
+  }, [inPlace]);
   return (
     <details
       ref={ref}
-      className="relative"
+      name={inPlace ? "toolbar-tool" : undefined}
+      className="group/tool relative"
       onKeyDown={(event) => {
         if (event.key === "Escape" && ref.current?.open) {
+          event.stopPropagation();
           ref.current.open = false;
           ref.current.querySelector("summary")?.focus();
         }
@@ -98,22 +109,44 @@ export function ToolbarPopover({
         className={buttonClass(
           count || outlined ? "secondary" : "ghost",
           "sm",
-          clsx("cursor-pointer list-none [&::-webkit-details-marker]:hidden", count ? "border-primary text-primary-soft-fg" : undefined),
+          clsx(
+            "cursor-pointer list-none [&::-webkit-details-marker]:hidden",
+            count ? "border-primary text-primary-soft-fg" : undefined,
+            inPlace ? "h-control-lg w-full justify-between" : undefined,
+          ),
         )}
       >
         {label}
         {count ? <span className="ml-1 rounded-full bg-primary-soft px-1.5 text-caption">{count}</span> : null}
+        {inPlace ? <Icon name="chevronDown" className="ml-auto size-4 group-open/tool:rotate-180" /> : null}
       </summary>
       <div
-        className={clsx(
-          "z-30 overflow-auto rounded-lg border border-border bg-surface-raised p-3 text-body shadow-2",
-          "max-h-96",
-          anchored ? "absolute left-0 mt-1 max-sm:w-max max-sm:max-w-xs" : "max-sm:fixed max-sm:inset-x-4 max-sm:bottom-4",
-          end ? "sm:absolute sm:right-0 sm:mt-1" : "sm:absolute sm:left-0 sm:mt-1",
-          wide ? "sm:w-max sm:max-w-2xl" : "sm:w-72",
-          tall ? "sm:max-h-none" : undefined,
-        )}
+        className={
+          inPlace
+            ? "border-l-2 border-border py-2 pl-3 text-body"
+            : clsx(
+                "z-30 overflow-auto rounded-lg border border-border bg-surface-raised p-3 text-body shadow-2",
+                tall ? "max-h-sheet sm:max-h-none" : "max-h-96",
+                anchored ? "absolute left-0 mt-1 max-sm:w-max max-sm:max-w-xs" : "max-sm:fixed max-sm:inset-x-4 max-sm:bottom-4",
+                end ? "sm:absolute sm:right-0 sm:mt-1" : "sm:absolute sm:left-0 sm:mt-1",
+                wide ? "sm:w-max sm:max-w-2xl" : "sm:w-72",
+              )
+        }
       >
+        {closeLabel ? (
+          <div className="sticky -top-3 z-10 -mx-3 -mt-3 mb-1 flex justify-end border-b border-border bg-surface-raised p-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                if (ref.current) ref.current.open = false;
+                ref.current?.querySelector("summary")?.focus();
+              }}
+            >
+              {closeLabel}
+            </Button>
+          </div>
+        ) : null}
         {children}
       </div>
     </details>
