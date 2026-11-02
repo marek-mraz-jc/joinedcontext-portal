@@ -428,6 +428,33 @@ pub(crate) fn resolve_repo_path(
     .map_err(ApiError::BadRequest)
 }
 
+/// The file that holds `envelope`, and where it is: `path`, else the folder of the space its
+/// `contextSpaceRef` names. A Policy lives in either: the single door files it under the project's
+/// own space, an import and `jc_space_complete` under the space it names. Without a file the path
+/// stays `path`.
+pub(crate) async fn held_file(
+    gitea: &crate::git::GiteaClient,
+    path: &str,
+    envelope: &ResourceEnvelope,
+    kind_info: &resource::KindInfo,
+    project: &str,
+    git_ref: &str,
+) -> Result<(String, Option<crate::git::RepoFile>), ApiError> {
+    let at_path = gitea.get_file(path, git_ref).await?;
+    let space = crate::api::assistant::ref_name(&envelope.spec["contextSpaceRef"]);
+    if let (None, Some(space)) = (&at_path, space) {
+        let name = &envelope.metadata.name;
+        let filed = resource::repository_path(kind_info, project, Some(&space), name)
+            .map_err(ApiError::BadRequest)?;
+        if filed != path {
+            if let Some(file) = gitea.get_file(&filed, git_ref).await? {
+                return Ok((filed, Some(file)));
+            }
+        }
+    }
+    Ok((path.to_owned(), at_path))
+}
+
 pub(crate) fn author_credentials(
     identity: &crate::auth::session::Identity,
     project: &str,
@@ -1141,7 +1168,19 @@ async fn propose_engine(
     //     over a newer main, and whatever the checks took for unchanged would revert what main
     //     moved to: the build lane's status write once undid the bootstrap's new pin (T-2674).
     if workspace.is_none() {
-        let on_main = gitea.get_file(&manifest_path, &default_branch).await?;
+        let (held_at, on_main) = held_file(
+            gitea,
+            &manifest_path,
+            &envelope,
+            kind_info,
+            project,
+            &default_branch,
+        )
+        .await?;
+        // An update goes over the file it updates, or the resource ends up in two files.
+        if operation == Operation::Update {
+            manifest_path = held_at;
+        }
         // A create of a kind filed once writes a file that is not there yet: one at its path on
         // main is the resource the mirror has not read, and writing over it would be a
         // replacement the approver reads as a create (T-2855).
@@ -3121,6 +3160,69 @@ fn keep_languages(sent: &mut Option<jc_core::i18n::Text>, stored: Option<&jc_cor
 mod tests {
     use super::*;
     use crate::auth::session::{Identity, Session};
+
+    /// T-6471: a Policy `jc_space_complete` filed under the space it names is found there, the
+    /// path `resolve_repo_path` gives wins when it holds the file, and no file leaves the path.
+    #[tokio::test]
+    async fn held_file_finds_a_policy_in_either_folder() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let server = MockServer::start().await;
+        let gitea = crate::git::GiteaClient::new(
+            server.uri().parse().unwrap(),
+            "o",
+            "r",
+            "token-xyz",
+        )
+        .unwrap();
+        let info = resource::by_kind("Policy").expect("Policy");
+        let policy = |space: &str| ResourceEnvelope {
+            api_version: "joinedcontext.com/v1alpha1".into(),
+            kind: "Policy".into(),
+            metadata: crate::resource::ObjectMeta {
+                name: "grant".into(),
+                namespace: Some("helsinki".into()),
+                ..Default::default()
+            },
+            spec: serde_json::json!({ "contextSpaceRef": { "kind": "ContextSpace", "name": space } }),
+            status: None,
+        };
+        let found = |sha: &str| {
+            ResponseTemplate::new(200)
+                .set_body_json(serde_json::json!({ "sha": sha, "content": "YTogYg==" }))
+        };
+        let contents = "/api/v1/repos/o/r/contents/projects/helsinki/spaces";
+        Mock::given(method("GET"))
+            .and(path(format!("{contents}/excel/policies/grant.yaml")))
+            .respond_with(found("in-space"))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{contents}/helsinki/policies/grant.yaml")))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        let own = "projects/helsinki/spaces/helsinki/policies/grant.yaml";
+        let held = "projects/helsinki/spaces/excel/policies/grant.yaml";
+
+        let (at, file) = held_file(&gitea, own, &policy("excel"), info, "helsinki", "main")
+            .await
+            .unwrap();
+        assert_eq!(at, held);
+        assert_eq!(file.expect("the file").sha, "in-space");
+
+        let (at, file) = held_file(&gitea, held, &policy("elsewhere"), info, "helsinki", "main")
+            .await
+            .unwrap();
+        assert_eq!(at, held);
+        assert!(file.is_some());
+
+        let (at, file) = held_file(&gitea, own, &policy("empty"), info, "helsinki", "main")
+            .await
+            .unwrap();
+        assert_eq!(at, own);
+        assert!(file.is_none());
+    }
 
     /// T-6451: main keeps `{orgDomain}`, the mirror the rendered domain; only a real move counts.
     #[test]

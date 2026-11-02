@@ -98,7 +98,8 @@ async function removeRows(steward: Session): Promise<void> {
   const rows = `/api/endpoint/${slug}/ngsi-ld/v1`;
   const count = async () => {
     const read = await editor.page.request.get(`${rows}/entities?type=${TYPE}&count=true&limit=0`);
-    return read.ok() ? Number(read.headers()["ngsild-results-count"]) : 0;
+    expect(read.status(), await read.text()).toBe(200);
+    return Number(read.headers()["ngsild-results-count"]);
   };
   if (!slug || (await count()) === 0) return;
 
@@ -138,10 +139,8 @@ async function removeRows(steward: Session): Promise<void> {
 }
 
 /**
- * Leaves dev with no open Change, no rows and no reader of the space. The rows wait for one sync
- * run; the removals do not: a space whose grants are still going is refused with 409 and stays for
- * the residue journey, which removes every `t<task>-` object. Rows that would not go fail the run
- * after everything else is cleaned.
+ * Leaves dev with no open Change, no rows, no grant, no space and no model of the run. A removal
+ * that would not go fails the run after everything else is cleaned.
  */
 test.afterAll(async ({ browser }) => {
   const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}?lang=en`);
@@ -150,19 +149,25 @@ test.afterAll(async ({ browser }) => {
     () => undefined,
     (refused: unknown) => refused,
   );
-  const removed = async (plural: string, name: string) => removeCompletely(steward, PROJECT, plural, name).catch((refused: unknown) => console.log(String(refused)));
-  for (const plural of ["endpoints", "policies"]) {
+  const refusals: unknown[] = rowsStayed ? [rowsStayed] : [];
+  const mine = async (plural: string) => {
     const answer = await steward.page.request.get(`/api/v1/projects/${PROJECT}/${plural}`);
-    const items = answer.ok() ? (((await answer.json()) as { items?: { metadata: { name: string } }[] }).items ?? []) : [];
-    for (const { metadata } of items.filter((one) => one.metadata.name.startsWith(SPACE))) await removed(plural, metadata.name);
+    expect(answer.status(), await answer.text()).toBe(200);
+    return (((await answer.json()) as { items?: { metadata: { name: string } }[] }).items ?? []).map(({ metadata }) => metadata.name).filter((name) => name.startsWith(SPACE));
+  };
+  // Dependents first, and each kind gone from the Portal before the next: the space answers 409 while a grant still names it.
+  for (const plural of ["endpoints", "policies", "spaces", "datamodels"]) {
+    await (async () => {
+      for (const name of await mine(plural)) await removeCompletely(steward, PROJECT, plural, name);
+      await expect.poll(() => mine(plural), { timeout: 300_000, intervals: [5_000], message: `${plural} of ${SPACE} leave the Portal` }).toEqual([]);
+    })().catch((refused: unknown) => refusals.push(refused));
   }
-  await removed("spaces", SPACE);
   await sweepDrafts(editor.context, editor.page, PROJECT, new RegExp(`^${SPACE}`));
   await steward.context.close();
   const video = editor.page.video();
   await editor.context.close();
   if (VIDEO) await video?.saveAs(join(VIDEO, "flow.webm"));
-  if (rowsStayed) throw rowsStayed;
+  if (refusals.length) throw refusals[0];
 });
 
 test.setTimeout(VIDEO ? 1_200_000 : 600_000);

@@ -602,10 +602,16 @@ pub async fn delete_with_identity(
     let read_from = workspace_branch
         .clone()
         .unwrap_or_else(|| default_branch.clone());
-    let existing = gitea
-        .get_file(&repo_path, &read_from)
-        .await?
-        .ok_or_else(not_found)?;
+    let (repo_path, existing) = crate::api::mutate::held_file(
+        gitea,
+        &repo_path,
+        &envelope,
+        kind_info,
+        project,
+        &read_from,
+    )
+    .await?;
+    let existing = existing.ok_or_else(not_found)?;
 
     let (branch, _turn) = match workspace_branch {
         Some(branch) => (branch, None),
@@ -1200,6 +1206,96 @@ mod tests {
             change.status.merge_request.as_deref(),
             Some("https://gitea.example.sk/pulls/55")
         );
+    }
+
+    /// T-6471: `jc_space_complete` files a Policy under the space it names, not the project's own
+    /// space. The delete door looked in the second folder only, answered 404 and left the space
+    /// behind, held by 409 on those Policies.
+    #[tokio::test]
+    async fn delete_finds_a_policy_filed_under_the_space_it_names() {
+        let server = MockServer::start().await;
+        let client = GiteaClient::new(
+            server.uri().parse().unwrap(),
+            "test-owner",
+            "test-repo",
+            "token-xyz",
+        )
+        .unwrap();
+        let state = AppState::new(Config::for_tests(), None).with_gitea(Arc::new(client));
+        state.mirror.upsert(ResourceEnvelope {
+            api_version: API_VERSION.into(),
+            kind: "Policy".into(),
+            metadata: ObjectMeta {
+                name: "excel-upload".into(),
+                namespace: Some("ovzdusie".into()),
+                ..Default::default()
+            },
+            spec: json!({ "contextSpaceRef": { "kind": "ContextSpace", "name": "excel" } }),
+            status: None,
+        });
+        let repo = "/api/v1/repos/test-owner/test-repo";
+        let filed = "projects/ovzdusie/spaces/excel/policies/excel-upload.yaml";
+        let ok = |body: Value| ResponseTemplate::new(200).set_body_json(body);
+        Mock::given(method("GET"))
+            .and(path(repo))
+            .respond_with(ok(json!({ "default_branch": "main" })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!(
+                "{repo}/contents/projects/ovzdusie/spaces/ovzdusie/policies/excel-upload.yaml"
+            )))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("{repo}/contents/{filed}")))
+            .respond_with(ok(json!({ "sha": "sha-filed", "content": "YTogYg==" })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{repo}/branches")))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({})))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(wiremock::matchers::path_regex(format!(
+                "^{repo}/git/trees/.*$"
+            )))
+            .respond_with(ok(json!({ "tree": [], "truncated": false })))
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{repo}/contents")))
+            .and(wiremock::matchers::body_string_contains(filed))
+            .and(wiremock::matchers::body_string_contains("sha-filed"))
+            .respond_with(ok(json!({ "commit": { "sha": "deleted" } })))
+            .expect(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("POST"))
+            .and(path(format!("{repo}/pulls")))
+            .respond_with(ResponseTemplate::new(201).set_body_json(json!({
+                "number": 56,
+                "html_url": "https://gitea.example.sk/pulls/56",
+                "state": "open",
+                "mergeable": true,
+                "merged": false
+            })))
+            .mount(&server)
+            .await;
+
+        let resp = delete_resource(
+            dummy_user(),
+            Front::Portal,
+            State(state),
+            Path(("ovzdusie".into(), "policies".into(), "excel-upload".into())),
+            Query(DryRunQuery::default()),
+            axum::http::HeaderMap::new(),
+        )
+        .await
+        .expect("delete should succeed");
+        assert_eq!(resp.status(), StatusCode::ACCEPTED);
     }
 
     #[tokio::test]
