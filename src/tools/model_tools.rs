@@ -21,7 +21,7 @@ use utoipa::ToSchema;
 use crate::auth::CurrentUser;
 use crate::error::{ApiError, ProblemDetails};
 use crate::state::AppState;
-use crate::tools::sdm_mirror::Mirrored;
+use crate::tools::sdm_mirror::{is_catalogue_id, Mirrored};
 
 /// How long a compilation may take. The editor asks on every pause in typing, so a slow answer
 /// is worse than no answer: the view shows the source without a preview and asks again.
@@ -193,23 +193,6 @@ pub struct Artifacts {
     /// Compilation messages. Non-empty with no artifacts means the source does not compile.
     #[serde(default)]
     pub errors: Vec<String>,
-}
-
-/// A catalogue identifier is `dataModel.<Subject>/<Model>`: two segments of the characters the
-/// catalogue itself uses. Anything else — a URL, a scheme, a traversal, a query — is refused
-/// before a request is built, so no caller can point the fetch at a host of their choosing.
-pub(crate) fn is_catalogue_id(model: &str) -> bool {
-    let Some((subject, name)) = model.split_once('/') else {
-        return false;
-    };
-    let segment_ok = |s: &str| {
-        !s.is_empty()
-            && s.len() <= 128
-            && s.chars()
-                .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')
-            && !s.starts_with('.')
-    };
-    segment_ok(subject) && segment_ok(name)
 }
 
 fn http() -> &'static reqwest::Client {
