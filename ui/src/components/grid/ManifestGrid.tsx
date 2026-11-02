@@ -171,6 +171,20 @@ export function visibleRows<T>(
   });
 }
 
+/**
+ * A column's values with how many rows hold each, sorted: one pass over the rows. The filter panel
+ * renders closed too, on every render of the page, so a scan per value cost 10 000 Endpoints a
+ * visible part of their first paint (T-5181). Exported for its test.
+ */
+export function valueCounts<T>(rows: T[], column: GridColumn<T>): [string, number][] {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const value = column.text(row);
+    if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  return [...counts.keys()].sort().map((value) => [value, counts.get(value) ?? 0]);
+}
+
 export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
   const { caption, storageKey, rows, rowKey, query, name, columns, actions, empty, edit, searchLabel } = props;
   const { t } = useTranslation();
@@ -357,16 +371,16 @@ export function GridToolbar<T>({
         <ToolbarPopover label={t("grid.filter")} count={chips.length} anchored>
           <div className="flex flex-col gap-3">
             {filterable.map((column) => {
-              const values = [...new Set(rows.map((row) => column.text(row)).filter(Boolean))].sort();
+              const values = valueCounts(rows, column);
               return (
                 <fieldset key={column.id} className="flex flex-col gap-1">
                   <legend className="mb-1 text-caption font-semibold text-fg-muted">{column.label}</legend>
                   {values.length === 0 ? <p className="text-caption text-fg-muted">{t("grid.noValues")}</p> : null}
-                  {values.map((value) => (
+                  {values.map(([value, count]) => (
                     <Checkbox
                       key={value}
                       label={column.valueLabel ? column.valueLabel(value) : value}
-                      hint={String(rows.filter((row) => column.text(row) === value).length)}
+                      hint={String(count)}
                       checked={(filters[column.id] ?? []).includes(value)}
                       onChange={() => toggleFilter(column.id, value)}
                     />

@@ -491,8 +491,8 @@ function useCallSplit(calls: Calls | undefined) {
   const numbers = new Intl.NumberFormat(i18n.resolvedLanguage ?? i18n.language ?? "en");
   const split = (counts: Record<string, number> | undefined, names: readonly string[], key: string) =>
     names
+      .filter((name) => (counts?.[name] ?? 0) > 0)
       .map((name) => ({ label: t(`${key}.${name}`), count: counts?.[name] ?? 0 }))
-      .filter((part) => part.count > 0)
       .sort((a, b) => b.count - a.count)
       .map((part) => ({ label: part.label, count: numbers.format(part.count) }));
   const groups = [
@@ -1206,6 +1206,9 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
   const notCounted = (own: boolean): NotCounted | undefined =>
     !own ? "shared" : usage7d.isError ? "failed" : usage7d.isSuccess ? undefined : "loading";
   const callsByName = new Map((usage7d.data?.endpoints ?? []).map((each) => [each.name, each]));
+  // Once per render: `text` runs per row, and a t() per row costs 10 000 Endpoints their first paint (T-5181).
+  const ownSource = t("endpoints.source.own");
+  const goneSource = t("endpoints.shared.goneSource");
   const rowLabel = (row: EndpointRow) =>
     row.endpoint
       ? localized(row.endpoint.metadata.title, locale, row.endpoint.metadata.name)
@@ -1434,7 +1437,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
             id: "source",
             label: t("endpoints.source.label"),
             filter: true,
-            text: (row) => (row.own ? t("endpoints.source.own") : (row.source ?? t("endpoints.shared.goneSource"))),
+            text: (row) => (row.own ? ownSource : (row.source ?? goneSource)),
             cell: (row) =>
               row.own ? (
                 <span className="text-fg-muted">{t("endpoints.source.own")}</span>
