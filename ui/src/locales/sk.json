@@ -4745,7 +4745,7 @@
     "findType": "Nájsť typ",
     "className": "Názov typu",
     "typeName": { "hint": "Premenovanie upraví každé pole a typ, ktorý ho uvádza, napríklad Parking." },
-    "slotName": { "hint": "Premenovanie upraví každý typ, ktorý pole uvádza, napríklad airQualityIndex." },
+    "fieldName": { "hint": "Premenovanie upraví každý typ, ktorý pole uvádza, napríklad airQualityIndex." },
     "enumName": { "hint": "Premenovanie upraví každé pole, ktoré ho používa, napríklad Level." },
     "enumValue": { "hint": "To, čo entity obsahujú. Import premenujte pred uložením, napríklad moderate." },
     "enumValues": {

@@ -4745,7 +4745,7 @@
     "findType": "Typ finden",
     "className": "Typname",
     "typeName": { "hint": "Beim Umbenennen werden alle Felder und Typen angepasst, die ihn nennen, zum Beispiel Parking." },
-    "slotName": { "hint": "Beim Umbenennen wird jeder Typ angepasst, der das Feld führt, zum Beispiel airQualityIndex." },
+    "fieldName": { "hint": "Beim Umbenennen wird jeder Typ angepasst, der das Feld führt, zum Beispiel airQualityIndex." },
     "enumName": { "hint": "Beim Umbenennen wird jedes Feld angepasst, das sie nutzt, zum Beispiel Level." },
     "enumValue": { "hint": "Das, was Entitäten enthalten. Benennen Sie einen Import vor dem Speichern um, zum Beispiel moderate." },
     "enumValues": {

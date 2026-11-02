@@ -724,7 +724,7 @@ export function LinkmlVisualEditor({
               <NameField
                 id="slot-name"
                 label={t("models.slotName")}
-                help={t("models.slotName.hint")}
+                help={t("models.fieldName.hint")}
                 name={activeSlot.name}
                 onRename={(to) => {
                   const done = run({ op: "renameSlot", name: activeSlot.name, to });

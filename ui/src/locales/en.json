@@ -4745,7 +4745,7 @@
     "findType": "Find a type",
     "className": "Type name",
     "typeName": { "hint": "Renaming updates every field and type that names it, for example Parking." },
-    "slotName": { "hint": "Renaming updates every type that lists the field, for example airQualityIndex." },
+    "fieldName": { "hint": "Renaming updates every type that lists the field, for example airQualityIndex." },
     "enumName": { "hint": "Renaming updates every field that uses it, for example Level." },
     "enumValue": { "hint": "What entities hold. Rename an import before you save it, for example moderate." },
     "enumValues": {
