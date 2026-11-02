@@ -58,6 +58,15 @@ describe("the AgentProfile manifest the form writes", () => {
   });
 
   // AG-50, AG-70, MF-40: empty rows are dropped, a grant keeps its verbs, the stored title stays.
+  it("carries the stored model routing, which the form has no field for (AG-72)", () => {
+    const routing = { order: ["google-ai-studio/flex", "google-ai-studio"], allowFallbacks: true };
+    const stored = { spec: { model: { routing } } };
+    const manifest = toAgentProfileManifest(STEWARD, stored) as { spec: { model: Record<string, unknown> } };
+    expect(manifest.spec.model.routing).toEqual(routing);
+    const fresh = toAgentProfileManifest(STEWARD) as { spec: { model: Record<string, unknown> } };
+    expect(fresh.spec.model).not.toHaveProperty("routing");
+  });
+
   it("drops empty rows and keeps what the form does not show from the stored manifest", () => {
     const manifest = toAgentProfileManifest(
       {

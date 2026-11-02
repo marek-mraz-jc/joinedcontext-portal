@@ -52,6 +52,7 @@ fn profile() -> Profile {
         model_name: "claude-sonnet-5".into(),
         model_provider: "anthropic".into(),
         reasoning_effort: None,
+        routing: None,
         max_tokens_per_run: 400_000,
         steps_per_run: 120,
         requests_per_minute: 60,
