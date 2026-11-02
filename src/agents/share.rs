@@ -659,7 +659,12 @@ pub struct Edit {
 /// `params` applied to the endpoint of that name among `endpoints` (the project's manifests), or
 /// the first reason it cannot be. Only the fields the call names change: the slug, the space,
 /// the name and the labels stay what they were, so the Change is an edit of that endpoint.
-pub fn edit(endpoints: &[Value], params: &EditEndpoint) -> Result<Edit, String> {
+/// `served` names the types an endpoint serves: its manifest lists none, the space's model does.
+pub fn edit(
+    endpoints: &[Value],
+    params: &EditEndpoint,
+    served: impl Fn(&Value) -> Vec<String>,
+) -> Result<Edit, String> {
     let name = params.name.trim();
     let Some(found) = endpoints
         .iter()
@@ -680,6 +685,7 @@ pub fn edit(endpoints: &[Value], params: &EditEndpoint) -> Result<Edit, String> 
         });
     };
     readable_for_edit(found, name)?;
+    let served = served(found);
     let mut endpoint = found.clone();
     if let Some(object) = endpoint.as_object_mut() {
         object.remove("status");
@@ -803,11 +809,12 @@ pub fn edit(endpoints: &[Value], params: &EditEndpoint) -> Result<Edit, String> 
     }
     spec["enabledRepresentations"] = json!(representations);
     // A calendar goes and comes with `ical`: a mapping without it fails the manifest, `ical`
-    // without one serves nothing (EP-159).
+    // without one serves nothing (EP-159). No compiled model means `Event`; the propose check
+    // reads the model source then.
     let ical = Representation::Ical.as_str();
     if representations.iter().any(|r| r == ical) {
         if spec["representations"].get("ical").is_none() {
-            spec["representations"]["ical"] = calendar(&[])?;
+            spec["representations"]["ical"] = calendar(&served)?;
         }
     } else if let Some(block) = spec["representations"].as_object_mut() {
         block.remove("ical");
@@ -1051,6 +1058,11 @@ mod tests {
         ]
     }
 
+    /// An edit that adds no calendar reads no served type.
+    fn edit(endpoints: &[serde_json::Value], params: &EditEndpoint) -> Result<Edit, String> {
+        super::edit(endpoints, params, |_| Vec::new())
+    }
+
     fn edit_of(value: serde_json::Value) -> EditEndpoint {
         serde_json::from_value(value).expect("an edit call")
     }
@@ -1225,6 +1237,43 @@ mod tests {
         )
         .expect("edits");
         assert!(removed.endpoint["spec"].get("representations").is_none());
+    }
+
+    /// A review bounce: `ical` on an Endpoint of BikeCounter drew an `Event` calendar that stays
+    /// empty, the silent case `render` refuses.
+    #[test]
+    fn an_edit_adds_a_calendar_only_over_a_type_the_endpoint_serves() {
+        let add = |all: &[serde_json::Value], types: &[&str]| {
+            let served: Vec<String> = types.iter().map(|t| (*t).to_owned()).collect();
+            super::edit(
+                all,
+                &edit_of(json!({ "name": "helsinki-kpi", "addRepresentations": ["ical"] })),
+                |_| served.clone(),
+            )
+        };
+        let refused = add(&endpoints(), &["BikeCounter"]).expect_err("no preset maps it");
+        assert!(refused.contains("BikeCounter"), "{refused}");
+        assert!(refused.contains("endpoint form"), "{refused}");
+
+        let mixed = add(&endpoints(), &["BikeCounter", "Event"]).expect("edits");
+        assert_eq!(
+            mixed.endpoint["spec"]["representations"]["ical"][0]["sources"],
+            json!([{ "type": "Event", "preset": "sdm-event" }])
+        );
+
+        let no_model = add(&endpoints(), &[]).expect("edits");
+        assert_eq!(
+            no_model.endpoint["spec"]["representations"]["ical"][0]["sources"][0]["type"],
+            "Event"
+        );
+
+        // A calendar mapped by hand stands: `ical` is listed already and nothing is drawn.
+        let mut all = endpoints();
+        all[0]["spec"]["enabledRepresentations"] = json!(["ngsi-ld", "ical"]);
+        let mapped = json!([{ "name": "meetings", "sources": [{ "type": "CouncilMeeting" }] }]);
+        all[0]["spec"]["representations"] = json!({ "ical": mapped });
+        let kept = add(&all, &["CouncilMeeting"]).expect("edits");
+        assert_eq!(kept.endpoint["spec"]["representations"]["ical"], mapped);
     }
 
     #[test]

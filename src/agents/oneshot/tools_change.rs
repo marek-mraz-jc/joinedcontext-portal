@@ -1381,6 +1381,20 @@ impl Driver {
             .collect()
     }
 
+    /// The entity types `endpoint` serves, from its space's compiled model.
+    fn served_types(&self, endpoint: &Value) -> Vec<String> {
+        crate::resource::reference_name(&endpoint["spec"]["contextSpaceRef"])
+            .map(|space| {
+                crate::api::access_requests::served_types(
+                    &self.state,
+                    &self.project,
+                    space,
+                    endpoint,
+                )
+            })
+            .unwrap_or_default()
+    }
+
     /// The `edit_endpoint` call of the earlier prompt, still read for one release (EP-72, AG-77):
     /// the edit becomes the endpoint's changed manifest and opens like a `change_resource` change.
     pub(super) async fn edit_endpoint(
@@ -1412,7 +1426,9 @@ impl Driver {
         if let Err(reason) = self.may_change("Endpoint", Verb::Propose) {
             return self.refused(TOOL, started, input, reason).await;
         }
-        let edit = match share::edit(&self.project_endpoints(), &params) {
+        let edit = match share::edit(&self.project_endpoints(), &params, |endpoint| {
+            self.served_types(endpoint)
+        }) {
             Ok(edit) => edit,
             Err(reason) => {
                 self.event("tool", failed(&input, &reason)).await?;
@@ -1920,6 +1936,30 @@ mod new_dashboard_tests {
                     })
                     .collect()
             })
+    }
+
+    /// What `share::edit` draws a calendar over: the space's model, narrowed by the projection.
+    #[tokio::test]
+    async fn an_endpoint_serves_the_classes_of_its_space_model() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        state
+            .model_schemas
+            .replace(std::collections::HashMap::from([(
+                ("helsinki".to_owned(), "bikes".to_owned()),
+                Arc::new(crate::pipeline_validation::ModelSchema::compile(
+                    "bikes",
+                    "1.0.0",
+                    &json!({ "definitions": { "BikeCounter": { "properties": {} } } }),
+                    &["BikeCounter".to_owned()],
+                    false,
+                )),
+            )]));
+        let driver = Driver::for_tests(state, "helsinki");
+        let served =
+            |space: &str| driver.served_types(&json!({ "spec": { "contextSpaceRef": space } }));
+        assert_eq!(served("bikes"), ["BikeCounter"]);
+        assert!(served("no-model").is_empty(), "no model, no type");
+        assert!(driver.served_types(&json!({ "spec": {} })).is_empty());
     }
 
     /// T-2553, UI-18, UI-19: a public dashboard over new public layers passes the platform's check.

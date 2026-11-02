@@ -15,12 +15,17 @@
 use serde_json::{json, Value};
 
 use joinedcontext_portal::agents::share::{
-    edit, prose_of, render, EditEndpoint, ProposeEndpoint, RateLimits, MAX_REQUESTS_PER_MINUTE,
+    self, prose_of, render, EditEndpoint, ProposeEndpoint, RateLimits, MAX_REQUESTS_PER_MINUTE,
     REPRESENTATIONS,
 };
 use joinedcontext_portal::resource::{is_dns1123, API_VERSION};
 
 const PROJECT: &str = "helsinki";
+
+/// An edit in these cases adds no calendar, so it reads no served type.
+fn edit(endpoints: &[Value], params: &EditEndpoint) -> Result<share::Edit, String> {
+    share::edit(endpoints, params, |_| Vec::new())
+}
 
 fn share() -> ProposeEndpoint {
     ProposeEndpoint {
