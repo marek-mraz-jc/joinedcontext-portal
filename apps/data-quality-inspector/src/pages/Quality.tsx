@@ -292,6 +292,9 @@ export function Quality({ lang }: { lang: Lang }): React.JSX.Element {
               <div key={tName} className="jc-tile app-tile-error">
                 <span className="jc-tile-label">{tName}</span>
                 <span className="app-tile-err-msg">{t(lang, "typeReadError")}</span>
+                <button type="button" className="app-tile-retry" onClick={reload}>
+                  {t(lang, "retry")}
+                </button>
               </div>
             ))}
           </div>

@@ -209,6 +209,18 @@ describe("the region map", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(s.refused(s.kind.hospital, "the policy does not grant this type"));
     await waitFor(() => expect(names()).toContain("Stredoslovenské múzeum"));
     expect(names()).not.toContain("Nemocnica Zvolen");
+    // Asking again never grants a right.
+    expect(within(screen.getByRole("alert")).queryByRole("button")).toBeNull();
+  });
+
+  it("reads a kind again on Retry after a failure on the way", async () => {
+    let down = true;
+    show(undefined, true, undefined, (type) => (type === "hospital" && down ? new TypeError("offline") : answer(type)));
+    const alert = await screen.findByRole("alert");
+    down = false;
+    await userEvent.click(within(alert).getByRole("button"));
+    await waitFor(() => expect(names()).toContain("Nemocnica Zvolen"));
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("says why a kind failed when the request itself fails, in its own words", async () => {
@@ -233,7 +245,7 @@ describe("the region map", () => {
     const layer = await loadKind(source, "hospital", "sk");
     expect(asked).toEqual([0, 200, 400, 600, 800]);
     expect(layer).toMatchObject({ status: "ready", truncated: true });
-    render(<LayerNotes layers={{ hospital: layer, social: { status: "loading" }, organization: { status: "ready", places: [], truncated: false } }} s={s} />);
+    render(<LayerNotes layers={{ hospital: layer, social: { status: "loading" }, organization: { status: "ready", places: [], truncated: false } }} s={s} onRetry={() => {}} />);
     expect(screen.getByText(s.truncated(s.kind.hospital, MOST))).toBeInTheDocument();
   });
 

@@ -14,7 +14,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Map as MapLibreMap } from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { AppShell, Empty, endpointSource, Loading, Page, SourceError, styleFor, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
+import { AppShell, Empty, endpointSource, Loading, Page, Problem, SourceError, styleFor, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
 import type { EntitySource } from "@joinedcontext/sdk";
 import { byOrder, CATEGORY_Q, featuresOf, KIND_COLOUR, KIND_SHAPE, KINDS, matches, placeOf, TYPE_OF } from "./places";
 import type { Kind, Place } from "./places";
@@ -33,7 +33,7 @@ const SOURCE_ID = "places";
 export type Layer =
   | { status: "loading" }
   | { status: "ready"; places: Place[]; truncated: boolean }
-  | { status: "failed"; reason: string };
+  | { status: "failed"; reason: string; denied: boolean };
 
 /** The endpoint of the register space: the one the Portal lists for it, else the App's own. */
 function useEndpoint(): { slug: string; name?: string } | null {
@@ -48,6 +48,11 @@ function reasonOf(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
 }
 
+/** A refusal: asking again never grants a right, so it offers no retry (T-4912). */
+function deniedBy(cause: unknown): boolean {
+  return cause instanceof SourceError && (cause.status === 401 || cause.status === 403);
+}
+
 /** Every place of one kind, page by page up to `MOST`. */
 export async function loadKind(source: EntitySource, kind: Kind, locale: string): Promise<Layer> {
   const places: Place[] = [];
@@ -59,11 +64,12 @@ export async function loadKind(source: EntitySource, kind: Kind, locale: string)
   return { status: "ready", places, truncated: true };
 }
 
-export function useLayers(): { layers: Record<Kind, Layer> | null } {
+export function useLayers(): { layers: Record<Kind, Layer> | null; reload: () => void } {
   const { config } = useClient();
   const slug = useEndpoint()?.slug ?? null;
   const language = config.language ?? "sk";
   const [layers, setLayers] = useState<Record<Kind, Layer> | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const source = useMemo(
     () => (slug ? endpointSource(slug, transportFor(config), language) : null),
     // `config` is the document the Portal served once; the slug and the language are what change.
@@ -77,7 +83,7 @@ export function useLayers(): { layers: Record<Kind, Layer> | null } {
     setLayers({ hospital: { status: "loading" }, social: { status: "loading" }, organization: { status: "loading" } });
     for (const kind of KINDS) {
       loadKind(source, kind, language.slice(0, 2))
-        .catch((cause: unknown): Layer => ({ status: "failed", reason: reasonOf(cause) }))
+        .catch((cause: unknown): Layer => ({ status: "failed", reason: reasonOf(cause), denied: deniedBy(cause) }))
         .then((layer) => {
           if (live) setLayers((before) => (before ? { ...before, [kind]: layer } : before));
         });
@@ -85,9 +91,9 @@ export function useLayers(): { layers: Record<Kind, Layer> | null } {
     return () => {
       live = false;
     };
-  }, [source, language]);
+  }, [source, language, attempt]);
 
-  return { layers: source ? layers : null };
+  return { layers: source ? layers : null, reload: () => setAttempt((n) => n + 1) };
 }
 
 export default function App() {
@@ -99,7 +105,7 @@ export default function App() {
 function RegionMap() {
   const { config } = useClient();
   const s = stringsFor(config.language);
-  const { layers } = useLayers();
+  const { layers, reload } = useLayers();
   const endpoint = useEndpoint()?.name;
   const { selected, select } = useEntitySelection();
   const [shown, setShown] = useState<Record<Kind, boolean>>({ hospital: true, social: true, organization: true });
@@ -171,7 +177,7 @@ function RegionMap() {
           </div>
 
           {loading && <Loading label={s.loading} />}
-          <LayerNotes layers={layers} s={s} />
+          <LayerNotes layers={layers} s={s} onRetry={reload} />
 
           <div className="map-screen">
             <PlaceMap places={visible} picked={pickedId} onPick={pick} s={s} />
@@ -213,14 +219,12 @@ function RegionMap() {
 }
 
 /** Why a kind is missing, or that it was cut off at `MOST`: said beside the map, once per kind. */
-export function LayerNotes({ layers, s }: { layers: Record<Kind, Layer>; s: Strings }) {
+export function LayerNotes({ layers, s, onRetry }: { layers: Record<Kind, Layer>; s: Strings; onRetry: () => void }) {
   return KINDS.map((kind) => {
     const layer = layers[kind];
     if (layer.status === "failed") {
       return (
-        <p key={kind} role="alert" className="failed">
-          {s.refused(s.kind[kind], layer.reason)}
-        </p>
+        <Problem key={kind} error={new Error(s.refused(s.kind[kind], layer.reason))} onRetry={layer.denied ? undefined : onRetry} />
       );
     }
     if (layer.status === "ready" && layer.truncated) {
