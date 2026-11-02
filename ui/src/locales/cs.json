@@ -6032,7 +6032,7 @@
       "previewing": "Náhled je hotový",
       "awaiting_approval": "Čeká na schválení",
       "published": "Publikováno",
-      "failed": "Spuštění selhalo.",
+      "failed": "Spuštění selhalo. Požádejte asistenta, ať aplikaci sestaví znovu.",
       "cancelled": "Spuštění bylo zastaveno.",
       "expired": "Spuštění skončilo; náhled zůstává tak, jak byl postaven."
     },

@@ -6032,7 +6032,7 @@
       "previewing": "Vorschau ist fertig",
       "awaiting_approval": "Wartet auf Freigabe",
       "published": "Veröffentlicht",
-      "failed": "Der Lauf ist fehlgeschlagen.",
+      "failed": "Der Lauf ist fehlgeschlagen. Bitten Sie den Assistenten, die App erneut zu bauen.",
       "cancelled": "Der Lauf wurde gestoppt.",
       "expired": "Der Lauf ist beendet; die Vorschau bleibt, wie sie gebaut wurde."
     },

@@ -6032,7 +6032,7 @@
       "previewing": "Preview ready",
       "awaiting_approval": "Waiting for approval",
       "published": "Published",
-      "failed": "The run failed.",
+      "failed": "The run failed. Ask the assistant to build the app again.",
       "cancelled": "The run was stopped.",
       "expired": "The run has ended; the preview stays as it was built."
     },

@@ -285,7 +285,6 @@ describe("map dashboard", () => {
     expect(JSON.stringify(paint["circle-radius"])).toContain("18");
   });
 
-  // T-6442: MapLibre refuses an interpolate whose stops do not strictly ascend and draws nothing.
   it("opens a popup with the layer's properties on a feature click", async () => {
     renderDashboards();
 

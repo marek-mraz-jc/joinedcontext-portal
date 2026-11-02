@@ -56,8 +56,8 @@ export function isLocated(slots: { name: string; kind: string }[]): boolean {
 
 /** The coloured map's key. The words for a screen reader stand in the status line above it. */
 function ColourKey({ attr, domain: [min, max], unknown }: { attr: string; domain: [number, number]; unknown: number }): JSX.Element {
-  const { t } = useTranslation();
-  const number = new Intl.NumberFormat(undefined);
+  const { t, i18n } = useTranslation();
+  const number = new Intl.NumberFormat(i18n.language);
   return (
     <div aria-hidden="true" className="flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-fg-muted">
       <span className="font-medium text-fg">{attr}</span>

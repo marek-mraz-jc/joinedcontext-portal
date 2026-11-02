@@ -68,7 +68,7 @@ export const unknownColour = (): string => themeColour("--portal-neutral-400", "
 export const RAMP = ["#ffffb2", "#fecc5c", "#fd8d3c", "#e31a1c"];
 
 /** What a coloured layer paints when every value is the same: no low or high end to mean. */
-export const ONE_VALUE_COLOUR = "#fd8d3c";
+export const ONE_VALUE_COLOUR = RAMP[2];
 
 /** `#rrggbb` as the RGB triple deck.gl accessors return, and `[0, 0, 0]` for anything else. */
 export function rgbOf(colour: string): [number, number, number] {
