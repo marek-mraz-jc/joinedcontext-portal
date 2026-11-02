@@ -20320,21 +20320,24 @@
                     "type": "object"
                   },
                   "representations": {
-                    "description": "Formats served; ngsi-ld and csv when absent",
+                    "description": "Default ngsi-ld, csv",
                     "items": {
                       "enum": [
                         "ngsi-ld",
-                        "csv",
                         "mcp",
+                        "csv",
                         "ogc-features",
-                        "sta"
+                        "sta",
+                        "odata",
+                        "websocket",
+                        "ical"
                       ],
                       "type": "string"
                     },
                     "type": "array"
                   },
                   "title": {
-                    "description": "The endpoint's title as people read it",
+                    "description": "The endpoint's title",
                     "maxLength": 256,
                     "type": "string"
                   }
