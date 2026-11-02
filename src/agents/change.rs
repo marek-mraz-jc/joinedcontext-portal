@@ -311,7 +311,9 @@ mod tests {
         assert_eq!(role["spec"], patch["spec"]);
         let refused = section("roles").expect_err("no empty form");
         assert!(refused.contains("create-resource"), "{refused}");
-        assert!(section("Role").expect_err("no empty form").contains("a new Role"));
+        assert!(section("Role")
+            .expect_err("no empty form")
+            .contains("a new Role"));
         // A kind the chat does not create still goes to its page.
         let dashboards = section("dashboards").expect_err("no empty form");
         assert!(dashboards.contains("its page"), "{dashboards}");

@@ -2377,7 +2377,10 @@ mod tests {
             eprintln!("BUDGET {path:?} {tokens}");
             over.push((path, tokens, user));
         }
-        let over: Vec<_> = over.iter().filter(|(_, tokens, _)| *tokens >= 4000).collect();
+        let over: Vec<_> = over
+            .iter()
+            .filter(|(_, tokens, _)| *tokens >= 4000)
+            .collect();
         assert!(over.is_empty(), "over 4000 tokens: {over:?}");
     }
 
@@ -2404,7 +2407,10 @@ mod tests {
         let quality = playbook(&pack, "quality-rule").expect("the quality playbook");
         assert!(quality.contains("spec.quality") && quality.contains("\"entityType\""));
         let create = playbook(&pack, "create-resource").expect("the create playbook");
-        assert!(create.contains("**Role**") && create.contains("\"rules\""), "{create}");
+        assert!(
+            create.contains("**Role**") && create.contains("\"rules\""),
+            "{create}"
+        );
     }
 
     /// T-3079: ten long turns in, a turn's own part (what follows the cached pack) holds the
