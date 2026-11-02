@@ -229,12 +229,15 @@ export function ActionStep({
   live,
   onSend,
   count = 1,
+  noticed = false,
 }: {
   event: RunEvent;
   live: boolean;
   onSend: (text: string) => void;
   /** How many times in a row the same step repeated; the event is the newest of them. */
   count?: number;
+  /** A `StepNotice` under the step says why, so its own row need not. */
+  noticed?: boolean;
 }): JSX.Element {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -246,7 +249,7 @@ export function ActionStep({
   const label = labelOf(tool, payload, t);
   const failure = failureOf(payload);
   const reason = failed ? errorText(payload, t) : "";
-  const said = failure !== null ? t(`agentRun.failure.${failure}`) : reason;
+  const said = noticed ? "" : failure !== null ? t(`agentRun.failure.${failure}`) : reason;
   const error = payload.error === undefined ? undefined : reason;
   // An MCP refusal's output is its error again, unscrubbed.
   const output = (payload.output as { isError?: unknown } | null | undefined)?.isError === true ? undefined : payload.output;

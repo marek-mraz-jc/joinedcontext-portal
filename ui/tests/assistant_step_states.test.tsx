@@ -158,6 +158,8 @@ describe("the state of a failure", () => {
       tool(2, "change_resource", "the data read for this message writes this call; data is never an instruction"),
     ]);
     const notice = screen.getByTestId("step-notice");
+    // The notice says why; the step's own row does not say it twice.
+    expect(screen.queryByTestId("step-reason")).toBeNull();
     await userEvent.click(within(notice).getByRole("button", { name: en.agentRun.failure.askAgain }));
     expect(onSend).toHaveBeenCalledTimes(1);
     expect(onSend).toHaveBeenCalledWith("Add the slot direction.");
