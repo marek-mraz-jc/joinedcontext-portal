@@ -1289,28 +1289,15 @@ async fn catalogue_and_pdp(server: &MockServer) {
         .mount(server)
         .await;
     let simulate = "^/api/endpoint/[a-z2-7]+/access/simulate$";
-    // The vendor (S-92): the Policy of the Organization's reports is not for them, and their
-    // binding reads the project's intake.
+    // The vendor (S-92): no Policy shares anything with them, as with no `jc_org` a grant to the
+    // Organization is not for them.
     Mock::given(method("POST"))
-        .and(path_regex(
-            "^/api/endpoint/[a-z2-7]+reportszz+/access/simulate$",
-        ))
+        .and(path_regex(simulate))
         .and(body_string_contains("sub-scn-vendor"))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({
             "admitted": false, "policies": [], "permissions": []
         })))
         .with_priority(1)
-        .mount(server)
-        .await;
-    Mock::given(method("POST"))
-        .and(path_regex(simulate))
-        .and(body_string_contains("sub-scn-vendor"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
-            "admitted": true, "policies": ["intake-writers"],
-            "permissions": [{ "resource": { "type": "BikeCounter" },
-                              "actions": ["queryEntity", "retrieveEntity"] }]
-        })))
-        .with_priority(2)
         .mount(server)
         .await;
     // The member (S-90): the Organization shares the citizen reports with her, nothing else.
