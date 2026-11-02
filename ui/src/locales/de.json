@@ -533,6 +533,7 @@
     "empty": "Dieses Projekt hat noch keinen Kontextraum.",
     "add": "Neuer Kontextraum",
     "addHint": "Das Speichern schlägt eine Änderung vor; der Raum entsteht nach der Freigabe.",
+    "fromFile": "Mit einer Datei beginnen",
     "propose": "Änderung vorschlagen",
     "sandbox": "Sandbox, {days} Tage",
     "field": {
@@ -640,7 +641,6 @@
         "Layer": "Kartenebene",
         "Dashboard": "Dashboard"
       },
-      "drafted": "Entworfen",
       "alreadyThere": "Bereits vorhanden",
       "checkPassed": "Prüfung bestanden",
       "checkFailed": "Prüfung nicht bestanden",
@@ -659,6 +659,11 @@
         "Dashboard": "Ein Karten-Dashboard mit {count, plural, one {# Seite} other {# Seiten}}"
       },
       "onApproval": "Alle vorschlagen sendet diese Entwürfe gemeinsam zur Freigabe. Nach der Freigabe wird die Quelle abgerufen und der Raum füllt sich.",
+      "onApprovalRows": "Alle vorschlagen sendet diese Entwürfe gemeinsam zur Freigabe. Nach der Freigabe bietet diese Seite an, {count, plural, one {# Zeile} other {# Zeilen}} der Datei zu laden. Bleiben Sie hier oder behalten Sie die Datei: Die Zeilen werden noch nicht gesendet.",
+      "inChange": "Was diese Änderung enthält ({count})",
+      "tooLarge": "Das sind zusammen mehr als 10 MB. Wählen Sie kleinere Dateien oder nutzen Sie CSV hochladen mit bis zu 50 MB.",
+      "urlHint": "Die Adresse eines Live-Feeds anstelle einer Datei. Beispiel: https://example.org/stations.json",
+      "failedNext": "Noch kann nichts vorgeschlagen werden. Beheben Sie in der Datei, was die Prüfung nennt, und wählen Sie sie erneut.",
       "title": "Diesen Raum vervollständigen",
       "lead": "Geben Sie eine Beispieldatei oder die Adresse eines Feeds an. Das Portal entwirft das Datenmodell, den Raum, die Datenquelle und die Pipeline und prüft jeden Entwurf.",
       "space": "Name des Raums",
@@ -1159,7 +1164,11 @@
       "noSlots": "Das vorgeschlagene Modell deklariert für diesen Typ keine Felder: Es gibt nichts zu schreiben.",
       "write": "{count, plural, =0 {Nichts zu schreiben} one {# Zeile schreiben} other {# Zeilen schreiben}}",
       "done": "{written, plural, =0 {Keine Zeile geschrieben} one {# Zeile geschrieben} other {# Zeilen geschrieben}}, {refused, plural, =0 {keine abgelehnt.} other {# abgelehnt.}}",
-      "preview": "Vorschau der ersten {count, plural, one {# Entität} other {# Entitäten}} als NGSI-LD"
+      "preview": "Vorschau der ersten {count, plural, one {# Entität} other {# Entitäten}} als NGSI-LD",
+      "firstRefusal": "Zeile {row}: {reason}",
+      "liveNow": "Die Änderung ist live. Schreiben Sie die Zeilen als {type} in {space}. Dieselbe Datei erneut zu schreiben aktualisiert dieselben Entitäten.",
+      "goingLive": "Freigegeben. In einigen Minuten ist sie live und diese Schaltfläche wird von selbst aktiv; bleiben Sie auf dieser Seite.",
+      "openSpace": "Raum öffnen"
     },
     "toolbar": {
       "filter": "Filter",
@@ -6390,7 +6399,7 @@
     "sideView": "Neben der Seite",
     "floatView": "Über der Seite schweben",
     "cancel": "Assistent stoppen",
-    "attach": "Eine Probe (CSV, Excel, JSON oder PDF) anhängen und ein Datenmodell entwerfen",
+    "attach": "Eine Tabelle (CSV oder Excel) anhängen und daraus einen Raum erstellen, oder eine JSON- oder PDF-Probe für ein Datenmodell",
     "backToChat": "Zurück zum Assistenten",
     "empty": {
       "lead": "Wählen Sie, was Sie tun möchten, oder fragen Sie in eigenen Worten.",
@@ -6431,6 +6440,8 @@
     },
     "trail": "Seiten, die der Assistent geöffnet hat",
     "prefilledNotice": "Der Assistent hat das ausgefüllt. Prüfe es, bevor du es vorschlägst.",
+    "readOnly": "Ihre Rolle erlaubt hier nur das Lesen, daher kann der Assistent nicht starten. Die Rolle Editor kann Ihnen ein Projektverantwortlicher oder eine Administration geben.",
+    "readOnlyComposer": "Ihre Rolle erlaubt hier nur das Lesen",
     "pathsDenied": "Einige Wege sind ausgegraut: Ihre Rolle erlaubt Ihnen das Ansehen, nicht das Anlegen. Ein Projektverantwortlicher oder eine Administration kann Ihnen dieses Recht geben.",
     "paths": {
       "integrate-pipeline": {
@@ -11447,5 +11458,58 @@
     "title": "Fragen Sie einen Administrator der Organisation",
     "contacts": "Kontakte Ihrer Organisation",
     "back": "Zurück zu Ihren Projekten"
+  },
+  "attributeHistory": {
+    "attribute": "Attribut",
+    "timeline": "Zeitleiste",
+    "observedAt": "Beobachtungszeit",
+    "value": "Wert",
+    "current": "Neueste",
+    "superseded": "Ersetzt",
+    "reason": "Begründung",
+    "reasonHint": "Sagen Sie in ein, zwei Sätzen, warum; es bleibt bei der Änderung.",
+    "noHistory": "Noch kein Verlauf vorhanden",
+    "versionsRestricted": "Versionen werden nur für Rollen mit readVersions angezeigt.",
+    "older": "Älter",
+    "newest": "Neueste",
+    "revert": "Zurücksetzen",
+    "revertTitle": "Auf ältere Version zurücksetzen",
+    "correct": "Korrigieren",
+    "correctTitle": "Messung korrigieren",
+    "editCurrent": "Aktuellen Wert bearbeiten",
+    "save": "Speichern",
+    "addOldValue": "Alten Wert hinzufügen",
+    "importCsv": "Alte Werte aus CSV importieren",
+    "file": "CSV-Datei",
+    "csvPreview": "Neu: {added} · Duplikate: {duplicates} · Korrekturen: {corrections}",
+    "csvUnchecked": "{count, plural, one {# Zeile liegt} other {# Zeilen liegen}} vor der angezeigten Historie und werden als neu gesendet: Der Broker behält bei gleichem Wert zum selben Zeitpunkt eine Zeile und speichert einen anderen Wert als Korrektur.",
+    "csvProblems": "Zeile {line}: {reason}",
+    "confirmImport": "Import bestätigen",
+    "importProgress": "{sent} von {total} gesendet",
+    "importResult": "Gesendete Werte: {sent}",
+    "importFailed": "Die Zeile {line} wurde nicht gespeichert: {reason}. Korrigieren Sie sie in der Datei und importieren Sie erneut.",
+    "cancel": "Abbrechen",
+    "needsReason": "Schreiben Sie zuerst einen Grund und einen gültigen Wert.",
+    "tab": "Werte korrigieren",
+    "attributeHint": "Das Feld, dessen Werte Sie korrigieren. Zum Beispiel: pm10.",
+    "valueHint": "So, wie das Feld ihn speichert. Zum Beispiel: 21.5.",
+    "valueInvalid": "Geben Sie einen Wert vom Typ dieses Felds ein, zum Beispiel eine Zahl.",
+    "observedAtHint": "Wann gemessen, in Ihrer Zeitzone. Zum Beispiel: 3. März 2026, 14:00.",
+    "observedAtInvalid": "Geben Sie Datum und Uhrzeit ein, die nicht in der Zukunft liegen.",
+    "fileHint": "Eine CSV mit den Spalten observedAt und value, höchstens {max} Zeilen. Zum Beispiel: 2026-03-03T14:00:00Z,21.5.",
+    "revertTo": "Schreibt {value} erneut als neue Version; die Versionen danach bleiben in der Zeitleiste.",
+    "csvProblem": {
+      "emptyFile": "Die Datei ist leer.",
+      "tooLarge": "Die Datei ist größer als 1 MB. Teilen Sie sie und importieren Sie jeden Teil.",
+      "tooManyRows": "Die Datei hat mehr als {max} Zeilen. Teilen Sie sie und importieren Sie jeden Teil.",
+      "columns": "Die erste Zeile braucht die Spalten observedAt und value.",
+      "badInstant": "observedAt ist kein Datum mit Uhrzeit.",
+      "futureInstant": "observedAt liegt in der Zukunft.",
+      "badValue": "Der Wert passt nicht zu diesem Feld."
+    },
+    "csvLeftOut": "Zeilen mit einem Problem werden ausgelassen; die übrigen können Sie importieren.",
+    "saved": "Gespeichert. Die Änderung steht in der Zeitleiste.",
+    "csvNeedsReason": "Geben Sie zuerst einen Grund an.",
+    "csvNothing": "Die Datei enthält keinen neuen Wert zum Importieren."
   }
 }

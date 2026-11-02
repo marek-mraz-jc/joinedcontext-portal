@@ -36,6 +36,8 @@ export interface ImportSlot {
   range?: string;
   kind: NgsiLdKind;
   required: boolean;
+  /** What a person reads for the slot, per language: an inferred slot's title is the file's own column. */
+  titles?: string[];
   /** The permissible values, when the range is an enum of the model. */
   values?: string[];
   minimum?: number;
@@ -89,6 +91,7 @@ export function importSlotsOf(source: string | undefined, type: string): ImportS
         range: slot.range,
         kind: slot.kind,
         required: slot.required === true,
+        titles: Object.values(slot.title ?? {}),
         values: model.enums.find((e) => e.name === slot.range)?.permissible_values.map((v) => v.name),
         minimum: slot.minimum_value,
         maximum: slot.maximum_value,
@@ -593,6 +596,12 @@ export function normalized(name: string): string {
 export const LATITUDES = new Set(["lat", "latitude", "leveys", "sirka", "zemepisnasirka", "breite"]);
 export const LONGITUDES = new Set(["lon", "lng", "long", "longitude", "pituus", "dlzka", "delka", "zemepisnadlzka", "lange"]);
 
+/** The slot of a column: the same name or title up to case, separators and diacritics. */
+function slotOfColumn(column: string, slots: ImportSlot[]): ImportSlot | undefined {
+  const key = normalized(column);
+  return slots.find((s) => normalized(s.name) === key || (s.titles ?? []).some((title) => normalized(title) === key));
+}
+
 /**
  * The slot each column most likely feeds: the same name up to case, separators and diacritics, or
  * a Smart Data Models synonym of it; a column named `id` or `urn` names the entity. Each slot is
@@ -610,7 +619,7 @@ export function suggestMapping(columns: string[], slots: ImportSlot[]): Mapping 
     else if (geo && LONGITUDES.has(key)) target = LONGITUDE;
     else {
       const slot =
-        slots.find((s) => normalized(s.name) === key) ??
+        slotOfColumn(column, slots) ??
         slots.find((s) => (SYNONYMS[s.name] ?? []).some((synonym) => normalized(synonym) === key));
       target = slot?.name ?? "";
     }
@@ -743,6 +752,37 @@ export function expiresOf(text: string | undefined, now: number = Date.now()): s
   return new Date(ms).toISOString();
 }
 
+/** A 53-bit hash of a text (cyrb53): an id, never a secret. */
+function hashOf(text: string): string {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let at = 0; at < text.length; at += 1) {
+    const code = text.charCodeAt(at);
+    h1 = Math.imul(h1 ^ code, 2654435761);
+    h2 = Math.imul(h2 ^ code, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+
+/**
+ * The `freshId` of {@link toEntities} for a load that may run twice: called once per row in order,
+ * it names a row by its content, so the same file written again updates the same entities (a row
+ * the file holds twice stays two). A column mapped to `id` still wins.
+ */
+export function rowIds(table: Table): () => string {
+  const seen = new Map<string, number>();
+  let at = 0;
+  return () => {
+    const hash = hashOf(JSON.stringify(table.columns.map((column) => table.rows[at]?.[column] ?? "")));
+    at += 1;
+    const times = (seen.get(hash) ?? 0) + 1;
+    seen.set(hash, times);
+    return times === 1 ? hash : `${hash}-${times}`;
+  };
+}
+
 /**
  * Every row as an NGSI-LD entity of the target type, or the reasons it is not one: an id that
  * names another type or space, a required slot left empty, a value outside its slot's range or
@@ -811,6 +851,11 @@ export function toEntities(
       const lon = numberOf((record[lonColumn] ?? "").trim(), mark);
       if (Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180) {
         entity[geoSlot.name] = { type: "GeoProperty", value: { type: "Point", coordinates: [lon, lat] } };
+        // A model inferred from the file keeps each coordinate column as a slot of its own, required.
+        for (const [column, value] of [[latColumn, lat], [lonColumn, lon]] as const) {
+          const own = slotOfColumn(column, slots);
+          if (own && own.kind === "Property") entity[own.name] = { type: "Property", value };
+        }
       } else if ((record[latColumn] ?? "").trim() !== "" || (record[lonColumn] ?? "").trim() !== "") {
         problems.push(`${geoSlot.name}: \`${record[latColumn] ?? ""}\`, \`${record[lonColumn] ?? ""}\` is not a latitude and a longitude`);
       }
@@ -860,10 +905,12 @@ export async function createInBatches(
   operation: "create" | "upsert" = "create",
   // Every write from the Portal's UI names why, sent as `JC-Reason` (DM-113).
   reason = "imported from a file",
+  // Where the writes go: the space's own surface, or an Endpoint of the space.
+  surface = `/cs/${encodeURIComponent(space)}`,
 ): Promise<{ created: number; rejected: Rejected[]; denied?: string }> {
   let created = 0;
   const rejected: Rejected[] = [];
-  const path = `/cs/${encodeURIComponent(space)}/ngsi-ld/v1/entityOperations/${operation}`;
+  const path = `${surface}/ngsi-ld/v1/entityOperations/${operation}`;
   for (let at = 0; at < entities.length; at += BATCH) {
     const batch = entities.slice(at, at + BATCH);
     let answer: { status: number; body?: unknown };

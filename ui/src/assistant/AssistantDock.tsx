@@ -138,8 +138,10 @@ function Paths({
   });
   // The reason a greyed path carries is a tooltip; one visible line says it for all of them (T-4263).
   const permissions = usePermissions(project);
+  // Propose on any kind opens a conversation (AG-67); a read-only role gets the reason once.
+  const mayAsk = permissions.can("*", "propose");
   const denied =
-    permissions.data !== undefined && offered.some(([, , kind]) => kind !== null && !permissions.can(kind, "propose"));
+    mayAsk && permissions.data !== undefined && offered.some(([, , kind]) => kind !== null && !permissions.can(kind, "propose"));
   return (
     <>
       {denied ? (
@@ -155,13 +157,15 @@ function Paths({
           const button = (
             <Button
               size="sm"
-              disabled={disabled || left}
+              disabled={disabled || left || !mayAsk}
               disabledReason={
-                left
-                  ? t("assistant.capabilities.pathLeft", {
-                      preset: t(`assistant.capabilities.presets.${capabilities.preset}.title`),
-                    })
-                  : undefined
+                !mayAsk
+                  ? t("assistant.readOnly")
+                  : left
+                    ? t("assistant.capabilities.pathLeft", {
+                        preset: t(`assistant.capabilities.presets.${capabilities.preset}.title`),
+                      })
+                    : undefined
               }
               data-path={path}
               // The name is the title and its line, read with a pause between them; the
@@ -238,6 +242,7 @@ export function AssistantDock({
   });
   // The endpoints the data bar offers are read while the page is idle, so opening does not wait.
   const queryClient = useQueryClient();
+  const mayAsk = usePermissions(activeProject).can("*", "propose");
   useEffect(() => {
     const read = () => {
       void queryClient.prefetchQuery(endpointsQuery(project));
@@ -523,6 +528,11 @@ export function AssistantDock({
           rememberPrefill(`/projects/${activeProject}/models`, { source });
           void navigate({ to: "/projects/$project/models", params: { project: activeProject } });
         }}
+        onTable={(file) => {
+          // A table goes where its rows can load too: Complete this space drafts the model as well.
+          rememberPrefill(`/projects/${activeProject}/spaces/complete`, { file });
+          void navigate({ to: "/projects/$project/spaces/complete", params: { project: activeProject } });
+        }}
       />
     </Suspense>
   );
@@ -638,6 +648,11 @@ export function AssistantDock({
         <>
           <Card padding="sm" id="run-chat" data-testid="assistant-empty" className="flex min-h-48 w-full flex-1 flex-col gap-4 overflow-y-auto">
             <p className="text-body text-fg-muted">{t("assistant.empty.lead")}</p>
+            {mayAsk ? null : (
+              <Alert tone="info" data-testid="assistant-read-only">
+                {t("assistant.readOnly")}
+              </Alert>
+            )}
             <Paths
               project={activeProject}
               disabled={isStarting}
@@ -653,7 +668,7 @@ export function AssistantDock({
             onSubmit={(event) => {
               event.preventDefault();
               const text = composerMessage.trim();
-              if (text && !isStarting) {
+              if (text && !isStarting && mayAsk) {
                 void startConversation(text);
               }
             }}
@@ -690,11 +705,14 @@ export function AssistantDock({
                   if (event.key === "Enter" && !event.shiftKey) {
                     event.preventDefault();
                     const text = composerMessage.trim();
-                    if (text && !isStarting) {
+                    if (text && !isStarting && mayAsk) {
                       void startConversation(text);
                     }
                   }
                 }}
+                disabled={!mayAsk}
+                placeholder={mayAsk ? undefined : t("assistant.readOnlyComposer")}
+                title={mayAsk ? undefined : t("assistant.readOnly")}
                 className="resize-none"
               />
             </Field>
@@ -706,8 +724,8 @@ export function AssistantDock({
                 type="submit"
                 variant="primary"
                 size="sm"
-                disabled={composerMessage.trim() === ""}
-              disabledReason={t("agentRun.conversation.writeFirst")}
+                disabled={composerMessage.trim() === "" || !mayAsk}
+                disabledReason={mayAsk ? t("agentRun.conversation.writeFirst") : t("assistant.readOnly")}
                 loading={isStarting}
               >
                 {t("assistant.empty.send")}

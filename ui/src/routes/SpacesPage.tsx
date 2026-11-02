@@ -222,6 +222,7 @@ function HistoryCount({ usage, numbers, locale }: { usage: SpaceUsage | undefine
 
 export function SpacesPage({ project }: { project: string }): JSX.Element {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
 
@@ -345,6 +346,27 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
       </Button>
     </PermissionGuard>
   );
+  // The quickest way to a space with data: a file proposes the model, the space, its Endpoint and
+  // the person's write grant in one change (T-6450). Nothing else on this list led there.
+  const fromFileButton = (
+    <PermissionGuard project={project} kind="ContextSpace" verb="propose">
+      <Button
+        variant="secondary"
+        disabled={quotaExceeded}
+        disabledReason={quotaExceeded ? t("quota.exceeded", { limit }) : undefined}
+        icon={<Icon name="import" className="size-4" />}
+        onClick={() => void navigate({ to: "/projects/$project/spaces/upload", params: { project } })}
+      >
+        {t("spaces.fromFile")}
+      </Button>
+    </PermissionGuard>
+  );
+  const addButtons = (
+    <>
+      {fromFileButton}
+      {addButton}
+    </>
+  );
 
   return (
     <div className="flex flex-col gap-section">
@@ -359,7 +381,7 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
               title={t("spaces.title")}
               description={t("spaces.lead")}
               aside={toolbar}
-              actions={addButton}
+              actions={addButtons}
             />
             {quotaExceeded ? (
               <Alert role="status" tone="warning">
@@ -481,7 +503,7 @@ export function SpacesPage({ project }: { project: string }): JSX.Element {
           />
         )}
         empty={
-          <EmptyState bare icon="spaces" title={t("spaces.empty")} description={t("spaces.addHint")} action={addButton} />
+          <EmptyState bare icon="spaces" title={t("spaces.empty")} description={t("spaces.addHint")} action={<div className="flex flex-wrap gap-2">{addButtons}</div>} />
         }
       />
 

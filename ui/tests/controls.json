@@ -301,6 +301,14 @@
         "endpoint_grants_words.test.tsx"
       ]
     },
+    "src/components/entities/history/AttributeHistory.tsx": {
+      "controls": {
+        "Button": 6
+      },
+      "tests": [
+        "attribute_history.test.tsx"
+      ]
+    },
     "src/components/entities/AddFieldDialog.tsx": {
       "controls": {
         "Button": 3,
@@ -2088,6 +2096,14 @@
         "import_rows.test.tsx"
       ]
     },
+    "src/pages/spaces/LoadRows.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "upload_csv.test.tsx"
+      ]
+    },
     "src/pages/spaces/PublicView.tsx": {
       "controls": {
         "Button": 2
@@ -2158,7 +2174,7 @@
     },
     "src/pages/spaces/UploadCsv.tsx": {
       "controls": {
-        "Button": 3,
+        "Button": 1,
         "FilePicker": 1,
         "RadioGroup": 1
       },
@@ -2335,7 +2351,7 @@
     },
     "src/routes/SpacesPage.tsx": {
       "controls": {
-        "Button": 1
+        "Button": 2
       },
       "tests": [
         "edit_keeps_stored_metadata.test.ts",
