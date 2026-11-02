@@ -4491,6 +4491,42 @@ output:
         assert_eq!(processors[7]["label"], COMPUTE_LABEL);
     }
 
+    /// T-6451: a feed split by a second mapping step. Both mappings kept one label and the runner
+    /// refused the stream by lint, after jc_pipeline_test had passed it.
+    #[test]
+    fn two_compute_steps_each_keep_a_label_of_their_own() {
+        let spec: PipelineSpec = serde_json::from_value(serde_json::json!({
+            "class": "scheduled",
+            "schedule": "0 * * * *",
+            "sources": [{ "dataSourceRef": "gbfs" }],
+            "steps": [
+                { "kind": "bloblang", "bloblang": "root = this.data.stations" },
+                { "processor": { "unarchive": { "format": "json_array" } } },
+                { "kind": "bloblang", "bloblang": "root.id = this.station_id" }
+            ],
+            "outputs": [{ "mode": "upsert", "type": "Station",
+                          "targetEndpoint": "urn:ngsi-ld:Endpoint:stations" }]
+        }))
+        .expect("spec");
+        assert!(is_merged(&spec));
+        let sources = vec![ResolvedSource::Data {
+            spec: Box::new(helsinki_datasource_spec()),
+            name: "gbfs".to_owned(),
+        }];
+        let mut stream = render_merged(&spec, "p", "helsinki", &sources, &["slug".to_owned()])
+            .expect("renders");
+        crate::pipeline_samples::with_taps(&mut stream, "http://portal", "p");
+        let labels: Vec<&str> = stream["pipeline"]["processors"]
+            .as_array()
+            .expect("processors")
+            .iter()
+            .filter_map(|processor| processor["label"].as_str())
+            .collect();
+        for label in ["compute", "tap_compute", "step_0", "compute_1", "tap_compute_1"] {
+            assert_eq!(labels.iter().filter(|l| **l == label).count(), 1, "{label}: {labels:?}");
+        }
+    }
+
     #[test]
     fn runner_nats_source_renders_verbatim_and_refuses_scheduled_class() {
         let mut pipe = helsinki_pipeline_spec();
