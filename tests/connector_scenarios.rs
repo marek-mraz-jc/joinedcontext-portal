@@ -2804,6 +2804,31 @@ async fn an_apply_takes_only_its_own_unchanged_plan_and_never_approves() {
           "contains": ["/changes/0/op"] }
     ]);
     assert_eq!(harness.run(&scenario(elsewhere), &own).await, Ok(()));
+    // T-6435: a policyRef naming the bare space binds nothing; the plan says the URN to write.
+    let bind = |reference: String| {
+        json!({ "changes": [
+            { "op": "create", "kind": "Policy", "name": "doprava-read", "manifest": {
+                "apiVersion": "joinedcontext.com/v1alpha1", "kind": "Policy",
+                "metadata": { "name": "doprava-read" },
+                "spec": { "contextSpaceRef": "doprava", "assigner": "did:web:hel.fi",
+                          "assignee": { "kind": "role", "id": "public" },
+                          "operations": ["retrieveOps"] } } },
+            { "op": "create", "kind": "Endpoint", "name": "doprava-open", "manifest": {
+                "apiVersion": "joinedcontext.com/v1alpha1", "kind": "Endpoint",
+                "metadata": { "name": "doprava-open" },
+                "spec": { "contextSpaceRef": "doprava", "audience": "public",
+                          "policyRefs": [reference] } } }
+        ] })
+    };
+    let rendered = format!("urn:ngsi-ld:Policy:hel.fi:{own}-doprava:doprava-read");
+    let bare_space = json!([
+        { "proves": "deny", "call": "jc_change_plan", "refused": true,
+          "args": bind("urn:ngsi-ld:Policy:hel.fi:doprava:doprava-read".to_owned()),
+          "contains": [format!("write {rendered}")] },
+        { "proves": "expect", "call": "jc_change_plan", "args": bind(rendered),
+          "contains": ["\"planId\""] }
+    ]);
+    assert_eq!(harness.run(&scenario(bare_space), &own).await, Ok(()));
 }
 
 /// T-6001: a plan turning an output to replace while the broker does not answer says the stored
