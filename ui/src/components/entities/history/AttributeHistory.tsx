@@ -33,7 +33,7 @@ interface Target {
 }
 
 /** One write at a time: busy while it runs, the gateway's message when it fails. */
-function useWrite(target: Target) {
+export function useWrite(target: Target) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -169,7 +169,7 @@ function AddOldValue({ target }: { target: Target }): JSX.Element {
   );
 }
 
-function CsvNotes({ problems, unchecked }: { problems: CsvProblem[]; unchecked: number }): JSX.Element {
+export function CsvNotes({ problems, unchecked }: { problems: CsvProblem[]; unchecked: number }): JSX.Element {
   const { t } = useTranslation();
   return (
     <>

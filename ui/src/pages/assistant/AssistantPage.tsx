@@ -20,7 +20,7 @@ import {
   TableRow,
 } from "../../components/ui";
 import { ListFailed } from "../../components/forms/widgets/ListFailed";
-import { PermissionGuard } from "../../components/ui/PermissionGuard";
+import { usePermissions } from "../../api/permissions";
 import { appDisplayName, useEndpointTitles } from "../apps/appTitle";
 import { TERMINAL_STATES } from "../apps/useAgentRun";
 import { AgentAccess } from "./AgentAccess";
@@ -92,6 +92,7 @@ function seconds(ms: number, locale: string): string {
 
 export function AssistantPage({ project }: { project: string }): JSX.Element {
   const { t, i18n } = useTranslation();
+  const mayAsk = usePermissions(project).can("*", "propose");
   const endpointTitles = useEndpointTitles(project);
   const queryClient = useQueryClient();
 
@@ -364,20 +365,19 @@ export function AssistantPage({ project }: { project: string }): JSX.Element {
                   <TableCell align="right">
                     <div className="flex items-center justify-end gap-2">
                       {isEndedConversation ? (
-                        // Continuing a conversation starts another run, so the same verb (UI-44).
-                        <PermissionGuard project={project} kind="App" verb="propose">
-                          <Button
-                            size="sm"
-                            variant="secondary"
-                            loading={
-                              continueMutation.isPending && continueMutation.variables === run.id
-                            }
-                            disabled={continueMutation.isPending} disabledReason={t("app.busyReason")}
-                            onClick={() => continueMutation.mutate(run.id)}
-                          >
-                            {t("assistantPage.continue")}
-                          </Button>
-                        </PermissionGuard>
+                        // Continuing a conversation starts another run: propose on any kind (AG-67, UI-44).
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          loading={
+                            continueMutation.isPending && continueMutation.variables === run.id
+                          }
+                          disabled={continueMutation.isPending || !mayAsk}
+                          disabledReason={mayAsk ? t("app.busyReason") : t("assistant.readOnly")}
+                          onClick={() => continueMutation.mutate(run.id)}
+                        >
+                          {t("assistantPage.continue")}
+                        </Button>
                       ) : null}
                       <Button size="sm" variant="secondary" onClick={() => handleOpen(run)}>
                         {t("assistantPage.open")}

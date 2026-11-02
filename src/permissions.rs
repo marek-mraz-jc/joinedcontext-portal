@@ -191,9 +191,32 @@ impl Effective {
     }
 
     /// Whether some grant here lets the caller propose anything: what opening a workspace
-    /// asks for (API/01 §22). Each write into it is still checked on its own kind (PF-82).
+    /// asks for (API/01 §22) and who a conversation spends model calls for (AG-67). Each write is
+    /// still checked on its own kind (PF-82). The build lane's rule proposes nothing but its own
+    /// `status.build` (AP-73), so it counts for neither.
     pub fn may_propose_anything(&self) -> bool {
-        self.may_anything(Verb::Propose)
+        self.bootstrap
+            || self.grants.iter().any(|grant| {
+                !writes_status_only(&grant.rule)
+                    && grant
+                        .rule
+                        .kinds
+                        .iter()
+                        .any(|kind| grant.rule.grants(kind, Verb::Propose))
+            })
+    }
+
+    /// The door of a conversation: a role that may change something here, on any kind. The
+    /// assistant reads and drafts as the caller, so what the conversation can do stays the
+    /// caller's own grants, and a read-only role spends no model calls (AG-67, PF-74).
+    pub fn check_converses(&self, project: &str) -> Result<(), ApiError> {
+        if self.may_propose_anything() {
+            return Ok(());
+        }
+        Err(ApiError::Denied(format!(
+            "A conversation with the assistant needs a role with propose on some kind in project \
+             {project}."
+        )))
     }
 
     /// Whether some grant here lets the caller `verb` on some kind: what a tool that names its
@@ -2010,6 +2033,50 @@ mod tests {
             &Value::Null,
             &spec(serde_json::json!([grant("a")]))
         ));
+    }
+
+    /// T-6464: propose on any kind opens a conversation; reading does not, and the build lane's
+    /// rule, which writes `status.build` alone (AP-73), does not either.
+    #[test]
+    fn a_conversation_needs_a_real_propose_on_some_kind() {
+        let mirror = Mirror::new();
+        for (role, rule) in [
+            (
+                "builder",
+                serde_json::json!({ "kinds": ["App"], "verbs": ["propose"],
+                                    "constraints": [{ "field": "status.build" }] }),
+            ),
+            (
+                "reader",
+                serde_json::json!({ "kinds": ["App", "Endpoint"], "verbs": ["read"] }),
+            ),
+            (
+                "editor",
+                serde_json::json!({ "kinds": ["Endpoint"], "verbs": ["read", "propose"] }),
+            ),
+        ] {
+            mirror.upsert(org("Role", role, serde_json::json!({ "rules": [rule] })));
+            mirror.upsert(org(
+                "RoleBinding",
+                &format!("{role}-here"),
+                serde_json::json!({ "subjects": [{ "user": format!("{role}@hel.fi") }],
+                                    "role": role, "scope": { "project": "espoo" } }),
+            ));
+        }
+        for (role, converses) in [("builder", false), ("reader", false), ("editor", true)] {
+            let who = Identity {
+                client: None,
+                subject: format!("f:1:{role}"),
+                username: format!("{role}@hel.fi"),
+                email: Some(format!("{role}@hel.fi")),
+                name: None,
+                roles: Vec::new(),
+                groups: Vec::new(),
+                second_factor: false,
+            };
+            let grants = effective(&mirror, "portal-approver", &who, "espoo", Utc::now());
+            assert_eq!(grants.check_converses("espoo").is_ok(), converses, "{role}");
+        }
     }
 
     #[test]

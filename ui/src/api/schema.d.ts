@@ -2177,7 +2177,7 @@ export interface paths {
         put?: never;
         /**
          * Start A Conversation
-         * @description Starts a conversation with the assistant on the caller's first message and answers the queued run. Needs `propose` on App in the project; the assistant reads and drafts as the caller and proposes nothing on its own.
+         * @description Starts a conversation with the assistant on the caller's first message and answers the queued run. Needs `propose` on any kind in the project; a path also needs `propose` on the kind it ends by proposing; the assistant reads and drafts as the caller and proposes nothing on its own.
          */
         post: operations["start_conversation"];
         delete?: never;
@@ -18722,7 +18722,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description No role grants proposing an App here, or `X-JC-Run-Origin` from anyone but the Portal's own live journeys */
+            /** @description No role grants proposing anything here, none grants the kind the path proposes, or `X-JC-Run-Origin` from anyone but the Portal's own live journeys */
             403: {
                 headers: {
                     [name: string]: unknown;

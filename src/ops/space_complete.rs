@@ -1476,7 +1476,7 @@ fn space_name_of(input: &SpaceCompleteInput) -> String {
 /// measure in the popup, `project` visibility (UI-19).
 /// The two grants a space the agent just made needs to be loaded and read (T-0908, PF-31):
 /// the write for the account the runner authenticates as, taken from a write Policy the project
-/// already has so a project that renamed it keeps working, and the read for the audience the
+/// already has so a project that renamed it keeps working, and the reads for the audience the
 /// endpoint declares — the same mapping `propose_endpoint` uses (EP-72).
 fn policies_for(
     state: &AppState,
@@ -1487,11 +1487,18 @@ fn policies_for(
     audience: &str,
     owner: &str,
 ) -> Vec<Value> {
-    let org = crate::api::assistant::org_domain(state, project);
     let (writer, account) = writer_of(state, project, space, owner);
-    let reader = match audience {
-        "public" => json!({ "kind": "role", "id": "public" }),
-        _ => json!({ "kind": "group", "id": org }),
+    // Whom the audience admits, as `propose_endpoint` grants it (T-6464): the organization's
+    // domain names no group, so a grant to it matched nobody and the assistant read no row.
+    let project_group = json!({ "kind": "group", "id": project });
+    let readers = match audience {
+        "public" => vec![("read", json!({ "kind": "role", "id": "public" }))],
+        "organization" => vec![
+            ("read", json!({ "kind": "organization" })),
+            // A person of the project's root group carries no `jc_org` (T-6408).
+            ("project-read", project_group),
+        ],
+        _ => vec![("read", project_group)],
     };
     let policy = |name: String, title: String, assignee: Value, operations: Value, typed: bool| {
         let mut spec = json!({
@@ -1522,13 +1529,15 @@ fn policies_for(
         json!(["upsertBatch", "createBatch", "queryBatch"]),
         false,
     ));
-    drafted.push(policy(
-        format!("{endpoint}-read"),
-        format!("Read {space} through {endpoint}"),
-        reader,
-        json!(["retrieveOps"]),
-        true,
-    ));
+    for (suffix, reader) in readers {
+        drafted.push(policy(
+            format!("{endpoint}-{suffix}"),
+            format!("Read {space} through {endpoint}"),
+            reader,
+            json!(["retrieveOps"]),
+            true,
+        ));
+    }
     drafted
 }
 

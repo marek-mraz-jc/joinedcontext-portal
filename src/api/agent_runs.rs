@@ -2514,19 +2514,21 @@ async fn own_run_of(
 /// [`own_run_of`] for a write (PF-50, T-2486): the caller's live bindings in the project are
 /// checked before the run is looked up, as the ops door checks `jc_run_message` and its siblings.
 /// Having started the run is not a grant: a person whose binding was removed writes nothing to it,
-/// and a stranger hears the same `403` here as there, before any id is looked up.
+/// and a stranger hears the same `403` here as there, before any id is looked up. A conversation
+/// asks what starting one asked (AG-67); every other run writes an App.
 async fn own_run_to_write(
     state: &AppState,
     user: &CurrentUser,
     project: &str,
     id: &str,
 ) -> Result<AgentRun, ApiError> {
-    crate::permissions::for_request(state, &user.0.identity, project).check(
-        "App",
-        jc_core::kinds::Verb::Propose,
-        None,
-    )?;
-    own_run_of(state, user, project, id).await
+    let grants = crate::permissions::for_request(state, &user.0.identity, project);
+    grants.check_converses(project)?;
+    let run = own_run_of(state, user, project, id).await?;
+    if run.kind != "conversation" {
+        grants.check("App", jc_core::kinds::Verb::Propose, None)?;
+    }
+    Ok(run)
 }
 
 /// Records one event and hands it to every connected stream.
