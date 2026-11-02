@@ -251,6 +251,25 @@ describe("the column header menu (T-4827)", () => {
     }
   });
 
+  // The first column's popup ran left under the Portal's sidebar, its field cut off (T-6454).
+  it("keeps the menu right of the grid's own left edge", async () => {
+    const { container } = render(<EntityGrid config={config} source={fixtureSource(entities)} />);
+    await screen.findByText("Alpha");
+    const width = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(320);
+    const grid = container.querySelector(".jc-grid") as HTMLElement;
+    const rect = vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (this: Element) {
+      const left = this === grid ? 180 : 200;
+      return { top: 70, bottom: 100, left, right: left + 100, width: 100, height: 30, x: left, y: 70, toJSON: () => ({}) } as DOMRect;
+    });
+    try {
+      openMenu("Count");
+      expect(screen.getByRole("dialog", { name: "Column options: Count" }).style.left).toBe("180px");
+    } finally {
+      width.mockRestore();
+      rect.mockRestore();
+    }
+  });
+
   // A popup opening upward stayed under the Portal's sticky header, its title covered (T-5181).
   it("keeps the menu below the host's sticky header, up or down", async () => {
     const sticky = document.head.appendChild(document.createElement("style"));

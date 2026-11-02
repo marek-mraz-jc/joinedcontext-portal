@@ -33,6 +33,10 @@ export const GROUPS: Record<string, StateGroup> = {
     shares: "the helsinki-mobility project and its forge repository: kind-bundles imports into it, project-repos clones and pushes it",
     specs: ["kind-bundles.spec.ts", "project-repos.spec.ts"],
   },
+  clips: {
+    shares: "the t6454- names and drafts of the clip journeys, which record one person's screen in turn",
+    specs: ["clips_connector.spec.ts", "clips_dashboard.spec.ts", "clips_space_complete.spec.ts"],
+  },
   "mcp-minute": {
     shares: "the Portal MCP door's per-person minute (60 calls; the seeded people sign in to it)",
     specs: [

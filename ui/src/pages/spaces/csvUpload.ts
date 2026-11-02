@@ -108,7 +108,8 @@ export const MAX_FILES_BYTES = 10 * 1024 * 1024;
  * (`Kultúrne miesta.csv` is KulturneMiesta), singular as the op makes it; none when no type comes of it.
  */
 export function typeNameOf(fileName: string): string | undefined {
-  const stem = fileName.replace(/\.[^.]+$/, "").replace(/([^s])s$/, "$1");
+  const file = fileName.replace(/\.[^.]+$/, "");
+  const stem = /^\p{ASCII}*[^siu]s$/u.test(file) ? file.slice(0, -1) : file;
   const words = stem.normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/[^A-Za-z0-9]+/);
   const name = words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join("");
   return /^[A-Z][A-Za-z0-9]{0,62}$/.test(name) && name !== "Entity" ? name : undefined;
