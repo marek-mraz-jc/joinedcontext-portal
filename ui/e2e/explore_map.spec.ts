@@ -178,7 +178,7 @@ test("a coloured map whose values are all equal still draws its points", async (
   await stub(page, "allZero");
   await page.goto(`/projects/helsinki/explore?endpoint=helsinki-bikes&type=${TYPE}&colorBy=availableBikeNumber&view=map&lang=en`);
   await expect(page.getByRole("status").filter({ hasText: "on the map" })).toContainText("All points show Available bike number 0", { timeout: 30_000 });
-  await expect(page.getByText("all 0", { exact: true })).toBeVisible();
+  await expect(page.getByText("all the same: 0", { exact: true })).toBeVisible();
   // The one-value colour, read from the pixels of the canvas: the map says nothing when it fails.
   const orange = async () => {
     const shot = await page.getByRole("application", { name: `Map of ${TYPE}` }).locator("canvas").screenshot();
@@ -201,6 +201,7 @@ test("a coloured map whose values are all equal still draws its points", async (
   expect(errors).toEqual([]);
   if (process.env.JC_EVIDENCE_DIR) {
     mkdirSync(process.env.JC_EVIDENCE_DIR, { recursive: true });
+    await page.getByRole("heading", { level: 1 }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${process.env.JC_EVIDENCE_DIR}/map-all-equal-1440.png` });
   }
 });

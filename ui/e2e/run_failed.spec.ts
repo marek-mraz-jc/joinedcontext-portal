@@ -43,7 +43,7 @@ for (const width of [1440, 400]) {
     await expect(page.getByText(/did not answer in time/)).toContainText("Open the Assistant page to build it again.");
     await expect(page.getByRole("button", { name: "Publish this app" })).toBeDisabled();
     await expect(page.getByText("This run has ended, so it has nothing to publish.")).toBeVisible();
-    await expect(page.getByRole("link", { name: "Open the Assistant" })).toHaveAttribute("href", `/projects/${PROJECT}/assistant`);
+    await expect(page.getByRole("link", { name: "Build it again" })).toHaveAttribute("href", `/projects/${PROJECT}/assistant`);
     await expect(page.getByRole("button", { name: "Stop the run" })).toHaveCount(0);
     expect(await page.locator("body").innerText()).not.toContain("pool timed out");
     expect(await axeViolations(page)).toEqual([]);

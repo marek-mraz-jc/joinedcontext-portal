@@ -109,7 +109,7 @@ describe("the explorer's map", () => {
     await screen.findByRole("application");
     expect(drawn.layers[0]).toMatchObject({ colorBy: { property: "bikes", domain: [0, 0] } });
     expect(screen.getByRole("status").textContent).toContain("All points show Bikes 0, so one colour. Grey: no value (1).");
-    expect(screen.getByText("all 0")).toBeInTheDocument();
+    expect(screen.getByText("all the same: 0")).toBeInTheDocument();
     expect(document.querySelector("#explore-map-ramp")).toBeNull();
     expect(screen.queryByText("0 to 0")).toBeNull();
   });

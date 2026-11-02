@@ -15,7 +15,7 @@ import { TERMINAL_STATES, testsHold, useAgentRun } from "./useAgentRun";
 import type { RunEvent } from "./useAgentRun";
 import { onPickChange, pickedElement, rememberRun, requestOpen } from "../../assistant/state";
 import { appDisplayName, useEndpointTitles } from "./appTitle";
-import { Button, buttonClass, InlineError, PageFailed, PageHeader, PageLoading } from "../../components/ui";
+import { Alert, Button, buttonClass, InlineError, PageFailed, PageHeader, PageLoading } from "../../components/ui";
 
 /**
  * One builder run, live (UI-34…UI-40; the timeline, the transcript and the questions are UI-38).
@@ -152,14 +152,16 @@ export function AgentRunPage({
         onApproved={() => void run.refetch()}
       />
       {record.error !== undefined && record.error !== "" && (
-        <div className="space-y-2">
-          <InlineError>
-            {record.error} {t("agentRun.failedNext")}
-          </InlineError>
-          <Link to="/projects/$project/assistant" params={{ project }} className={buttonClass("primary", "sm")}>
-            {t("agentRun.failedOpen")}
-          </Link>
-        </div>
+        <Alert
+          tone="danger"
+          actions={
+            <Link to="/projects/$project/assistant" params={{ project }} className={buttonClass("primary", "sm")}>
+              {t("agentRun.failedOpen")}
+            </Link>
+          }
+        >
+          {record.error} {t("agentRun.failedNext")}
+        </Alert>
       )}
       {[cancel.error, publish.error].map((error, index) =>
         error ? (

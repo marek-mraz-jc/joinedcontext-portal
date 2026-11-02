@@ -165,26 +165,26 @@ export function ExploreMap({
     });
   }
   const coloured = colorBy ? colourOf(collection.features, colorBy) : undefined;
+  if (paged) {
+    status += `${status.endsWith(".") ? "" : "."} ${t(inView.data?.truncated ? "explore.map.truncated" : "explore.map.paged", { max: number.format(MAP_MAX) })}`;
+  }
   // Said once, under the key the eye reads: on a phone the sentence would wrap around the map's top.
   let colourWords = "";
   if (colorBy && coloured?.domain) {
     const [min, max] = coloured.domain;
-    colourWords = t(min === max ? "explore.map.colouredOne" : "explore.map.colouredBy", {
+    colourWords = `${status.endsWith(".") ? "" : "."} ${t(min === max ? "explore.map.colouredOne" : "explore.map.colouredBy", {
       attr: readable(colorBy),
       min: number.format(min),
       max: number.format(max),
       unknown: number.format(coloured.unknown),
-    });
-  }
-  if (paged) {
-    status += `${status.endsWith(".") ? "" : "."} ${t(inView.data?.truncated ? "explore.map.truncated" : "explore.map.paged", { max: number.format(MAP_MAX) })}`;
+    })}`;
   }
   return (
     <div className="space-y-2">
       <p role="status" className="text-caption text-fg-muted">
         {status}
         {inView.isFetching ? ` ${t("explore.map.reading")}` : ""}
-        {colourWords ? <span className="sr-only"> {colourWords}</span> : null}
+        {colourWords ? <span className="sr-only">{colourWords}</span> : null}
       </p>
       {colorBy && coloured?.domain ? <ColourKey attr={readable(colorBy)} domain={coloured.domain} unknown={coloured.unknown} /> : null}
       {inView.isError ? (

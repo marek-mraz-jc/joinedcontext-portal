@@ -5969,7 +5969,7 @@
       "viewFailed": "The part in view could not be read ({reason}); move the map to try again.",
       "colouredBy": "Colour shows {attr} from {min} to {max}, yellow to red. Grey: no value ({unknown}).",
       "colouredOne": "All points show {attr} {min}, so one colour. Grey: no value ({unknown}).",
-      "keyAll": "all {value}",
+      "keyAll": "all the same: {value}",
       "keyUnknown": "no value ({unknown})"
     },
     "chart": {
@@ -6362,7 +6362,7 @@
     },
     "publishOver": "This run has ended, so it has nothing to publish.",
     "failedNext": "Nothing was published. Open the Assistant page to build it again.",
-    "failedOpen": "Open the Assistant"
+    "failedOpen": "Build it again"
   },
   "assistant": {
     "newConversation": "Start a new conversation",

@@ -5969,7 +5969,7 @@
       "viewFailed": "Der sichtbare Ausschnitt konnte nicht gelesen werden ({reason}); verschieben Sie die Karte, um es erneut zu versuchen.",
       "colouredBy": "Die Farbe zeigt {attr} von {min} bis {max}, von Gelb nach Rot. Grau: kein Wert ({unknown}).",
       "colouredOne": "Alle Punkte zeigen {attr} {min}, daher eine Farbe. Grau: kein Wert ({unknown}).",
-      "keyAll": "alle {value}",
+      "keyAll": "alle gleich: {value}",
       "keyUnknown": "kein Wert ({unknown})"
     },
     "chart": {
@@ -6362,7 +6362,7 @@
     },
     "publishOver": "Dieser Lauf ist beendet und hat nichts zu veröffentlichen.",
     "failedNext": "Es wurde nichts veröffentlicht. Bauen Sie die App auf der Seite Assistent neu.",
-    "failedOpen": "Assistent öffnen"
+    "failedOpen": "Neu bauen"
   },
   "assistant": {
     "newConversation": "Ein neues Gespräch beginnen",

@@ -5969,7 +5969,7 @@
       "viewFailed": "Zobrazený výřez se nepodařilo načíst ({reason}); posuňte mapu a zkuste to znovu.",
       "colouredBy": "Barva ukazuje {attr} od {min} do {max}, od žluté po červenou. Šedá: bez hodnoty ({unknown}).",
       "colouredOne": "Všechny body ukazují {attr} {min}, proto jedna barva. Šedá: bez hodnoty ({unknown}).",
-      "keyAll": "všechny {value}",
+      "keyAll": "všechny stejné: {value}",
       "keyUnknown": "bez hodnoty ({unknown})"
     },
     "chart": {
@@ -6362,7 +6362,7 @@
     },
     "publishOver": "Tento běh skončil, takže nemá co zveřejnit.",
     "failedNext": "Nic se nezveřejnilo. Na stránce Asistent aplikaci sestavte znovu.",
-    "failedOpen": "Otevřít Asistenta"
+    "failedOpen": "Sestavit znovu"
   },
   "assistant": {
     "newConversation": "Začít novou konverzaci",
