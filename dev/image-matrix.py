@@ -19,6 +19,7 @@ every image.
 """
 import json
 import sys
+from pathlib import Path
 
 
 def images(repository: str, owner: str) -> dict[str, dict]:
@@ -96,6 +97,11 @@ def selftest() -> None:
             "image": "ghcr.io/o/joinedcontext-portal-ui",
         }
     ], built
+    # The rust runner check pulls the pushed image beside the builder's own copy: the builder is
+    # pruned first, or the runner's disk fills (T-6406).
+    workflow = (Path(__file__).resolve().parent.parent / ".github/workflows/image.yml").read_text()
+    prune, run = workflow.find("docker buildx prune --all --force"), workflow.find("--entrypoint sh \"${{ matrix.image }}@")
+    assert 0 <= prune < run, "image.yml: prune the buildx builder before the rust runner check pulls the image"
     print("image-matrix: selftest ok")
 
 

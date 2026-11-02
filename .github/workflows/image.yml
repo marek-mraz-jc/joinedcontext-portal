@@ -127,6 +127,12 @@ jobs:
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
           provenance: true
           sbom: true
+      # The builder still holds every layer of the build, pushed and cache-exported by now; the
+      # check below pulls the ~5 GB image a second time into the runner's daemon, which filled
+      # the disk ("no space left on device", T-6406). Drop the builder's copy first.
+      - if: matrix.name == 'app-builder-rust'
+        name: free the builder's disk before the image runs
+        run: docker buildx prune --all --force && df -h /
       # AP-142: the rust runner builds the SDK's React + Rust/WebAssembly example to a static
       # bundle, offline, its browser checks included, before the image is signed.
       - if: matrix.name == 'app-builder-rust'
