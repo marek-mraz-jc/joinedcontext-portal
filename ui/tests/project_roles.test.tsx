@@ -12,6 +12,7 @@ import { App } from "../src/App";
 import { answeringChecks, checksSoFar, expectDenied } from "./checks";
 import en from "../src/locales/en.json";
 import { findFormPage } from "./formPage";
+import { digestOf } from "../src/api/drafts";
 
 const IDENTITY = {
   subject: "b7c1e0f4",
@@ -80,6 +81,20 @@ function renderAccess(roles: unknown[] = [role("air-analyst", "banskabystrica", 
         202,
       );
     }
+    if (path === "/api/v1/projects/banskabystrica/drafts/Role/analyst") {
+      const manifest = role("analyst", "banskabystrica", ["Pipeline"], ["propose"]);
+      return json({
+        project: "banskabystrica",
+        kind: "Role",
+        name: "analyst",
+        manifest,
+        verdict: { ok: true, findings: [], digest: digestOf(manifest), checkedAt: "2026-11-02T22:00:00Z" },
+        touchedBy: "jana.kovacova",
+        touchedKind: "assistant",
+        version: 1,
+        updatedAt: "2026-11-02T22:00:00Z",
+      });
+    }
     if (path === "/api/v1/projects/org/roles") {
       return json(list([role("org-admin", "org", ["Endpoint", "Role"], ["propose", "approve", "delete"])]));
     }
@@ -144,6 +159,17 @@ describe("the roles of a project on the Access page", () => {
   });
 
   // T-6206: the roles are on the shared grid: search, sort by rule count, filter by where.
+  // T-6489, walk S-28: the assistant's draft opens the form, for the person to read and propose.
+  it("opens the form on the role the assistant drafted", async () => {
+    window.history.pushState({}, "", "/projects/banskabystrica/settings/roles?draft=analyst");
+    renderAccess();
+
+    const form = await findFormPage(en.access.projectRoles.newTitle);
+    const name = within(form).getByLabelText(new RegExp(en.access.projectRoles.field.name));
+    await waitFor(() => expect((name as HTMLInputElement).value).toBe("analyst"));
+    expect((within(form).getByRole("checkbox", { name: en.choice.verb.propose }) as HTMLInputElement).checked).toBe(true);
+  });
+
   it("searches, sorts by rule count and filters the roles", async () => {
     const two = { ...role("air-steward", "banskabystrica", ["Pipeline"], ["propose"]), spec: { rules: [{ kinds: ["Pipeline"], verbs: ["propose"] }, { kinds: ["DataSource"], verbs: ["read"] }] } };
     renderAccess([two, role("air-analyst", "banskabystrica", ["DataSource"], ["propose"])]);

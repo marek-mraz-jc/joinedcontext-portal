@@ -67,9 +67,14 @@ const UNRECORDED_LATER: [(&str, &str); 8] = [
 
 /// Case conversations added after 2026-10-06, each owing its recording with the task that added
 /// it, counted apart like [`UNRECORDED_LATER`].
-const UNRECORDED_CASES_LATER: [(&str, &str); 2] = [
+const UNRECORDED_CASES_LATER: [(&str, &str); 7] = [
     ("connector--revoke", "T-6482"),
     ("pipeline--run-now", "T-6482"),
+    ("pipeline--sample-source", "T-6489"),
+    ("pipeline--wrote-nothing", "T-6489"),
+    ("project--new-role", "T-6489"),
+    ("sharing--embed", "T-6489"),
+    ("space--quality-rule", "T-6489"),
 ];
 
 /// What separates a workflow from its case in a conversation's file name.

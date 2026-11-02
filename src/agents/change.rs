@@ -56,7 +56,7 @@ pub fn manifest(kind: &str, project: &str, name: &str, spec: Value) -> Value {
 /// because its create needs a page of its own (a space is completed from files, an endpoint is
 /// shared, a role is granted). A DataModel is created from the editor's operations instead of a
 /// patch (`create_model`), and its editor opens on the draft.
-pub const CREATABLE: [&str; 3] = ["ContextSpace", "DataSource", "Pipeline"];
+pub const CREATABLE: [&str; 4] = ["ContextSpace", "DataSource", "Pipeline", "Role"];
 
 /// The manifest of a new resource, from the fields the model sent as its `patch`: its `spec`, and
 /// `metadata.title` when the sentence named one. The kind, the name and the namespace are the
@@ -222,7 +222,15 @@ pub fn section(plural_or_kind: &str) -> Result<&'static str, String> {
     if NEW_FORMS.contains(&section) {
         Ok(section)
     } else {
-        let kind = crate::resource::by_plural(plural_or_kind).map_or(plural_or_kind, |i| i.kind);
+        let kind = crate::resource::by_plural(plural_or_kind)
+            .or_else(|| crate::resource::by_kind(plural_or_kind))
+            .map_or(plural_or_kind, |i| i.kind);
+        if CREATABLE.contains(&kind) {
+            return Err(format!(
+                "a new {kind} is drafted, not opened empty: call describe_tool with name \
+                 `create-resource`, then change_resource with `create: true`"
+            ));
+        }
         Err(format!(
             "a new {kind} has no create form to open empty; open its page ('{section}') with \
              `resource`, `spaces`, `models` or the page that shows it, and tell the person which \
@@ -291,6 +299,23 @@ pub fn route(project: &str, kind: &str, plural: &str, name: &str, delete: bool) 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-6489, walk S-28: a Role is drafted with its rules, and the empty form the model asked
+    /// for first answers how, instead of sending it to a list.
+    #[test]
+    fn a_new_role_is_drafted_and_its_empty_form_says_how() {
+        let patch = json!({ "spec": { "rules": [{ "kinds": ["Endpoint"], "verbs": ["read"] }] } });
+        let role = new_manifest("Role", "helsinki", "analyst", Some(&patch)).expect("drafted");
+        assert_eq!(role["kind"], "Role");
+        assert_eq!(role["metadata"]["namespace"], "helsinki");
+        assert_eq!(role["spec"], patch["spec"]);
+        let refused = section("roles").expect_err("no empty form");
+        assert!(refused.contains("create-resource"), "{refused}");
+        assert!(section("Role").expect_err("no empty form").contains("a new Role"));
+        // A kind the chat does not create still goes to its page.
+        let dashboards = section("dashboards").expect_err("no empty form");
+        assert!(dashboards.contains("its page"), "{dashboards}");
+    }
 
     fn pipeline() -> Value {
         json!({

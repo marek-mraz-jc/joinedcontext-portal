@@ -1,0 +1,18 @@
+# T-6489: a new Role is drafted and its form opens, the person proposes (live walk T-5962, S-28,
+# PF-68, AG-77).
+workflow: project
+as: steward
+says:
+  - "Create a role Analyst: read all Endpoints, run pipelines, no writes."
+expect:
+  calls:
+    - tool: change_resource
+      input:
+        kind: Role
+        name: analyst
+        create: true
+  outcome: form
+# A viewer may not propose an App, so the conversation itself is refused (403, AG-70).
+refusal:
+  as: viewer
+  says: "Do this for me: create a role Analyst."

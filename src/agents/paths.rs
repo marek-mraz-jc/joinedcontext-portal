@@ -155,7 +155,10 @@ impl Path {
                 "bring a feed, a file or an existing data source into a space with a pipeline"
             }
             Path::UploadData => "upload a file of data into a context space",
-            Path::FindData => "find data the project has and answer from it, changing nothing",
+            Path::FindData => {
+                "find data the project has or why a pipeline wrote nothing, and answer from it, \
+                 changing nothing"
+            }
             Path::ShareData => "share data through an endpoint with other projects or the public",
             Path::BuildApp => "build an application that reads the project's endpoints",
             Path::BuildDashboard => "draw a dashboard over an endpoint",
@@ -186,14 +189,21 @@ impl Path {
             Path::FindData => {
                 "ask what the person looks for when they have not said, search the catalog, \
                  offer the matches as a jc_ask with options, open the one chosen and answer \
-                 from its data"
+                 from its data. A data source's rows: jc_pipeline_sample_source with dataSource, \
+                 shown in the answer; opening a page answers nothing. Why a pipeline wrote \
+                 nothing: jc_pipeline_logs for each run's sent, failed and rejected counts, then \
+                 jc_pipeline_inspect with view rejected; say what the runs show, also against \
+                 the question, and name a missing grant only when a run's refusal says so"
             }
             Path::ShareData => {
                 "the endpoint to share is answered; next ask with whom, as options: projects \
                  of this organization, the whole organization, or the public (the public needs \
                  a publisher's approval, say so); then change_resource that Endpoint's \
                  audience and allowedProjects, which opens its form on the draft. Opening the \
-                 endpoint's page is not the end of this path"
+                 endpoint's page is not the end of this path. Asked to embed it on a website: \
+                 jc_resource_get the Endpoint and show a public one's access.embed word for word \
+                 in a code block, no audience question; only a non-public one goes the steps \
+                 above, since only a public Endpoint has that code"
             }
             Path::BuildApp => "the endpoints are answered and the app builder opens on them",
             Path::BuildDashboard => {
@@ -291,7 +301,13 @@ impl Path {
                 "jc_manifest_dry_run",
                 "jc_draft_put",
             ],
-            Path::FindData => &[],
+            // Its playbooks answer from these reads (T-6489).
+            Path::FindData => &[
+                "jc_pipeline_sample_source",
+                "jc_pipeline_metrics",
+                "jc_pipeline_logs",
+                "jc_pipeline_inspect",
+            ],
             Path::ShareData => &[
                 "propose_endpoint",
                 "edit_endpoint",
@@ -320,10 +336,9 @@ impl Path {
     }
 
     /// Whether a turn on `path` is offered `tool`: the path's own (AG-89), or on no path every
-    /// tool but the steps only a path's workbench takes, so the free turn keeps its 4k tokens
-    /// (AG-72; `WORKBENCH_STEPS` belong to IntegratePipeline).
+    /// tool but the steps only a path takes, so the free turn keeps its 4k tokens (AG-72).
     pub fn offers(path: Option<Self>, tool: &str) -> bool {
-        path.map_or(!WORKBENCH_STEPS.contains(&tool), |path| path.allows(tool))
+        path.map_or(!PATH_STEPS.contains(&tool), |path| path.allows(tool))
     }
 
     /// Whether a tool is the path's to call (AG-89); every other one is refused.
@@ -337,11 +352,14 @@ impl Path {
     }
 }
 
-/// The pipeline workbench's steps, offered on its path and on no free turn.
-const WORKBENCH_STEPS: [&str; 3] = [
+/// The steps offered on their path and on no free turn: the pipeline workbench's, and the run
+/// log and rejected records find-data reads (T-6489).
+const PATH_STEPS: [&str; 5] = [
     "jc_pipeline_sample_source",
     "jc_pipeline_try_mapping",
     "jc_pipeline_validate",
+    "jc_pipeline_logs",
+    "jc_pipeline_inspect",
 ];
 
 /// The conversation's tools no path offers: an entity change is prepared on no path (AG-78).
@@ -457,6 +475,21 @@ mod tests {
                 && at("jc_pipeline_try_mapping") < at("jc_pipeline_validate"),
             "{integrate}"
         );
+    }
+
+    /// T-6489: the reads the find-data playbooks name are its to call, and the embed step reads
+    /// the Endpoint instead of asking with whom (walk S-18, S-21, S-40).
+    #[test]
+    fn find_data_may_read_what_its_playbooks_name() {
+        for tool in [
+            "jc_pipeline_sample_source",
+            "jc_pipeline_metrics",
+            "jc_pipeline_logs",
+            "jc_pipeline_inspect",
+        ] {
+            assert!(Path::FindData.allows(tool), "{tool}");
+        }
+        assert!(Path::ShareData.steps().contains("access.embed"));
     }
 
     #[test]

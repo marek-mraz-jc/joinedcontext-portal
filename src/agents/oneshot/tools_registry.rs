@@ -68,8 +68,6 @@ pub(super) fn offered(
         // A run reads data through the agent proxy's query_endpoint; jc_data_query exchanges the
         // caller's own token, which a run does not hold (T-5986).
         .filter(|op| op.name != crate::ops::data_query::NAME)
-        // T-6028: a run's log reaches MCP connectors; this prompt keeps its 4k-token turn (AG-72).
-        .filter(|op| op.name != crate::ops::pipeline_runs::LOGS)
         // T-6039: the project's members reach access connectors; this prompt keeps its 4k-token
         // turn (AG-72), and a person picks a subject from the RoleBinding form.
         .filter(|op| op.name != crate::ops::people::MEMBERS)
@@ -94,7 +92,6 @@ const MCP_ONLY: &[&str] = &[
     crate::ops::access_tools::EXPLAIN,
     crate::ops::access_tools::PREVIEW,
     crate::ops::access_tools::CATALOGUE_DRAFT,
-    crate::ops::pipeline_runs::INSPECT,
     crate::ops::space_reads::GOVERNANCE,
     crate::ops::mqtt::TEST_PUBLISH,
     crate::ops::data_write::NAME,
@@ -134,9 +131,6 @@ pub(super) fn section(ops: &[OperationSummary]) -> String {
     format!(
         r#"## THE PLATFORM'S OPERATIONS
 
-Everything the platform does, it does through one of these operations, the same ones the
-Portal's own pages and every MCP client call.
-
 {listed}
 Ask for one operation's input schema before you call it the first time:
 
@@ -150,7 +144,7 @@ Call it with its arguments:
 {{ "tool": "<operation name>", "arguments": {{ }} }}
 ```
 
-Two more tools are the conversation itself. Open the page you are talking about, so the person
+Open the page you are talking about, so the person
 sees what you mean — the page is one of `spaces`, `space`, `models`, `model`, `endpoints`,
 `endpoint`, `policies`, `shared`, `draft`, with the name of the one to open. A kind you do not draft
 yourself (a ServiceAccount, a Subscription, a context source registration, a policy…) is created
