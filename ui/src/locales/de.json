@@ -3535,6 +3535,7 @@
       "runPreview": "Jetzt berechnen",
       "previewing": "Wird berechnet…",
       "previewHint": "Liest bis zu 100 Zeilen jeder Quelle so, wie Sie sie sehen, und berechnet {formula}.",
+      "partial": "Die Vorschau endete bei {rows} Zeilen einer Quelle, dieser Wert ist also nicht endgültig: Ein Lauf liest alle Zeilen.",
       "noKeys": "Kein Schlüssel kommt in jeder Quelle vor, daher würde jetzt keine Kennzahl geschrieben.",
       "indicator": "Kennzahl",
       "value": "Wert",

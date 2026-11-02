@@ -46,7 +46,6 @@ describe("the KPI editor's model", () => {
       kind: "Pipeline",
       metadata: { name: "parking-per-stop", namespace: "helsinki" },
       spec: {
-        title: "Occupied places per stop",
         class: "scheduled",
         schedule: "0 * * * *",
         sources: [
@@ -166,6 +165,16 @@ describe("the KPI editor", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("says a preview that stopped at the page is not the final value", async () => {
+    stubFetch({
+      preview: { values: [{ key: null, name: "parking-per-stop", value: 100 }], rows: { parking: 100, stops: 2 } },
+    });
+    show();
+    await waitFor(() => expect(propose()).toBeEnabled());
+    await userEvent.click(screen.getByRole("button", { name: k.runPreview }));
+    expect(await screen.findByText(/stopped at 100 rows of a source/)).toBeInTheDocument();
   });
 
   it("checks the draft as typed, previews it and proposes the manifest it checked", async () => {

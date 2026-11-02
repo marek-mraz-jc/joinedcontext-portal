@@ -3535,6 +3535,7 @@
       "runPreview": "Spočítat teď",
       "previewing": "Počítá se…",
       "previewHint": "Přečte nejvýše 100 řádků každého zdroje tak, jak je vidíte vy, a spočítá {formula}.",
+      "partial": "Náhled se zastavil u {rows} řádků zdroje, proto tato hodnota není konečná: běh přečte všechny řádky.",
       "noKeys": "Žádný klíč není ve všech zdrojích, teď by se tedy nezapsal žádný ukazatel.",
       "indicator": "Ukazatel",
       "value": "Hodnota",

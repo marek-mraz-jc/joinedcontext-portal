@@ -3535,6 +3535,7 @@
       "runPreview": "Vypočítať teraz",
       "previewing": "Počíta sa…",
       "previewHint": "Prečíta najviac 100 riadkov každého zdroja tak, ako ich vidíte vy, a vypočíta {formula}.",
+      "partial": "Náhľad sa zastavil pri {rows} riadkoch zdroja, preto táto hodnota nie je konečná: beh prečíta všetky riadky.",
       "noKeys": "Žiadny kľúč sa nenachádza vo všetkých zdrojoch, teraz by sa teda nezapísal žiadny ukazovateľ.",
       "indicator": "Ukazovateľ",
       "value": "Hodnota",

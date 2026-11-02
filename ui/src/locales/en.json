@@ -3535,6 +3535,7 @@
       "runPreview": "Compute now",
       "previewing": "Computing…",
       "previewHint": "Reads up to 100 rows of each source as you see them and computes {formula}.",
+      "partial": "The preview stopped at {rows} rows of a source, so this value is not the final one: a run reads every row.",
       "noKeys": "No key appears in every source, so no indicator would be written now.",
       "indicator": "Indicator",
       "value": "Value",

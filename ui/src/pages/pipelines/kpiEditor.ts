@@ -8,6 +8,8 @@ import type { Manifest } from "../../api/manifest";
 
 export const MIN_SOURCES = 2;
 export const MAX_SOURCES = 5;
+/** The rows of each source the preview reads; the run reads them all (PL-31). */
+export const PREVIEW_PAGE = 100;
 
 export type JoinBy = "time" | "area" | "entity";
 
@@ -106,7 +108,6 @@ export function kpiManifest(project: string, draft: KpiDraft): Manifest {
     kind: "Pipeline",
     metadata: { name: draft.name, namespace: project },
     spec: {
-      ...(draft.title.trim() ? { title: draft.title.trim() } : {}),
       class: "scheduled",
       schedule: SCHEDULES[draft.schedule],
       sources: draft.sources.map((source) => ({

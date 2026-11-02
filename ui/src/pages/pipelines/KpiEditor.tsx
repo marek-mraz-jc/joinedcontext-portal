@@ -26,6 +26,7 @@ import {
   FORMULA_CHOICES,
   MAX_SOURCES,
   MIN_SOURCES,
+  PREVIEW_PAGE,
   SCHEDULES,
   emptyDraft,
   emptySource,
@@ -448,6 +449,9 @@ function PreviewPanel({ disabled, running, answer, failed, formula, onRun }: Pre
             .map(([name, rows]) => t("pipelines.kpiEditor.rows", { name, count: rows }))
             .join(" · ")}
         </p>
+      ) : null}
+      {preview && Object.values(preview.rows).some((rows) => rows >= PREVIEW_PAGE) ? (
+        <Alert tone="info">{t("pipelines.kpiEditor.partial", { rows: PREVIEW_PAGE })}</Alert>
       ) : null}
     </section>
   );
