@@ -1248,9 +1248,9 @@ impl Driver {
         }
     }
 
-    /// What a pipeline is tested on (PL-43): one fetch of its `http` data source, or a page of the
-    /// endpoint it reads when this conversation reads that endpoint, with the source it came from.
-    /// `Err` says why there is none.
+    /// What a pipeline is tested on (PL-43): one fetch of its `http` data source, read as the runner
+    /// reads it (`sampling`), or a page of the endpoint it reads when this conversation reads that
+    /// endpoint, with the source it came from. `Err` says why there is none.
     pub(super) async fn page_of(&self, manifest: &Value) -> Result<(Value, Value), String> {
         let source = &manifest["spec"]["source"];
         if let Some(name) = source["dataSourceRef"]["name"].as_str() {
@@ -1258,10 +1258,9 @@ impl Driver {
                 return Err(format!("its data source '{name}' does not exist"));
             };
             return match crate::api::pipeline_test::probe_plan(&data_source.spec) {
-                Some(Ok(url)) => Ok((
-                    json!({ "url": url, "format": "json" }),
-                    json!({ "dataSource": name }),
-                )),
+                Some(Ok(url)) => crate::api::pipeline_test::sampling(&data_source.spec, url)
+                    .map(|(sample, _)| (json!(sample), json!({ "dataSource": name })))
+                    .map_err(|e| format!("its data source '{name}' cannot be sampled: {e}")),
                 Some(Err(skipped)) => Err(skipped.skipped.unwrap_or_default()),
                 None => Err(format!(
                     "its data source '{name}' is not fetched over http, so it has no page to test on"
@@ -1836,6 +1835,37 @@ mod new_dashboard_tests {
         let mut driver = Driver::for_tests(state.clone(), "helsinki");
         driver.identity.roles = vec![state.config.bootstrap_admins.clone()];
         (driver, forge)
+    }
+
+    /// T-6481: the draft test sent every DataSource as `format: json`, so a CSV feed failed its
+    /// mapping on "parse as json" while `jc_pipeline_test` passed on the same source. The page is
+    /// read as the runner reads it: rows only for `format: csv`, an XML or `.csv` body whole.
+    #[tokio::test]
+    async fn a_draft_is_tested_on_its_data_source_as_the_runner_reads_it() {
+        let (driver, _forge) = world().await;
+        for (http, format) in [
+            (
+                json!({ "url": "https://x.example/counters", "format": "csv" }),
+                "csv",
+            ),
+            (json!({ "url": "https://x.example/counters.csv" }), "text"),
+            (json!({ "url": "https://x.example/feed.xml" }), "text"),
+            (json!({ "url": "https://x.example/bikes.json" }), "json"),
+        ] {
+            put(
+                &driver.state,
+                "DataSource",
+                "counters",
+                json!({ "type": "http", "http": http }),
+            );
+            let draft = json!({ "spec": { "source": {
+                "dataSourceRef": { "kind": "DataSource", "name": "counters" }
+            }}});
+            let (sample, source) = driver.page_of(&draft).await.expect("a page");
+            assert_eq!(sample["format"], format, "{http}");
+            assert_eq!(sample["url"], http["url"]);
+            assert_eq!(source, json!({ "dataSource": "counters" }));
+        }
     }
 
     /// What the caller does with every drafted manifest before it is stored: the platform's dry
