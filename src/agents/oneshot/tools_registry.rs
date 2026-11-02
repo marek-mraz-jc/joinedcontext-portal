@@ -68,11 +68,8 @@ pub(super) fn offered(
         // A run reads data through the agent proxy's query_endpoint; jc_data_query exchanges the
         // caller's own token, which a run does not hold (T-5986).
         .filter(|op| op.name != crate::ops::data_query::NAME)
-        // T-6028: a run and its log reach MCP connectors; this prompt keeps its 4k-token turn
-        // (AG-72), and a person runs a pipeline from its page.
-        .filter(|op| {
-            ![crate::connectors::RUN, crate::ops::pipeline_runs::LOGS].contains(&op.name.as_str())
-        })
+        // T-6028: a run's log reaches MCP connectors; this prompt keeps its 4k-token turn (AG-72).
+        .filter(|op| op.name != crate::ops::pipeline_runs::LOGS)
         // T-6039: the project's members reach access connectors; this prompt keeps its 4k-token
         // turn (AG-72), and a person picks a subject from the RoleBinding form.
         .filter(|op| op.name != crate::ops::people::MEMBERS)
@@ -124,7 +121,8 @@ pub(super) fn section(ops: &[OperationSummary]) -> String {
             format!(
                 "- `{}` — {}{}\n",
                 op.name,
-                op.description.trim(),
+                // The first sentence: describe_tool answers the rest (AG-72).
+                op.description.trim().split(". ").next().unwrap_or_default(),
                 if acts(&op.name) {
                     " (changes something: a draft, a Verdict or a Change)"
                 } else {
@@ -136,9 +134,8 @@ pub(super) fn section(ops: &[OperationSummary]) -> String {
     format!(
         r#"## THE PLATFORM'S OPERATIONS
 
-Everything the platform does, it does through one of these operations. They are the same
-operations the Portal's own pages and every MCP client call, so what you do here is what a
-person sees there.
+Everything the platform does, it does through one of these operations, the same ones the
+Portal's own pages and every MCP client call.
 
 {listed}
 Ask for one operation's input schema before you call it the first time:
@@ -167,6 +164,10 @@ asks for, and propose nothing:
 ```json
 {{ "tool": "jc_ui_navigate", "arguments": {{ "page": "new", "plural": "serviceaccounts" }} }}
 ```
+
+An AI client's connector is the person's own, no ServiceAccount: open page `connectors`, where
+they create, edit and revoke it; you do neither. Call `jc_pipeline_run` unasked: the platform asks
+the person and their answer runs it.
 
 To show the data, open `entities` with the endpoint, the entity type and a `q` for a subset; to map
 it, `map` with the same and `color`, a number attribute. A row lacking an attribute (`!attr`)
@@ -282,6 +283,74 @@ pub(super) fn describes(answer: &str) -> Vec<String> {
         .filter(|value| value.get("tool").and_then(Value::as_str) == Some("describe_tool"))
         .filter_map(|value| value.get("name").and_then(Value::as_str).map(str::to_owned))
         .collect()
+}
+
+/// A block that opens like a call, closed or cut off. Wider than [`share::TOOL_FENCE`], which
+/// needs a closing brace and sees no list.
+static CALL_BLOCK: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"(?s)```(?:json)?\s*([\[{].*?)(?:```|\z)").expect("a literal pattern")
+});
+
+/// The tool a block that does not parse names.
+static NAMED_TOOL: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r#"["']tool["']\s*:\s*["']([^"']*)"#).expect("a literal pattern")
+});
+
+/// The tools that run after the turn's loop: every other call has run by the time it ends.
+const RUN_AFTER_THE_LOOP: [&str; 4] = [
+    "propose_endpoint",
+    "edit_endpoint",
+    "space_complete",
+    "navigate",
+];
+
+/// The tool one block calls and why nothing runs it; none for a block no parser leaves behind.
+fn unrun_block(block: &str) -> Option<(String, String)> {
+    let parsed = serde_json::from_str::<Value>(block.trim());
+    if let Some(call) = parsed.as_ref().ok().and_then(Value::as_object) {
+        let tool = call.get("tool").and_then(Value::as_str)?;
+        let reason = if tool == "describe_tool" {
+            "describe_tool takes `name`, the operation to describe, and this call has none, so \
+             it did not run; send it again, or answer in plain prose"
+                .to_owned()
+        } else {
+            format!(
+                "{tool} lacks a field it needs or is no tool of this turn, so it did not run; \
+                 call a tool you were given, or answer in plain prose"
+            )
+        };
+        return (!RUN_AFTER_THE_LOOP.contains(&tool)).then(|| (tool.to_owned(), reason));
+    }
+    let tool = NAMED_TOOL.captures(block)?[1].to_owned();
+    let why = parsed
+        .err()
+        .map_or("a list".to_owned(), |err| err.to_string());
+    let reason = format!(
+        "the {tool} call is not one JSON object ({why}), so it did not run; send it again as \
+         one object in one fence, or answer in plain prose"
+    );
+    Some((tool, reason))
+}
+
+/// The first call of a finished answer that nothing will run (T-6479): a block naming `tool` that
+/// does not parse, or that no parser takes. It goes back to the model; it is never the answer.
+pub(super) fn unrun_call(answer: &str) -> Option<(String, String)> {
+    CALL_BLOCK
+        .captures_iter(answer)
+        .find_map(|block| unrun_block(&block[1]))
+}
+
+/// The answer without the blocks [`unrun_call`] finds.
+pub(super) fn without_unrun_calls(answer: &str) -> String {
+    CALL_BLOCK
+        .replace_all(answer, |block: &regex::Captures<'_>| {
+            match unrun_block(&block[1]) {
+                Some(_) => String::new(),
+                None => block[0].to_owned(),
+            }
+        })
+        .trim()
+        .to_owned()
 }
 
 pub(super) fn blocks(answer: &str) -> impl Iterator<Item = Value> + '_ {
@@ -424,7 +493,7 @@ impl Driver {
 
 /// The pages the assistant may open, and what each one needs (UI-59). The route is built here,
 /// so a page the enum does not name cannot be reached however the model spells it.
-const PAGES: [(&str, &str); 21] = [
+const PAGES: [(&str, &str); 22] = [
     ("spaces", "/projects/{project}/spaces"),
     ("space", "/projects/{project}/spaces/{name}"),
     ("models", "/projects/{project}/models"),
@@ -459,6 +528,9 @@ const PAGES: [(&str, &str); 21] = [
     ),
     ("ckan", "/projects/{project}/ckan"),
     ("assistant", "/projects/{project}/assistant"),
+    // A person's own connectors (T-6482, AG-151, AG-157): no project's page, and the assistant
+    // only opens it; the person creates and revokes there.
+    ("connectors", "/ai-connectors"),
     ("app", "/projects/{project}/apps/{name}"),
     // A resource of any kind, the way `model` and `endpoint` open one of theirs.
     // Its page is the kind's, never its plural spelled as a path (`datamodels` is `models`).
@@ -1387,6 +1459,67 @@ mod tests {
     fn a_call_without_arguments_is_an_empty_object() {
         let answer = "```json\n{ \"tool\": \"jc_draft_list\" }\n```";
         assert_eq!(calls(answer)[0].arguments, json!({}));
+    }
+
+    /// T-6479: the two answers the live walk T-5962 showed as prose (evidence/T-5962,
+    /// first-pass/assistant/S-27.json and assistant/S-43.json).
+    const STRAY_BRACE: &str =
+        "```json\n{ \"tool\": \"describe_tool\", \"name\": \"grant_role\" }\n}\n```";
+    const NO_NAME: &str = "```json\n{\"additionalPropertiesSchema\":{\"name\":\"change-resource\"},\"tool\":\"describe_tool\"}\n```";
+
+    #[test]
+    fn a_recorded_call_nothing_runs_goes_back_with_the_reason() {
+        assert!(describes(STRAY_BRACE).is_empty() && calls(STRAY_BRACE).is_empty());
+        let (tool, reason) = unrun_call(STRAY_BRACE).expect("the stray brace");
+        assert_eq!(tool, "describe_tool");
+        assert!(reason.contains("not one JSON object"), "{reason}");
+        assert!(describes(NO_NAME).is_empty() && calls(NO_NAME).is_empty());
+        let (tool, reason) = unrun_call(NO_NAME).expect("the missing name");
+        assert_eq!(tool, "describe_tool");
+        assert!(reason.contains("takes `name`"), "{reason}");
+    }
+
+    #[test]
+    fn a_broken_call_is_found_however_it_is_broken() {
+        for answer in [
+            "Looking.\n```json\n{ \"tool\": \"jc_draft_list\", \"arguments\": {\n```",
+            "```json\n{ \"tool\": \"jc_draft_list\"",
+            "```json\n[{ \"tool\": \"jc_draft_list\" }]\n```",
+            "```\n{ 'tool': 'jc_draft_list' }\n```",
+        ] {
+            assert_eq!(
+                unrun_call(answer).map(|(tool, _)| tool).as_deref(),
+                Some("jc_draft_list"),
+                "{answer}"
+            );
+        }
+        let unknown = "```json\n{ \"tool\": \"made_up\" }\n```";
+        assert_eq!(unrun_call(unknown).expect("unknown").0, "made_up");
+    }
+
+    #[test]
+    fn prose_and_calls_that_run_are_no_unrun_call() {
+        for answer in [
+            "Twelve stations.",
+            "The body:\n```json\n{ \"title\": \"a\" }\n```",
+            "```bash\ncurl -d '{\"tool\": \"x\"}'\n```",
+            "```json\n{ \"tool\": \"edit_endpoint\", \"name\": \"a\" }\n```",
+            "```json\n{ \"tool\": \"navigate\", \"route\": \"/\" }\n```",
+            "```json\n{ \"tool\": \"propose_endpoint\" }\n```",
+            "```json\n{ \"tool\": \"space_complete\" }\n```",
+        ] {
+            assert_eq!(unrun_call(answer), None, "{answer}");
+        }
+    }
+
+    #[test]
+    fn only_the_broken_block_leaves_the_answer() {
+        let kept = "```json\n{ \"title\": \"a\" }\n```";
+        assert_eq!(
+            without_unrun_calls(&format!("The body:\n{kept}\n{STRAY_BRACE}")),
+            format!("The body:\n{kept}")
+        );
+        assert_eq!(without_unrun_calls(NO_NAME), "");
     }
 
     #[test]

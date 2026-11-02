@@ -52,8 +52,9 @@ fn the_tool_definitions_a_model_reads_stay_under_their_byte_ratchet() {
 /// jc_model_sdm_import 514, jc_model_generate 513, jc_catalogue_draft 466, jc_permissions_me 315.
 /// Four pipeline panels and six governance readings went in one tool each (`view`, `aspect`), and
 /// a connector lists only its segments' share; the assistant's own turn lists none of them
-/// (tools_registry.rs MCP_ONLY).
-const RATCHET: usize = 63_965;
+/// (tools_registry.rs MCP_ONLY); 64,034 once `jc_kpi_compute` took `endpoint` (T-6484, 69 bytes): a
+/// KPI read from an Endpoint needed no rows carried through the client's model.
+const RATCHET: usize = 64_035;
 
 /// The cut never opens a schema: every MCP input stays closed, and `project` stays bounded.
 #[test]

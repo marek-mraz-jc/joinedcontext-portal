@@ -273,11 +273,15 @@ RUN touch src/lib.rs src/main.rs build.rs \
 FROM gcr.io/distroless/cc-debian13:nonroot@sha256:e792ab3d241a468a4fd7519ddbbebe66b49b5f365771716ea688ad40b6c6f1c2
 COPY --from=build /joinedcontext-portal /usr/local/bin/joinedcontext-portal
 COPY --from=apps /srv/apps /srv/apps
+# The Smart Data Models mirror (T-6353): every model converted ahead of time, read from disk. The
+# commit is the pin (DM-08); joinedcontext-sdm-linkml regenerates it nightly, this line moves by hand.
+ADD --keep-git-dir=false https://github.com/marek-mraz-jc/joinedcontext-sdm-linkml.git#e6df96dabeca93e8557f3b681b4cf49257704052 /srv/sdm-mirror
 USER nonroot:nonroot
 EXPOSE 8080
 ENV JC_PORTAL_BIND=0.0.0.0:8080
 # The bundles above; a deployment that mounts its own artifact root sets it elsewhere.
 ENV JC_PORTAL_APPS_DIR=/srv/apps
+ENV JC_PORTAL_SDM_MIRROR_DIR=/srv/sdm-mirror
 # The binary's jemalloc (T-5283), set as the gateway's (T-4782): a background thread purges freed
 # pages after a second, so a reconcile's /metrics texts leave the process when it ends; four
 # arenas, whatever the node's core count. Measured in tests/allocator_tests.rs, which reads this line.

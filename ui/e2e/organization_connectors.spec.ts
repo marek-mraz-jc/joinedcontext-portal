@@ -24,7 +24,7 @@ const connector = (id: string, name: string, owner: string, extra: Record<string
   createdAt: "2026-10-27T09:00:00Z",
   lastUsedAt: "2026-10-28T10:00:00Z",
   url: `https://portal.dev.joinedcontext.com/c/${id.repeat(26)}`,
-  limits: { callsPerMinute: 60, resultBytes: 1048576 },
+  limits: { resultBytes: 1048576 },
   callsPerDay: 4,
   denialsPerDay: 0,
   flagged: false,

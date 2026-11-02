@@ -38,6 +38,7 @@ mod conversation;
 mod edit_loop;
 mod integrate;
 mod model;
+mod run_now;
 mod tools_change;
 mod tools_data;
 mod tools_registry;
@@ -478,6 +479,14 @@ impl Driver {
 }
 
 impl Driver {
+    /// The capabilities the person chose, as the newest message left them (AG-92).
+    pub(super) fn capabilities(&self) -> Option<crate::agents::capabilities::Capabilities> {
+        self.capabilities
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+
     /// What the person is looking at, when they asked from a form (UI-61, AG-77, T-1611).
     ///
     /// The form is the person's own draft, so the assistant works on that draft and nothing else:

@@ -4278,6 +4278,8 @@
       "graph": "Graf"
     },
     "sdm": {
+      "notConverted": "Modely, ktoré sa nepodarilo previesť: {count}",
+      "notConvertedHint": "V zozname vyššie nie sú. Každý riadok hovorí, čo prevod zastavilo; nočný beh model vráti, keď ho opravia v zdroji.",
       "browse": "Katalóg Smart Data Models",
       "search": "Hľadať modely a atribúty",
       "subject": "Oblasť",
@@ -4760,7 +4762,14 @@
       "renamed": "Premenované. Identifikátor {id} a jeho súbor zostávajú; Navrhnúť uloží nový názov."
     },
     "findType": "Nájsť typ",
+    "className": "Názov typu",
+    "typeName": { "hint": "Premenovanie upraví každé pole a typ, ktorý ho uvádza, napríklad Parking." },
+    "fieldName": { "hint": "Premenovanie upraví každý typ, ktorý pole uvádza, napríklad airQualityIndex." },
+    "enumName": { "hint": "Premenovanie upraví každé pole, ktoré ho používa, napríklad Level." },
+    "enumValue": { "hint": "To, čo entity obsahujú. Import premenujte pred uložením, napríklad moderate." },
     "enumValues": {
+      "name": "Názov",
+      "storedOf": "Uložená hodnota {value}",
       "caption": "Hodnoty {name}",
       "stored": "Uložená hodnota",
       "label": "Popis",
@@ -4779,8 +4788,7 @@
     "deprecatedBadge": "Zastarané",
     "slotName": "Názov",
     "slotNameHint": "Ako temperature alebo openingHours: písmená a číslice, bez medzier.",
-    "slotNameFirst": "Pomenujte pole a pridajte ho; typ, druh, jednotka a pravidlá nasledujú v tomto formulári.",
-    "slotNameFixed": "Pole si ponechá svoj názov: používa ho každá uložená hodnota aj dáta partnerov."
+    "slotNameFirst": "Pomenujte pole a pridajte ho; typ, druh, jednotka a pravidlá nasledujú v tomto formulári."
   },
   "apps": {
     "title": "Aplikácie",
