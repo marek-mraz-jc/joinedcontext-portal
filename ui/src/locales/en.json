@@ -8869,7 +8869,6 @@
         "title": "No internal dataset is shared with you yet",
         "description": "Ask a data steward of your organization to grant your group access. The public datasets below are open to everyone."
       },
-      "public": "Public datasets, listed below: {count}.",
       "unanswered": "{count} datasets could not be checked just now and are not listed. Reload the page in a minute.",
       "access": {
         "public": "Public",
@@ -8880,7 +8879,11 @@
       "open": "Open dataset",
       "endpoint": {
         "title": "Dataset",
-        "lead": "This dataset is read live from its Endpoint with your own access."
+        "lead": "This dataset is read live from its Endpoint with your own access.",
+        "visitorTitle": "A catalogue dataset",
+        "visitorLead": "Read live from its Endpoint. If the dataset is not public, the box below asks you to sign in.",
+        "refusedTitle": "A dataset you cannot open yet",
+        "refusedLead": "It is not among the datasets shared with you. The box below says how to get access."
       }
     },
     "leadSignedIn": "Datasets you may read, then every public dataset of this installation's open-data catalogues. Search, filter, open a dataset and use its data."

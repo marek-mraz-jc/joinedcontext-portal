@@ -8869,7 +8869,6 @@
         "title": "Noch kein interner Datensatz ist für Sie freigegeben",
         "description": "Bitten Sie eine Datenverantwortliche Ihrer Organisation, Ihrer Gruppe Zugriff zu geben. Die öffentlichen Datensätze unten sind für alle offen."
       },
-      "public": "Öffentliche Datensätze, unten aufgeführt: {count}.",
       "unanswered": "{count} Datensätze konnten gerade nicht geprüft werden und fehlen. Laden Sie die Seite in einer Minute neu.",
       "access": {
         "public": "Öffentlich",
@@ -8880,7 +8879,11 @@
       "open": "Datensatz öffnen",
       "endpoint": {
         "title": "Datensatz",
-        "lead": "Dieser Datensatz wird live aus seinem Endpoint mit Ihrem eigenen Zugriff gelesen."
+        "lead": "Dieser Datensatz wird live aus seinem Endpoint mit Ihrem eigenen Zugriff gelesen.",
+        "visitorTitle": "Ein Datensatz des Katalogs",
+        "visitorLead": "Live von seinem Endpoint gelesen. Ist der Datensatz nicht öffentlich, bittet Sie das Feld unten, sich anzumelden.",
+        "refusedTitle": "Ein Datensatz, den Sie noch nicht öffnen können",
+        "refusedLead": "Er gehört nicht zu den Datensätzen, die für Sie freigegeben sind. Das Feld unten sagt, wie Sie Zugriff erhalten."
       }
     },
     "leadSignedIn": "Datensätze, die Sie lesen dürfen, dann jeder öffentliche Datensatz der Open-Data-Kataloge dieser Installation. Suchen, filtern, einen Datensatz öffnen und seine Daten nutzen."

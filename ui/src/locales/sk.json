@@ -8869,7 +8869,6 @@
         "title": "Zatiaľ s vami nie je zdieľaná žiadna interná dátová sada",
         "description": "Požiadajte správcu údajov vašej organizácie, aby vašej skupine udelil prístup. Verejné dátové sady nižšie sú otvorené pre všetkých."
       },
-      "public": "Verejné dátové sady, uvedené nižšie: {count}.",
       "unanswered": "{count} dátových sád sa teraz nepodarilo overiť a nie sú uvedené. Načítajte stránku znova o minútu.",
       "access": {
         "public": "Verejné",
@@ -8880,7 +8879,11 @@
       "open": "Otvoriť dátovú sadu",
       "endpoint": {
         "title": "Dátová sada",
-        "lead": "Táto dátová sada sa číta naživo z jej Endpointu s vaším vlastným prístupom."
+        "lead": "Táto dátová sada sa číta naživo z jej Endpointu s vaším vlastným prístupom.",
+        "visitorTitle": "Dátová sada katalógu",
+        "visitorLead": "Číta sa naživo z jej Endpointu. Ak dátová sada nie je verejná, rámček nižšie vás vyzve na prihlásenie.",
+        "refusedTitle": "Dátová sada, ktorú zatiaľ nemôžete otvoriť",
+        "refusedLead": "Nie je medzi dátovými sadami, ktoré vám niekto sprístupnil. Rámček nižšie hovorí, ako získať prístup."
       }
     },
     "leadSignedIn": "Dátové sady, ktoré môžete čítať, a potom každá verejná dátová sada katalógov otvorených údajov tejto inštalácie. Hľadajte, filtrujte, otvorte dátovú sadu a použite jej údaje."
