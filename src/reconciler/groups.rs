@@ -10,18 +10,58 @@
 //! two disagreed (PF-63, PF-51).
 
 use crate::config::ClientAuth;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
+use chrono::{DateTime, Utc};
 use jc_core::kinds::GroupSpec;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::permissions::{is_person_id, ORG_NAMESPACE};
+use crate::permissions::{is_person_id, organization_of, project_members, ORG_NAMESPACE};
 use crate::store::{ListOptions, Mirror};
 
 /// The attribute that says a group is this platform's to write (PF-63).
 pub const MANAGED_BY: &str = "managed-by";
 pub const MANAGED_VALUE: &str = "joinedcontext";
+
+/// The attributes the realm's `jc_org` and `jc_groups` mappers read (ADR-N-067 2.2).
+const ORGANIZATION_ATTRIBUTE: &str = "jc_org";
+const GROUPS_ATTRIBUTE: &str = "jc_groups";
+
+/// A group the platform derives (PF-87): a project's `{slug}-readers` or `{slug}-writers`, by
+/// Keycloak user id, carrying the project's Organization, so whom a binding fills it with hold
+/// `jc_org` (T-6461) until the binding goes.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DerivedGroup {
+    pub name: String,
+    pub members: BTreeSet<String>,
+    pub organization: Option<String>,
+}
+
+/// Every registered project's derived groups as `mirror` holds its bindings at `now`: a binding
+/// taken away or run out empties its person from them, and only a binding that reaches the
+/// project counts, so none of another Organization grants its Organization here.
+pub fn derived_groups(
+    mirror: &Mirror,
+    projects: &BTreeMap<String, String>,
+    now: DateTime<Utc>,
+) -> Vec<DerivedGroup> {
+    projects
+        .keys()
+        .flat_map(|slug| {
+            let members = project_members(mirror, slug, now);
+            let organization = organization_of(mirror, slug);
+            let [(readers, _), (writers, _)] = super::project_teams::teams_of(slug);
+            [(readers, members.readers), (writers, members.writers)].map(|(name, members)| {
+                DerivedGroup {
+                    name,
+                    members,
+                    organization: organization.clone(),
+                }
+            })
+        })
+        .collect()
+}
 
 /// What one run did with one group, in the shape the mirror and the feed both carry.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -99,14 +139,14 @@ impl GroupSync {
         self.converge_with(mirror, &[]).await
     }
 
-    /// [`Self::converge`], and besides the manifests the groups the platform derives, each
-    /// `(name, members by Keycloak user id)`: a project's `{slug}-readers` and `{slug}-writers`, which
-    /// its bindings fill (PF-87). They are managed like a manifest's group and removed with the
-    /// project; a `Group` manifest of the same name wins, and the clash is the outcome's error.
+    /// [`Self::converge`], and besides the manifests the groups the platform derives: a
+    /// project's `{slug}-readers` and `{slug}-writers`, which its bindings fill (PF-87). They are
+    /// managed like a manifest's group and removed with the project; a `Group` manifest of the
+    /// same name wins, and the clash is the outcome's error.
     pub async fn converge_with(
         &self,
         mirror: &Mirror,
-        generated: &[(String, BTreeSet<String>)],
+        generated: &[DerivedGroup],
     ) -> Vec<GroupOutcome> {
         let token = match self.admin.token().await {
             Ok(token) => token,
@@ -170,9 +210,10 @@ impl GroupSync {
                 .iter()
                 .map(|member| member.user.trim().to_owned())
                 .collect();
-            outcomes.push(self.converge_one(&token, &name, &members, held).await);
+            outcomes.push(self.converge_one(&token, &name, &members, None, held).await);
         }
-        for (name, members) in generated {
+        for derived in generated {
+            let name = &derived.name;
             if !wanted.insert(name.clone()) {
                 let mut outcome = GroupOutcome::of(name);
                 outcome.error = Some(format!(
@@ -184,7 +225,11 @@ impl GroupSync {
                 continue;
             }
             let held = existing.iter().find(|group| &group.name == name);
-            outcomes.push(self.converge_one(&token, name, members, held).await);
+            let organization = derived.organization.as_deref();
+            outcomes.push(
+                self.converge_one(&token, name, &derived.members, organization, held)
+                    .await,
+            );
         }
 
         // A managed group the repository no longer declares is this wave's to remove; one
@@ -221,6 +266,7 @@ impl GroupSync {
         token: &str,
         name: &str,
         wanted: &BTreeSet<String>,
+        organization: Option<&str>,
         held: Option<&KcGroup>,
     ) -> GroupOutcome {
         let mut outcome = GroupOutcome::of(name);
@@ -242,10 +288,7 @@ impl GroupSync {
                         token,
                         reqwest::Method::POST,
                         "/groups",
-                        Some(&json!({
-                            "name": name,
-                            "attributes": { MANAGED_BY: [MANAGED_VALUE] }
-                        })),
+                        Some(&json!({ "name": name, "attributes": attributes_of(name, organization) })),
                     )
                     .await
                 {
@@ -277,6 +320,9 @@ impl GroupSync {
                 }
             }
         };
+
+        self.keep_organization(token, held, organization, &mut outcome)
+            .await;
 
         // A manifest written before ADR-N-061 names members by e-mail. Matching those against
         // the realm's ids would take every such person out, so the group is left as the realm
@@ -354,10 +400,61 @@ impl GroupSync {
         outcome
     }
 
+    /// Brings a derived group already in the realm to its project's Organization: a group made
+    /// before T-6461 carries none, and a project can move to another one. A manifest's group
+    /// (no Organization) is left as it is.
+    async fn keep_organization(
+        &self,
+        token: &str,
+        held: Option<&KcGroup>,
+        organization: Option<&str>,
+        outcome: &mut GroupOutcome,
+    ) {
+        let (Some(group), Some(organization)) = (held, organization) else {
+            return;
+        };
+        let attributes = attributes_of(&group.name, Some(organization));
+        let says = |key: &str| group.attributes.get(key).map(|values| json!(values));
+        if [ORGANIZATION_ATTRIBUTE, GROUPS_ATTRIBUTE]
+            .iter()
+            .all(|key| says(key).as_ref() == attributes.get(*key))
+        {
+            return;
+        }
+        let body = json!({ "name": group.name, "attributes": attributes });
+        let sent = self
+            .admin
+            .send(
+                token,
+                reqwest::Method::PUT,
+                &format!("/groups/{}", group.id),
+                Some(&body),
+            )
+            .await;
+        match sent {
+            Ok(_) => outcome.drift.push(format!(
+                "the group did not name Organization {organization}; it does now"
+            )),
+            Err(err) => outcome.error = Some(err),
+        }
+    }
+
     /// Whether the realm has a user with this id; a 404 is `false`, any other refusal an error.
     async fn user_exists(&self, token: &str, user: &str) -> Result<bool, String> {
         self.admin.exists(token, &format!("/users/{user}")).await
     }
+}
+
+/// What a group the platform writes carries: the managed mark and, for a derived group, its
+/// Organization as the token claims read it. The path in `jc_groups` is a name, not the group's
+/// place in the realm: the group is a root group so that the forge's team map finds it (PF-87).
+fn attributes_of(name: &str, organization: Option<&str>) -> Value {
+    let mut attributes = json!({ MANAGED_BY: [MANAGED_VALUE] });
+    if let Some(organization) = organization {
+        attributes[ORGANIZATION_ATTRIBUTE] = json!([organization]);
+        attributes[GROUPS_ATTRIBUTE] = json!([format!("/{organization}/{name}")]);
+    }
+    attributes
 }
 
 /// The few characters an address may carry that a query string may not (`+` above all).

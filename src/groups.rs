@@ -39,6 +39,13 @@ pub fn check(
                 written(wanted)
             )));
         }
+        if let Some(project) = project_named_by(state, name) {
+            return Err(ApiError::Denied(format!(
+                "the group '{name}' is project {project}'s, filled from its role bindings, and \
+                 admits to its Endpoints; a Group manifest may not take the name (PF-87). \
+                 Choose another name"
+            )));
+        }
         return Ok(());
     };
     let current = held.metadata.annotations.get(APP_LABEL);
@@ -51,6 +58,17 @@ pub fn check(
         owner(state, identity, current),
         written(wanted)
     )))
+}
+
+/// The project whose derived group `name` is, when a `Project` manifest holds that slug.
+fn project_named_by<'a>(state: &AppState, name: &'a str) -> Option<&'a str> {
+    let project = name
+        .strip_suffix("-readers")
+        .or_else(|| name.strip_suffix("-writers"))?;
+    state
+        .mirror
+        .get(ORG_NAMESPACE, "Project", project)
+        .map(|_| project)
 }
 
 /// The owner the write names, in words: the caller's own manifest, so nothing is disclosed.
@@ -376,6 +394,25 @@ mod tests {
             None
         );
         assert_eq!(refusal(&state, "Role", &meta("admins", None)), None);
+    }
+
+    /// T-6461: `{project}-readers` admits to the project's Endpoints, so a Group manifest cannot
+    /// take the name of a project that exists; another ending or an unknown project stay free.
+    #[test]
+    fn a_group_cannot_take_the_name_of_a_projects_derived_group() {
+        let state = world(None);
+        state.mirror.upsert(manifest(
+            "Project",
+            ObjectMeta::new("doprava", ORG_NAMESPACE),
+            json!({}),
+        ));
+        for name in ["doprava-readers", "doprava-writers"] {
+            let text = refusal(&state, "Group", &meta(name, None)).expect("refused");
+            assert!(text.contains("project doprava's"), "{text}");
+        }
+        for name in ["doprava-auditors", "ovzdusie-readers", "-readers"] {
+            assert_eq!(refusal(&state, "Group", &meta(name, None)), None, "{name}");
+        }
     }
 
     /// `world` with the App `board` of `doprava` and jana bound in `project` to a role with
