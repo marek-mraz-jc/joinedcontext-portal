@@ -83,6 +83,17 @@ export function webhooksOf(subscriptions: Manifest[], space: string, type: strin
   });
 }
 
+/** One address with what it is and a button that copies it. */
+function UrlRow({ label, url, copy }: { label: string; url: string; copy: string }): JSX.Element {
+  return (
+    <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1">
+      <span className="w-28 shrink-0 text-caption font-semibold text-fg-muted">{label}</span>
+      <code className="order-last min-w-0 basis-full font-mono text-caption text-fg [overflow-wrap:anywhere] sm:order-none sm:flex-1 sm:basis-0">{url}</code>
+      <CopyUrlButton url={url} label={copy} />
+    </li>
+  );
+}
+
 /** A draft name a new webhook can take: the type in lower case and four random letters. */
 function draftName(type: string): string {
   const base = type.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "type";
@@ -195,23 +206,21 @@ export function TypeApi({
                 {q?.trim() ? t("spaces.api.viewQueryLead", { q: q.trim() }) : t("spaces.api.viewQueryAll", { type })}
               </p>
               <ul className="flex flex-col gap-1">
-                {viewQueryUrls(slug, type, q, servedRepresentations(endpoint.spec as Record<string, unknown>)).map((each) => (
-                  <li key={each.key} className="flex flex-wrap items-center gap-2">
-                    <span className="w-28 shrink-0 text-caption font-semibold text-fg-muted">{t(`spaces.api.surface.${each.key}`)}</span>
-                    <code className="order-last min-w-0 basis-full font-mono text-caption text-fg [overflow-wrap:anywhere] sm:order-none sm:flex-1 sm:basis-0">{each.url}</code>
-                    <CopyUrlButton url={each.url} label={t("spaces.api.copySurface", { surface: t(`spaces.api.surface.${each.key}`) })} />
-                  </li>
-                ))}
+                {viewQueryUrls(slug, type, q, servedRepresentations(endpoint.spec as Record<string, unknown>)).map((each) => {
+                  const surface = t(`spaces.api.surface.${each.key}`);
+                  return <UrlRow key={each.key} label={surface} url={each.url} copy={t("spaces.api.copySurface", { surface })} />;
+                })}
               </ul>
             </section>
-            <dl className="grid gap-x-3 gap-y-1 sm:grid-cols-[auto_1fr]">
-              {callsOf(slug, type, servedRepresentations(endpoint.spec as Record<string, unknown>), domain).map((call) => (
-                <div key={call.key} className="contents">
-                  <dt className="text-caption font-semibold text-fg-muted">{t(`spaces.api.call.${call.key}`, { defaultValue: call.key })}</dt>
-                  <dd className="font-mono text-caption text-fg [overflow-wrap:anywhere]">{call.url}</dd>
-                </div>
-              ))}
-            </dl>
+            <section aria-label={t("spaces.api.calls")} className="flex flex-col gap-1" data-testid="api-calls">
+              <h3 className="text-caption font-semibold text-fg">{t("spaces.api.calls")}</h3>
+              <ul className="flex flex-col gap-1">
+                {callsOf(slug, type, servedRepresentations(endpoint.spec as Record<string, unknown>), domain).map((call) => {
+                  const name = t(`spaces.api.call.${call.key}`, { defaultValue: call.key });
+                  return <UrlRow key={call.key} label={name} url={call.url} copy={t("spaces.api.copySurface", { surface: name })} />;
+                })}
+              </ul>
+            </section>
             <CodeBlock label={t("codeBlock.curl")} className="whitespace-pre-wrap rounded-md bg-surface-subtle p-2 font-mono text-caption [overflow-wrap:anywhere]">
               {`curl -H "Authorization: Bearer $TOKEN" \\\n  "${endpointUrl(slug, `/ngsi-ld/v1/entities?type=${encodeURIComponent(type)}&limit=10`)}"`}
             </CodeBlock>

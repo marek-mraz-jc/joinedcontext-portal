@@ -7,6 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ASSISTANT_EVENT } from "../navigation/shortcuts";
+import { useIsPhone } from "../phone";
 import { useHiddenSections } from "../branding";
 import { isHiddenSection } from "../components/layout/navigation";
 import { api, ApiError, unwrap } from "../api/client";
@@ -225,7 +226,7 @@ export function AssistantDock({
     settlePrefill(pathname);
   }, [navigated, pathname]);
   const [open, setOpen] = useState(() => Boolean(parseRun(runSnapshot())));
-  const phone = useSyncExternalStore(onPhoneChange, isPhone);
+  const phone = useIsPhone();
   // Opened by the person (the bubble, Ctrl/Cmd+K), the panel lands on its text box, ready to
   // type; opened because a run was remembered, it leaves the focus where it was (T-2719).
   const focusBox = useRef(false);
@@ -1003,19 +1004,6 @@ function onWideChange(changed: () => void): () => void {
   const query = typeof window.matchMedia === "function" ? window.matchMedia(WIDE) : null;
   query?.addEventListener("change", changed);
   return () => query?.removeEventListener("change", changed);
-}
-
-/** Below Tailwind's `sm`: the closed assistant's button moves into the header. */
-const PHONE = "(max-width: 39.98rem)";
-
-function onPhoneChange(changed: () => void): () => void {
-  const query = typeof window.matchMedia === "function" ? window.matchMedia(PHONE) : null;
-  query?.addEventListener("change", changed);
-  return () => query?.removeEventListener("change", changed);
-}
-
-function isPhone(): boolean {
-  return typeof window.matchMedia === "function" && window.matchMedia(PHONE).matches;
 }
 
 function isWide(): boolean {

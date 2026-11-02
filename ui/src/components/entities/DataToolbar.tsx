@@ -10,6 +10,7 @@ import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { andQ, matchesQ, queryFromGroup, searchQuery } from "@joinedcontext/sdk";
 import type { EnumOption, FilterColumn, FilterGroup, RichRow } from "@joinedcontext/sdk";
+import { useIsPhone } from "../../phone";
 import { Button, Input, RadioGroup } from "../ui";
 import { conditionCount, EMPTY_GROUP, FilterPanel } from "./FilterPanel";
 import { GroupPanel, MAX_GROUP_FIELDS, ROW_SIZES, SortPanel, ToolbarPopover } from "./GridToolbar";
@@ -135,26 +136,18 @@ export function useDataToolbarState() {
 
 export function DataToolbar(props: DataToolbarProps): JSX.Element {
   const { t } = useTranslation();
+  const phone = useIsPhone();
   const { extras, onExtras, attributes, enums } = props;
   const labelOf = (attr: string) => props.fields.find((field) => field.value === attr)?.label ?? attr;
-  return (
-    <>
-      <ToolbarPopover label={t("spaces.toolbar.filter")} count={conditionCount(props.filters)} wide>
-        <FilterPanel columns={props.filterColumns} titleOf={props.filterTitle} value={props.filters} onChange={props.onFilters} />
-      </ToolbarPopover>
-      <ToolbarPopover label={t("spaces.toolbar.hide")} count={extras.hidden?.length}>
-        <ViewOptions part="fields" attributes={attributes} enums={enums} value={extras} onChange={onExtras} labelOf={labelOf} />
-      </ToolbarPopover>
-      <ToolbarPopover label={t("spaces.toolbar.sort")} count={props.sortKeys.length}>
-        <SortPanel fields={props.fields} value={props.sortKeys} onChange={props.onSortKeys} />
-      </ToolbarPopover>
-      <ToolbarPopover label={t("spaces.toolbar.group")} count={props.groupBy.length}>
-        <GroupPanel fields={props.fields} value={props.groupBy} onChange={(next) => props.onGroupBy(next.slice(0, MAX_GROUP_FIELDS))} />
-      </ToolbarPopover>
-      <ToolbarPopover label={t("spaces.toolbar.colour")} count={extras.colour?.length} wide>
-        <ViewOptions part="colours" attributes={attributes} enums={enums} value={extras} onChange={onExtras} />
-      </ToolbarPopover>
-      <ToolbarPopover label={t("spaces.toolbar.rowSize")}>
+  const tools = [
+    { label: t("spaces.toolbar.filter"), count: conditionCount(props.filters), wide: true, panel: <FilterPanel columns={props.filterColumns} titleOf={props.filterTitle} value={props.filters} onChange={props.onFilters} /> },
+    { label: t("spaces.toolbar.hide"), count: extras.hidden?.length, panel: <ViewOptions part="fields" attributes={attributes} enums={enums} value={extras} onChange={onExtras} labelOf={labelOf} /> },
+    { label: t("spaces.toolbar.sort"), count: props.sortKeys.length, panel: <SortPanel fields={props.fields} value={props.sortKeys} onChange={props.onSortKeys} /> },
+    { label: t("spaces.toolbar.group"), count: props.groupBy.length, panel: <GroupPanel fields={props.fields} value={props.groupBy} onChange={(next) => props.onGroupBy(next.slice(0, MAX_GROUP_FIELDS))} /> },
+    { label: t("spaces.toolbar.colour"), count: extras.colour?.length, wide: true, panel: <ViewOptions part="colours" attributes={attributes} enums={enums} value={extras} onChange={onExtras} /> },
+    {
+      label: t("spaces.toolbar.rowSize"),
+      panel: (
         <RadioGroup
           name="grid-row-size"
           legend={t("spaces.toolbar.rowSize")}
@@ -162,19 +155,56 @@ export function DataToolbar(props: DataToolbarProps): JSX.Element {
           options={ROW_SIZES.map((size) => ({ value: size, label: t(`spaces.toolbar.rowSizes.${size}`) }))}
           onChange={props.onRowSize}
         />
-      </ToolbarPopover>
-      <Input
-        type="search"
-        aria-label={t("spaces.toolbar.search")}
-        placeholder={t("spaces.toolbar.searchPlaceholder")}
-        className="h-control w-full sm:w-36"
-        value={props.searchText}
-        onChange={(e) => props.onSearchText(e.target.value)}
-      />
-      {/* The query the filters ask, folded until asked for (T-5093): the rows and their count stay together. */}
-      <Button variant={props.showQuery ? "secondary" : "ghost"} size="sm" aria-pressed={props.showQuery} onClick={() => props.onShowQuery(!props.showQuery)}>
-        {t("spaces.toolbar.query")}
-      </Button>
+      ),
+    },
+  ];
+  const panels = tools.map(({ panel, ...tool }) => (
+    <ToolbarPopover key={tool.label} {...tool} inPlace={phone}>
+      {panel}
+    </ToolbarPopover>
+  ));
+  const search = (
+    <Input
+      type="search"
+      aria-label={t("spaces.toolbar.search")}
+      placeholder={t("spaces.toolbar.searchPlaceholder")}
+      className="h-control w-full max-sm:order-last sm:w-36"
+      value={props.searchText}
+      onChange={(e) => props.onSearchText(e.target.value)}
+    />
+  );
+  // The query the filters ask, folded until asked for (T-5093): the rows and their count stay together.
+  const query = (
+    <Button
+      variant={props.showQuery ? "secondary" : "ghost"}
+      size="sm"
+      className={phone ? "justify-start" : undefined}
+      aria-pressed={props.showQuery}
+      onClick={() => props.onShowQuery(!props.showQuery)}
+    >
+      {t("spaces.toolbar.query")}
+    </Button>
+  );
+  // A phone gets one menu: six tools wrapped to three rows above the first data row (T-6463).
+  if (phone) {
+    const set = tools.reduce((sum, tool) => sum + (tool.count ?? 0), 0);
+    return (
+      <>
+        <ToolbarPopover label={t("spaces.toolbar.tools")} count={set} outlined tall>
+          <div className="flex flex-col gap-1">
+            {panels}
+            {query}
+          </div>
+        </ToolbarPopover>
+        {search}
+      </>
+    );
+  }
+  return (
+    <>
+      {panels}
+      {search}
+      {query}
     </>
   );
 }

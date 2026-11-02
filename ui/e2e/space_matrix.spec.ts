@@ -103,6 +103,9 @@ async function stubApi(page: Page, stub: Stub): Promise<void> {
       stub.patched?.push(route.request().postDataJSON());
       return route.fulfill({ status: 204 });
     }
+    if (path.endsWith("/entities") && method === "POST") {
+      return json({ type: "https://uri.etsi.org/ngsi-ld/errors/Forbidden", title: "Forbidden", detail: "no policy grants this operation" }, 403);
+    }
     if (path.endsWith("/entities")) {
       if (stub.readStatus) {
         return json({ type: "https://uri.etsi.org/ngsi-ld/errors/InternalError", title: "Bad Gateway", detail: "the broker did not answer" }, stub.readStatus);
@@ -176,6 +179,56 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
       await shot(page, `form-labels-${label}`);
     });
 
+    test("keeps the refusal and Create of Add row on the screen", async ({ page }) => {
+      await stubApi(page, {});
+      await open(page);
+      await page.getByRole("button", { name: "Add row" }).click();
+      const dialog = page.getByRole("dialog");
+      await dialog.getByRole("textbox", { name: "Name" }).fill("Harbour walk");
+      await dialog.getByRole("button", { name: "Create", exact: true }).click();
+      const refusal = dialog.getByRole("alert");
+      await expect(refusal).toContainText("Ask a project owner");
+      await expect(refusal).toBeInViewport({ ratio: 1 });
+      await expect(dialog.getByRole("button", { name: "Create", exact: true })).toBeInViewport({ ratio: 1 });
+      await noSideways(page);
+      await shot(page, `add-row-refused-${label}`);
+    });
+
+    test("puts the first row near the top with the tools in one menu", async ({ page }) => {
+      await stubApi(page, {});
+      await open(page);
+      await expect(page.getByText("Workshop for Families 5").first()).toBeVisible();
+      const toolbar = page.getByTestId("grid-toolbar");
+      await shot(page, `grid-toolbar-${label}`);
+      if (width >= 640) {
+        await expect(toolbar.locator("summary", { hasText: "Tools" })).toHaveCount(0);
+        return;
+      }
+      await expect(toolbar.locator("summary", { hasText: "Sort" })).toBeHidden();
+      const top = await toolbar.boundingBox();
+      const row = await page.locator(".jc-grid-table tbody tr").first().boundingBox();
+      // About 330 px before T-6463: three tool rows, the search and the Filters block.
+      expect((row?.y ?? 0) - (top?.y ?? 0)).toBeLessThan(230);
+      await toolbar.locator("summary", { hasText: "Tools" }).click();
+      await toolbar.locator("summary", { hasText: "Sort" }).click();
+      await expect(toolbar.locator("summary", { hasText: "Row height" })).toBeInViewport();
+      await noSideways(page);
+      expect(await axeViolations(page)).toEqual([]);
+      await shot(page, `grid-tools-open-${label}`);
+    });
+
+    test("gives every API call a copy button", async ({ page }) => {
+      await stubApi(page, {});
+      await open(page, "api");
+      const calls = page.getByTestId("api-calls");
+      for (const call of ["List", "Count", "One entity", "History"]) {
+        await expect(calls.getByRole("button", { name: `Copy the ${call} URL` })).toBeVisible();
+      }
+      await noSideways(page);
+      expect(await axeViolations(page)).toEqual([]);
+      await shot(page, `api-${label}`);
+    });
+
     test("keeps a non-grid view's actions in the one toolbar row", async ({ page }) => {
       await stubApi(page, {});
       await open(page, "gallery");
@@ -194,6 +247,7 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
       await expect(page.getByText("Workshop for Families 5").first()).toBeVisible();
       const query = page.getByRole("status", { name: "The query this asks" });
       await expect(query).toHaveCount(0);
+      if (width < 640) await page.getByTestId("grid-toolbar").locator("summary", { hasText: "Tools" }).click();
       await page.getByRole("button", { name: "Query", exact: true }).click();
       // Every row is asked for, so the line says so and offers nothing to copy (0373b9ea).
       await expect(query).toHaveText("all records");

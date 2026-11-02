@@ -72,12 +72,12 @@ test.describe("a published data view", () => {
     await shoot(page, "filled");
   });
 
-  const states: Array<[string, (route: Route) => Promise<void>, string]> = [
+  const states: Array<[string, (route: Route) => Promise<void>, string | RegExp]> = [
     ["not-published", problem(404), "This view is not published, or not any more."],
     ["closed", problem(403), "This view is not open to the public."],
     ["busy", problem(429, { "Retry-After": "30" }), "Too many visits just now. Try again in 30 s."],
-    ["down", problem(503), "The data service did not answer. Try again."],
-    ["offline", (route) => route.abort("internetdisconnected"), "The data service did not answer. Try again."],
+    ["down", problem(503), /the data service did not answer\. Try again in a minute/],
+    ["offline", (route) => route.abort("internetdisconnected"), /the data service did not answer\. Try again in a minute/],
   ];
   for (const [name, fail, message] of states) {
     test(`a ${name} read shows its own state`, async ({ page }) => {

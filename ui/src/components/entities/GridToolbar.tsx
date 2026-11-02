@@ -58,9 +58,12 @@ export function ToolbarPopover({
   outlined,
   tall,
   anchored,
+  inPlace,
   children,
 }: {
   label: string;
+  /** One line of a folded menu: the panel opens under its line, inside the menu. */
+  inPlace?: boolean;
   /** Under its button on a phone too, for a row's first control: no bottom sheet over the toolbar. */
   anchored?: boolean;
   /** Drawn as a button even with nothing set: outside a toolbar row a ghost summary reads as text. */
@@ -70,7 +73,7 @@ export function ToolbarPopover({
   wide?: boolean;
   /** At the row's right end: the panel opens leftwards so it stays on the screen. */
   end?: boolean;
-  /** Reading text, not settings: on a wide screen the panel grows to its content, no inner scroll. */
+  /** Reading text or a folded menu: the panel grows to its content on a wide screen, to most of a phone's. */
   tall?: boolean;
   children: ReactNode;
 }): JSX.Element {
@@ -89,6 +92,7 @@ export function ToolbarPopover({
       className="relative"
       onKeyDown={(event) => {
         if (event.key === "Escape" && ref.current?.open) {
+          event.stopPropagation();
           ref.current.open = false;
           ref.current.querySelector("summary")?.focus();
         }
@@ -98,21 +102,28 @@ export function ToolbarPopover({
         className={buttonClass(
           count || outlined ? "secondary" : "ghost",
           "sm",
-          clsx("cursor-pointer list-none [&::-webkit-details-marker]:hidden", count ? "border-primary text-primary-soft-fg" : undefined),
+          clsx(
+            "cursor-pointer list-none [&::-webkit-details-marker]:hidden",
+            count ? "border-primary text-primary-soft-fg" : undefined,
+            inPlace ? "w-full justify-start" : undefined,
+          ),
         )}
       >
         {label}
         {count ? <span className="ml-1 rounded-full bg-primary-soft px-1.5 text-caption">{count}</span> : null}
       </summary>
       <div
-        className={clsx(
-          "z-30 overflow-auto rounded-lg border border-border bg-surface-raised p-3 text-body shadow-2",
-          "max-h-96",
-          anchored ? "absolute left-0 mt-1 max-sm:w-max max-sm:max-w-xs" : "max-sm:fixed max-sm:inset-x-4 max-sm:bottom-4",
-          end ? "sm:absolute sm:right-0 sm:mt-1" : "sm:absolute sm:left-0 sm:mt-1",
-          wide ? "sm:w-max sm:max-w-2xl" : "sm:w-72",
-          tall ? "sm:max-h-none" : undefined,
-        )}
+        className={
+          inPlace
+            ? "border-l-2 border-border py-2 pl-3 text-body"
+            : clsx(
+                "z-30 overflow-auto rounded-lg border border-border bg-surface-raised p-3 text-body shadow-2",
+                tall ? "max-h-[80dvh] sm:max-h-none" : "max-h-96",
+                anchored ? "absolute left-0 mt-1 max-sm:w-max max-sm:max-w-xs" : "max-sm:fixed max-sm:inset-x-4 max-sm:bottom-4",
+                end ? "sm:absolute sm:right-0 sm:mt-1" : "sm:absolute sm:left-0 sm:mt-1",
+                wide ? "sm:w-max sm:max-w-2xl" : "sm:w-72",
+              )
+        }
       >
         {children}
       </div>
