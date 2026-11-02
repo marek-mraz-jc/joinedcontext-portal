@@ -15,12 +15,12 @@ const budget = (env: Record<string, string>) =>
   );
 
 describe("rollout-walk --budget", () => {
-  it("covers two walks and the journeys at the defaults", () => {
-    expect(budget({})).toBeGreaterThanOrEqual(2 * 900 + 3600);
+  it("covers two tries of two walks and the journeys at the defaults", () => {
+    expect(budget({})).toBeGreaterThanOrEqual(4 * 900 + 2 * 90 + 3600);
   });
 
   it("follows WALK_CAP and SWEEP_CAP", () => {
-    expect(budget({ WALK_CAP: "1200", SWEEP_CAP: "60" })).toBeGreaterThanOrEqual(2 * 1200 + 60);
+    expect(budget({ WALK_CAP: "1200", SWEEP_CAP: "60" })).toBeGreaterThanOrEqual(4 * 1200 + 60);
   });
 });
 
@@ -38,7 +38,7 @@ describe("rollout-walk memory gate", () => {
   // No users file: a walk that gets past the gate stops at "no steward or viewer password" (exit 2).
   const walk = (root: string, env: Record<string, string> = {}) =>
     spawnSync("bash", ["e2e/live/rollout-walk.sh"], {
-      env: { ...process.env, PORTAL_URL: `file://${root}/portal`, WALK_EVIDENCE: join(root, "evidence"), WALK_MEMINFO: join(root, "meminfo"), DEMO_USERS: join(root, "none"), WALK_SETTLE_S: "0", ...env },
+      env: { ...process.env, PORTAL_URL: `file://${root}/portal`, WALK_EVIDENCE: join(root, "evidence"), WALK_MEMINFO: join(root, "meminfo"), DEMO_USERS: join(root, "none"), WALK_KUBECONFIG: join(root, "none"), WALK_SETTLE_S: "0", ...env },
       encoding: "utf8",
     });
 
@@ -79,7 +79,7 @@ describe("rollout-walk settle gate", () => {
   };
   const walk = (root: string) =>
     spawnSync("bash", ["e2e/live/rollout-walk.sh"], {
-      env: { ...process.env, PORTAL_URL: `file://${root}/portal`, WALK_EVIDENCE: join(root, "evidence"), WALK_MEMINFO: join(root, "meminfo"), DEMO_USERS: join(root, "none") },
+      env: { ...process.env, PORTAL_URL: `file://${root}/portal`, WALK_EVIDENCE: join(root, "evidence"), WALK_MEMINFO: join(root, "meminfo"), DEMO_USERS: join(root, "none"), WALK_KUBECONFIG: join(root, "none") },
       encoding: "utf8",
     });
 
@@ -133,8 +133,10 @@ describe("rollout-walk apply during the walk", () => {
     tool(bin, "kubectl", 'case "$*" in *applyStartedAt*) cat "$RELEASE_FILE" ;; *) cut -d" " -f1,2 "$RELEASE_FILE" ;; esac');
     tool(bin, "npx", [
       'person=$(printf "%s\\n" "$@" | sed -n "s/^for the \\(.*\\)\\$$/\\1/p")',
+      'echo "$*" >>"$WALK_REPORT_DIR/npx-calls"',
       '[ -n "${NO_REPORT:-}" ] && exit 1',
-      'echo "[]" >"$WALK_REPORT_DIR/walker-$person.json"',
+      'grep -q "^$person$" "$WALK_REPORT_DIR/npx-calls" || { [ "$person" = "${FIRST_TRY_FAILS:-}" ] && echo "$person" >>"$WALK_REPORT_DIR/npx-calls" && echo "Error: first" && exit 1; }',
+      'echo "${REPORT:-[]}" >"$WALK_REPORT_DIR/walker-$person.json"',
       '[ -n "${ROLL_TO:-}" ] && printf \'{"portal":{"commit":"%s"}}\' "$ROLL_TO" >"$VERSION_FILE"',
       '[ -n "${APPLY_TO:-}" ] && printf "%s" "$APPLY_TO" >"$RELEASE_FILE"',
       "exit 0",
@@ -147,7 +149,7 @@ describe("rollout-walk apply during the walk", () => {
         ...process.env, PATH: `${join(root, "bin")}:${process.env.PATH}`, PORTAL_URL: `file://${root}/portal`,
         VERSION_FILE: join(root, "portal/api/v1/version"), RELEASE_FILE: join(root, "release"),
         WALK_EVIDENCE: join(root, "evidence"), WALK_MEMINFO: join(root, "meminfo"), DEMO_USERS: join(root, "users"),
-        WALK_SETTLE_S: "0", WALK_KUBECONFIG: join(root, "kubeconfig"), WALK_JOURNEYS: "0", TASKS_DIR: "", ...env,
+        WALK_SETTLE_S: "0", WALK_KUBECONFIG: join(root, "kubeconfig"), WALK_JOURNEYS: "0", WALK_RETRY_WAIT: "0", TASKS_DIR: "", ...env,
       },
       encoding: "utf8",
     });
@@ -157,6 +159,33 @@ describe("rollout-walk apply during the walk", () => {
     expect(existsSync(join(root, "evidence/last-summary.json"))).toBe(false);
     expect(readFileSync(join(root, "evidence/first-seen"), "utf8")).toMatch(new RegExp(`^${sha} [0-9]+\n$`));
   };
+
+  // T-6510: Playwright runs a teardown project whatever --grep says, so the read-only walk ran the
+  // sweep's exclusive specs after each person, and the viewer's sign-in lost the whole walk once.
+  const report = '[{"route":"/","address":"/","width":1440,"lang":"en","findings":[],"screenshot":""}]';
+  const calls = (root: string) => readFileSync(join(root, "evidence", sha, "npx-calls"), "utf8").split("\n").filter((line) => line.includes("playwright"));
+
+  it("walks each person once, without the sweep's exclusive tail", () => {
+    const root = setup();
+    walk(root, { REPORT: report });
+    expect(calls(root)).toHaveLength(2);
+    for (const call of calls(root)) expect(call).toContain("--no-deps");
+  });
+
+  it("walks a person who wrote no report once more, keeping the first log", () => {
+    const root = setup();
+    const again = walk(root, { REPORT: report, FIRST_TRY_FAILS: "viewer" });
+    expect(again.stderr).toContain("the viewer's walk wrote no report, once more in 0 s");
+    expect(calls(root).filter((call) => call.includes("for the viewer"))).toHaveLength(2);
+    expect(readFileSync(join(root, "evidence", sha, "walk-viewer.first.log"), "utf8")).toContain("Error: first");
+    expect(readFileSync(join(root, "evidence", sha, "summary.json"), "utf8")).not.toContain("wrote no report");
+  });
+
+  it("still reports a walk that wrote nothing on both tries", () => {
+    const root = setup();
+    walk(root, { NO_REPORT: "1", REPORT: report });
+    expect(calls(root)).toHaveLength(4);
+  });
 
   it("files nothing when dev serves another Portal commit after the walk", () => {
     const root = setup();
