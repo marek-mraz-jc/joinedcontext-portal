@@ -304,10 +304,10 @@ describe("where the assistant's input sits", () => {
   });
 
   it("disables every path the caller's role cannot take, with the reason on it", async () => {
-    const { started } = renderDock({ mayPropose: false });
+    const { started } = renderDock({ mayPropose: true });
     const person = await openDock();
     const paths = await screen.findByTestId("assistant-paths");
-    for (const [path, kind] of PROPOSES) {
+    for (const [path, kind] of PROPOSES.filter(([, kind]) => kind !== "Endpoint" && kind !== "Dashboard")) {
       // The reason is `permissions.denied` filled in by i18next, which is what a person reads.
       await waitFor(() =>
         expect(within(paths).getByRole("button", { name: pathName(path) })).toHaveAttribute("aria-disabled", "true"),
@@ -317,16 +317,38 @@ describe("where the assistant's input sits", () => {
         i18n.t("permissions.denied", { verb: "propose", kind }),
       );
     }
-    // The one that proposes nothing stays open.
-    expect(within(paths).getByRole("button", { name: pathName("find-data") })).not.toHaveAttribute(
-      "aria-disabled",
-      "true",
-    );
     // A refused path starts nothing.
     await person.click(within(paths).getByRole("button", { name: pathName("build-app") }));
     expect(started).toHaveLength(0);
     // The reason is also on screen, once, not only in a tooltip (T-4263).
     expect(screen.getByTestId("assistant-paths-denied")).toHaveTextContent(en.assistant.pathsDenied);
+  });
+
+  it("lets an editor without an App grant ask: Find data and the composer stay open (T-6464)", async () => {
+    const { started } = renderDock({ mayPropose: true });
+    const person = await openDock();
+    const paths = await screen.findByTestId("assistant-paths");
+    await waitFor(() =>
+      expect(within(paths).getByRole("button", { name: pathName("build-app") })).toHaveAttribute("aria-disabled", "true"),
+    );
+    expect(screen.queryByTestId("assistant-read-only")).toBeNull();
+    await person.click(within(paths).getByRole("button", { name: pathName("find-data") }));
+    await waitFor(() => expect(started).toHaveLength(1));
+    expect(started[0]).toMatchObject({ path: "find-data" });
+  });
+
+  it("tells a read-only role before they type, and starts nothing (T-6464)", async () => {
+    const { started } = renderDock({ mayPropose: false });
+    const person = await openDock();
+    expect(await screen.findByTestId("assistant-read-only")).toHaveTextContent(en.assistant.readOnly);
+    const paths = screen.getByTestId("assistant-paths");
+    const find = within(paths).getByRole("button", { name: pathName("find-data") });
+    expect(find).toHaveAttribute("aria-disabled", "true");
+    expectDenied(find, en.assistant.readOnly);
+    await person.click(find);
+    expect(screen.getByRole("textbox", { name: en.assistant.empty.composer })).toBeDisabled();
+    expect(screen.queryByTestId("assistant-paths-denied")).toBeNull();
+    expect(started).toHaveLength(0);
   });
 
   it("says nothing about greyed paths to a role that may take them all", async () => {

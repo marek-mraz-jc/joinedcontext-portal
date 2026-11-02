@@ -6436,6 +6436,8 @@
     },
     "trail": "Pages the assistant opened",
     "prefilledNotice": "The assistant filled this in. Check it before you propose.",
+    "readOnly": "Your role here can read but not change anything, so the assistant cannot start. A project steward or an administrator can give you the editor role.",
+    "readOnlyComposer": "Your role can only read here",
     "pathsDenied": "Some paths are greyed: your role lets you look, not create. A project steward or an administrator can give you that right.",
     "paths": {
       "integrate-pipeline": {

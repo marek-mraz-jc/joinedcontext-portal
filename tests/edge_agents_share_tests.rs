@@ -21,7 +21,6 @@ use joinedcontext_portal::agents::share::{
 use joinedcontext_portal::resource::{is_dns1123, API_VERSION};
 
 const PROJECT: &str = "helsinki";
-const ORG: &str = "hel.fi";
 
 fn share() -> ProposeEndpoint {
     ProposeEndpoint {
@@ -101,8 +100,8 @@ const NOT_A_LABEL: [&str; 14] = [
 #[test]
 fn the_slug_is_minted_here_and_two_renderings_never_share_one() {
     let params = share();
-    let first = render(PROJECT, ORG, &params, &[]).expect("a valid share");
-    let second = render(PROJECT, ORG, &params, &[]).expect("a valid share");
+    let first = render(PROJECT, &params, &[]).expect("a valid share");
+    let second = render(PROJECT, &params, &[]).expect("a valid share");
     assert_ne!(first.slug, second.slug, "a slug was reused");
     for slug in [&first.slug, &second.slug] {
         assert_eq!(slug.len(), 26, "{slug}");
@@ -123,12 +122,12 @@ fn a_name_or_context_space_that_is_not_a_label_is_refused() {
     for bad in NOT_A_LABEL {
         let mut params = share();
         params.name = bad.to_owned();
-        let refused = render(PROJECT, ORG, &params, &[]).expect_err("name");
+        let refused = render(PROJECT, &params, &[]).expect_err("name");
         assert!(refused.contains("DNS-1123"), "name {bad:?}: {refused}");
 
         let mut params = share();
         params.context_space = bad.to_owned();
-        let refused = render(PROJECT, ORG, &params, &[]).expect_err("contextSpace");
+        let refused = render(PROJECT, &params, &[]).expect_err("contextSpace");
         assert!(
             refused.contains("DNS-1123"),
             "contextSpace {bad:?}: {refused}"
@@ -137,14 +136,14 @@ fn a_name_or_context_space_that_is_not_a_label_is_refused() {
     let sixty_four = "a".repeat(64);
     let mut params = share();
     params.name = sixty_four;
-    assert!(render(PROJECT, ORG, &params, &[]).is_err(), "64 characters");
+    assert!(render(PROJECT, &params, &[]).is_err(), "64 characters");
 
     // Spaces around the name are trimmed and the label underneath is the one that is checked:
     // a model that pads its answer renders, and the manifest carries the trimmed name.
     let mut params = share();
     params.name = "  bike-share  ".to_owned();
     params.context_space = "\tbikes\n".to_owned();
-    let rendered = render(PROJECT, ORG, &params, &[]).expect("a padded but valid name");
+    let rendered = render(PROJECT, &params, &[]).expect("a padded but valid name");
     assert_eq!(rendered.endpoint["metadata"]["name"], json!("bike-share"));
     assert_eq!(rendered.endpoint["spec"]["contextSpaceRef"], json!("bikes"));
 }
@@ -165,7 +164,7 @@ fn an_audience_that_is_not_one_of_the_three_is_refused() {
     ] {
         let mut params = share();
         params.audience = Some(bad.to_owned());
-        let refused = render(PROJECT, ORG, &params, &[]).expect_err("audience");
+        let refused = render(PROJECT, &params, &[]).expect_err("audience");
         assert!(refused.contains("audience"), "{bad:?}: {refused}");
     }
 }
@@ -177,13 +176,13 @@ fn a_project_list_audience_without_a_project_is_refused() {
     let mut params = share();
     params.audience = Some("project-list".to_owned());
     params.allowed_projects = vec![" ".to_owned(), String::new()];
-    let refused = render(PROJECT, ORG, &params, &[]).expect_err("no project");
+    let refused = render(PROJECT, &params, &[]).expect_err("no project");
     assert!(refused.contains("allowedProjects"), "{refused}");
 
     // The default audience is the same list, so an omitted audience is refused the same way.
     let mut params = share();
     params.audience = None;
-    let refused = render(PROJECT, ORG, &params, &[]).expect_err("no audience, no project");
+    let refused = render(PROJECT, &params, &[]).expect_err("no audience, no project");
     assert!(refused.contains("allowedProjects"), "{refused}");
 }
 
@@ -195,7 +194,7 @@ fn a_consumer_project_that_is_not_a_label_is_refused() {
         let mut params = share();
         params.audience = Some("project-list".to_owned());
         params.allowed_projects = vec!["transport".to_owned(), (*bad).to_owned()];
-        let refused = render(PROJECT, ORG, &params, &[]).expect_err("allowedProjects");
+        let refused = render(PROJECT, &params, &[]).expect_err("allowedProjects");
         assert!(refused.contains("DNS-1123"), "{bad:?}: {refused}");
     }
 
@@ -204,7 +203,7 @@ fn a_consumer_project_that_is_not_a_label_is_refused() {
     let mut params = share();
     params.audience = Some("project-list".to_owned());
     params.allowed_projects = vec!["  transport  ".to_owned(), "   ".to_owned()];
-    let rendered = render(PROJECT, ORG, &params, &[]).expect("a padded but valid project");
+    let rendered = render(PROJECT, &params, &[]).expect("a padded but valid project");
     assert_eq!(
         rendered.endpoint["spec"]["allowedProjects"],
         json!(["transport"])
@@ -227,14 +226,14 @@ fn a_representation_the_catalogue_does_not_know_is_refused() {
     ] {
         let mut params = share();
         params.representations = vec![bad.to_owned()];
-        let refused = render(PROJECT, ORG, &params, &[]).expect_err("representation");
+        let refused = render(PROJECT, &params, &[]).expect_err("representation");
         assert!(refused.contains("representation"), "{bad:?}: {refused}");
     }
     // Every name the catalogue does know renders.
     for good in REPRESENTATIONS {
         let mut params = share();
         params.representations = vec![format!("  {good}  ")];
-        let rendered = render(PROJECT, ORG, &params, &[]).expect("a known representation");
+        let rendered = render(PROJECT, &params, &[]).expect("a known representation");
         assert_eq!(
             rendered.endpoint["spec"]["enabledRepresentations"],
             json!([good]),
@@ -246,7 +245,7 @@ fn a_representation_the_catalogue_does_not_know_is_refused() {
 /// EP-72: an empty list is the sensible default rather than an endpoint that serves nothing.
 #[test]
 fn an_empty_representation_list_defaults_to_ngsi_ld_and_csv() {
-    let rendered = render(PROJECT, ORG, &share(), &[]).expect("a valid share");
+    let rendered = render(PROJECT, &share(), &[]).expect("a valid share");
     assert_eq!(
         rendered.endpoint["spec"]["enabledRepresentations"],
         json!(["ngsi-ld", "csv"])
@@ -259,7 +258,7 @@ fn an_empty_representation_list_defaults_to_ngsi_ld_and_csv() {
 fn a_retired_file_is_refused_on_a_share_and_dropped_by_an_edit() {
     let mut params = share();
     params.representations = vec!["ngsi-ld".to_owned(), "xlsx".to_owned()];
-    let refused = render(PROJECT, ORG, &params, &[]).expect_err("xlsx is retired");
+    let refused = render(PROJECT, &params, &[]).expect_err("xlsx is retired");
     assert!(refused.contains("'xlsx'"), "{refused}");
     assert!(refused.contains("ngsi-ld, csv"), "{refused}");
 
@@ -294,23 +293,20 @@ fn an_attribute_or_type_that_is_not_an_identifier_is_refused() {
     for bad in bad_identifiers {
         let mut params = share();
         params.hidden_attributes = vec![bad.to_owned()];
-        let refused = render(PROJECT, ORG, &params, &[]).expect_err("hiddenAttributes");
+        let refused = render(PROJECT, &params, &[]).expect_err("hiddenAttributes");
         assert!(refused.contains("hiddenAttributes"), "{bad:?}: {refused}");
 
         let mut params = share();
         params.entity_types = vec![bad.to_owned()];
-        let refused = render(PROJECT, ORG, &params, &[]).expect_err("entityTypes");
+        let refused = render(PROJECT, &params, &[]).expect_err("entityTypes");
         assert!(refused.contains("entityTypes"), "{bad:?}: {refused}");
     }
     // 128 characters is the bound and 129 is past it.
     let mut params = share();
     params.hidden_attributes = vec!["a".repeat(128)];
-    assert!(render(PROJECT, ORG, &params, &[]).is_ok(), "the bound");
+    assert!(render(PROJECT, &params, &[]).is_ok(), "the bound");
     params.hidden_attributes = vec!["a".repeat(129)];
-    assert!(
-        render(PROJECT, ORG, &params, &[]).is_err(),
-        "the bound plus one"
-    );
+    assert!(render(PROJECT, &params, &[]).is_err(), "the bound plus one");
 }
 
 /// EP-72: a rate limit of zero would serve nobody; it is refused rather than rendered.
@@ -321,7 +317,7 @@ fn a_rate_limit_of_zero_is_refused() {
         requests_per_minute: 0,
         burst: None,
     });
-    let refused = render(PROJECT, ORG, &params, &[]).expect_err("zero");
+    let refused = render(PROJECT, &params, &[]).expect_err("zero");
     assert!(refused.contains("requestsPerMinute"), "{refused}");
 }
 
@@ -332,7 +328,7 @@ fn the_draft_is_namespaced_to_the_project_of_the_run() {
     let mut params = share();
     params.audience = Some("project-list".to_owned());
     params.allowed_projects = vec!["transport".to_owned()];
-    let rendered = render(PROJECT, ORG, &params, &[]).expect("a valid share");
+    let rendered = render(PROJECT, &params, &[]).expect("a valid share");
     assert_eq!(rendered.endpoint["metadata"]["namespace"], json!(PROJECT));
     for policy in &rendered.policies {
         assert_eq!(policy["metadata"]["namespace"], json!(PROJECT));
@@ -352,14 +348,16 @@ fn a_public_or_organization_share_lists_no_consumer_project() {
         let mut params = share();
         params.audience = Some(audience.to_owned());
         params.allowed_projects = vec!["transport".to_owned(), "energy".to_owned()];
-        let rendered = render(PROJECT, ORG, &params, &[]).expect("a valid share");
+        let rendered = render(PROJECT, &params, &[]).expect("a valid share");
         assert!(
             rendered.endpoint["spec"].get("allowedProjects").is_none(),
             "{audience} kept the project list"
         );
         assert_eq!(rendered.prefill["allowedProjects"], json!([]), "{audience}");
         assert!(rendered.groups.is_empty(), "{audience} drafted a group");
-        assert_eq!(rendered.policies.len(), 1, "{audience}");
+        // The Organization, and the owning project's own group: neither is a consumer (T-6464).
+        let grants = if audience == "public" { 1 } else { 2 };
+        assert_eq!(rendered.policies.len(), grants, "{audience}");
     }
 }
 
@@ -369,12 +367,12 @@ fn a_public_or_organization_share_lists_no_consumer_project() {
 fn a_draft_policy_grants_a_read_to_the_named_audience_only() {
     let mut params = share();
     params.audience = Some("organization".to_owned());
-    let rendered = render(PROJECT, ORG, &params, &[]).expect("a valid share");
+    let rendered = render(PROJECT, &params, &[]).expect("a valid share");
     let policy = &rendered.policies[0];
     assert_eq!(policy["spec"]["operations"], json!(["retrieveOps"]));
     assert_eq!(
         policy["spec"]["assignee"],
-        json!({ "kind": "group", "id": ORG })
+        json!({ "kind": "organization" })
     );
     assert_eq!(
         policy["spec"]["contextSpaceRef"],
@@ -383,7 +381,7 @@ fn a_draft_policy_grants_a_read_to_the_named_audience_only() {
 
     let mut params = share();
     params.audience = Some("public".to_owned());
-    let rendered = render(PROJECT, ORG, &params, &[]).expect("a valid share");
+    let rendered = render(PROJECT, &params, &[]).expect("a valid share");
     assert_eq!(
         rendered.policies[0]["spec"]["assignee"],
         json!({ "kind": "role", "id": "public" })
@@ -397,7 +395,7 @@ fn a_group_is_drafted_only_for_a_project_that_has_none() {
     let mut params = share();
     params.audience = Some("project-list".to_owned());
     params.allowed_projects = vec!["transport".to_owned(), "energy".to_owned()];
-    let rendered = render(PROJECT, ORG, &params, &["transport".to_owned()]).expect("a valid share");
+    let rendered = render(PROJECT, &params, &["transport".to_owned()]).expect("a valid share");
     let drafted: Vec<&str> = rendered
         .groups
         .iter()
@@ -420,7 +418,7 @@ fn a_blank_title_is_not_written_and_a_title_is_trimmed() {
     for blank in [Some(String::new()), Some("   ".to_owned()), None] {
         let mut params = share();
         params.title = blank.clone();
-        let rendered = render(PROJECT, ORG, &params, &[]).expect("a valid share");
+        let rendered = render(PROJECT, &params, &[]).expect("a valid share");
         assert!(
             rendered.endpoint["metadata"].get("title").is_none(),
             "{blank:?} wrote a title"
@@ -429,7 +427,7 @@ fn a_blank_title_is_not_written_and_a_title_is_trimmed() {
     }
     let mut params = share();
     params.title = Some("  Bike stations  ".to_owned());
-    let rendered = render(PROJECT, ORG, &params, &[]).expect("a valid share");
+    let rendered = render(PROJECT, &params, &[]).expect("a valid share");
     assert_eq!(rendered.prefill["title"], json!("Bike stations"));
 }
 
@@ -439,7 +437,7 @@ fn a_blank_title_is_not_written_and_a_title_is_trimmed() {
 fn a_newline_in_a_title_stays_inside_the_json_string() {
     let mut params = share();
     params.title = Some("Bikes\r\nX-Injected: 1".to_owned());
-    let rendered = render(PROJECT, ORG, &params, &[]).expect("a valid share");
+    let rendered = render(PROJECT, &params, &[]).expect("a valid share");
     let text = serde_json::to_string(&rendered.endpoint).expect("serialisable");
     assert!(text.contains("Bikes\\r\\nX-Injected: 1"), "{text}");
     assert!(
@@ -457,7 +455,7 @@ fn the_rendering_is_a_draft_that_matches_the_form_it_prefills() {
     params.allowed_projects = vec!["transport".to_owned()];
     params.hidden_attributes = vec!["maintenanceNotes".to_owned()];
     params.entity_types = vec!["BikeHireDockingStation".to_owned()];
-    let rendered = render(PROJECT, ORG, &params, &[]).expect("a valid share");
+    let rendered = render(PROJECT, &params, &[]).expect("a valid share");
     assert_eq!(rendered.endpoint["kind"], json!("Endpoint"));
     assert_eq!(rendered.endpoint["apiVersion"], json!(API_VERSION));
     assert_eq!(rendered.prefill["name"], json!("bike-share"));
@@ -485,7 +483,7 @@ fn the_rendering_is_a_draft_that_matches_the_form_it_prefills() {
 /// Endpoint without `rateLimits` and opens the form with the limit fields empty.
 #[test]
 fn a_share_that_asks_for_no_limit_drafts_none() {
-    let rendered = render(PROJECT, ORG, &share(), &[]).expect("a valid share");
+    let rendered = render(PROJECT, &share(), &[]).expect("a valid share");
     assert!(
         rendered.endpoint["spec"].get("rateLimits").is_none(),
         "{}",
@@ -1053,7 +1051,7 @@ fn a_repeated_project_renders_one_policy_and_one_group() {
     let mut params = share();
     params.audience = Some("project-list".to_owned());
     params.allowed_projects = vec!["transport".to_owned(), "transport".to_owned()];
-    let rendered = render(PROJECT, ORG, &params, &[]).expect("a valid share");
+    let rendered = render(PROJECT, &params, &[]).expect("a valid share");
     assert_eq!(rendered.policies.len(), 1, "{:?}", rendered.policies);
     assert_eq!(rendered.groups.len(), 1, "{:?}", rendered.groups);
     assert_eq!(
@@ -1073,7 +1071,7 @@ fn deduplicating_projects_keeps_the_order_the_person_wrote() {
         "transport".to_owned(),
         "water".to_owned(),
     ];
-    let rendered = render(PROJECT, ORG, &params, &[]).expect("a valid share");
+    let rendered = render(PROJECT, &params, &[]).expect("a valid share");
     assert_eq!(
         rendered.endpoint["spec"]["allowedProjects"],
         json!(["water", "transport"])
@@ -1095,7 +1093,7 @@ fn a_repeated_representation_is_rendered_once() {
         "ogc-features".to_owned(),
         "ngsi-ld".to_owned(),
     ];
-    let rendered = render(PROJECT, ORG, &params, &[]).expect("a valid share");
+    let rendered = render(PROJECT, &params, &[]).expect("a valid share");
     assert_eq!(
         rendered.endpoint["spec"]["enabledRepresentations"],
         json!(["ngsi-ld", "ogc-features"])
@@ -1130,7 +1128,7 @@ fn a_policy_name_longer_than_a_label_is_refused_with_both_halves() {
     params.name = name.clone();
     params.audience = Some("project-list".to_owned());
     params.allowed_projects = vec![project.clone()];
-    let refused = render(PROJECT, ORG, &params, &[]).expect_err("127 characters is not a label");
+    let refused = render(PROJECT, &params, &[]).expect_err("127 characters is not a label");
     assert!(refused.contains(&name), "{refused}");
     assert!(refused.contains(&project), "{refused}");
     assert!(refused.contains("63"), "{refused}");
@@ -1145,8 +1143,7 @@ fn a_public_or_organization_policy_name_is_bounded_too() {
         let mut params = share();
         params.name = "b".repeat(63);
         params.audience = Some(audience.to_owned());
-        let refused =
-            render(PROJECT, ORG, &params, &[]).expect_err("63 + the suffix is not a label");
+        let refused = render(PROJECT, &params, &[]).expect_err("63 + the suffix is not a label");
         assert!(refused.contains(audience), "{audience}: {refused}");
     }
 }
@@ -1161,7 +1158,7 @@ fn a_share_refuses_the_rate_edit_refuses_and_takes_the_bound_itself() {
             requests_per_minute: bad,
             burst: None,
         });
-        let refused = render(PROJECT, ORG, &params, &[]).expect_err("outside the bound");
+        let refused = render(PROJECT, &params, &[]).expect_err("outside the bound");
         assert!(refused.contains("requestsPerMinute"), "{bad}: {refused}");
     }
     for good in [1, MAX_REQUESTS_PER_MINUTE] {
@@ -1170,7 +1167,7 @@ fn a_share_refuses_the_rate_edit_refuses_and_takes_the_bound_itself() {
             requests_per_minute: good,
             burst: None,
         });
-        let rendered = render(PROJECT, ORG, &params, &[]).expect("inside the bound");
+        let rendered = render(PROJECT, &params, &[]).expect("inside the bound");
         assert_eq!(
             rendered.endpoint["spec"]["rateLimits"]["requestsPerMinute"],
             json!(good)
