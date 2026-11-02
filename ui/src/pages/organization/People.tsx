@@ -41,6 +41,7 @@ import { useProjects } from "../../api/projects";
 import { RadioGroup } from "../../components/ui/RadioGroup";
 import { INVITE_ROLES, inviteBinding, invitationState } from "./invite";
 import { NameById } from "./NameById";
+import { PersonReadable } from "./DataAccess";
 import type { InviteRole } from "./invite";
 
 type Person = components["schemas"]["Person"];
@@ -699,7 +700,11 @@ function InvitedNotice({ invitation }: { invitation: Invitation }): JSX.Element 
     <div className="space-y-2">
       {created.emailSent ? (
         <Alert tone="success" role="status">
-          {project ? t("organization.people.invitedInto", { email, project }) : t("organization.people.invited", { email })}
+          {project
+            ? t("organization.people.invitedInto", { email, project })
+            : created.memberOf
+              ? t("organization.people.invitedMember", { email, organization: created.memberOf })
+              : t("organization.people.invited", { email })}
         </Alert>
       ) : null}
       {invitation.change ? (
@@ -1085,6 +1090,9 @@ export function PersonPage({ id }: { id: string }): JSX.Element {
           ))}
         </div>
       </section>
+
+      {/* The catalogue as this person would see it, names only (ADR-N-067 §2.5, T-6412). */}
+      <PersonReadable id={person.id} name={name} />
 
       <section aria-labelledby="person-groups" className="space-y-3 rounded border border-border p-4">
         <h2 id="person-groups" className="text-title font-semibold text-fg">

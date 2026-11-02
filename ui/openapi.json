@@ -3269,6 +3269,84 @@
         }
       }
     },
+    "/api/v1/organization/data-access": {
+      "get": {
+        "tags": [
+          "people"
+        ],
+        "summary": "Data Access Matrix",
+        "description": "Every non-public Endpoint against everyone in its Organization and each group a Policy grants something to, each cell naming the Policy rules that grant it (ADR-N-067 §2.5). The gateway decides each cell for a token naming only that Organization or group. `?group=` keeps one column, `?endpoint=` one row. For org-admin and people-admin; changes no data.",
+        "operationId": "get_data_access",
+        "parameters": [
+          {
+            "name": "group",
+            "in": "query",
+            "description": "Only this group's column: the group page's \"Datasets this group reads\".",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          },
+          {
+            "name": "endpoint",
+            "in": "query",
+            "description": "Only this Endpoint's row, by slug: the Endpoint page's \"Who can read this\".",
+            "required": false,
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The matrix",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataAccess"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks read on Person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No non-public Endpoint with that slug",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Too many cells to ask about; narrow by group or endpoint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organization/datamodels": {
       "get": {
         "tags": [
@@ -4381,6 +4459,69 @@
           },
           "403": {
             "description": "The caller lacks disable on Person, or a right the person holds",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such person",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No Keycloak admin client",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organization/people/{id}/readable": {
+      "get": {
+        "tags": [
+          "people"
+        ],
+        "summary": "What This Person Can Read",
+        "description": "The catalogue as the person would see it signed in: every public Endpoint and each other Endpoint the gateway lets their realm groups and roles read, by name only, never a data row (ADR-N-067 §2.5). For org-admin and people-admin; changes no data.",
+        "operationId": "get_person_readable",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The Keycloak user id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The datasets the person may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadableCatalogue"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller lacks read on Person",
             "content": {
               "application/json": {
                 "schema": {
@@ -38983,6 +39124,102 @@
           }
         }
       },
+      "AccessCell": {
+        "type": "object",
+        "description": "What one column reads on one Endpoint.",
+        "required": [
+          "granted",
+          "rules",
+          "throughOrganization",
+          "unanswered"
+        ],
+        "properties": {
+          "granted": {
+            "type": "boolean"
+          },
+          "rules": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GrantingRule"
+            },
+            "description": "The rules that grant it, empty when nothing does."
+          },
+          "throughOrganization": {
+            "type": "boolean",
+            "description": "A group reads exactly what everyone in the organization reads here: its members get it\nthrough the organization's grant, and no rule of the group adds to it."
+          },
+          "unanswered": {
+            "type": "boolean",
+            "description": "The gateway did not answer for this cell: nothing is claimed either way."
+          }
+        }
+      },
+      "AccessColumn": {
+        "type": "object",
+        "description": "One column: everyone in the Endpoint's Organization, or one of its groups.",
+        "required": [
+          "kind"
+        ],
+        "properties": {
+          "group": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The group's name for a `group` column, as a Policy assignee names it."
+          },
+          "kind": {
+            "type": "string",
+            "description": "`organization` or `group`."
+          }
+        }
+      },
+      "AccessRow": {
+        "type": "object",
+        "required": [
+          "project",
+          "name",
+          "slug",
+          "audience",
+          "cells"
+        ],
+        "properties": {
+          "audience": {
+            "type": "string",
+            "description": "`organization` or `project-list`."
+          },
+          "cells": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessCell"
+            },
+            "description": "One per column, in the order of `columns`."
+          },
+          "name": {
+            "type": "string",
+            "description": "The Endpoint's manifest name."
+          },
+          "organization": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Organization that owns the project; `None` for a project without one."
+          },
+          "project": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
       "AccountAccess": {
         "type": "object",
         "description": "One account's access as its Access tab reads it.",
@@ -43764,6 +44001,13 @@
           "emailSent": {
             "type": "boolean"
           },
+          "memberOf": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The Organization whose `/{organization}/members` group the person joined, so they sign\nin as its member with no project (ADR-N-067 §2.5); absent when the realm has no such group."
+          },
           "person": {
             "$ref": "#/components/schemas/Person"
           },
@@ -43843,6 +44087,33 @@
               "null"
             ],
             "description": "The App repository's merge request the approval merges; absent on a dry run."
+          }
+        }
+      },
+      "DataAccess": {
+        "type": "object",
+        "required": [
+          "columns",
+          "rows",
+          "unanswered"
+        ],
+        "properties": {
+          "columns": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessColumn"
+            }
+          },
+          "rows": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AccessRow"
+            }
+          },
+          "unanswered": {
+            "type": "integer",
+            "description": "Cells the gateway did not answer for.",
+            "minimum": 0
           }
         }
       },
@@ -45743,6 +46014,30 @@
           "pending",
           "expired"
         ]
+      },
+      "GrantingRule": {
+        "type": "object",
+        "description": "One rule of a Policy that grants a column: the Policy, the rule's place (1 is the first of\n`rules`, 0 the Policy's own assignee) and the types it names.",
+        "required": [
+          "policy",
+          "rule",
+          "types"
+        ],
+        "properties": {
+          "policy": {
+            "type": "string"
+          },
+          "rule": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
       },
       "GroupRef": {
         "type": "object",

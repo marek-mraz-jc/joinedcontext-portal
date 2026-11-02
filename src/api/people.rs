@@ -145,6 +145,10 @@ pub struct CreatedPerson {
     pub email_sent: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub temporary_password: Option<String>,
+    /// The Organization whose `/{organization}/members` group the person joined, so they sign
+    /// in as its member with no project (ADR-N-067 §2.5); absent when the realm has no such group.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub member_of: Option<String>,
 }
 
 #[derive(Serialize, ToSchema)]
@@ -166,6 +170,7 @@ impl std::fmt::Debug for CreatedPerson {
             .field("person", &self.person)
             .field("email_sent", &self.email_sent)
             .field("temporary_password", &redacted(&self.temporary_password))
+            .field("member_of", &self.member_of)
             .finish()
     }
 }
@@ -548,7 +553,7 @@ pub(super) fn refuse_bearer(identity: &Identity) -> Result<(), ApiError> {
 }
 
 /// The person `id`, after the verb and the takeover guard.
-async fn target<'a>(
+pub(crate) async fn target<'a>(
     state: &'a AppState,
     identity: &Identity,
     verb: Verb,
@@ -691,6 +696,7 @@ pub(crate) async fn create(
             )),
             other => other.into(),
         })?;
+    let member_of = join_members(state, &admin, &id, project.as_deref()).await?;
     let back = welcome_page(state, project.as_deref());
     let (email_sent, temporary_password) = invite(
         state,
@@ -711,7 +717,33 @@ pub(crate) async fn create(
         person: answer,
         email_sent,
         temporary_password,
+        member_of,
     })
+}
+
+/// Puts a new person in `/{organization}/members` of the invitation's project's Organization,
+/// or the installation's: a member reads the catalogue and what the Organization's Policies grant
+/// them, with no project (ADR-N-067 §2.2, §2.5). A realm without that group (an installation
+/// before ADR-N-067) leaves them outside, with a warning, as before.
+async fn join_members(
+    state: &AppState,
+    admin: &Admin<'_>,
+    id: &str,
+    project: Option<&str>,
+) -> Result<Option<String>, ApiError> {
+    let organization = match project {
+        Some(project) => crate::permissions::organization_of(&state.mirror, project),
+        None => crate::permissions::installation_organization(&state.mirror),
+    };
+    let Some(organization) = organization else {
+        return Ok(None);
+    };
+    if admin.join_members(id, &organization).await? {
+        Ok(Some(organization))
+    } else {
+        tracing::warn!(%organization, "the realm has no members group for the organization; the invited person is no member yet");
+        Ok(None)
+    }
 }
 
 /// The realm's e-mail, or when it cannot send one, a temporary password answered once (PF-92).
@@ -1712,6 +1744,7 @@ mod tests {
             person: person(&user, None, None),
             email_sent: false,
             temporary_password: Some("s3cr3t-test".into()),
+            member_of: None,
         };
         let reset = PasswordReset {
             email_sent: false,

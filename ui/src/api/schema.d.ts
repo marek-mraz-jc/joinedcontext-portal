@@ -1029,6 +1029,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/organization/data-access": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Data Access Matrix
+         * @description Every non-public Endpoint against everyone in its Organization and each group a Policy grants something to, each cell naming the Policy rules that grant it (ADR-N-067 §2.5). The gateway decides each cell for a token naming only that Organization or group. `?group=` keeps one column, `?endpoint=` one row. For org-admin and people-admin; changes no data.
+         */
+        get: operations["get_data_access"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/organization/datamodels": {
         parameters: {
             query?: never;
@@ -1315,6 +1335,26 @@ export interface paths {
          * @description Enables a disabled person.
          */
         post: operations["enable_person"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/organization/people/{id}/readable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * What This Person Can Read
+         * @description The catalogue as the person would see it signed in: every public Endpoint and each other Endpoint the gateway lets their realm groups and roles read, by name only, never a data row (ADR-N-067 §2.5). For org-admin and people-admin; changes no data.
+         */
+        get: operations["get_person_readable"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -6900,6 +6940,39 @@ export interface components {
             /** @description Empty when the account holds no role: its devices are refused at CONNECT. */
             roles: components["schemas"]["HeldRole"][];
         };
+        /** @description What one column reads on one Endpoint. */
+        AccessCell: {
+            granted: boolean;
+            /** @description The rules that grant it, empty when nothing does. */
+            rules: components["schemas"]["GrantingRule"][];
+            /**
+             * @description A group reads exactly what everyone in the organization reads here: its members get it
+             *     through the organization's grant, and no rule of the group adds to it.
+             */
+            throughOrganization: boolean;
+            /** @description The gateway did not answer for this cell: nothing is claimed either way. */
+            unanswered: boolean;
+        };
+        /** @description One column: everyone in the Endpoint's Organization, or one of its groups. */
+        AccessColumn: {
+            /** @description The group's name for a `group` column, as a Policy assignee names it. */
+            group?: string | null;
+            /** @description `organization` or `group`. */
+            kind: string;
+        };
+        AccessRow: {
+            /** @description `organization` or `project-list`. */
+            audience: string;
+            /** @description One per column, in the order of `columns`. */
+            cells: components["schemas"]["AccessCell"][];
+            /** @description The Endpoint's manifest name. */
+            name: string;
+            /** @description The Organization that owns the project; `None` for a project without one. */
+            organization?: string | null;
+            project: string;
+            slug: string;
+            title?: string | null;
+        };
         /** @description One account's access as its Access tab reads it. */
         AccountAccess: {
             account: string;
@@ -8642,6 +8715,11 @@ export interface components {
         /** @description The one answer that may carry a temporary password, once (PF-92). */
         CreatedPerson: {
             emailSent: boolean;
+            /**
+             * @description The Organization whose `/{organization}/members` group the person joined, so they sign
+             *     in as its member with no project (ADR-N-067 §2.5); absent when the realm has no such group.
+             */
+            memberOf?: string | null;
             person: components["schemas"]["Person"];
             temporaryPassword?: string | null;
         };
@@ -8667,6 +8745,12 @@ export interface components {
             change?: null | components["schemas"]["Change"];
             /** @description The App repository's merge request the approval merges; absent on a dry run. */
             pullRequestUrl?: string | null;
+        };
+        DataAccess: {
+            columns: components["schemas"]["AccessColumn"][];
+            rows: components["schemas"]["AccessRow"][];
+            /** @description Cells the gateway did not answer for. */
+            unanswered: number;
         };
         /** @description A saved view as the API answers it. */
         DataView: {
@@ -9312,6 +9396,15 @@ export interface components {
          * @enum {string}
          */
         GrantState: "active" | "pending" | "expired";
+        /**
+         * @description One rule of a Policy that grants a column: the Policy, the rule's place (1 is the first of
+         *     `rules`, 0 the Policy's own assignee) and the types it names.
+         */
+        GrantingRule: {
+            policy: string;
+            rule: number;
+            types: string[];
+        };
         GroupRef: {
             name: string;
         };
@@ -14741,6 +14834,58 @@ export interface operations {
             };
         };
     };
+    get_data_access: {
+        parameters: {
+            query?: {
+                /** @description Only this group's column: the group page's "Datasets this group reads". */
+                group?: string | null;
+                /** @description Only this Endpoint's row, by slug: the Endpoint page's "Who can read this". */
+                endpoint?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The matrix */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataAccess"];
+                };
+            };
+            /** @description The caller lacks read on Person */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No non-public Endpoint with that slug */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Too many cells to ask about; narrow by group or endpoint */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     list_organization_datamodels: {
         parameters: {
             query?: {
@@ -15647,6 +15792,56 @@ export interface operations {
                 };
             };
             /** @description The caller lacks disable on Person, or a right the person holds */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such person */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No Keycloak admin client */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_person_readable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description The Keycloak user id */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The datasets the person may read */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadableCatalogue"];
+                };
+            };
+            /** @description The caller lacks read on Person */
             403: {
                 headers: {
                     [name: string]: unknown;

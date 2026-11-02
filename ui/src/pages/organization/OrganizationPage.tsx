@@ -44,6 +44,7 @@ import { People } from "./People";
 import { KindList } from "../../routes/ResourceListPage";
 import { ValidationHealth } from "./ValidationHealth";
 import { OrganizationConnectors } from "./OrganizationConnectors";
+import { DataAccessMatrix } from "./DataAccess";
 import { HealthLog } from "../health/HealthLog";
 import { Brokers } from "./Brokers";
 import { Costs } from "./Costs";
@@ -338,6 +339,7 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
         {tab === "members" ? <OrganizationMembers /> : null}
         {tab === "roles" ? <Roles project={ORG_NAMESPACE} scope="organization" /> : null}
         {tab === "groups" ? <Groups project={ORG_NAMESPACE} /> : null}
+        {tab === "data-access" ? <DataAccessMatrix /> : null}
         {tab === "service-accounts" ? <ServiceAccounts project={ORG_NAMESPACE} /> : null}
         {tab === "agents" ? (
           <Suspense fallback={<p role="status" className="text-body text-fg-muted">{t("app.loading")}</p>}>
