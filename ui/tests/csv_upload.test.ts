@@ -170,6 +170,15 @@ describe("a file's columns against an inferred model (T-6445)", () => {
   const TABLE = parseCsv("Názov,Zemepisná šírka,Zemepisná dĺžka\nDom kultúry,48.54,19.41\nDom kultúry,48.54,19.41\nŠtadión,48.55,19.42\n");
   const target = { type: "Miesto", orgDomain: "hel.fi", space: "miesta" };
 
+  it("names a row by its content when an earlier row is refused", () => {
+    const table = parseCsv("Názov,Zemepisná šírka,Zemepisná dĺžka\n,48.1,19.1\nDom,48.54,19.41\n");
+    const alone = { ...table, rows: [table.rows[1]] };
+    const ids = (from: typeof table) => toEntities(from, suggestMapping(from.columns, SLOTS), SLOTS, target, rowIds(from));
+    const both = ids(table);
+    expect(both.rejected).toHaveLength(1);
+    expect(both.entities[0].entity.id).toBe(ids(alone).entities[0].entity.id);
+  });
+
   it("meets a column by the slot's title and fills both the coordinate slots and the location", () => {
     const mapping = suggestMapping(TABLE.columns, SLOTS);
     expect(mapping).toEqual({ Názov: "N_zov", "Zemepisná šírka": LATITUDE, "Zemepisná dĺžka": LONGITUDE });

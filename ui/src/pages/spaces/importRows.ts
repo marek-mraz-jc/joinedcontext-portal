@@ -752,11 +752,6 @@ export function expiresOf(text: string | undefined, now: number = Date.now()): s
   return new Date(ms).toISOString();
 }
 
-/**
- * Every row as an NGSI-LD entity of the target type, or the reasons it is not one: an id that
- * names another type or space, a required slot left empty, a value outside its slot's range or
- * enum. A row with no id column gets a fresh local id.
- */
 /** A 53-bit hash of a text (cyrb53): an id, never a secret. */
 function hashOf(text: string): string {
   let h1 = 0xdeadbeef;
@@ -788,6 +783,11 @@ export function rowIds(table: Table): () => string {
   };
 }
 
+/**
+ * Every row as an NGSI-LD entity of the target type, or the reasons it is not one: an id that
+ * names another type or space, a required slot left empty, a value outside its slot's range or
+ * enum. A row with no id column gets a fresh local id.
+ */
 export function toEntities(
   table: Table,
   mapping: Mapping,

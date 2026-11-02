@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
-import { LoadRows } from "../src/pages/spaces/LoadRows";
+import { LoadResult, LoadRows, RowsCheck } from "../src/pages/spaces/LoadRows";
 import { UploadCsv } from "../src/pages/spaces/UploadCsv";
 import { expectNoRawKeys } from "./checks";
 import { xlsxFile } from "./xlsxFixture";
@@ -199,6 +199,27 @@ describe("Upload CSV", () => {
     );
     expect(screen.getByText("The proposed model declares no fields for this type: there is nothing to write.")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Nothing to write" })).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("says what the check found, and shows the first rows as they will be written", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <RowsCheck checked={{ entities: [{ row: 2, entity: { id: "urn:ngsi-ld:Garage:a" } }], rejected: [{ row: 3, reason: "no name" }] }} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByRole("status")).toHaveTextContent("1");
+    expect(screen.getByTestId("upload-preview")).toHaveTextContent("urn:ngsi-ld:Garage:a");
+  });
+
+  it("names the refusal and the first refused row, and offers their file", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <LoadResult done={{ written: 0, rejected: [{ row: 3, reason: "no name" }], denied: "no grant" }} project="helsinki" space="parking" type="Garage" />
+      </I18nextProvider>,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("no grant");
+    expect(screen.getByRole("status")).toHaveTextContent("no name");
+    expect(screen.getByRole("button", { name: i18n.t("spaces.import.downloadRefused") })).toBeInTheDocument();
   });
 
   it("holds the write until the proposed change is live", async () => {

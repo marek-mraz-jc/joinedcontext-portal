@@ -22,6 +22,9 @@ import type { Rejected, Table } from "./importRows";
 /** How many entities the preview shows as NGSI-LD before they are written. */
 const PREVIEW = 10;
 
+type Checked = ReturnType<typeof toEntities>;
+export type Written = { written: number; rejected: Rejected[]; denied?: string };
+
 const phaseOf = (change: Change | null | undefined) => change?.status.phase;
 
 /** The slug of a live Endpoint of the space. */
@@ -32,20 +35,8 @@ function endpointOf(items: { spec?: unknown; status?: { phase?: string } | null 
   return typeof slug === "string" ? slug : undefined;
 }
 
-export function LoadRows({ project, space, type, source, table, change: proposed }: {
-  project: string;
-  space: string;
-  type: string;
-  /** The LinkML of the proposed model, whose slots check each row. */
-  source: string | undefined;
-  table: Table;
-  change: Change | null;
-}): JSX.Element {
-  const { t } = useTranslation();
-  const orgDomain = useOrgDomain(project);
-  const [progress, setProgress] = useState<{ sent: number; total: number } | null>(null);
-  const [done, setDone] = useState<{ written: number; rejected: Rejected[]; denied?: string } | null>(null);
-
+/** The Change as it moves, and what a write needs once it is live: the Endpoint and the space's segment. */
+export function useLoadTarget(project: string, space: string, proposed: Change | null) {
   const changeId = proposed?.metadata.name ?? "";
   const followed = useQuery({
     queryKey: queryKeys.change(project, changeId),
@@ -82,6 +73,78 @@ export function LoadRows({ project, space, type, source, table, change: proposed
     retry: false,
   });
   const segment = spaceSegment(project, space, held.data ? asManifests([held.data]) : []);
+  return { change, merged, live, endpoint, segment };
+}
+
+/** How many rows passed the model, and the first of them as they will be written. */
+export function RowsCheck({ checked }: { checked: Checked | null }): JSX.Element {
+  const { t } = useTranslation();
+  if (!checked) return <Alert tone="warning">{t("spaces.upload.noSlots")}</Alert>;
+  const count = Math.min(PREVIEW, checked.entities.length);
+  return (
+    <>
+      <p role="status" className="text-body">
+        {t("spaces.import.checked", { valid: checked.entities.length, refused: checked.rejected.length })}
+      </p>
+      {count > 0 ? (
+        <details>
+          <summary className="focus-ring cursor-pointer rounded-md text-body font-medium text-fg">{t("spaces.upload.preview", { count })}</summary>
+          <CodeBlock label={t("spaces.upload.preview", { count })} className="max-h-80 rounded-md bg-surface-muted p-3 font-mono text-caption" data-testid="upload-preview">
+            {JSON.stringify(checked.entities.slice(0, PREVIEW).map((each) => each.entity), null, 2)}
+          </CodeBlock>
+        </details>
+      ) : null}
+    </>
+  );
+}
+
+/** What the write did: a refusal, the count, then the file of refused rows or the way into the space. */
+export function LoadResult({ done, project, space, type }: { done: Written; project: string; space: string; type: string }): JSX.Element {
+  const { t } = useTranslation();
+  const first = done.rejected[0];
+  return (
+    <>
+      {done.denied !== undefined ? (
+        <Alert role="alert" tone="danger">
+          {t("spaces.import.denied", { type, space, reason: done.denied })}
+        </Alert>
+      ) : null}
+      <Alert role="status" tone={done.rejected.length === 0 ? "success" : done.written > 0 ? "warning" : "danger"}>
+        {t("spaces.upload.done", { written: done.written, refused: done.rejected.length })}
+        {first ? ` ${t("spaces.upload.firstRefusal", { row: first.row, reason: first.reason })}` : null}
+      </Alert>
+      {first ? (
+        <Button
+          variant="secondary"
+          className="w-fit"
+          onClick={() => download(new Blob([rejectedCsv(done.rejected)], { type: "text/csv" }), `${type}-refused.csv`)}
+        >
+          {t("spaces.import.downloadRefused")}
+        </Button>
+      ) : (
+        <Link to="/projects/$project/$plural/$name" params={{ project, plural: "spaces", name: space }} className={buttonClass("primary", "sm") + " w-fit"}>
+          {t("spaces.upload.openSpace")}
+        </Link>
+      )}
+    </>
+  );
+}
+
+export function LoadRows({ project, space, type, source, table, change: proposed }: {
+  project: string;
+  space: string;
+  type: string;
+  /** The LinkML of the proposed model, whose slots check each row. */
+  source: string | undefined;
+  table: Table;
+  change: Change | null;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const orgDomain = useOrgDomain(project);
+  const [progress, setProgress] = useState<{ sent: number; total: number } | null>(null);
+  const [done, setDone] = useState<Written | null>(null);
+
+  const { change, merged, live, endpoint, segment } = useLoadTarget(project, space, proposed);
 
   const slots = useMemo(() => importSlotsOf(source, type), [source, type]);
   const checked = useMemo(() => {
@@ -100,62 +163,23 @@ export function LoadRows({ project, space, type, source, table, change: proposed
     setDone({ written: answer.created, rejected: [...checked.rejected, ...answer.rejected].sort((a, b) => a.row - b.row), denied: answer.denied });
   };
 
+  const whole = done !== null && done.written === checked?.entities.length && done.rejected.length === 0;
+  const state = live ? "spaces.upload.liveNow" : merged ? "spaces.upload.goingLive" : "spaces.upload.afterApproval";
   return (
     <Card className="flex flex-col gap-4">
       {change ? <ChangeNotice change={change} project={project} /> : null}
-      <p className="text-body">{t(live ? "spaces.upload.liveNow" : merged ? "spaces.upload.goingLive" : "spaces.upload.afterApproval", { space, type })}</p>
-      {checked ? (
-        <p role="status" className="text-body">
-          {t("spaces.import.checked", { valid: checked.entities.length, refused: checked.rejected.length })}
-        </p>
-      ) : (
-        <Alert tone="warning">{t("spaces.upload.noSlots")}</Alert>
-      )}
-      {checked && checked.entities.length > 0 ? (
-        <details>
-          <summary className="focus-ring cursor-pointer rounded-md text-body font-medium text-fg">
-            {t("spaces.upload.preview", { count: Math.min(PREVIEW, checked.entities.length) })}
-          </summary>
-          <CodeBlock label={t("spaces.upload.preview", { count: Math.min(PREVIEW, checked.entities.length) })} className="max-h-80 rounded-md bg-surface-muted p-3 font-mono text-caption" data-testid="upload-preview">
-            {JSON.stringify(checked.entities.slice(0, PREVIEW).map((each) => each.entity), null, 2)}
-          </CodeBlock>
-        </details>
-      ) : null}
+      <p className="text-body">{t(state, { space, type })}</p>
+      <RowsCheck checked={checked} />
       {progress ? (
         <p role="status" className="text-body">
           {t("spaces.import.writing", progress)}
         </p>
-      ) : done?.written === checked?.entities.length && done?.rejected.length === 0 ? null : (
+      ) : whole ? null : (
         <Button className="w-fit" onClick={() => void write()} disabled={!live || !checked || checked.entities.length === 0} disabledReason={t(live ? "spaces.import.nothingToCreate" : "spaces.upload.notLive")}>
           {t("spaces.upload.write", { count: checked?.entities.length ?? 0 })}
         </Button>
       )}
-      {done ? (
-        <>
-          {done.denied !== undefined ? (
-            <Alert role="alert" tone="danger">
-              {t("spaces.import.denied", { type, space, reason: done.denied })}
-            </Alert>
-          ) : null}
-          <Alert role="status" tone={done.rejected.length === 0 ? "success" : done.written > 0 ? "warning" : "danger"}>
-            {t("spaces.upload.done", { written: done.written, refused: done.rejected.length })}
-            {done.rejected[0] ? ` ${t("spaces.upload.firstRefusal", { row: done.rejected[0].row, reason: done.rejected[0].reason })}` : null}
-          </Alert>
-          {done.rejected.length > 0 ? (
-            <Button
-              variant="secondary"
-              className="w-fit"
-              onClick={() => download(new Blob([rejectedCsv(done.rejected)], { type: "text/csv" }), `${type}-refused.csv`)}
-            >
-              {t("spaces.import.downloadRefused")}
-            </Button>
-          ) : (
-            <Link to="/projects/$project/$plural/$name" params={{ project, plural: "spaces", name: space }} className={buttonClass("primary", "sm") + " w-fit"}>
-              {t("spaces.upload.openSpace")}
-            </Link>
-          )}
-        </>
-      ) : null}
+      {done ? <LoadResult done={done} project={project} space={space} type={type} /> : null}
     </Card>
   );
 }

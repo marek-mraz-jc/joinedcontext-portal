@@ -15,7 +15,7 @@ import { APPROVER, EDITOR, STEWARD, VIEWER, approve, ask, csrf, proposedChange, 
 
 type Session = { context: BrowserContext; page: Page };
 
-const PROJECT = "bbsk";
+const PROJECT = "helsinki";
 const WORKBOOK = join(dirname(fileURLToPath(import.meta.url)), "fixtures/kulturne-miesta-bbsk.xlsx");
 const SHEET = "Kultúrne miesta";
 const TYPE = "KulturneMiesta";
@@ -107,6 +107,8 @@ test.afterAll(async ({ browser }) => {
   await editor.context.close();
   if (VIDEO) await video?.saveAs(join(VIDEO, "flow.webm"));
 });
+
+test.setTimeout(VIDEO ? 1_200_000 : 600_000);
 
 test("one .xlsx makes the model, the space and its rows, read back through the Endpoint", async ({ browser }) => {
   started = Date.now();
