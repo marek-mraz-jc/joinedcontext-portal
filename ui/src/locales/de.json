@@ -229,6 +229,7 @@
     "created": "Erstellt",
     "lane": "Risikostufe",
     "phase": "Phase",
+    "openMergeRequest": "Merge-Request öffnen",
     "mergeRequest": "Merge-Request",
     "repository": "Repository",
     "approve": "Freigeben",

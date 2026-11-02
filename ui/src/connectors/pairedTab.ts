@@ -6,7 +6,8 @@
  *
  * Every action arrives already checked by the server, the same checks the assistant's actions
  * pass (T-5959): a page from the Portal's table, a form's values against the kind's schema. Here
- * an action only opens a page, fills a form or points at a field. Nothing submits.
+ * an action only opens a page, fills a form or points at a field. Nothing submits. A `refresh`
+ * says only that the connector's client made a call: the open page reads its data again (T-6501).
  */
 import { api, unwrap } from "../api/client";
 import { handPrefill, isPortalRoute } from "../assistant/state";
@@ -16,6 +17,10 @@ const KEY = "jc.pairedTab";
 const CHANGED = "jc:paired-tab";
 /** How many actions the bar lists. */
 export const LOG_LENGTH = 20;
+/** At most one re-read of the page per this many ms, however fast the client calls. */
+const REFRESH_MS = 3_000;
+/** How long a closed stream waits before it counts as ended: a page unloading never gets there. */
+const ENDED_AFTER_MS = 1_000;
 
 export interface Pairing {
   connector: string;
@@ -42,13 +47,25 @@ let sourceKey = "";
 /** The router's navigation of the mounted bar; actions wait for it while a page remounts. */
 let go: ((href: string) => void) | null = null;
 const waiting: unknown[] = [];
+/** The mounted bar's re-read of the open page. */
+let reread: (() => void) | null = null;
+let rereading: ReturnType<typeof setTimeout> | null = null;
 
 function announce(): void {
   window.dispatchEvent(new Event(CHANGED));
 }
 
+function scheduleReread(): void {
+  rereading ??= setTimeout(() => {
+    rereading = null;
+    reread?.();
+  }, REFRESH_MS);
+}
+
 function deliver(data: unknown): void {
-  if (go) {
+  if ((data as { frame?: unknown } | null)?.frame === "refresh") {
+    scheduleReread();
+  } else if (go) {
     void runTabAction(data, go);
   } else {
     waiting.push(data);
@@ -81,21 +98,27 @@ function follow(): void {
     }
   }) as EventListener);
   // A stream the server refuses (404 after a disconnect elsewhere, a newer tab, the session's
-  // end) is closed by the browser for good; a dropped connection is retried by it.
+  // end) is closed by the browser for good; a dropped connection is retried by it. Leaving or
+  // reloading the page closes it too, and that pairing lives on: the next page listens again.
   opened.onerror = () => {
-    if (opened.readyState === Source.CLOSED && source === opened) {
-      markEnded();
+    if (opened.readyState === Source.CLOSED) {
+      setTimeout(() => {
+        if (source === opened) {
+          markEnded();
+        }
+      }, ENDED_AFTER_MS);
     }
   };
   source = opened;
 }
 
 /**
- * The mounted bar hands its navigation here and the stream starts; actions that arrived while no
- * bar was mounted run now, in order. Returns the detach.
+ * The mounted bar hands its navigation and its re-read here and the stream starts; actions that
+ * arrived while no bar was mounted run now, in order. Returns the detach.
  */
-export function attach(navigate: (href: string) => void): () => void {
+export function attach(navigate: (href: string) => void, refresh: () => void): () => void {
   go = navigate;
+  reread = refresh;
   follow();
   for (const data of waiting.splice(0)) {
     void runTabAction(data, navigate);
@@ -103,6 +126,7 @@ export function attach(navigate: (href: string) => void): () => void {
   return () => {
     if (go === navigate) {
       go = null;
+      reread = null;
     }
   };
 }
