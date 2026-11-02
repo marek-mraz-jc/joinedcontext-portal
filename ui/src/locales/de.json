@@ -11368,7 +11368,8 @@
     "howToChange": "Um zu ändern, wer einen Datensatz liest, öffnen Sie die in der Zelle genannte Richtlinie (zum Beispiel staff-traffic) und schlagen Sie die Änderung vor; eine genehmigende Person des Projekts entscheidet.",
     "empty": {
       "title": "Noch keine internen Datensätze",
-      "description": "Jeder Endpoint der Organisation ist öffentlich. Setzen Sie die Zielgruppe eines Endpoints auf organization und geben Sie ihn in einer Richtlinie allen oder einer Gruppe frei."
+      "description": "Jeder Endpoint der Organisation ist öffentlich. Setzen Sie die Zielgruppe eines Endpoints auf organization und geben Sie ihn in einer Richtlinie allen oder einer Gruppe frei.",
+      "action": "Alle Endpoints öffnen"
     },
     "groupTitle": "Datensätze, die diese Gruppe liest",
     "groupLead": "Die internen Datensätze, die eine Richtlinie {group} freigibt, wie das Gateway sie für ihre Mitglieder entscheidet.",
@@ -11391,8 +11392,8 @@
       "title": "{name} liest keinen internen Datensatz",
       "description": "Fügen Sie die Person einer Gruppe hinzu, der eine Richtlinie etwas freigibt, oder laden Sie sie als Mitglied einer Organisation ein, die Daten mit allen teilt."
     },
-    "personPublic": "Dazu {count} öffentliche Datensätze, die jeder lesen kann.",
+    "personPublic": "Öffentliche Datensätze, die jeder lesen kann, hier nicht aufgeführt: {count}.",
     "throughEveryone": "Über alle",
-    "groupEveryone": "Ihre Mitglieder lesen auch {count} Datensätze, die allen in der Organisation freigegeben sind."
+    "groupEveryone": "Allen in der Organisation freigegeben, also lesen ihre Mitglieder sie auch: {count}."
   }
 }

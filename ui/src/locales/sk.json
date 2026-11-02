@@ -11368,7 +11368,8 @@
     "howToChange": "Ak chcete zmeniť, kto číta množinu údajov, otvorte politiku uvedenú v jej bunke (napríklad staff-traffic) a navrhnite zmenu; rozhodne o nej schvaľovateľ projektu.",
     "empty": {
       "title": "Zatiaľ žiadne interné množiny údajov",
-      "description": "Každý Endpoint organizácie je verejný. Nastavte Endpointu publikum organization a v politike ho sprístupnite všetkým alebo skupine."
+      "description": "Každý Endpoint organizácie je verejný. Nastavte Endpointu publikum organization a v politike ho sprístupnite všetkým alebo skupine.",
+      "action": "Otvoriť všetky endpointy"
     },
     "groupTitle": "Množiny údajov, ktoré táto skupina číta",
     "groupLead": "Interné množiny údajov, ktoré politika sprístupňuje skupine {group}, ako ich brána rozhoduje pre jej členov.",
@@ -11391,8 +11392,8 @@
       "title": "{name} nečíta žiadnu internú množinu údajov",
       "description": "Pridajte ju do skupiny, ktorej politika niečo sprístupňuje, alebo ju pozvite ako člena organizácie, ktorá zdieľa údaje so všetkými."
     },
-    "personPublic": "A ďalších {count} verejných množín údajov, ktoré môže čítať ktokoľvek.",
+    "personPublic": "Verejné množiny údajov, ktoré môže čítať ktokoľvek, tu neuvedené: {count}.",
     "throughEveryone": "Cez všetkých",
-    "groupEveryone": "Jej členovia čítajú aj {count} množín údajov sprístupnených všetkým v organizácii."
+    "groupEveryone": "Sprístupnené všetkým v organizácii, takže ich čítajú aj jej členovia: {count}."
   }
 }

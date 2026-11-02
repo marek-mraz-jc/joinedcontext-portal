@@ -11368,7 +11368,8 @@
     "howToChange": "To change who reads a dataset, open the Policy named in its cell (for example staff-traffic) and propose the change; an approver of the project decides it.",
     "empty": {
       "title": "No internal datasets yet",
-      "description": "Every Endpoint of the organization is public. Set an Endpoint's audience to organization, then grant it to everyone or a group in a Policy."
+      "description": "Every Endpoint of the organization is public. Set an Endpoint's audience to organization, then grant it to everyone or a group in a Policy.",
+      "action": "Open all endpoints"
     },
     "groupTitle": "Datasets this group reads",
     "groupLead": "The internal datasets a Policy grants to {group}, as the gateway decides them for its members.",
@@ -11391,8 +11392,8 @@
       "title": "{name} reads no internal dataset",
       "description": "Add them to a group a Policy grants, or invite them as a member of an organization that shares datasets with everyone."
     },
-    "personPublic": "Plus {count} public datasets anyone can read.",
+    "personPublic": "Public datasets anyone can read, not listed here: {count}.",
     "throughEveryone": "Through everyone",
-    "groupEveryone": "Its members also read {count} datasets shared with everyone in the organization."
+    "groupEveryone": "Shared with everyone in the organization, so its members read them too: {count}."
   }
 }

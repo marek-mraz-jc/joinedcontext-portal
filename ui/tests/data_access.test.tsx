@@ -136,7 +136,7 @@ describe("Group page: datasets this group reads", () => {
     expect(await screen.findByText("vehicles")).toBeInTheDocument();
     // counts reaches the group through everyone: counted below, not listed as the group's.
     expect(screen.queryByText("Traffic counts")).toBeNull();
-    expect(screen.getByText(/also read 1 datasets shared with everyone/)).toBeInTheDocument();
+    expect(screen.getByText(/so its members read them too: 1\./)).toBeInTheDocument();
     expect(requests).toContain("/api/v1/organization/data-access?group=traffic-analysts");
   });
 
@@ -193,7 +193,7 @@ describe("Person page: what this person can read", () => {
     const { container, requests } = render(<PersonReadable id="jana-id" name="Jana" />, () => json(answer));
     expect(await screen.findByText("vehicles")).toBeInTheDocument();
     expect(screen.queryByText("bikes")).toBeNull();
-    expect(screen.getByText("Plus 1 public datasets anyone can read.")).toBeInTheDocument();
+    expect(screen.getByText("Public datasets anyone can read, not listed here: 1.")).toBeInTheDocument();
     expect(requests).toContain("/api/v1/organization/people/jana-id/readable");
     // Names only: nothing on the panel opens the dataset as the administrator.
     expect(within(container).queryAllByRole("link")).toHaveLength(0);

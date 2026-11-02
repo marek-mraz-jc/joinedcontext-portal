@@ -114,9 +114,13 @@ function Rules({ project, cell }: { project: string; cell: AccessCell }): JSX.El
 
 function Cell({ project, cell }: { project: string; cell: AccessCell }): JSX.Element {
   const { t } = useTranslation();
-  if (cell.unanswered) return <span className="text-caption text-warning-fg">{t("dataAccess.cellUnanswered")}</span>;
+  if (cell.unanswered) return <span className="text-caption text-warning">{t("dataAccess.cellUnanswered")}</span>;
   if (cell.granted && cell.throughOrganization) {
-    return <span className="text-caption text-fg-muted">{t("dataAccess.throughEveryone")}</span>;
+    return (
+      <Badge tone="neutral" className="w-fit">
+        {t("dataAccess.throughEveryone")}
+      </Badge>
+    );
   }
   if (!cell.granted) {
     return (
@@ -128,7 +132,9 @@ function Cell({ project, cell }: { project: string; cell: AccessCell }): JSX.Ele
   }
   return (
     <div className="flex flex-col gap-1">
-      <Badge tone="success">{t("dataAccess.reads")}</Badge>
+      <Badge tone="success" className="w-fit">
+        {t("dataAccess.reads")}
+      </Badge>
       <Rules project={project} cell={cell} />
     </div>
   );
@@ -175,19 +181,29 @@ export function DataAccessMatrix(): JSX.Element {
 export function MatrixTable({ data }: { data: DataAccess }): JSX.Element {
   const { t } = useTranslation();
   if (data.rows.length === 0) {
-    return <EmptyState icon="lock" bare title={t("dataAccess.empty.title")} description={t("dataAccess.empty.description")} />;
+    return (
+      <EmptyState
+        icon="lock"
+        bare
+        title={t("dataAccess.empty.title")}
+        description={t("dataAccess.empty.description")}
+        action={
+          <Link to="/organization/$tab" params={{ tab: "endpoints" }} className="text-body text-primary-soft-fg underline hover:no-underline">
+            {t("dataAccess.empty.action")}
+          </Link>
+        }
+      />
+    );
   }
   return (
     <>
       <Unanswered count={data.unanswered} />
       <Table caption={t("dataAccess.title")} stack>
         <TableHead>
-          <TableRow>
-            <TableHeaderCell>{t("dataAccess.endpoint")}</TableHeaderCell>
-            {data.columns.map((column) => (
-              <TableHeaderCell key={column.group ?? column.kind}>{columnLabel(column, t)}</TableHeaderCell>
-            ))}
-          </TableRow>
+          <TableHeaderCell>{t("dataAccess.endpoint")}</TableHeaderCell>
+          {data.columns.map((column) => (
+            <TableHeaderCell key={column.group ?? column.kind}>{columnLabel(column, t)}</TableHeaderCell>
+          ))}
         </TableHead>
         <TableBody>
           {data.rows.map((row) => (

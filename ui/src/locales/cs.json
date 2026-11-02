@@ -11368,7 +11368,8 @@
     "howToChange": "Chcete-li změnit, kdo čte datovou sadu, otevřete politiku uvedenou v její buňce (například staff-traffic) a navrhněte změnu; rozhodne o ní schvalovatel projektu.",
     "empty": {
       "title": "Zatím žádné interní datové sady",
-      "description": "Každý Endpoint organizace je veřejný. Nastavte Endpointu publikum organization a v politice ho zpřístupněte všem nebo skupině."
+      "description": "Každý Endpoint organizace je veřejný. Nastavte Endpointu publikum organization a v politice ho zpřístupněte všem nebo skupině.",
+      "action": "Otevřít všechny endpointy"
     },
     "groupTitle": "Datové sady, které tato skupina čte",
     "groupLead": "Interní datové sady, které politika zpřístupňuje skupině {group}, jak je brána rozhoduje pro její členy.",
@@ -11391,8 +11392,8 @@
       "title": "{name} nečte žádnou interní datovou sadu",
       "description": "Přidejte ji do skupiny, které politika něco zpřístupňuje, nebo ji pozvěte jako člena organizace, která sdílí data se všemi."
     },
-    "personPublic": "A dalších {count} veřejných datových sad, které může číst kdokoli.",
+    "personPublic": "Veřejné datové sady, které může číst kdokoli, zde neuvedené: {count}.",
     "throughEveryone": "Přes všechny",
-    "groupEveryone": "Její členové čtou i {count} datových sad zpřístupněných všem v organizaci."
+    "groupEveryone": "Zpřístupněné všem v organizaci, takže je čtou i její členové: {count}."
   }
 }
