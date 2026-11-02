@@ -66,7 +66,7 @@ function Panel({ id, title, actions, children }: { id: string; title: string; ac
 function FoldedPanel({ id, title, children }: { id: string; title: string; children: ReactNode }): JSX.Element {
   return (
     <Card as="section" padding="md" aria-labelledby={id}>
-      <details>
+      <details name="history-forms">
         <summary className="cursor-pointer font-semibold text-fg">
           <span id={id}>{title}</span>
         </summary>
@@ -85,12 +85,13 @@ function ReasonField({ id, value, onChange }: { id: string; value: string; onCha
   );
 }
 
-function SaveButton({ write, ready, label, onClick }: { write: { busy: boolean }; ready: boolean; label: string; onClick: () => void }): JSX.Element {
+function SaveButton({ write, ready, label, hint, onClick }: { write: { busy: boolean }; ready: boolean; label: string; hint?: string; onClick: () => void }): JSX.Element {
   const { t } = useTranslation();
+  const why = hint ?? t("attributeHistory.needsReason");
   return (
     <>
-      {ready ? null : <span className="self-center text-caption text-fg">{t("attributeHistory.needsReason")}</span>}
-      <Button variant="primary" size="sm" loading={write.busy} disabled={!ready} disabledReason={ready ? undefined : t("attributeHistory.needsReason")} onClick={onClick}>
+      {ready ? null : <span className="self-center text-caption text-fg">{why}</span>}
+      <Button variant="primary" size="sm" loading={write.busy} disabled={!ready} disabledReason={ready ? undefined : why} onClick={onClick}>
         {label}
       </Button>
     </>
@@ -241,7 +242,7 @@ function CsvImport({ target, measurements, complete }: { target: Target; measure
       {result ? <Alert tone="success" className="mt-2">{result}</Alert> : null}
       {write.error ? <InlineError className="mt-2">{write.error}</InlineError> : null}
       <div className="mt-3 flex flex-wrap justify-end gap-2">
-        <SaveButton write={write} ready={!reasonProblem(reason) && count > 0} label={t("attributeHistory.confirmImport")} onClick={() => void confirm()} />
+        <SaveButton write={write} ready={!reasonProblem(reason) && count > 0} label={t("attributeHistory.confirmImport")} hint={t(count === 0 ? "attributeHistory.csvNothing" : "attributeHistory.csvNeedsReason")} onClick={() => void confirm()} />
       </div>
     </FoldedPanel>
   );
@@ -336,6 +337,7 @@ function OneAttribute({ slug, entityId, attribute }: { slug: string; entityId: s
   const queryClient = useQueryClient();
   const [before, setBefore] = useState<string | undefined>(undefined);
   const [editing, setEditing] = useState<{ measurement: Measurement; revertTo?: Version } | null>(null);
+  const [saved, setSaved] = useState(false);
   const history = useQuery({
     queryKey: ["attribute-history", slug, entityId, attribute, before],
     retry: false,
@@ -351,11 +353,15 @@ function OneAttribute({ slug, entityId, attribute }: { slug: string; entityId: s
     attribute,
     sample: newest?.value,
     unitCode: newest?.unitCode,
-    written: () => queryClient.invalidateQueries({ queryKey: ["attribute-history", slug, entityId, attribute] }),
+    written: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["attribute-history", slug, entityId, attribute] });
+      setSaved(true);
+    },
   };
   // Fewer than a page on the newest page is the whole history: every CSV row compares.
   const complete = before === undefined && measurements.length < PAGE;
-  const oldest = measurements.at(-1)?.observedAt;
+  // A short page is the last one: nothing older to ask for.
+  const oldest = measurements.length >= PAGE ? measurements.at(-1)?.observedAt : undefined;
 
   return (
     <div className="flex flex-col gap-4 text-body">
@@ -377,6 +383,7 @@ function OneAttribute({ slug, entityId, attribute }: { slug: string; entityId: s
           </>
         }
       >
+        {saved ? <Alert tone="success" className="mb-2">{t("attributeHistory.saved")}</Alert> : null}
         {history.isPending ? (
           <div role="status" aria-busy="true" aria-label={t("app.loading")}>
             <Skeleton className="h-32 w-full" />

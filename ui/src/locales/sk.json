@@ -11485,6 +11485,9 @@
       "futureInstant": "observedAt je v budúcnosti.",
       "badValue": "Hodnota sa do tohto poľa nehodí."
     },
-    "csvLeftOut": "Riadky s problémom sa vynechajú; ostatné môžete importovať."
+    "csvLeftOut": "Riadky s problémom sa vynechajú; ostatné môžete importovať.",
+    "saved": "Uložené. Zmena je na časovej osi.",
+    "csvNeedsReason": "Najprv napíšte dôvod.",
+    "csvNothing": "Súbor neobsahuje žiadnu novú hodnotu na import."
   }
 }

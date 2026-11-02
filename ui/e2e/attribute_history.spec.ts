@@ -81,7 +81,7 @@ function broker() {
   };
 }
 
-async function stubApi(page: Page, store: ReturnType<typeof broker>, writes: string[]): Promise<void> {
+async function stubApi(page: Page, store: ReturnType<typeof broker>, writes: string[], refuse = false): Promise<void> {
   await page.route("**/{api,cs}/**", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -93,10 +93,12 @@ async function stubApi(page: Page, store: ReturnType<typeof broker>, writes: str
     if (path.endsWith("/access/attributes")) return json(attributeTable(TYPE, ["name", "kpiValue"], ["kpiValue"]));
     if (path.includes("/temporal/entities/")) {
       const before = url.searchParams.get("timeAt");
+      if (store.rows.length === 0) return json({ title: "Not Found" }, 404);
       return json({ id: URN, type: TYPE, kpiValue: store.rows.filter((row) => !before || row.observedAt < before) });
     }
     if (request.method() === "PATCH" && path.endsWith(`/entities/${URN}/attrs`)) {
       writes.push(path);
+      if (refuse) return json({ title: "Forbidden", detail: "the Policy of this Endpoint grants no write of kpiValue" }, 403);
       const reason = decodeURIComponent(request.headers()["jc-reason"] ?? "");
       if (!reason) return json({ title: "Reason Required" }, 400);
       store.write((request.postDataJSON() as { kpiValue: { value: unknown; observedAt: string } }).kpiValue, reason);
@@ -152,6 +154,7 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await current.getByRole("textbox", { name: /Reason/ }).fill("Recalibrated on site");
     await current.getByRole("button", { name: "Save" }).click();
     await expect(timeline.getByText(/Recalibrated on site/)).toBeVisible();
+    await expect(dialog.getByText("Saved. The change stands in the timeline.")).toBeVisible();
     await expect(timeline.getByText(new RegExp(PERSON)).first()).toBeVisible();
 
     const old = dialog.getByRole("region", { name: "Add an old value" });
@@ -196,6 +199,25 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     expect(writes.length, "the duplicate and the broken row stay home").toBe(before + 1);
     expect(await axeViolations(page)).toEqual([]);
     await shot(page, `history-imported-${label}`);
+  });
+
+  test(`nothing recorded says so, and a refused write says why (${label})`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    const store = broker();
+    store.rows.length = 0;
+    await stubApi(page, store, [], true);
+    await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en&row=${encodeURIComponent(URN)}`);
+    const dialog = page.getByRole("dialog", { name: "Details: District 3" });
+    await dialog.getByRole("tab", { name: "Correct values" }).click();
+    await expect(dialog.getByText("No history yet")).toBeVisible();
+    await shot(page, `history-empty-${label}`);
+    const current = dialog.getByRole("region", { name: "Edit current value" });
+    await current.getByText("Edit current value").click();
+    await current.getByRole("textbox", { name: /Value/ }).fill("35");
+    await current.getByRole("textbox", { name: /Reason/ }).fill("Recalibrated on site");
+    await current.getByRole("button", { name: "Save" }).click();
+    await expect(current.getByText(/grants no write of kpiValue/)).toBeVisible();
+    await shot(page, `history-refused-${label}`);
   });
 
   test(`a person with no write is not offered the tab (${label})`, async ({ page }) => {

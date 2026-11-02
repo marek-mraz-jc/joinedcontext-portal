@@ -11485,6 +11485,9 @@
       "futureInstant": "observedAt lies in the future.",
       "badValue": "The value does not fit this field."
     },
-    "csvLeftOut": "Rows with a problem are left out; the others can be imported."
+    "csvLeftOut": "Rows with a problem are left out; the others can be imported.",
+    "saved": "Saved. The change stands in the timeline.",
+    "csvNeedsReason": "Write a reason first.",
+    "csvNothing": "The file holds no new value to import."
   }
 }

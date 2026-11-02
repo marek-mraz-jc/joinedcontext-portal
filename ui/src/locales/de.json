@@ -11485,6 +11485,9 @@
       "futureInstant": "observedAt liegt in der Zukunft.",
       "badValue": "Der Wert passt nicht zu diesem Feld."
     },
-    "csvLeftOut": "Zeilen mit einem Problem werden ausgelassen; die übrigen können Sie importieren."
+    "csvLeftOut": "Zeilen mit einem Problem werden ausgelassen; die übrigen können Sie importieren.",
+    "saved": "Gespeichert. Die Änderung steht in der Zeitleiste.",
+    "csvNeedsReason": "Geben Sie zuerst einen Grund an.",
+    "csvNothing": "Die Datei enthält keinen neuen Wert zum Importieren."
   }
 }
