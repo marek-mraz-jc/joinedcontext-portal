@@ -51,6 +51,12 @@ async function openGrid(page: Page, address: string): Promise<void> {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(address);
   await expect(page.getByRole("tab", { name: "Grid" })).toBeVisible({ timeout: 60_000 });
+  // A broker read can pass dev's 10 s cut under load; the page says so and offers Retry.
+  await expect(async () => {
+    const retry = page.getByRole("button", { name: "Retry" });
+    if ((await retry.count()) > 0) await retry.first().click();
+    await expect(page.locator("tbody tr td").first()).toBeVisible({ timeout: 25_000 });
+  }).toPass({ timeout: 120_000 });
 }
 
 test("a steward opens a row form and corrects a cell in the grid with a reason, then undoes it", async ({ browser }) => {
