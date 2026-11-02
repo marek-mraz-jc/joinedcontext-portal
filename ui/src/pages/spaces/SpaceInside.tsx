@@ -984,7 +984,7 @@ function SpaceData({
             onOpenChange={setCreating}
             title={t("spaces.inside.addRowTitle", { type: typeTitle })}
             closeLabel={t("app.close")}
-            size="lg"
+            size="md"
           >
             <FormView
               space={space}
