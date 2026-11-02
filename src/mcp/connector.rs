@@ -496,7 +496,12 @@ async fn judge(
         "initialize" => {
             let response = dispatch(state.clone(), caller, body).await;
             (
-                with_projects_named(response, &connector.projects()).await,
+                with_projects_named(
+                    response,
+                    &connector.projects(),
+                    &state.config.public_base_url,
+                )
+                .await,
                 "allowed".to_owned(),
             )
         }
@@ -605,13 +610,23 @@ fn tab_action(
             let answer = result(id.clone(), call_result(&shown));
             (json_response(StatusCode::OK, &answer), "allowed".to_owned())
         }
-        Err(undelivered) => refused(
-            409,
-            "conflict",
-            "Conflict",
-            undelivered.reason(),
-            "refused: no tab",
-        ),
+        Err(undelivered) => {
+            // The page exists whether a tab listens or not: the person can open it by hand, and
+            // the address holds nothing they could not type (T-6442).
+            let why = match payload["route"].as_str() {
+                Some(route) => format!(
+                    "{}. Or give the person this address to open: {}",
+                    undelivered.reason(),
+                    state
+                        .config
+                        .public_base_url
+                        .join(route)
+                        .map_or_else(|_| route.to_owned(), |address| address.to_string())
+                ),
+                None => undelivered.reason().to_owned(),
+            };
+            refused(409, "conflict", "Conflict", &why, "refused: no tab")
+        }
     }
 }
 
@@ -649,8 +664,9 @@ fn optional_project(tools: &mut [Value]) {
 }
 
 /// The `initialize` answer with a sentence naming the projects the connector reaches, so a
-/// client never has to guess or ask the person (T-6064).
-async fn with_projects_named(response: Response, projects: &[&str]) -> Response {
+/// client never has to guess or ask the person (T-6064), and the address that draws a map, since
+/// nothing on a connector draws one (T-6442).
+async fn with_projects_named(response: Response, projects: &[&str], portal: &url::Url) -> Response {
     let (parts, body) = response.into_parts();
     let Ok(bytes) = axum::body::to_bytes(body, MAX_RESPONSE_BYTES).await else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -668,7 +684,12 @@ async fn with_projects_named(response: Response, projects: &[&str]) -> Response 
             many.join(", ")
         ),
     };
-    answer["result"]["instructions"] = json!(format!("{instructions} {reach}"));
+    let map = format!(
+        "To show entities on a map, give the person the Portal address {portal}projects/<project>/\
+         explore?endpoint=<endpoint>&type=<type>&colorBy=<number attribute>&view=map; it draws \
+         what they may read, and a Layer alone draws nothing."
+    );
+    answer["result"]["instructions"] = json!(format!("{instructions} {reach} {map}"));
     // Only what [`METHODS`] and the plan view serve: the Portal MCP's prompts and tasks are
     // refused here, so a client is never told it may call them (JC2-21).
     answer["result"]["capabilities"] = json!({ "tools": {}, "resources": {} });
@@ -976,7 +997,9 @@ mod tests {
                     "capabilities": { "tools": {}, "resources": {}, "prompts": {}, "tasks": {} } }),
             ),
         );
-        let answer = answer_of(with_projects_named(init, &connector.projects()).await).await;
+        let portal = url::Url::parse("https://portal.example/").expect("url");
+        let answer =
+            answer_of(with_projects_named(init, &connector.projects(), &portal).await).await;
         // JC2-21: no capability a connector refuses is offered.
         assert_eq!(
             answer["result"]["capabilities"],
@@ -985,7 +1008,10 @@ mod tests {
         assert_eq!(
             answer["result"]["instructions"],
             "Tool answers carry text. This connector reaches project doprava; every tool's \
-             `project` defaults to it."
+             `project` defaults to it. To show entities on a map, give the person the Portal \
+             address https://portal.example/projects/<project>/explore?endpoint=<endpoint>\
+             &type=<type>&colorBy=<number attribute>&view=map; it draws what they may read, and a \
+             Layer alone draws nothing."
         );
     }
 
@@ -1066,6 +1092,21 @@ mod tests {
         assert!(body["result"]["structuredContent"]["detail"]
             .as_str()
             .is_some_and(|d| d.contains("Connect this tab")));
+
+        // T-6442: the page still exists, so the refusal hands the model its address to pass on.
+        let map = json!({ "project": "doprava", "page": "map", "endpoint": "bikes",
+            "type": "Station", "color": "free" });
+        let (response, verdict) = call("jc_ui_navigate", &map);
+        assert_eq!(verdict, "refused: no tab");
+        let body = answer_of(response).await;
+        let detail = body["result"]["structuredContent"]["detail"].to_string();
+        assert!(
+            detail.contains(
+                "/projects/doprava/explore?endpoint=bikes&type=Station&colorBy=free&view=map"
+            ),
+            "{detail}"
+        );
+        assert!(detail.contains("this address to open: http"), "{detail}");
 
         // A tab paired by another person with this connector's id hears nothing of ana's.
         state

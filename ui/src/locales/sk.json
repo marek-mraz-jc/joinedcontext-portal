@@ -4954,7 +4954,7 @@
       "package": "Balík",
       "started": "Forge dostal pokyn znova zostaviť predvolenú vetvu; beh sa tu čoskoro objaví.",
       "unreadable": "Kde sa táto aplikácia zostavuje, sa teraz nepodarilo z forge prečítať.",
-      "notOnForge": "Táto aplikácia sa nezostavuje vo forge: nemá vlastný repozitár.",
+      "notOnForge": "Táto aplikácia nemá vlastný repozitár, preto nemá čo zostaviť ani ukázať.",
       "run": {
         "none": "Zatiaľ neprebehlo žiadne zostavenie.",
         "building": "Zostavuje sa {commit}…",
@@ -5966,7 +5966,11 @@
       "inView": "{shown} v tomto výreze, spolu {total}",
       "noneInView": "V zobrazenej časti mapy nie je žiadna entita tohto pohľadu.",
       "reading": "Načítavam zobrazený výrez…",
-      "viewFailed": "Zobrazený výrez sa nepodarilo načítať ({reason}); posuňte mapu a skúste znova."
+      "viewFailed": "Zobrazený výrez sa nepodarilo načítať ({reason}); posuňte mapu a skúste znova.",
+      "colouredBy": "Farba ukazuje {attr} od {min} do {max}, od žltej po červenú. Sivá: bez hodnoty ({unknown}).",
+      "colouredOne": "Všetky body ukazujú {attr} {min}, preto jedna farba. Sivá: bez hodnoty ({unknown}).",
+      "keyAll": "všetky rovnaké: {value}",
+      "keyUnknown": "bez hodnoty ({unknown})"
     },
     "chart": {
       "open": "Graf",
@@ -6028,7 +6032,7 @@
       "previewing": "Náhľad je hotový",
       "awaiting_approval": "Čaká na schválenie",
       "published": "Publikované",
-      "failed": "Spustenie zlyhalo. Otvorte jeho kroky a uvidíte kde.",
+      "failed": "Spustenie zlyhalo. Požiadajte asistenta, aby aplikáciu zostavil znova.",
       "cancelled": "Spustenie bolo zastavené.",
       "expired": "Spustenie sa skončilo; náhľad zostáva tak, ako bol postavený."
     },
@@ -6356,7 +6360,9 @@
       "running": "Zverejnenie počká, kým prebehnú testy verzie {version}.",
       "failed": "Verzia {version} sa nezverejní, kým zlyháva {failed} jej testov: {names}. Požiadajte asistenta o opravu."
     },
-    "cancelOver": "Beh skončil; nie je čo zrušiť."
+    "publishOver": "Tento beh sa skončil, takže nemá čo zverejniť.",
+    "failedNext": "Nič sa nezverejnilo. Na stránke Asistent aplikáciu zostavte znova.",
+    "failedOpen": "Zostaviť znova"
   },
   "assistant": {
     "newConversation": "Začať novú konverzáciu",

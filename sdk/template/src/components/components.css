@@ -93,6 +93,11 @@ body {
   border-radius: var(--jc-radius-md, 6px);
 }
 
+.jc-tile-unknown {
+  font-size: var(--jc-font-size-sm, 0.75rem);
+  color: var(--jc-color-muted, #64748b);
+}
+
 .jc-tile-label {
   font-size: var(--jc-font-size-sm, 0.75rem);
   color: var(--jc-color-muted, #64748b);

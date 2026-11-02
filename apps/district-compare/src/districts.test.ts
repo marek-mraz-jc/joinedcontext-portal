@@ -87,6 +87,21 @@ describe("toInput", () => {
     expect(input.districts[0].name).toBe("Kallio");
   });
 
+  it("reads a numeric string as a number and any other string as no reading", () => {
+    const station = (id: string, totalSlotNumber: string): Row => ({ id, type: "BikeHireDockingStation", totalSlotNumber });
+    const sensor = (id: string, pm25: string, airQualityIndex: string): Row => ({ id, type: "AirQualityObserved", pm25, airQualityIndex });
+    const input = toInput({
+      districts: [{ id: "d", type: "AdministrativeArea", divisionLevel: "district", name: "Kallio" }],
+      events: [],
+      bikes: [station("b1", "20"), station("b2", "many")],
+      alerts: [],
+      air: [sensor("a1", "12.5", "3"), sensor("a2", "n/a", "n/a")],
+    });
+    expect(input.districts[0].code).toBe("");
+    expect(input.bikes.map((b) => b.slots)).toEqual([20, null]);
+    expect(input.air.map((a) => [a.pm25, a.aqi])).toEqual([[12.5, 3], [null, null]]);
+  });
+
   it("handles missing location and represents unlocated entities out of range", () => {
     const rows: RowsByType = {
       districts: [
@@ -319,5 +334,9 @@ describe("sortDistrictsByMeasure", () => {
 
     const sorted = sortDistrictsByMeasure([d1, d2, d3, d4], "pm25");
     expect(sorted.map((d) => d.code)).toEqual(["104", "102", "101", "103"]);
+    // A null rank goes last from either side of the comparison, and two nulls sort by name.
+    const d5 = makeDistrict("105", "Eira", null);
+    expect(sortDistrictsByMeasure([d3, d2, d5], "pm25").map((d) => d.code)).toEqual(["102", "105", "103"]);
+    expect(sortDistrictsByMeasure([d2, d3], "pm25").map((d) => d.code)).toEqual(["102", "103"]);
   });
 });

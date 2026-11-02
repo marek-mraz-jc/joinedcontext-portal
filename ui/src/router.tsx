@@ -950,7 +950,8 @@ const exploreRoute = createRoute({
   // The assistant opens the explorer on what it found (UI-46): a space and an endpoint by name,
   // and one entity of them by id (T-1017), so "show me this one" opens the row already selected
   // instead of the list the person then searches by hand. `type` and `q` open the grid already
-  // narrowed by the question that was asked (UI-64, UI-67, T-1437).
+  // narrowed by the question that was asked (UI-64, UI-67, T-1437); `view=map` opens its map,
+  // coloured by the number `colorBy` names, for a request to draw the data (T-6442).
   validateSearch: (
     search: Record<string, unknown>,
   ): {
@@ -959,16 +960,20 @@ const exploreRoute = createRoute({
     entityId?: string;
     type?: string;
     q?: string;
+    view?: "map";
+    colorBy?: string;
   } => ({
     space: typeof search.space === "string" ? search.space : undefined,
     endpoint: typeof search.endpoint === "string" ? search.endpoint : undefined,
     entityId: typeof search.entityId === "string" ? search.entityId : undefined,
     type: typeof search.type === "string" ? search.type : undefined,
     q: typeof search.q === "string" ? search.q : undefined,
+    view: search.view === "map" ? "map" : undefined,
+    colorBy: typeof search.colorBy === "string" ? search.colorBy : undefined,
   }),
   component: function ExploreRoute() {
     const { project } = exploreRoute.useParams();
-    const { space, endpoint, entityId, type, q } = exploreRoute.useSearch();
+    const { space, endpoint, entityId, type, q, view, colorBy } = exploreRoute.useSearch();
     return (
       <Shell project={project}>
         {/*
@@ -983,6 +988,8 @@ const exploreRoute = createRoute({
             initialEntityId={entityId}
             initialType={type}
             initialQ={q}
+            initialView={view}
+            colorBy={colorBy}
           />
         </HandOff>
       </Shell>

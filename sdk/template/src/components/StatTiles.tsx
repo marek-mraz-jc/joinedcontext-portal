@@ -1,5 +1,6 @@
 import { aggregate } from "@joinedcontext/sdk";
 import type { Agg, Row } from "@joinedcontext/sdk";
+import * as i18n from "../i18n";
 
 export interface StatTile {
   label: string;
@@ -7,6 +8,18 @@ export interface StatTile {
   attr?: string;
   unit?: string;
   digits?: number;
+  /** Counts the rows whose `attr` holds exactly this: "empty" is `equals: 0`. */
+  equals?: number;
+}
+
+/** A row without `attr` is unknown, never 0: it counts in no tile, and the tile says how many. */
+function reporting(rows: Row[], attr?: string): Row[] {
+  return attr ? rows.filter((row) => row[attr] !== undefined && row[attr] !== null) : rows;
+}
+
+function figure(known: Row[], tile: StatTile): number | null {
+  if (tile.equals === undefined) return aggregate(known, tile.agg ?? "count", tile.attr);
+  return known.filter((row) => row[tile.attr ?? ""] === tile.equals).length;
 }
 
 export function StatTiles({
@@ -21,11 +34,13 @@ export function StatTiles({
   return (
     <section className="jc-tiles">
       {tiles.map((tile, idx) => {
+        const known = reporting(rows, tile.attr);
+        const unknown = rows.length - known.length;
         let value: string;
         if (loading) {
           value = "…";
         } else {
-          const raw = aggregate(rows, tile.agg ?? "count", tile.attr);
+          const raw = figure(known, tile);
           if (raw === null) {
             value = "–";
           } else {
@@ -41,6 +56,9 @@ export function StatTiles({
               {value}
               {tile.unit && <small> {tile.unit}</small>}
             </strong>
+            {!loading && unknown > 0 ? (
+              <span className="jc-tile-unknown">{i18n.t("tiles.unknown", { count: String(unknown) })}</span>
+            ) : null}
           </div>
         );
       })}

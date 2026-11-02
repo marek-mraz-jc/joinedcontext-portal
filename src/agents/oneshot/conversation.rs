@@ -886,9 +886,10 @@ brings the copy back from its bar; you never bring it back and never approve it.
         }
         self.creating(&mut pack);
         let endpoint_names = self.names_of("Endpoint");
-        let may_draw = ["Dashboard", "Layer"]
-            .iter()
-            .all(|kind| self.may_change(kind, Verb::Propose).is_ok());
+        let may_draw = self.state.config.dashboards
+            && ["Dashboard", "Layer"]
+                .iter()
+                .all(|kind| self.may_change(kind, Verb::Propose).is_ok());
         if may_draw && !endpoint_names.is_empty() {
             pack.push_str(&format!(
                 r#"
@@ -2164,6 +2165,13 @@ mod tests {
             .conversation_pack(&[], "a map of the stations", None);
         assert!(pack.contains(DASHBOARD_SECTION), "{pack}");
         assert!(pack.contains("(bikes-open)"), "{pack}");
+        // T-6442: an installation that hides the Dashboards page (T-2874) offers no dashboard.
+        let mut hidden = crate::config::Config::for_tests();
+        hidden.dashboards = false;
+        let mut driver = proposing(&drawing, &[("Endpoint", "bikes-open", "helsinki")]);
+        driver.state = crate::state::AppState::new(hidden, None);
+        let pack = driver.conversation_pack(&[], "a map of the stations", None);
+        assert!(!pack.contains(DASHBOARD_SECTION), "{pack}");
         // An endpoint without the right to draw is no dashboard section either.
         let pack = proposing(&["Dashboard"], &[("Endpoint", "bikes-open", "helsinki")])
             .conversation_pack(&[], "a map of the stations", None);

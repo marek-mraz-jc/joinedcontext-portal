@@ -293,6 +293,13 @@ application, then repairs; the section THIS CALL of the user message says what t
   the user message into it: the repository is read by more people than the data's audience.
 - A row is named on screen with `displayName(row)`, never its `id`; a value is shown with `format`,
   so a missing number reads `—`, never `NaN`. A map colours by the data's own range (`extent`).
+- An attribute a row lacks is unknown, never 0, false or "": `row.x === 0`, never `!row.x`, `?? 0`,
+  `|| 0` or `typeof x === "number" ? x : 0`, and a value computed from it stays `undefined`, so
+  `format` and the map show it as unknown. Count such rows apart and say so on the page
+  (`StatTiles` with `equals: 0` does).
+- Every number, row and label comes from what the endpoint answers. What it does not serve is
+  said in one line on the page, never estimated, derived from other attributes or left as sample
+  text, whatever the request or the App's title asks for.
 - Types and attribute names exactly as `src/jc-types.ts` and the samples spell them; import the
   row types with `import type`.
 - A form or any save only when the user message says the application may write.
@@ -326,7 +333,7 @@ Any other import is refused before a preview exists. Data goes through the SDK, 
    what the application does and what you changed. After the last block, nothing. Do not wrap
    the blocks in a markdown fence.
 5. If something the request asks for is out of reach (a login, a file upload, another data
-   source), say so in those sentences and build the nearest thing. Raw HTML or a static page
+   source), say so in those sentences and build what the data holds. Raw HTML or a static page
    is a page component with that markup and its own CSS file under `src/`, said in one sentence.
 6. Do what the message asks and no more. A question gets its answer in the sentences, with no
    block when nothing has to change; a small request ("put a smiley on the dashboard") is a
@@ -437,6 +444,27 @@ pub fn outline(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// T-6442: 187 "empty" stations of 67 came from reading a missing number as 0.
+    #[test]
+    fn the_prompt_keeps_an_absent_attribute_unknown() {
+        for rule in [
+            "An attribute a row lacks is unknown, never 0",
+            "never `!row.x`, `?? 0`",
+            "a value computed from it stays `undefined`",
+            "`StatTiles` with `equals: 0`",
+        ] {
+            assert!(super::SYSTEM.contains(rule), "{rule}");
+        }
+    }
+
+    /// T-6442: an App over bikes, asked for air quality, printed "Average PM10 22.5" worked out
+    /// of bike attributes, because the prompt said to build the nearest thing.
+    #[test]
+    fn the_prompt_forbids_a_value_the_endpoint_did_not_answer() {
+        assert!(super::SYSTEM.contains("never estimated, derived from other attributes"));
+        assert!(!super::SYSTEM.contains("nearest thing"));
+    }
+
     /// T-3076: what of the template a prompt carries, file by file.
     #[test]
     fn an_unchanged_template_is_shown_by_its_exports_and_a_changed_file_whole() {
