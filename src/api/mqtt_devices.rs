@@ -507,7 +507,6 @@ async fn propose_device(
         project,
         Proposal {
             files,
-            verb: "add",
             branch,
             title: format!("add MQTT device {} to {broker_name}", request.name),
             body,

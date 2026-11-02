@@ -94,25 +94,10 @@ fn devices(project: &str) -> String {
 
 /// The files the forge was asked to write, as `(path, decoded YAML)`.
 async fn written(gitea: &MockServer) -> Vec<(String, Value)> {
-    use base64::Engine;
-    gitea
-        .received_requests()
+    common::committed_files(gitea, REPO)
         .await
-        .unwrap_or_default()
         .into_iter()
-        .filter(|r| {
-            matches!(r.method.as_str(), "PUT" | "POST") && r.url.path().contains("/contents/")
-        })
-        .map(|r| {
-            let body: Value = serde_json::from_slice(&r.body).expect("json");
-            let content = base64::engine::general_purpose::STANDARD
-                .decode(body["content"].as_str().unwrap_or_default())
-                .expect("base64");
-            (
-                r.url.path().to_owned(),
-                serde_norway::from_slice(&content).expect("yaml"),
-            )
-        })
+        .map(|(path, text)| (path, serde_norway::from_str(&text).expect("yaml")))
         .collect()
 }
 

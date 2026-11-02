@@ -6,14 +6,14 @@
 //! carried every reference with it. A bundle that half-imports is worse than one that does
 //! not, because the half that landed is now a project nobody described.
 
+mod common;
+
 use std::io::Write;
 use std::sync::Arc;
 
 use axum::body::Body;
 use axum::http::{header, Request, StatusCode};
 use axum_extra::extract::cookie::PrivateCookieJar;
-use base64::engine::general_purpose::STANDARD;
-use base64::Engine;
 use http_body_util::BodyExt;
 use joinedcontext_portal::auth::csrf::{CSRF_COOKIE, CSRF_HEADER};
 use joinedcontext_portal::auth::session::{self, Identity, Session};
@@ -26,7 +26,7 @@ use joinedcontext_portal::state::AppState;
 use joinedcontext_portal::store::Mirror;
 use serde_json::{json, Value};
 use tower::ServiceExt;
-use wiremock::matchers::{method, path, path_regex};
+use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request as MockRequest, ResponseTemplate};
 
 const PROJECT: &str = "banskabystrica";
@@ -174,14 +174,8 @@ async fn forge() -> MockServer {
         .respond_with(ResponseTemplate::new(201).set_body_json(json!({ "name": "portal/import" })))
         .mount(&server)
         .await;
-    // Nothing is on the import branch yet, so every write is a create.
-    Mock::given(method("GET"))
-        .and(path_regex(r"^/api/v1/repos/bb/org/contents/.*$"))
-        .respond_with(ResponseTemplate::new(404))
-        .mount(&server)
-        .await;
-    Mock::given(method("PUT"))
-        .and(path_regex(r"^/api/v1/repos/bb/org/contents/.*$"))
+    Mock::given(method("POST"))
+        .and(path("/api/v1/repos/bb/org/contents"))
         .respond_with(ResponseTemplate::new(201).set_body_json(json!({
             "content": { "sha": "b1ob" },
             "commit": { "sha": "c0mm1t" }
@@ -368,33 +362,18 @@ async fn upload(
 }
 
 async fn written(server: &MockServer) -> Vec<String> {
-    server
-        .received_requests()
+    common::committed_files(server, "/api/v1/repos/bb/org")
         .await
-        .unwrap_or_default()
         .into_iter()
-        .filter(|request: &MockRequest| request.method.as_str() == "PUT")
-        .map(|request| {
-            request
-                .url
-                .path()
-                .replace("/api/v1/repos/bb/org/contents/", "")
-        })
+        .map(|(path, _)| path)
         .collect()
 }
 
 async fn put_bodies(server: &MockServer) -> Vec<String> {
-    server
-        .received_requests()
+    common::committed_files(server, "/api/v1/repos/bb/org")
         .await
-        .unwrap_or_default()
         .into_iter()
-        .filter(|request: &MockRequest| request.method.as_str() == "PUT")
-        .filter_map(|request| {
-            let payload: Value = serde_json::from_slice(&request.body).ok()?;
-            let encoded = payload.get("content")?.as_str()?.to_owned();
-            String::from_utf8(STANDARD.decode(encoded).ok()?).ok()
-        })
+        .map(|(_, text)| text)
         .collect()
 }
 
@@ -434,6 +413,56 @@ async fn forge_calls(server: &MockServer) -> Vec<String> {
 }
 
 // --- the happy path ---------------------------------------------------------------------
+
+/// TS-19: a bundle is one commit in the person's name, whatever its size, and no file is read
+/// or written on its own: seven files one at a time passed the edge's 60 s on a busy repository.
+#[tokio::test]
+async fn a_bundle_lands_as_one_commit() {
+    let server = forge().await;
+    let (status, body) = upload(&server, vec![], &[("conflictPolicy", "fail")]).await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+
+    let requests = server.received_requests().await.unwrap_or_default();
+    let to_contents: Vec<&MockRequest> = requests
+        .iter()
+        .filter(|r| r.url.path().contains("/contents"))
+        .collect();
+    assert_eq!(to_contents.len(), 1, "{to_contents:?}");
+    assert_eq!(to_contents[0].method.as_str(), "POST");
+    let commit: Value = serde_json::from_slice(&to_contents[0].body).expect("json");
+    assert!(
+        commit["files"].as_array().is_some_and(|f| f.len() > 1),
+        "{commit}"
+    );
+    assert!(
+        commit["message"]
+            .as_str()
+            .is_some_and(|m| m.starts_with("import ")),
+        "{commit}"
+    );
+    assert_eq!(commit["author"]["name"], commit["committer"]["name"]);
+}
+
+/// All or nothing: a commit the forge refuses leaves no Change behind, and nobody approves half
+/// a bundle.
+#[tokio::test]
+async fn a_commit_the_forge_refuses_opens_no_merge_request() {
+    let server = forge().await;
+    Mock::given(method("POST"))
+        .and(path("/api/v1/repos/bb/org/contents"))
+        .respond_with(ResponseTemplate::new(500))
+        .with_priority(1)
+        .mount(&server)
+        .await;
+    let (status, body) = upload(&server, vec![], &[("conflictPolicy", "fail")]).await;
+
+    assert!(status.is_server_error(), "{status}: {body}");
+    let requests = server.received_requests().await.unwrap_or_default();
+    assert!(
+        !requests.iter().any(|r| r.url.path().ends_with("/pulls")),
+        "{requests:?}"
+    );
+}
 
 #[tokio::test]
 async fn an_archive_becomes_one_merge_request_for_the_whole_bundle() {

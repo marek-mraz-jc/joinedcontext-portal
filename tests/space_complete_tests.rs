@@ -1355,23 +1355,7 @@ async fn a_proposed_space_commits_its_model_with_the_compiled_artifacts() {
     assert!(body["change"].is_object(), "{body}");
 
     // The bundle's files as the forge took them: path and decoded content.
-    let prefix = format!("{}/contents/", common::REPO);
-    let files: Vec<(String, String)> = gitea
-        .received_requests()
-        .await
-        .unwrap_or_default()
-        .iter()
-        .filter(|r| r.method.as_str() == "PUT")
-        .filter_map(|r| {
-            let path = r.url.path().strip_prefix(&prefix)?.to_owned();
-            let body: Value = serde_json::from_slice(&r.body).ok()?;
-            use base64::Engine;
-            let bytes = base64::engine::general_purpose::STANDARD
-                .decode(body["content"].as_str()?)
-                .ok()?;
-            Some((path, String::from_utf8(bytes).ok()?))
-        })
-        .collect();
+    let files = common::committed_files(&gitea, common::REPO).await;
     let content = |suffix: &str| {
         files
             .iter()
