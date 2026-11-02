@@ -166,4 +166,63 @@ describe("walker sign-in tab", () => {
       ),
     ).rejects.toThrow("no password");
   });
+
+describe("walker Tab when the machine's network changes (T-6476)", () => {
+  const change = () => new Error("page.goto: net::ERR_NETWORK_CHANGED at https://portal.dev/catalogue?lang=en");
+  const over = () => {
+    const { pages } = tabOver();
+    return new Tab({} as BrowserContext, pages[0] as unknown as Page, () => undefined, 0);
+  };
+
+  it("runs the work again on the same tab, and the walk goes on", async () => {
+    const tab = over();
+    const page = tab.page;
+    let calls = 0;
+    const outcome = await tab.twice(async () => {
+      calls += 1;
+      if (calls < 3) throw change();
+      return "walked";
+    });
+    expect(outcome).toEqual({ crashed: false, value: "walked" });
+    expect(calls).toBe(3);
+    expect(tab.page).toBe(page);
+  });
+
+  it("throws when it keeps changing: no walk is reported from a network that never held", async () => {
+    let calls = 0;
+    await expect(
+      over().run(async () => {
+        calls += 1;
+        throw change();
+      }),
+    ).rejects.toThrow("ERR_NETWORK_CHANGED");
+    expect(calls).toBe(3);
+  });
+
+  it("runs no other failure twice: a refused or unanswered load stays the walk's error", async () => {
+    let calls = 0;
+    await expect(
+      over().run(async () => {
+        calls += 1;
+        throw new Error("page.goto: net::ERR_CONNECTION_REFUSED at https://portal.dev/");
+      }),
+    ).rejects.toThrow("ERR_CONNECTION_REFUSED");
+    expect(calls).toBe(1);
+  });
+
+  it("signs in again when it changes under the sign-in", async () => {
+    const { pages } = tabOver();
+    const context = { newPage: async () => pages[0] } as unknown as BrowserContext;
+    let calls = 0;
+    const page = await openedTwice(
+      context,
+      async () => {
+        calls += 1;
+        if (calls === 1) throw change();
+      },
+      "signed in",
+    );
+    expect(page).toBe(pages[0]);
+    expect(calls).toBe(2);
+  });
 });
