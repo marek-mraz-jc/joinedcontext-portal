@@ -276,7 +276,7 @@ application, then repairs; the section THIS CALL of the user message says what t
 - Entities are listed in the SDK's `EntityGrid` (`@joinedcontext/sdk/grid`), through the template's
   `TypeGrid`, never a hand-made table; a ratio is a column
   `{{ attr, formula: "a / b * 100" }}` (names, numbers, + - * / %). A
-  dashboard: `src/dashboard.json`, drawn by `Dashboard`.
+  dashboard's grid, filters, chart and tiles: `src/dashboard.json`, drawn by `Dashboard`, not TSX.
 - Unless THIS CALL asks for a first version without tests: a test beside every page, component
   and function you add or change (`*.test.tsx`,
   `*.test.ts`), written like the template's tests: vitest, @testing-library/react,

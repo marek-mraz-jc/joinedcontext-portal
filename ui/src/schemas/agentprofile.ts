@@ -188,6 +188,7 @@ const number = (value: number | undefined): number | undefined =>
 /** The form as the manifest the API stores; what the form has no field for travels on from `stored`. */
 export function toAgentProfileManifest(form: AgentProfileForm, stored?: unknown): unknown {
   const effort = filled(form.model?.reasoningEffort);
+  const routing = (stored as { spec?: { model?: { routing?: unknown } } } | undefined)?.spec?.model?.routing;
   const hosts = texts(form.egress?.allowedHosts);
   const budget = number(form.egress?.maxBytesPerRun);
   const tools = texts(form.tools);
@@ -217,6 +218,7 @@ export function toAgentProfileManifest(form: AgentProfileForm, stored?: unknown)
         name: filled(form.model?.name),
         maxTokensPerRun: number(form.model?.maxTokensPerRun),
         ...(effort ? { reasoningEffort: effort } : {}),
+        ...(routing ? { routing } : {}),
       },
       limits: {
         stepsPerRun: number(form.limits?.stepsPerRun),
