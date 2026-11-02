@@ -11,10 +11,19 @@ use std::sync::LazyLock;
 
 use crate::change::{self, Lane, Operation};
 use crate::resource::{is_dns1123, API_VERSION};
+use jc_core::kinds::ical_mapping::LEGACY_OUTPUT;
+use jc_core::kinds::{Preset as IcalPreset, Representation, PRESET_TYPES};
 
-/// The representations a share may name (jc-core `Representation`): CSV is the one file
-/// (T-4600), so the retired `xlsx`, `parquet`, `json`, `zip` and `geojson` are not among them.
-pub const REPRESENTATIONS: [&str; 5] = ["ngsi-ld", "csv", "mcp", "ogc-features", "sta"];
+/// The representations a share may name: every jc-core `Representation` but `feed`, which an
+/// Endpoint serves from its outputs and never lists (EP-150). The retired files are not among
+/// them (T-4600).
+pub static REPRESENTATIONS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
+    Representation::ALL
+        .iter()
+        .filter(|r| **r != Representation::Feed)
+        .map(Representation::as_str)
+        .collect()
+});
 const AUDIENCES: [&str; 3] = ["project-list", "organization", "public"];
 /// Requests a minute a caller may set, for a share and for an edit alike: one field, one bound.
 pub const MAX_REQUESTS_PER_MINUTE: u32 = 100_000;
@@ -154,6 +163,32 @@ fn without_repeats(items: Vec<String>) -> Vec<String> {
 }
 
 /// What a value is, for a sentence about a manifest the repository holds.
+/// `spec.representations.ical` for an Endpoint that lists `ical`: one calendar over the types
+/// a preset maps, since a calendar is served only for a listed output (EP-159). No type named
+/// means `Event`, as an App's calendar; another type writes its own mapping in the form.
+fn calendar(entity_types: &[String]) -> Result<Value, String> {
+    let mapped = PRESET_TYPES
+        .iter()
+        .filter(|t| entity_types.iter().any(|named| named == *t));
+    let mut types: Vec<&str> = mapped.copied().collect();
+    if entity_types.is_empty() {
+        types.push("Event");
+    }
+    if types.is_empty() {
+        return Err(format!(
+            "`ical` has a preset for {} and not for {}: draft the endpoint without ical and map \
+             its calendar in the endpoint form",
+            PRESET_TYPES.join(", "),
+            entity_types.join(", ")
+        ));
+    }
+    let sources: Vec<Value> = types
+        .into_iter()
+        .map(|t| json!({ "type": t, "preset": IcalPreset::SdmEvent.as_str() }))
+        .collect();
+    Ok(json!([{ "name": LEGACY_OUTPUT, "sources": sources }]))
+}
+
 fn json_kind(value: &Value) -> &'static str {
     match value {
         Value::Null => "empty",
@@ -311,7 +346,11 @@ pub fn render(
             params
                 .representations
                 .iter()
-                .map(|r| r.trim().to_owned())
+                // A person asking for GeoJSON means what `ogc-features` answers (T-4597).
+                .map(|r| match r.trim() {
+                    "geojson" => Representation::OgcFeatures.as_str().to_owned(),
+                    name => name.to_owned(),
+                })
                 .collect(),
         )
     };
@@ -349,6 +388,13 @@ pub fn render(
         }
     }
 
+    let ical = Representation::Ical.as_str();
+    let calendar = representations
+        .iter()
+        .any(|r| r == ical)
+        .then(|| calendar(&params.entity_types))
+        .transpose()?;
+
     let slug = slug();
     let mut spec = json!({
         "contextSpaceRef": space,
@@ -358,6 +404,9 @@ pub fn render(
     });
     if audience == "project-list" {
         spec["allowedProjects"] = json!(projects);
+    }
+    if let Some(calendar) = calendar {
+        spec["representations"] = json!({ "ical": calendar });
     }
     if !params.hidden_attributes.is_empty() {
         spec["projection"] = json!({ "hiddenAttributes": params.hidden_attributes });
@@ -753,6 +802,21 @@ pub fn edit(endpoints: &[Value], params: &EditEndpoint) -> Result<Edit, String> 
         ));
     }
     spec["enabledRepresentations"] = json!(representations);
+    // A calendar goes and comes with `ical`: a mapping without it fails the manifest, `ical`
+    // without one serves nothing (EP-159).
+    let ical = Representation::Ical.as_str();
+    if representations.iter().any(|r| r == ical) {
+        if spec["representations"].get("ical").is_none() {
+            spec["representations"]["ical"] = calendar(&[])?;
+        }
+    } else if let Some(block) = spec["representations"].as_object_mut() {
+        block.remove("ical");
+        if block.is_empty() {
+            if let Some(object) = spec.as_object_mut() {
+                object.remove("representations");
+            }
+        }
+    }
     record(
         "enabledRepresentations",
         json!(before),
@@ -852,6 +916,7 @@ mod tests {
         Preset, ProposeEndpoint, DEFAULT_CREATES_PER_DAY,
     };
     use crate::change::Lane;
+    use jc_core::kinds::Representation;
     use serde_json::json;
 
     fn request() -> ProposeEndpoint {
@@ -1056,6 +1121,110 @@ mod tests {
         let form = form_values(&edited.endpoint);
         assert_eq!(form["allowedProjects"], json!([]));
         assert_eq!(form["hiddenAttributes"], json!(["address"]));
+    }
+
+    /// The list follows the manifest: each name the Endpoint kind takes in
+    /// `enabledRepresentations` drafts, and the draft passes the kind's own validation.
+    #[test]
+    fn every_representation_the_manifest_lists_drafts_and_feed_stays_refused() {
+        for representation in Representation::ALL {
+            let name = representation.as_str();
+            let mut params = request();
+            params.entity_types = vec!["Event".to_owned()];
+            params.representations = vec![name.to_owned()];
+            match render("helsinki", &params, &[]) {
+                Ok(rendered) => {
+                    let spec: jc_core::kinds::EndpointSpec =
+                        serde_json::from_value(rendered.endpoint["spec"].clone())
+                            .unwrap_or_else(|e| panic!("{name}: {e}"));
+                    spec.validate().unwrap_or_else(|e| panic!("{name}: {e}"));
+                    assert!(spec.served_representations().contains(&representation));
+                }
+                Err(reason) => {
+                    assert_eq!(representation, Representation::Feed, "{reason}");
+                    assert!(reason.contains("'feed'"), "{reason}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_representation_nothing_serves_stays_refused() {
+        for bad in ["xlsx", "parquet", "zip", "json", "ODATA", "ical/v1", ""] {
+            let mut params = request();
+            params.representations = vec![bad.to_owned()];
+            let refused = render("helsinki", &params, &[]).expect_err(bad);
+            assert!(refused.contains("is not one of"), "{refused}");
+        }
+    }
+
+    /// T-5962 S-13: the person's words were NGSI-LD, OData and GeoJSON.
+    #[test]
+    fn geojson_reads_as_the_surface_that_answers_it() {
+        let mut params = request();
+        params.representations = ["ngsi-ld", "odata", "geojson", "ogc-features"]
+            .map(str::to_owned)
+            .to_vec();
+        let rendered = render("helsinki", &params, &[]).expect("renders");
+        assert_eq!(
+            rendered.endpoint["spec"]["enabledRepresentations"],
+            json!(["ngsi-ld", "odata", "ogc-features"])
+        );
+    }
+
+    /// T-5962 S-37: a listed `ical` without an output would serve no calendar (EP-159).
+    #[test]
+    fn ical_drafts_one_calendar_over_the_types_a_preset_maps() {
+        let draft = |types: &[&str]| {
+            let mut params = request();
+            params.representations = vec!["ngsi-ld".to_owned(), "ical".to_owned()];
+            params.entity_types = types.iter().map(|t| (*t).to_owned()).collect();
+            render("helsinki", &params, &[])
+        };
+        let event = draft(&["Event", "Place"]).expect("renders");
+        assert_eq!(
+            event.endpoint["spec"]["representations"]["ical"],
+            json!([{ "name": "events", "sources": [{ "type": "Event", "preset": "sdm-event" }] }])
+        );
+        let refused = draft(&["BikeCounter"]).expect_err("no preset maps it");
+        assert!(refused.contains("BikeCounter"), "{refused}");
+        assert!(refused.contains("endpoint form"), "{refused}");
+        let plain = render("helsinki", &request(), &[]).expect("renders");
+        assert!(plain.endpoint["spec"].get("representations").is_none());
+    }
+
+    #[test]
+    fn an_edit_keeps_what_the_endpoint_serves_and_the_calendar_follows_ical() {
+        let mut all = endpoints();
+        all[0]["spec"]["enabledRepresentations"] = json!(["ngsi-ld", "odata", "websocket"]);
+        let added = edit(
+            &all,
+            &edit_of(json!({ "name": "helsinki-kpi", "addRepresentations": ["ical"] })),
+        )
+        .expect("edits");
+        let spec = &added.endpoint["spec"];
+        assert_eq!(
+            spec["enabledRepresentations"],
+            json!(["ngsi-ld", "odata", "websocket", "ical"])
+        );
+        assert_eq!(spec["representations"]["ical"][0]["name"], "events");
+
+        all[0] = added.endpoint;
+        let mapped = json!([{ "name": "meetings", "sources": [{ "type": "CouncilMeeting" }] }]);
+        all[0]["spec"]["representations"]["ical"] = mapped.clone();
+        let kept = edit(
+            &all,
+            &edit_of(json!({ "name": "helsinki-kpi", "addRepresentations": ["csv"] })),
+        )
+        .expect("edits");
+        assert_eq!(kept.endpoint["spec"]["representations"]["ical"], mapped);
+
+        let removed = edit(
+            &all,
+            &edit_of(json!({ "name": "helsinki-kpi", "removeRepresentations": ["ical"] })),
+        )
+        .expect("edits");
+        assert!(removed.endpoint["spec"].get("representations").is_none());
     }
 
     #[test]

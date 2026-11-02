@@ -26605,9 +26605,9 @@ export interface operations {
                         /** @description Requests a minute per caller */
                         requestsPerMinute: number;
                     };
-                    /** @description Formats served; ngsi-ld and csv when absent */
-                    representations?: ("ngsi-ld" | "csv" | "mcp" | "ogc-features" | "sta")[];
-                    /** @description The endpoint's title as people read it */
+                    /** @description Default ngsi-ld, csv */
+                    representations?: ("ngsi-ld" | "mcp" | "csv" | "ogc-features" | "sta" | "odata" | "websocket" | "ical")[];
+                    /** @description The endpoint's title */
                     title?: string;
                 };
             };
