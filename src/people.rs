@@ -653,4 +653,49 @@ mod tests {
         )
         .is_none());
     }
+
+    #[tokio::test]
+    async fn a_person_joins_the_members_group_of_the_organization_only() {
+        use wiremock::matchers::{method, path, query_param};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let realm = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/realms/hel/protocol/openid-connect/token"))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .set_body_json(serde_json::json!({ "access_token": "t" })),
+            )
+            .mount(&realm)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/admin/realms/hel/groups"))
+            .and(query_param("search", "members"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!([
+                { "id": "g-other", "path": "/espoo", "subGroups": [
+                    { "id": "g-espoo", "path": "/espoo/members" } ] },
+                { "id": "g-hel", "path": "/helsinki", "subGroups": [
+                    { "id": "g-hel-members", "path": "/helsinki/members" } ] }
+            ])))
+            .mount(&realm)
+            .await;
+        Mock::given(method("PUT"))
+            .and(path("/admin/realms/hel/users/u1/groups/g-hel-members"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&realm)
+            .await;
+        let people = People::new(
+            &format!("{}/realms/hel", realm.uri()),
+            "portal".into(),
+            ClientAuth::Secret("s".into()),
+        )
+        .expect("a realm URL");
+        let admin = people.admin().await.expect("a token");
+        assert_eq!(admin.join_members("u1", "helsinki").await, Ok(true));
+        assert_eq!(admin.join_members("u1", "turku").await, Ok(false));
+        assert_eq!(
+            admin.join_members("../clients", "helsinki").await,
+            Err(PeopleError::NotFound)
+        );
+    }
 }
