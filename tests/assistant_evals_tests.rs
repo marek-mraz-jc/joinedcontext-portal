@@ -43,6 +43,9 @@ use wiremock::{Mock, MockServer, Respond, ResponseTemplate};
 const CSRF: &str = "test-csrf-token-assistant-evals";
 const PROJECT: &str = "helsinki";
 
+/// The queued pipeline `pipeline--run-now` runs.
+const QUEUED_PIPELINE: &str = "citybikes-gbfs";
+
 /// Recordings missing on 2026-09-25, when the conversations were written and no live pass had
 /// run yet. It only ever falls: the commit that adds a recording lowers it.
 const UNRECORDED_ON_2026_09_25: usize = 23;
@@ -324,6 +327,7 @@ fn mirror() -> Arc<Mirror> {
         PROJECT,
         json!({ "isSandbox": false }),
     ));
+    mirror.upsert(envelope("Pipeline", QUEUED_PIPELINE, PROJECT, json!({})));
     Arc::new(mirror)
 }
 
@@ -457,6 +461,8 @@ fn rebuild(message: &str, events: &[Recorded]) -> Script {
                 "tool": "jc_switch_path",
                 "arguments": { "path": event.payload["path"], "reason": event.payload["reason"] }
             }))),
+            // A question with a step is the Portal's own: the model's call asks it again.
+            "question" if event.payload["step"].is_string() => {}
             "question" => {
                 // The question's words are the thought that follows it (`ask_person`).
                 let question = events[at + 1..]
@@ -826,6 +832,62 @@ async fn a_viewer_is_refused_every_conversation() {
             .unwrap_or_default()
             .is_empty(),
         "a refused conversation reached the model"
+    );
+}
+
+#[tokio::test]
+async fn a_question_the_portal_asks_replays_through_the_models_call() {
+    let event = |kind: &str, payload: Value| Recorded {
+        kind: kind.to_owned(),
+        payload,
+    };
+    let message = "Run pipeline citybikes-gbfs now.";
+    let input = json!({ "name": QUEUED_PIPELINE });
+    let call = json!({ "tool": "jc_pipeline_run", "input": input, "status": "ok" });
+    let script = rebuild(
+        message,
+        &[
+            event("question", json!({ "step": "run-now", "options": [] })),
+            event(
+                "thought",
+                json!({ "text": "Run pipeline citybikes-gbfs now?" }),
+            ),
+            event(
+                "answer",
+                json!({ "answers": { "answer": format!("run:{QUEUED_PIPELINE}") } }),
+            ),
+            event("tool", call),
+            event(
+                "thought",
+                json!({ "text": "Pipeline citybikes-gbfs is queued." }),
+            ),
+        ],
+    );
+    assert_eq!(
+        script.turns.first(),
+        Some(&fence(&json!({
+            "tool": "jc_pipeline_run",
+            "arguments": input
+        })))
+    );
+    assert!(
+        script.turns.iter().all(|turn| !turn.contains("jc_ask")),
+        "{:?}",
+        script.turns
+    );
+    let replayed = kept(&play(message, script).await);
+    assert!(
+        replayed
+            .iter()
+            .any(|e| e.kind == "question" && e.payload["step"] == "run-now"),
+        "the Portal did not ask: {replayed:?}"
+    );
+    assert!(
+        replayed
+            .iter()
+            .skip_while(|e| e.kind != "question")
+            .any(|e| e.kind == "tool" && e.payload["tool"] == "jc_pipeline_run"),
+        "the person's answer ran nothing: {replayed:?}"
     );
 }
 
