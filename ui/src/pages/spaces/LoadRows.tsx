@@ -167,10 +167,10 @@ export function LoadRows({ project, space, type, source, table, change: proposed
   const state = live ? "spaces.upload.liveNow" : merged ? "spaces.upload.goingLive" : "spaces.upload.afterApproval";
   return (
     <Card className="flex flex-col gap-4">
-      {change ? <ChangeNotice change={change} project={project} /> : null}
+      {change ? <ChangeNotice change={change} project={project} plain /> : null}
       {change ? <ChangeDecide id={change.metadata.name} project={project} /> : null}
-      <p className="text-body">{t(state, { space, type })}</p>
       <RowsCheck checked={checked} />
+      <p className="text-body">{t(state, { space, type })}</p>
       {progress ? (
         <p role="status" className="text-body">
           {t("spaces.import.writing", progress)}

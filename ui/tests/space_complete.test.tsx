@@ -585,6 +585,7 @@ slots:
       renderComponent();
       await proposed(user);
       expect(await screen.findByText(en.changes.whoApproves)).toBeInTheDocument();
+      expect(screen.getByText(en.changes.waitingApprover)).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: en.approvals.approve })).toBeNull();
     }, 30_000);
 
@@ -618,7 +619,7 @@ slots:
       await user.click(screen.getByRole("button", { name: en.spaces.complete.proposeAll }));
       await screen.findByRole("button", { name: "Write 2 rows" });
       expect(screen.queryByRole("alert")).toBeNull();
-      expect(screen.getAllByText("chg-9")).toHaveLength(1);
+      expect(screen.getAllByRole("link", { name: en.changes.review })).toHaveLength(1);
       expect(dev.ops.filter((op) => op.propose === true)).toHaveLength(1);
     }, 30_000);
 

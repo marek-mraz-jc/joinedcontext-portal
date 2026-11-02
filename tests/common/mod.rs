@@ -357,15 +357,6 @@ pub async fn mount_repository(gitea: &MockServer, repo: &str) {
         )
         .mount(gitea)
         .await;
-    // An approval reads the head commit's author and stops when it cannot. This forge's branches
-    // hold no commit, so the merge request's opener stands in; a suite naming an author mounts
-    // its own commits, which this fallback leaves answered.
-    Mock::given(method("GET"))
-        .and(path(format!("{repo}/commits")))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
-        .with_priority(9)
-        .mount(gitea)
-        .await;
     // One open change per resource: a removal asks the forge for the open merge requests first
     // (CC-34, T-0883). This fixture has none open — at the fallback priority, so a suite that
     // mounts a forge with an open change of its own is answered its own, not this empty list.

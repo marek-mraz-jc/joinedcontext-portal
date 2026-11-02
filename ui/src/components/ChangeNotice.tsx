@@ -54,7 +54,17 @@ export function ChangeDecide({ id, project }: { id: string; project: string }): 
   });
   if (change?.status.phase !== "PendingApproval" || change.summary === undefined) return null;
   const standing = approvalStanding(permissions, identity?.email ?? undefined, change);
-  if (standing.block !== null) return <p className="text-caption text-fg-muted">{t("changes.whoApproves")}</p>;
+  if (standing.block !== null) {
+    return (
+      <div role="status" className="flex flex-col gap-1">
+        <p className="flex items-center gap-2 text-body font-medium text-fg">
+          <span aria-hidden="true" className="size-2 shrink-0 animate-pulse rounded-full bg-accent motion-reduce:animate-none" />
+          {t("changes.waitingApprover")}
+        </p>
+        <p className="text-caption text-fg-muted">{t("changes.whoApproves")}</p>
+      </div>
+    );
+  }
   const expected = expectedNameOf(change);
   const red = change.status.lane === "red";
   const typedRight = !red || typed.trim() === expected;
@@ -87,9 +97,12 @@ export function ChangeDecide({ id, project }: { id: string; project: string }): 
 export function ChangeNotice({
   change,
   project,
+  plain = false,
 }: {
   change: Change;
   project: string;
+  /** For a person who follows one file: the words alone, the id and lane behind the link. */
+  plain?: boolean;
 }): JSX.Element {
   const { t } = useTranslation();
   // Approved already when it is on its way to the branch or there (PF-58); anything else waits.
@@ -110,10 +123,10 @@ export function ChangeNotice({
     >
       <span className="flex flex-wrap items-center gap-2">
         <span>{waiting ? t("changes.accepted") : t("changes.approvedAsProposed")}</span>
-        <span className="font-mono font-medium">{change.metadata.name}</span>
+        {plain ? null : <span className="font-mono font-medium">{change.metadata.name}</span>}
         {/* The lane says who must approve: once approved, red beside Merged only reads as a failure. */}
-        {waiting ? <LifecycleBadge kind="lane" value={change.status.lane} /> : null}
-        <LifecycleBadge kind="phase" value={change.status.phase} />
+        {waiting && !plain ? <LifecycleBadge kind="lane" value={change.status.lane} /> : null}
+        {plain ? null : <LifecycleBadge kind="phase" value={change.status.phase} />}
       </span>
     </Alert>
   );

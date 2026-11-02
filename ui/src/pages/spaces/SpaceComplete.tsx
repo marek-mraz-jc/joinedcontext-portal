@@ -394,6 +394,7 @@ export function CompleteFlow({ project, file, inDock = false }: {
   return (
     <div className="flex flex-col gap-section">
       {inDock && result?.change ? null : <Card className="flex flex-col gap-4">
+        {inDock && file !== undefined ? <p className="truncate text-body font-medium text-fg">{t("spaces.complete.fileGiven", { name: file.name })}</p> : null}
         <Field id="complete-space" label={t("spaces.complete.space")} help={t("spaces.complete.spaceHint")}>
           {/* An existing space to complete, or the name of a new one (ADR-N-033). */}
           <ResourceNamePicker
@@ -448,7 +449,7 @@ export function CompleteFlow({ project, file, inDock = false }: {
         ) : null}
 
         {/* The attributes above can outgrow the dock: the next step stays in view. */}
-        <div className={`flex flex-wrap items-center gap-3 ${inDock ? "sticky bottom-0 bg-surface py-2" : ""}`}>
+        <div className={`flex flex-wrap items-center gap-3 ${inDock ? "sticky bottom-0 border-t border-border bg-surface py-2" : ""}`}>
           <Button
             id="complete-btn"
             variant={result?.proposeReady ? "secondary" : "primary"}
@@ -461,7 +462,7 @@ export function CompleteFlow({ project, file, inDock = false }: {
             loading={loading}
             onClick={() => void executeComplete(false)}
           >
-            {t("spaces.complete.action")}
+            {t(inDock ? "spaces.complete.checkFile" : "spaces.complete.action")}
           </Button>
 
           {result?.proposeReady && !result.change ? (

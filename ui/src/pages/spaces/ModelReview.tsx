@@ -62,7 +62,7 @@ export function ModelReview({ project, space, type, source, table, onCorrect }: 
           const sample = sampleOf(table, mapping, slot);
           const id = `review-${slot.name}`;
           return (
-            <li key={slot.name} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+            <li key={slot.name} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-2">
               <span className="flex min-w-0 flex-col">
                 <label htmlFor={id} className="text-body text-fg">
                   {label}

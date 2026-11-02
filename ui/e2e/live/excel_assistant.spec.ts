@@ -64,9 +64,10 @@ test.afterAll(async ({ browser }) => {
 });
 
 test("one .xlsx in the assistant: model reviewed, approved, every row read back, and a second attach opens nothing", async ({ browser }) => {
-  const recorded = { newContext: () => browser.newContext({ recordVideo: { dir: VIDEO ?? "", size: SIZE }, viewport: SIZE }) } as typeof browser;
+  const recorded = { newContext: () => browser.newContext({ recordVideo: { dir: VIDEO ?? "", size: SIZE }, viewport: { width: 1440, height: 900 } }) } as typeof browser;
   editor = await signIn(VIDEO ? recorded : browser, EDITOR, `/projects/${PROJECT}?lang=en`);
   const page = editor.page;
+  // Signed in wide: the sign-in's landmark is the side navigation, folded away on a phone.
   await page.setViewportSize(SIZE);
   await page.getByRole("button", { name: "Open the assistant" }).click();
   await pace(page);

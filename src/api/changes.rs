@@ -2420,8 +2420,12 @@ pub async fn approve_change_for(
     }
     merges_after(id, &awaited_changes(state, gitea, &pr, project).await?)?;
 
-    // Unread is refused: a forge blip must not make a proposer a stranger to their own Change.
-    let author = head_author(gitea, &pr).await?;
+    // A forge blip must not make a proposer a stranger to their own Change: only a head the
+    // forge says is not there falls back to who opened the merge request.
+    let author = match head_author(gitea, &pr).await {
+        Err(GitError::NotFound) => poster(&pr),
+        read => read?,
+    };
     let is_author = match (&author.email, &identity.email) {
         (Some(pr_email), Some(user_email)) if !pr_email.trim().is_empty() => {
             pr_email.eq_ignore_ascii_case(user_email.trim())
