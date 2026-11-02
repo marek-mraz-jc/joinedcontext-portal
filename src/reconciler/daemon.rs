@@ -716,7 +716,7 @@ impl Syncer {
         });
     }
 
-    /// Takes what `main` declares of [`GO_LIVE_KINDS`] beyond the mirror live without waiting
+    /// Takes what `main` declares of `GO_LIVE_KINDS` beyond the mirror live without waiting
     /// for a run: the broker's views and rule documents first, then the mirror, whose `Live`
     /// is what a person waits for. It reads the merged `main` through the loader and compiler
     /// of a whole run, so nothing unreviewed or unvalidated gets here, and it never removes:
