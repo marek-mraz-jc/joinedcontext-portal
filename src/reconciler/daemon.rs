@@ -24,7 +24,7 @@ use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-use tokio::sync::{Mutex, OwnedMutexGuard};
+use tokio::sync::{Mutex, MutexGuard, OwnedMutexGuard};
 use utoipa::ToSchema;
 
 use super::groups::GroupSync;
@@ -44,6 +44,10 @@ use jcctl::loader::Repository;
 /// One name, because a deployment that runs a second runner gives it the same chart and the
 /// same Secret; a runner per project is a task of its own.
 const PIPELINE_RUNNER_DEPLOYMENT: &str = "pipeline-runner";
+
+/// What a merged change takes live ahead of the whole run (T-6455): what a new space takes its
+/// first write through. Every other kind has a step of a run that compares it with the mirror.
+const GO_LIVE_KINDS: [&str; 4] = ["ContextSpace", "DataModel", "Endpoint", "Policy"];
 
 /// Status of the background Git mirror synchronization.
 ///
@@ -86,6 +90,10 @@ pub enum SyncError {
         #[source]
         source: std::io::Error,
     },
+    /// A merged change went live while this run was reading an older repository: the run stops
+    /// before it undoes that, and the run queued behind the merge carries on (T-6455).
+    #[error("a merged change went live during this run")]
+    Superseded,
 }
 
 /// The feed's sentence for a run that could not load the repository (T-4967): a refused forge
@@ -110,6 +118,12 @@ pub struct Syncer {
     mirror: Arc<Mirror>,
     status: Arc<RwLock<SyncStatus>>,
     running: Arc<Mutex<()>>,
+    /// Counts the merges [`Self::go_live`] applied. Held across a run's broker pass, its mirror
+    /// swap and a merge's own application, so none of them interleave, and a run started before
+    /// a merge sees the count moved and stops (T-6455).
+    merges: Mutex<u64>,
+    /// One [`Self::go_live`] at a time: the second one finds the first one's work done.
+    going_live: Mutex<()>,
     /// The last run's render and repository, reused while every repository lists the same
     /// files at the same blobs (T-4481).
     last_render: std::sync::Mutex<Option<(Arc<Render>, Arc<Repository>)>>,
@@ -251,6 +265,8 @@ impl Syncer {
                 ..SyncStatus::default()
             })),
             running: Arc::new(Mutex::new(())),
+            merges: Mutex::new(0),
+            going_live: Mutex::new(()),
             last_render: std::sync::Mutex::new(None),
             assembly: {
                 static SYNCERS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
@@ -638,7 +654,9 @@ impl Syncer {
 
         let before = self.status();
         let started = std::time::Instant::now();
-        match self.do_sync(leader).await {
+        // Before anything is read: what a merge takes live after this line may be newer.
+        let seen = *self.merges.lock().await;
+        match self.do_sync(leader, seen).await {
             Ok((count, revision)) => {
                 let landed = before.revision.as_deref() != Some(revision.as_str());
                 // How long a merge waits for the mirror is this run's length, and a run in
@@ -666,6 +684,10 @@ impl Syncer {
                 }
                 Ok(count)
             }
+            Err(SyncError::Superseded) => {
+                tracing::info!("a merged change went live during this run: the next run follows");
+                Ok(before.manifests)
+            }
             Err(err) => {
                 let message = err.to_string();
                 let repeated = before.last_error.as_deref() == Some(message.as_str());
@@ -678,6 +700,115 @@ impl Syncer {
                 }
                 Err(err)
             }
+        }
+    }
+
+    /// A merge reached `main`: what it changed goes live now, then the whole run follows, which
+    /// converges everything else and stays the safety net (CC-65, CC-03, T-6455).
+    pub fn merged(self: Arc<Self>) {
+        tokio::spawn(async move {
+            if let Err(err) = self.go_live().await {
+                tracing::warn!(error = %err, "a merged change waits for the whole run");
+            }
+            if let Err(err) = self.sync_once().await {
+                tracing::warn!(error = %err, "sync after a merge failed");
+            }
+        });
+    }
+
+    /// Takes what `main` declares of `GO_LIVE_KINDS` beyond the mirror live without waiting
+    /// for a run: the broker's views and rule documents first, then the mirror, whose `Live`
+    /// is what a person waits for. It reads the merged `main` through the loader and compiler
+    /// of a whole run, so nothing unreviewed or unvalidated gets here, and it never removes:
+    /// a resource's removal and a project's arrival or departure stay with the whole run,
+    /// whose steps compare against the mirror it replaces. A revoked Policy still reaches the
+    /// broker here, in its rule document.
+    pub async fn go_live(&self) -> Result<(), SyncError> {
+        let _one = self.going_live.lock().await;
+        // Before a first run the mirror is empty and everything would look new; a follower
+        // converges nothing (CC-03).
+        if self.status().revision.is_none() || !self.is_leader() {
+            return Ok(());
+        }
+        let started = std::time::Instant::now();
+        let default_branch = self.gitea.default_branch().await?;
+        let revision = self.gitea.branch_head(&default_branch).await?;
+        let Some((scratch, repository)) = self.staged_apart(&revision).await? else {
+            return Ok(());
+        };
+        let (fresh_mirror, _) =
+            self.load_mirror(&scratch, &repository, &revision, &default_branch)?;
+        if fresh_mirror.repositories() != self.mirror.repositories() {
+            return Ok(());
+        }
+        // The keys before the views, as in a run: a space's keyedHash slots never go live
+        // without theirs (DM-121).
+        self.resolve_personal_keys(&fresh_mirror, scratch.path())
+            .await;
+        let mut merges = self.merges.lock().await;
+        let written = self.converge_merged_views(&fresh_mirror, &repository).await;
+        let behind = self.mirror.behind(&fresh_mirror, &GO_LIVE_KINDS);
+        let changed = behind.len();
+        for envelope in behind {
+            self.mirror.upsert(envelope);
+        }
+        if written > 0 || changed > 0 {
+            *merges = merges.wrapping_add(1);
+        }
+        drop(merges);
+        tracing::info!(
+            %revision,
+            changed,
+            elapsed_ms = started.elapsed().as_millis() as u64,
+            "merged change live"
+        );
+        Ok(())
+    }
+
+    /// The mirror takes the run's result, unless a merge went live since `seen`.
+    async fn swap(
+        &self,
+        fresh_mirror: &Mirror,
+        transitions: &super::transitions::Transitions,
+        seen: u64,
+        repository: &Arc<Repository>,
+        scratch: &Render,
+    ) -> Result<(), SyncError> {
+        let no_merge = self.no_merge_since(seen).await?;
+        let catalogue = self.claim_catalogue_wave();
+        transitions.keep_all(fresh_mirror);
+        self.mirror.replace_all(fresh_mirror);
+        drop(no_merge);
+        // They run after the swap and beside the rest of the run (T-5519): a catalogue that
+        // answers in minutes held every merged change out of the mirror for as long.
+        if let Some(previous) = catalogue {
+            self.start_catalogue_wave(previous, repository, scratch);
+        }
+        Ok(())
+    }
+
+    /// How many objects of the broker the merge moved.
+    async fn converge_merged_views(&self, fresh_mirror: &Mirror, repository: &Repository) -> usize {
+        let Some(views) = self.views.as_ref() else {
+            return 0;
+        };
+        let outcomes = views.converge_merged(repository).await;
+        let written = outcomes
+            .iter()
+            .filter(|(_, outcome)| !matches!(outcome, super::views::ViewOutcome::Refused(_)))
+            .count();
+        super::views::record(fresh_mirror, outcomes);
+        written
+    }
+
+    /// The merge count, held, while it is still `seen`: a run reading from before a merge goes
+    /// no further than this.
+    async fn no_merge_since(&self, seen: u64) -> Result<MutexGuard<'_, u64>, SyncError> {
+        let merges = self.merges.lock().await;
+        if *merges == seen {
+            Ok(merges)
+        } else {
+            Err(SyncError::Superseded)
         }
     }
 
@@ -808,10 +939,29 @@ impl Syncer {
         self.status().last_sync.is_some()
     }
 
-    /// The render of the staged organization: itself in layout 1; in layout 2 every registered
-    /// project staged from its own repository at its entry's `spec.ref` and assembled with it
-    /// (CC-86). A project that does not stage keeps the render the last assembly gave it, and
-    /// the rest of the organization renders.
+    /// `main` as a render of its own, beside any run in flight, which may be reading the shared
+    /// assembly; `None` when a repository did not stage, or nothing moved since the last run.
+    async fn staged_apart(
+        &self,
+        revision: &str,
+    ) -> Result<Option<(Render, Repository)>, SyncError> {
+        let org = listing(&self.gitea, revision, false).await?;
+        let last = self
+            .last_render
+            .lock()
+            .unwrap_or_else(|p| p.into_inner())
+            .clone();
+        if let Some((render, _)) = last {
+            if render.unchanged(&org).await {
+                return Ok(None);
+            }
+        }
+        let into = Scratch::new(revision)?;
+        let staged = stage_listed(&self.gitea, revision, &org).await?;
+        let (render, repository) = self.render(staged, org, Some(into)).await?;
+        Ok(render.unstaged.is_empty().then_some((render, repository)))
+    }
+
     /// Steps 2 to 4: the organization at `revision` staged, rendered and loaded; or the last
     /// run's render and repository, when the organization and every project repository list the
     /// same files at the same blobs as when it staged them (T-4481). At 10,000 Endpoints the
@@ -829,17 +979,23 @@ impl Syncer {
             }
         }
         let (render, repository) = self
-            .render(stage_listed(&self.gitea, revision, &org).await?, org)
+            .render(stage_listed(&self.gitea, revision, &org).await?, org, None)
             .await?;
         let fresh = (Arc::new(render), Arc::new(repository));
         *self.last_render.lock().unwrap_or_else(|p| p.into_inner()) = Some(fresh.clone());
         Ok(fresh)
     }
 
+    /// The render of the staged organization: itself in layout 1; in layout 2 every registered
+    /// project staged from its own repository at its entry's `spec.ref` and assembled with it
+    /// (CC-86). A project that does not stage keeps the render the last assembly gave it, and
+    /// the rest of the organization renders.
+    /// Assembles into `into`, or into the assembly the runs share.
     async fn render(
         &self,
         org: Scratch,
         listed: Listing,
+        into: Option<Scratch>,
     ) -> Result<(Render, Repository), SyncError> {
         use jc_core::project::RepositoryRole;
         use jcctl::assemble::{assemble, layout_at, read_registry, Directories};
@@ -890,24 +1046,28 @@ impl Syncer {
             }
             projects.insert(slug, (client, git_ref));
         }
-        let into = self.assembly.clone();
+        let root = into.as_ref().map_or_else(
+            || self.assembly.clone(),
+            |into| into.path().join("assembly"),
+        );
         let environment = std::env::var("JC_ENVIRONMENT")
             .ok()
             .filter(|value| !value.trim().is_empty());
         let assembly = assemble(
             org.path(),
             &Directories(directories),
-            &into,
+            &root,
             environment.as_deref(),
         )?;
         for finding in &assembly.findings {
             tracing::warn!(project = %finding.slug, path = %finding.path.display(), message = %finding.message, "a project repository's finding");
         }
         staged.push(org);
+        staged.extend(into);
         Ok((
             Render {
                 layout: 2,
-                root: into,
+                root,
                 _staged: staged,
                 projects,
                 unstaged,
@@ -917,7 +1077,7 @@ impl Syncer {
         ))
     }
 
-    async fn do_sync(&self, leader: bool) -> Result<(usize, String), SyncError> {
+    async fn do_sync(&self, leader: bool, seen: u64) -> Result<(usize, String), SyncError> {
         let mut steps = Steps::start();
         // 1. Resolve default branch and its commit revision
         let default_branch = self.gitea.default_branch().await?;
@@ -1026,7 +1186,10 @@ impl Syncer {
         // 5b'''. Every Endpoint's and Context Space's view and every space's rule document,
         //        written into the broker (T-3640). The condition says whether the broker holds
         //        it; an Endpoint whose view is refused keeps the gateway path and its phase.
-        self.converge_views(&fresh_mirror, &repository).await;
+        {
+            let _no_merge = self.no_merge_since(seen).await?;
+            self.converge_views(&fresh_mirror, &repository).await;
+        }
         steps.mark("views");
 
         // 5c. The realm's managed groups, brought to what `users/groups/` says (PF-63). The
@@ -1090,14 +1253,8 @@ impl Syncer {
         // 5f, 5f', 5g. The catalogues, taken before the swap: a wave withdraws a dataset whose
         //     Endpoint the mirror it last published from had, and before its first wave that is
         //     the mirror this run replaces.
-        let catalogue = self.claim_catalogue_wave();
-        transitions.keep_all(&fresh_mirror);
-        self.mirror.replace_all(&fresh_mirror);
-        // They run after the swap and beside the rest of the run (T-5519): a catalogue that
-        // answers in minutes held every merged change out of the mirror for as long.
-        if let Some(previous) = catalogue {
-            self.start_catalogue_wave(previous, &repository, &scratch);
-        }
+        self.swap(&fresh_mirror, &transitions, seen, &repository, &scratch)
+            .await?;
         steps.mark("swap");
 
         // 5b. Deploy resident streams for eligible DataSource pipelines (PL-47), each with the
@@ -3617,6 +3774,308 @@ output_error{stream="kpi"} 6
                 .join("projects/helsinki/spaces/helsinki-kpi/datamodels/helsinki-kpi.linkml.yaml")
                 .is_file(),
             "the LinkML source is staged beside its DataModel"
+        );
+    }
+
+    /// The next revision of `shared`, with `files` beside what `base` holds.
+    fn next_revision(shared: &Files, base: &[(&str, String)], files: &[(&str, String)]) {
+        let mut held = shared.lock().expect("files");
+        held.0 += 1;
+        held.1 = base
+            .iter()
+            .chain(files)
+            .map(|(p, t)| ((*p).to_owned(), t.clone()))
+            .collect();
+    }
+
+    fn second_endpoint() -> (&'static str, String) {
+        (
+            "projects/city/endpoints/vendor.yaml",
+            manifest(
+                "Endpoint",
+                "vendor",
+                json!({
+                    "contextSpaceRef": {"kind": "ContextSpace", "name": "catalog"},
+                    "slug": "dddddddddddddddddddddddddd",
+                    "audience": "public",
+                    "enabledRepresentations": ["ngsi-ld"],
+                }),
+            ),
+        )
+    }
+
+    /// The space a merge writes into, and a space beside it the merge has no business with.
+    fn two_spaces() -> Vec<(&'static str, String)> {
+        vec![
+            (
+                "projects/city/spaces/air/space.yaml",
+                manifest("ContextSpace", "air", json!({})),
+            ),
+            (
+                "projects/city/spaces/quiet/space.yaml",
+                manifest("ContextSpace", "quiet", json!({})),
+            ),
+            space_endpoint(
+                "projects/city/spaces/quiet/endpoints/quiet.yaml",
+                "quiet",
+                "cccccccccccccccccccccccccc",
+            ),
+            grant(
+                "projects/city/spaces/quiet/policies/quiet.yaml",
+                "quiet",
+                "quiet",
+            ),
+        ]
+    }
+
+    fn space_endpoint(file: &'static str, space: &str, slug: &str) -> (&'static str, String) {
+        (
+            file,
+            manifest(
+                "Endpoint",
+                space,
+                json!({
+                    "contextSpaceRef": space,
+                    "slug": slug,
+                    "audience": "public",
+                    "enabledRepresentations": ["ngsi-ld"],
+                }),
+            ),
+        )
+    }
+
+    fn grant(file: &'static str, name: &str, space: &str) -> (&'static str, String) {
+        (
+            file,
+            manifest(
+                "Policy",
+                name,
+                json!({
+                    "contextSpaceRef": space,
+                    "assigner": "did:web:city.example",
+                    "assignee": {"kind": "user", "id": "vendor"},
+                    "operations": ["upsertBatch"],
+                    "information": [{"entities": [{"type": "Car"}], "propertyNames": ["speed"]}],
+                }),
+            ),
+        )
+    }
+
+    fn vendor_endpoint() -> (&'static str, String) {
+        space_endpoint(
+            "projects/city/spaces/air/endpoints/air.yaml",
+            "air",
+            "dddddddddddddddddddddddddd",
+        )
+    }
+
+    fn write_grant() -> (&'static str, String) {
+        grant(
+            "projects/city/spaces/air/policies/vendor-write.yaml",
+            "vendor-write",
+            "air",
+        )
+    }
+
+    /// A kind a run compares with the mirror, which a merge leaves to it.
+    fn second_catalogue() -> (&'static str, String) {
+        (
+            "projects/city/ckaninstances/hel-fi.yaml",
+            manifest(
+                "CkanInstance",
+                "hel-fi",
+                json!({
+                    "url": "https://data.example.fi",
+                    "apiTokenRef": {"name": "ckan-api-token", "key": "token"},
+                }),
+            ),
+        )
+    }
+
+    /// T-6455: a merged Endpoint goes live while a whole run holds the run lock, and the run
+    /// behind it still converges the kinds a merge leaves alone.
+    #[tokio::test]
+    async fn a_merge_goes_live_past_a_running_run_and_the_next_run_converges_the_rest() {
+        let base = catalogue_files();
+        let (_forge, gitea, shared) = changing_forge(&base).await;
+        let mirror = Arc::new(Mirror::new());
+        let syncer = Syncer::new(Arc::new(gitea), Arc::clone(&mirror));
+        syncer.sync_once().await.expect("the first run loads");
+
+        next_revision(&shared, &base, &[second_endpoint(), second_catalogue()]);
+        let in_flight = syncer.running.lock().await;
+        tokio::time::timeout(Duration::from_secs(5), syncer.go_live())
+            .await
+            .expect("a merge waits for no run")
+            .expect("the merge loads");
+        let live = mirror.get("city", "Endpoint", "vendor").expect("live");
+        assert_eq!(
+            live.status.expect("a status").phase,
+            crate::resource::Phase::Live
+        );
+        assert!(mirror.get("city", "CkanInstance", "hel-fi").is_none());
+        assert_eq!(syncer.status().revision.as_deref(), Some("rev-1"));
+
+        drop(in_flight);
+        syncer.sync_once().await.expect("the next run loads");
+        assert!(mirror.get("city", "CkanInstance", "hel-fi").is_some());
+        assert_eq!(syncer.status().revision.as_deref(), Some("rev-2"));
+    }
+
+    /// T-6455: a run that read `main` before a merge stops short of its broker pass and its
+    /// swap: going on, it would take the merged grant away again until the next run.
+    #[tokio::test]
+    async fn a_run_from_before_a_merge_does_not_undo_it() {
+        let base = catalogue_files();
+        let (_forge, gitea, shared) = changing_forge(&base).await;
+        let mirror = Arc::new(Mirror::new());
+        let syncer = Syncer::new(Arc::new(gitea), Arc::clone(&mirror));
+        syncer.sync_once().await.expect("the first run loads");
+        let seen = *syncer.merges.lock().await;
+
+        next_revision(&shared, &base, &[second_endpoint()]);
+        syncer.go_live().await.expect("the merge loads");
+
+        next_revision(&shared, &base, &[]);
+        let stale = syncer.do_sync(true, seen).await;
+        assert!(matches!(stale, Err(SyncError::Superseded)), "{stale:?}");
+        assert!(mirror.get("city", "Endpoint", "vendor").is_some());
+
+        next_revision(&shared, &base, &[second_endpoint()]);
+        syncer.sync_once().await.expect("the next run loads");
+        assert!(mirror.get("city", "Endpoint", "vendor").is_some());
+        assert_eq!(syncer.status().last_error, None);
+    }
+
+    /// T-6455: a merge that changed nothing a run answers for stops no run.
+    #[tokio::test]
+    async fn a_push_that_goes_live_with_nothing_stops_no_run() {
+        let base = catalogue_files();
+        let (_forge, gitea, shared) = changing_forge(&base).await;
+        let syncer = Syncer::new(Arc::new(gitea), Arc::new(Mirror::new()));
+        syncer.sync_once().await.expect("the first run loads");
+        next_revision(&shared, &base, &[second_catalogue()]);
+        syncer.go_live().await.expect("the push loads");
+        assert_eq!(*syncer.merges.lock().await, 0);
+    }
+
+    /// T-6455: a forge that fails the merge's pass costs the merge nothing but time: the mirror
+    /// stays as it was and the whole run takes the merge live.
+    #[tokio::test]
+    async fn a_failed_merge_pass_is_repaired_by_the_whole_run() {
+        let base = catalogue_files();
+        let (forge, gitea, shared) = changing_forge(&base).await;
+        let mirror = Arc::new(Mirror::new());
+        let syncer = Syncer::new(Arc::new(gitea), Arc::clone(&mirror));
+        syncer.sync_once().await.expect("the first run loads");
+
+        next_revision(&shared, &base, &[second_endpoint()]);
+        Mock::given(method("GET"))
+            .and(path("/api/v1/repos/test-owner/test-repo"))
+            .respond_with(ResponseTemplate::new(500))
+            .with_priority(1)
+            .up_to_n_times(1)
+            .mount(&forge)
+            .await;
+        syncer.go_live().await.expect_err("the forge failed");
+        assert!(mirror.get("city", "Endpoint", "vendor").is_none());
+
+        syncer.sync_once().await.expect("the next run loads");
+        assert!(mirror.get("city", "Endpoint", "vendor").is_some());
+    }
+
+    /// T-6455: before a first run the mirror is empty, not behind: nothing goes live from it.
+    #[tokio::test]
+    async fn nothing_goes_live_before_the_first_run() {
+        let (_forge, gitea, _shared) = changing_forge(&catalogue_files()).await;
+        let mirror = Arc::new(Mirror::new());
+        let syncer = Syncer::new(Arc::new(gitea), Arc::clone(&mirror));
+        syncer.go_live().await.expect("nothing to do");
+        assert_eq!(mirror.len(), 0);
+    }
+
+    /// What a broker that takes everything was sent, as `METHOD path`, from request `from` on.
+    async fn broker_calls(broker: &MockServer, from: usize) -> Vec<String> {
+        broker
+            .received_requests()
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .skip(from)
+            .filter(|r| r.method.as_str() != "GET")
+            .map(|r| format!("{} {}", r.method, r.url.path()))
+            .collect()
+    }
+
+    /// T-6455: a merge writes the new Endpoint's view and the space's rule document and leaves
+    /// every other view alone; a revoked grant leaves the broker's document the same way, ahead
+    /// of the whole run; nothing a merge lacks is deleted.
+    #[tokio::test]
+    async fn a_merge_writes_only_what_it_changed_and_a_revocation_reaches_the_rule_document() {
+        let broker = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/q/views"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"cccccccccccccccccccccccccc": {}})),
+            )
+            .mount(&broker)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/q/policy"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"loaded": []})))
+            .mount(&broker)
+            .await;
+        Mock::given(method("GET"))
+            .respond_with(ResponseTemplate::new(404))
+            .mount(&broker)
+            .await;
+        Mock::given(method("PUT"))
+            .respond_with(ResponseTemplate::new(201))
+            .mount(&broker)
+            .await;
+        let dir = Scratch::new("t6455").expect("a scratch directory");
+        let token = dir.path().join("token");
+        std::fs::write(&token, "t\n").expect("the token");
+
+        let base = two_spaces();
+        let (_forge, gitea, shared) = changing_forge(&base).await;
+        let views = super::super::views::ViewSync::new(broker.uri(), &token);
+        let syncer =
+            Syncer::new(Arc::new(gitea), Arc::new(Mirror::new())).with_views(Arc::new(views));
+        syncer.sync_once().await.expect("the first run loads");
+
+        let seen = broker.received_requests().await.unwrap_or_default().len();
+        next_revision(&shared, &base, &[vendor_endpoint(), write_grant()]);
+        syncer.go_live().await.expect("the merge loads");
+        let written = broker_calls(&broker, seen).await;
+        assert!(
+            written.contains(&"PUT /q/views/dddddddddddddddddddddddddd".to_owned()),
+            "{written:?}"
+        );
+        assert!(
+            written.iter().any(|c| c.starts_with("PUT /q/policy/")),
+            "{written:?}"
+        );
+        assert!(
+            !written.contains(&"PUT /q/views/cccccccccccccccccccccccccc".to_owned()),
+            "{written:?}"
+        );
+        assert!(
+            !written.iter().any(|c| c.starts_with("DELETE")),
+            "{written:?}"
+        );
+
+        let seen = broker.received_requests().await.unwrap_or_default().len();
+        next_revision(&shared, &base, &[vendor_endpoint()]);
+        syncer.go_live().await.expect("the revocation loads");
+        let revoked = broker_calls(&broker, seen).await;
+        assert!(
+            revoked.iter().any(|c| c.starts_with("PUT /q/policy/")),
+            "{revoked:?}"
+        );
+        assert!(
+            !revoked.iter().any(|c| c.starts_with("DELETE")),
+            "{revoked:?}"
         );
     }
 

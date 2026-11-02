@@ -171,15 +171,11 @@ pub async fn gitea_webhook(
         return Ok(StatusCode::NO_CONTENT.into_response());
     }
 
-    // 4. Start the mirror reconciliation and answer 202 at once: a full sync takes a minute on
+    // 4. Start the mirror reconciliation and answer 202 at once: a full sync takes minutes on
     // dev, longer than the forge waits for a delivery, and a request the forge gives up on would
     // drop the sync with it (F-R2POR3-017). An error is recorded in SyncStatus.
     if let Some(syncer) = state.syncer.clone() {
-        tokio::spawn(async move {
-            if let Err(err) = syncer.sync_once().await {
-                tracing::warn!(error = %err, "gitea webhook triggered sync failed");
-            }
-        });
+        syncer.merged();
     }
 
     Ok(StatusCode::ACCEPTED.into_response())

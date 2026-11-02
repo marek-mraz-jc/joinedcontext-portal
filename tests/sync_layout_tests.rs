@@ -137,6 +137,48 @@ async fn a_project_is_read_from_its_own_repository() {
     );
 }
 
+/// T-6455: a merge into a project's own repository goes live from a render apart from the
+/// assembly the runs share, which a run in flight may be reading.
+#[tokio::test]
+async fn a_merge_into_a_project_goes_live_from_its_own_render() {
+    let server = MockServer::start().await;
+    organization(&server).await;
+    repository(
+        &server,
+        "ovzdusie",
+        "main",
+        &[
+            (".jc/layout", "2\n"),
+            ("project.yaml", PROJECT),
+            ("spaces/ovzdusie/space.yaml", SPACE),
+        ],
+    )
+    .await;
+    let (syncer, mirror) = syncer(&server);
+    syncer.sync_once().await.expect("the first sync");
+
+    server.reset().await;
+    organization(&server).await;
+    let second = SPACE.replace(
+        "name: ovzdusie\n  namespace: ovzdusie",
+        "name: vendor\n  namespace: ovzdusie",
+    );
+    repository(
+        &server,
+        "ovzdusie",
+        "main",
+        &[
+            (".jc/layout", "2\n"),
+            ("project.yaml", PROJECT),
+            ("spaces/ovzdusie/space.yaml", SPACE),
+            ("spaces/vendor/space.yaml", &second),
+        ],
+    )
+    .await;
+    syncer.go_live().await.expect("the merge loads");
+    assert!(mirror.get("ovzdusie", "ContextSpace", "vendor").is_some());
+}
+
 /// CC-86: a project repository that cannot be read leaves that project at its last render and
 /// the organization syncs; the project is not unloaded.
 #[tokio::test]

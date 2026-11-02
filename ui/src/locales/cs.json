@@ -808,7 +808,7 @@
       "lead": "Jak program čte {type}: přes endpoint tohoto prostoru, s vlastním tokenem, a webhooky, které mu řeknou, když se něco změní.",
       "noEndpoint": "Tento prostor zatím neobsluhuje žádný endpoint, takže ho žádný program nemůže číst. Vytvořte ho v endpointech prostoru.",
       "pick": "Endpoint",
-      "pickHint": "{count} Endpointů tohoto prostoru. Každý má vlastní adresu a token a jeho Policy určuje, které řádky vrátí, například air-quality.",
+      "pickHint": "{count, plural, one {# Endpoint} few {# Endpointy} other {# Endpointů}} tohoto prostoru. Každý má vlastní adresu a token a jeho Policy určuje, které řádky vrátí, například air-quality.",
       "endpoint": "Přes {name}",
       "call": {
         "list": "Seznam",
@@ -847,7 +847,9 @@
         "websocket": "WebSocket",
         "ical": "iCal"
       },
-      "copySurface": "Kopírovat URL {surface}"
+      "copy": "Kopírovat",
+      "copySurface": "Kopírovat URL {surface}",
+      "calls": "Volání pro program"
     },
     "share": {
       "title": "Zveřejnit tento typ jako veřejný odkaz",
@@ -863,7 +865,8 @@
       "closed": "Tento pohled není otevřen veřejnosti.",
       "busy": "Právě je tu příliš mnoho návštěv. Zkuste to znovu za {seconds} s.",
       "busyLater": "Právě je tu příliš mnoho návštěv. Zkuste to znovu za minutu.",
-      "down": "Datová služba neodpověděla. Zkuste to znovu.",
+      "down": "„{name}“ teď nelze zobrazit: datová služba neodpověděla. Zkuste to znovu za minutu, odkaz zůstává stejný.",
+      "downUnnamed": "Toto zobrazení teď nelze zobrazit: datová služba neodpověděla. Zkuste to znovu za minutu, odkaz zůstává stejný.",
       "types": "Typy",
       "first": "Prvních {count} entit.",
       "count": "{count, plural, one {# entita} few {# entity} other {# entit}}.",
@@ -1169,6 +1172,7 @@
     },
     "toolbar": {
       "filter": "Filtr",
+      "tools": "Nástroje",
       "hide": "Skrýt pole",
       "group": "Seskupit",
       "colour": "Barva řádku",
@@ -11119,6 +11123,10 @@
     "noProjects": "Zatím nečtete žádný projekt a nic s vámi není sdíleno, takže konektor nemá na co sahat. Požádejte vlastníka projektu nebo správce organizace o přístup.",
     "accessOf": "Přístup pro {what}",
     "inWholeProject": "Už zahrnuto: je zaškrtnutý celý projekt.",
+    "revokedList": "Odvolané ({count})",
+    "find": "Najít projekt, prostor nebo Endpoint",
+    "findHint": "Napište část názvu: air-quality.",
+    "narrow": "Nebo vyberte jen část ({count} položek)",
     "wholeProject": "{project}: celý projekt",
     "newTitle": "Nový AI konektor",
     "formLead": "Zaškrtněte, na co smí konektor sahat. Seznam obsahuje jen to, co smíte číst, a Portál při vytvoření každou položku ověří znovu.",

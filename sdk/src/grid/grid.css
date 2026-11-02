@@ -2351,9 +2351,10 @@ a.jc-cell--link:focus-visible {
 }
 
 /* The id cell (T-6328): the head is cut with "…", the tail that tells rows apart (`101.2012`) never is. */
+/* A floor, or a wide table squeezed the column until the tail that tells rows apart was cut (T-6454). */
 .jc-grid-id {
   display: flex;
-  min-width: 0;
+  min-width: min(20ch, 40vw);
   max-width: 100%;
 }
 .jc-grid-id > span {

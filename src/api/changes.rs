@@ -2745,13 +2745,8 @@ async fn bring_up_to_date(
 /// The mirror catches up with `main` now rather than at the next poll, so what an approval merged
 /// shows at once.
 fn sync_soon(state: &AppState) {
-    if let Some(syncer) = state.syncer.as_ref() {
-        let syncer = syncer.clone();
-        tokio::spawn(async move {
-            if let Err(err) = syncer.sync_once().await {
-                tracing::warn!(error = %err, "sync after change approval failed");
-            }
-        });
+    if let Some(syncer) = state.syncer.clone() {
+        syncer.merged();
     }
 }
 

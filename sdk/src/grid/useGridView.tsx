@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ResolvedGridConfig } from "./config";
+import { complete } from "./filters";
 import { CellView } from "./cells";
 import type { CellLabels } from "./cells";
 import { DEFAULT_INSPECTOR_LABELS } from "./CellInspector";
@@ -145,7 +146,7 @@ export function useGridView(props: EntityGridProps & { onDrill?: (urn: string, t
   // On a phone the filter row folds under one button (T-5415); wider screens always show it.
   const [filtersOpen, setFiltersOpen] = useState(false);
   // The drawn area is a filter as much as a typed one: the folded filter row counts it (T-6345).
-  const activeFilters = Object.keys(state.filters).length + (grid.area ? 1 : 0);
+  const activeFilters = Object.values(state.filters).filter(complete).length + (grid.area ? 1 : 0);
   useEffect(() => {
     onFilterColumns?.([...filterable.values()]);
   }, [filterable, onFilterColumns]);
