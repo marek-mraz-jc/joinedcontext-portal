@@ -7579,7 +7579,8 @@
         "unresolvedTitle": "Addresses nobody in the organization has",
         "unresolved": "These stay as they are, and a group naming one is not synchronised until it is fixed: {addresses}. Invite the person, or remove the address from the manifest."
       },
-      "invitedMember": "The realm sent {email} an e-mail to verify the address and set a password. They are a member of {organization} with no project: they sign in to the catalogue and read what its Policies share with everyone or with their groups."
+      "invitedMember": "The realm sent {email} an e-mail to verify the address and set a password. They are a member of {organization} with no project: they sign in to the catalogue and read what its Policies share with everyone or with their groups.",
+      "idHint": "Groups, role bindings and policies name this person by this id:"
     },
     "setup": {
       "title": "Setup",
@@ -7971,7 +7972,8 @@
       "platformHint": "Unused volume space, and the node when nothing was measured."
     },
     "nav": {
-      "back": "Back to the projects"
+      "back": "Back to the projects",
+      "notAdmin": "Administration is for organization administrators. Your projects are one step back."
     },
     "group": {
       "access": "People and access",
@@ -11411,5 +11413,10 @@
       "group": "Group {group}",
       "granted": "Granted to them by name"
     }
+  },
+  "askAdmins": {
+    "title": "Ask an organization administrator",
+    "contacts": "Your organization's contacts",
+    "back": "Back to your projects"
   }
 }

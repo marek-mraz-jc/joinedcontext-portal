@@ -16,6 +16,9 @@ import {
   PersonReadable,
 } from "../src/pages/organization/DataAccess";
 import { OrganizationPage } from "../src/pages/organization/OrganizationPage";
+import { MemberName } from "../src/pages/access/GroupPage";
+import { AskAdmins } from "../src/pages/organization/AskAdmins";
+import { DeniedNote } from "../src/components/ui/PermissionGuard";
 import { expectNoAxeViolations, json, renderPage } from "./page_contract";
 
 const ADMIN = {
@@ -119,7 +122,9 @@ describe("Organization → Data access", () => {
     expect(await screen.findByRole("button", { name: /try again|retry/i })).toBeInTheDocument();
     cleanup();
     render(<DataAccessMatrix />, never);
-    expect(await screen.findByText(en.dataAccess.loading)).toBeInTheDocument();
+    // Said once to a screen reader, and in a visible line beside the skeleton.
+    expect(await screen.findByRole("status")).toHaveTextContent(en.dataAccess.loading);
+    expect(screen.getAllByText(en.dataAccess.loading)).toHaveLength(2);
   });
 
   it("fails with a retry, never a broken page, on an answer without rows", async () => {
@@ -212,5 +217,65 @@ describe("Person page: what this person can read", () => {
     cleanup();
     render(<PersonReadable id="jana-id" name="Jana" />, forbidden);
     expect(await screen.findByText(en.dataAccess.adminOnly)).toBeInTheDocument();
+  });
+});
+
+describe("T-6423: names, not ids, and a refusal that says whom to ask", () => {
+  const ORGANIZATION = {
+    apiVersion: "joinedcontext.com/v1alpha1",
+    kind: "Organization",
+    metadata: { name: "helsinki", namespace: "org" },
+    spec: { installation: true, contacts: [{ role: "administrative", name: "Ada Admin", email: "ada@hel.fi" }] },
+  };
+  const READER = { project: "org", bootstrap: false, grants: [{ role: "r", binding: "b", rule: { kinds: ["*"], verbs: ["read"] } }] };
+
+  it("names the organization's contacts on a refused panel", async () => {
+    render(<GroupDatasets group="planners" />, (path) =>
+      path === "/api/v1/projects/org/organizations" ? json({ kind: "List", items: [ORGANIZATION] }) : forbidden(),
+    );
+    expect(await screen.findByText(en.askAdmins.title)).toBeInTheDocument();
+    expect(await screen.findByText(/Ada Admin, ada@hel\.fi/)).toBeInTheDocument();
+    expect(screen.getByText(en.dataAccess.adminOnly)).toBeInTheDocument();
+    // A refused panel keeps its page: no way back is offered inside it.
+    expect(screen.queryByRole("link", { name: en.askAdmins.back })).toBeNull();
+  });
+
+  it("refuses the page with the way back to the person's projects", async () => {
+    renderPage(<OrganizationPage tab="data-access" anchor="helsinki" />, {
+      path: "/organization/data-access",
+      answer: (url) => {
+        if (url.pathname.endsWith("/permissions/me")) return json(READER);
+        if (url.pathname === "/api/v1/projects/org/organizations") return json({ kind: "List", items: [] });
+        return undefined;
+      },
+    });
+    expect(await screen.findByText(en.organization.adminOnly)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: en.askAdmins.back })).toHaveAttribute("href", "/projects/helsinki/home");
+  });
+
+  it("names a group member by name with a link to their page, the id only when no name is known", async () => {
+    const id = "3f2a9c1e-7b4d-4e8a-9f61-2c5d8e0b7a14";
+    renderPage(<MemberName id={id} names={new Map([[id, "Jana Nováková"]])} />, { path: "/", answer: () => undefined });
+    const link = await screen.findByRole("link", { name: "Jana Nováková" });
+    expect(link).toHaveAttribute("href", `/organization/people/${id}`);
+    expect(screen.queryByText(id)).toBeNull();
+    cleanup();
+    renderPage(<MemberName id={id} names={new Map()} />, { path: "/", answer: () => undefined });
+    expect(await screen.findByText(id)).toBeInTheDocument();
+  });
+
+  it("says the sentence alone when the Organization cannot be read", async () => {
+    renderPage(<AskAdmins message="Ask them." back="helsinki" />, { path: "/", answer: () => forbidden() });
+    expect(await screen.findByText("Ask them.")).toBeInTheDocument();
+    expect(screen.queryByText(en.askAdmins.contacts)).toBeNull();
+    expect(screen.getByRole("link", { name: en.askAdmins.back })).toBeInTheDocument();
+  });
+
+  it("says in a visible line why a reader's controls are off", async () => {
+    renderPage(<DeniedNote project="org" kind="Group" verb="propose" />, {
+      path: "/",
+      answer: (url) => (url.pathname.endsWith("/permissions/me") ? json(READER) : undefined),
+    });
+    expect(await screen.findByText("Only an organization administrator can add or change groups.")).toBeInTheDocument();
   });
 });

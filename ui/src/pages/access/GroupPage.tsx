@@ -12,10 +12,10 @@ import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
 import { Alert, Button, Field, PageHeader, Select } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
-import { PermissionGuard } from "../../components/ui/PermissionGuard";
+import { DeniedNote, PermissionGuard } from "../../components/ui/PermissionGuard";
 import { withMember, withoutMember } from "../apps/members";
 import { PersonPicker } from "../../components/pickers/PersonPicker";
-import { personLabel, usePersonNames } from "../../api/personNames";
+import { usePersonNames } from "../../api/personNames";
 import type { RolesSpec } from "../apps/members";
 import {
   appRolesNaming,
@@ -219,6 +219,8 @@ export function GroupPage({ name }: { name: string }): JSX.Element {
           </span>
         }
       />
+      {/* Why the greyed controls below are off, in words beside the header's Remove (T-6423). */}
+      <DeniedNote project={ORG_NAMESPACE} kind="Group" verb="propose" />
       {naming.length + appRoles.length > 0 ? (
         <p className="text-body text-fg-muted">
           {t("access.groupPage.deleteCascade", { bindings: naming.length, apps: appRoles.length })}
@@ -271,6 +273,20 @@ export function GroupPage({ name }: { name: string }): JSX.Element {
   );
 }
 
+/**
+ * A member as people read them (T-6423): the name, a link to their page; the Keycloak id only when
+ * the caller resolves no name (ADR-N-061: names reach people-admins and group approvers only).
+ */
+export function MemberName({ id, names }: { id: string; names: Map<string, string> }): JSX.Element {
+  const name = names.get(id);
+  if (!name) return <span className="font-mono text-caption [overflow-wrap:anywhere]">{id}</span>;
+  return (
+    <Link to="/organization/$tab/$" params={{ tab: "people", _splat: encodeURIComponent(id) }} className="text-body underline hover:no-underline">
+      {name}
+    </Link>
+  );
+}
+
 function Members({
   members,
   busy,
@@ -319,14 +335,14 @@ function Members({
         <ul className="space-y-1">
           {members.map((member) => (
             <li key={member.user} className="flex items-center gap-2">
-              <span className="text-caption">{personLabel(member.user, names)}</span>
+              <MemberName id={member.user} names={names} />
               <PermissionGuard project={ORG_NAMESPACE} kind="Group" verb="propose">
                 <Button
                   size="sm"
                   variant="secondary"
                   disabled={busy || waiting !== null}
                   disabledReason={waiting ? t("access.groupPage.waiting", { change: waiting }) : t("app.busyReason")}
-                  aria-label={t("access.groupPage.removeMember", { member: personLabel(member.user, names) })}
+                  aria-label={t("access.groupPage.removeMember", { member: names.get(member.user) ?? member.user })}
                   onClick={() => onRemove(member.user)}
                 >
                   {t("access.groupPage.remove")}

@@ -33,7 +33,7 @@ import {
   TableSkeleton,
 } from "../../components/ui";
 import { ResourcePageFailed, PageFailed } from "../../components/ui/PageState";
-import { PermissionGuard } from "../../components/ui/PermissionGuard";
+import { DeniedNote, PermissionGuard } from "../../components/ui/PermissionGuard";
 import { asUser } from "../apps/members";
 import { proposeChecked } from "../../api/proposal";
 import type { ResourceProposal } from "../../api/manifest";
@@ -1037,8 +1037,6 @@ export function PersonPage({ id }: { id: string }): JSX.Element {
         </h2>
         <PersonState person={person} />
         <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-body">
-          <dt className="text-fg-muted">{t("organization.people.id")}</dt>
-          <dd className="font-mono text-caption">{person.id}</dd>
           <dt className="text-fg-muted">{t("organization.people.form.locale")}</dt>
           <dd>{person.locale ? t(`organization.people.language.${person.locale}`) : t("organization.people.form.localeRealm")}</dd>
           <dt className="text-fg-muted">{t("organization.people.created")}</dt>
@@ -1065,6 +1063,14 @@ export function PersonPage({ id }: { id: string }): JSX.Element {
             </>
           ) : null}
         </dl>
+        {/* The id manifests name the person by, folded away: people read the name (T-6423). */}
+        <details className="text-caption text-fg-muted">
+          <summary className="focus-ring w-fit cursor-pointer rounded-sm">{t("organization.people.id")}</summary>
+          <p className="pt-1">
+            {t("organization.people.idHint")} <code className="font-mono text-fg [overflow-wrap:anywhere]">{person.id}</code>
+          </p>
+        </details>
+        <DeniedNote project={ORG_NAMESPACE} kind="Person" verb="update" />
         <div className="flex flex-wrap gap-2">
           <PermissionGuard project={ORG_NAMESPACE} kind="Person" verb="update">
             <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
