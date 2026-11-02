@@ -198,15 +198,18 @@ describe("the explorer", () => {
     client.setQueryData(queryKeys.list("helsinki", "datamodels"), MODELS_INLINE);
     client.setQueryData(queryKeys.session(), { sub: "demo.viewer", groups: ["helsinki"] });
     window.history.replaceState(null, "", "/");
-    render(
+    const page = (entityId?: string) => (
       <QueryClientProvider client={client}>
         <I18nextProvider i18n={i18n}>
           <InRouter>
-            <ExplorePage project="helsinki" />
+            <ExplorePage project="helsinki" initialEntityId={entityId} />
           </InRouter>
         </I18nextProvider>
-      </QueryClientProvider>,
+      </QueryClientProvider>
     );
+    const { rerender } = render(page());
+    // What the route does: the prop follows the address the page writes.
+    return { followAddress: () => rerender(page(new URLSearchParams(window.location.search).get("entityId") ?? undefined)) };
   }
 
   it("preselects the first space, its Endpoint and type, and says no hint", async () => {
@@ -221,12 +224,14 @@ describe("the explorer", () => {
   // The grid is keyed by the type: an opened row dropped the type for a moment and the remounted
   // grid lost the person's filters behind the dialog (journey clip, T-6454).
   it("keeps the grid mounted when a row opens on the type the page chose", async () => {
-    renderPreselected(["ngsi-ld", "csv"]);
+    const { followAddress } = renderPreselected(["ngsi-ld", "csv"]);
     const open = await screen.findByRole("button", { name: `${en.entityGrid.openRow}: 001` });
     const grid = document.querySelector(".jc-grid");
     await userEvent.click(open);
     expect(await screen.findByRole("dialog")).toBeInTheDocument();
     await waitFor(() => expect(new URLSearchParams(window.location.search).get("entityId")).toBeTruthy());
+    followAddress();
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
     expect(document.querySelector(".jc-grid")).toBe(grid);
   });
 
