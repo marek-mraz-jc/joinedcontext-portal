@@ -3498,7 +3498,7 @@
     },
     "kpiEditor": {
       "title": "Neue Kennzahl aus mehreren Quellen",
-      "lead": "Wählen Sie zwei bis fünf Endpunkte, legen Sie fest, wie ihre Zeilen zusammenkommen und was berechnet wird. Für eine Änderung seit letzter Woche genügt einer. Jedes Feld wird beim Tippen geprüft; die Vorschau berechnet den Wert aus dem, was die Endpunkte jetzt liefern. Geschrieben wird erst, wenn die Änderung genehmigt ist.",
+      "lead": "Wählen Sie die Quellen, legen Sie fest, wie ihre Zeilen zusammenkommen und was berechnet wird. Geschrieben wird erst, wenn die Änderung genehmigt ist.",
       "name": "Name der Kennzahl",
       "titleField": "Titel",
       "sources": "Quellen",
@@ -3556,6 +3556,7 @@
       "runPreview": "Jetzt berechnen",
       "previewing": "Wird berechnet…",
       "previewHint": "Liest bis zu 100 Zeilen jeder Quelle so, wie Sie sie sehen, und berechnet {formula}.",
+      "previewHintChange": "Liest bis zu 100 Zeilen der Quelle so, wie Sie sie sehen, jetzt und vor einer Woche, und berechnet die Differenz.",
       "partial": "Die Vorschau endete bei {rows} Zeilen einer Quelle, dieser Wert ist also nicht endgültig: Ein Lauf liest alle Zeilen.",
       "noKeys": "Kein Schlüssel kommt in jeder Quelle vor, daher würde jetzt keine Kennzahl geschrieben.",
       "indicator": "Kennzahl",

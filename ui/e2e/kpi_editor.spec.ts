@@ -137,7 +137,7 @@ async function fullShot(page: Page, name: string): Promise<void> {
     await page.setViewportSize({ width, height: 1000 });
     await page.getByTestId("kpi-preview-end").scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${dir}/change-${name}-${width}-bottom.png` });
-    await page.getByTestId("kpi-editor").evaluate((el) => el.scrollIntoView());
+    await page.getByTestId("kpi-editor").getByLabel("Indicator name").scrollIntoViewIfNeeded();
     await page.screenshot({ path: `${dir}/change-${name}-${width}-top.png` });
   }
   await page.setViewportSize({ width: 1440, height: 1000 });
@@ -167,7 +167,8 @@ test.describe("the KPI editor over several sources", () => {
     await editor.getByLabel("What to compute").selectOption("change");
     await expect(editor.getByTestId("kpi-source-1")).toHaveCount(0);
     await expect(editor.getByLabel("How the rows meet")).toBeDisabled();
-    await expect(editor.getByText("sum(parking.occupiedSpotNumber) - prev(sum(parking.occupiedSpotNumber), P7D)").first()).toBeVisible();
+    await expect(editor.getByText(/Reads this source's history/)).toBeVisible();
+    await expect(editor.getByText("prev(")).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Propose change" })).toBeEnabled();
     await fullShot(page, "chosen");
 

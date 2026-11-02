@@ -3498,7 +3498,7 @@
     },
     "kpiEditor": {
       "title": "Nový ukazovateľ z viacerých zdrojov",
-      "lead": "Vyberte dva až päť endpointov, určte, ako sa ich riadky spoja a čo sa má vypočítať. Zmene oproti minulému týždňu stačí jeden. Každé pole sa kontroluje počas písania; Náhľad vypočíta hodnotu z toho, čo endpointy poskytujú teraz. Nič sa nezapíše, kým zmenu neschváli schvaľovateľ.",
+      "lead": "Vyberte zdroje, určte, ako sa ich riadky spoja a čo sa má vypočítať. Nič sa nezapíše, kým zmenu neschváli schvaľovateľ.",
       "name": "Názov ukazovateľa",
       "titleField": "Nadpis",
       "sources": "Zdroje",
@@ -3556,6 +3556,7 @@
       "runPreview": "Vypočítať teraz",
       "previewing": "Počíta sa…",
       "previewHint": "Prečíta najviac 100 riadkov každého zdroja tak, ako ich vidíte vy, a vypočíta {formula}.",
+      "previewHintChange": "Prečíta najviac 100 riadkov zdroja tak, ako ich vidíte vy, teraz a spred týždňa, a vypočíta rozdiel.",
       "partial": "Náhľad sa zastavil pri {rows} riadkoch zdroja, preto táto hodnota nie je konečná: beh prečíta všetky riadky.",
       "noKeys": "Žiadny kľúč sa nenachádza vo všetkých zdrojoch, teraz by sa teda nezapísal žiadny ukazovateľ.",
       "indicator": "Ukazovateľ",

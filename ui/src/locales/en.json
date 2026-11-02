@@ -3498,7 +3498,7 @@
     },
     "kpiEditor": {
       "title": "New KPI over several sources",
-      "lead": "Pick two to five endpoints, say how their rows meet and what to compute. A change since last week needs one. Each field is checked as you type; Preview computes the value on what the endpoints serve now. Nothing is written until the change is approved.",
+      "lead": "Pick the sources, say how their rows meet and what to compute. Nothing is written until the change is approved.",
       "name": "Indicator name",
       "titleField": "Title",
       "sources": "Sources",
@@ -3556,6 +3556,7 @@
       "runPreview": "Compute now",
       "previewing": "Computing…",
       "previewHint": "Reads up to 100 rows of each source as you see them and computes {formula}.",
+      "previewHintChange": "Reads up to 100 rows of the source as you see them, now and a week ago, and computes the difference.",
       "partial": "The preview stopped at {rows} rows of a source, so this value is not the final one: a run reads every row.",
       "noKeys": "No key appears in every source, so no indicator would be written now.",
       "indicator": "Indicator",

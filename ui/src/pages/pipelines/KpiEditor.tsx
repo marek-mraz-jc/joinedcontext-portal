@@ -4,7 +4,7 @@
  * checked by jc-core's rules as it is typed, a preview on the sources' current pages, then
  * Propose, which writes the `v1alpha2` Pipeline through the change flow like every other write.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -204,7 +204,7 @@ export function KpiEditorDialog({ project, initial, pending, error, onClose, onP
           answer={preview.data}
           failed={preview.error instanceof Error ? (preview.error instanceof ApiError ? (preview.error.problem?.detail ?? preview.error.message) : t("app.error.generic")) : undefined}
           onRun={() => preview.mutate()}
-          formula={formulaOf(draft)}
+          hint={!draft.advanced && draft.choice === "change" ? t("pipelines.kpiEditor.previewHintChange") : t("pipelines.kpiEditor.previewHint", { formula: formulaOf(draft) })}
         />
       </div>
     </Dialog>
@@ -387,7 +387,7 @@ function FormulaFields({ draft, problems, update }: FormulaFieldsProps): JSX.Ele
         <Field
           id="kpi-choice"
           label={t("pipelines.kpiEditor.choice")}
-          help={t("pipelines.kpiEditor.writes", { formula: formulaOf(draft) })}
+          help={draft.choice === "change" ? t("pipelines.kpiEditor.hint.change") : t("pipelines.kpiEditor.writes", { formula: formulaOf(draft) })}
           errors={problems}
           required
         >
@@ -400,7 +400,6 @@ function FormulaFields({ draft, problems, update }: FormulaFieldsProps): JSX.Ele
           </Select>
         </Field>
       )}
-      {!draft.advanced && draft.choice === "change" ? <p className="text-caption text-fg-muted">{t("pipelines.kpiEditor.hint.change")}</p> : null}
       <Switch
         id="kpi-advanced"
         checked={draft.advanced}
@@ -423,14 +422,19 @@ interface PreviewPanelProps {
   running: boolean;
   answer?: Checked;
   failed?: string;
-  formula: string;
+  hint: string;
   onRun: () => void;
 }
 
-function PreviewPanel({ disabled, running, answer, failed, formula, onRun }: PreviewPanelProps): JSX.Element {
+function PreviewPanel({ disabled, running, answer, failed, hint, onRun }: PreviewPanelProps): JSX.Element {
   const { t } = useTranslation();
   const preview = answer?.preview;
   const number = new Intl.NumberFormat(undefined, { maximumFractionDigits: 3 });
+  // The answer lands at the foot of the scrolling dialog body.
+  const end = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (answer || failed) end.current?.scrollIntoView?.({ block: "nearest" });
+  }, [answer, failed]);
   return (
     <section className="flex flex-col gap-2 rounded-md border border-border p-3" aria-labelledby="kpi-preview-title" aria-live="polite">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -447,7 +451,7 @@ function PreviewPanel({ disabled, running, answer, failed, formula, onRun }: Pre
           {running ? t("pipelines.kpiEditor.previewing") : t("pipelines.kpiEditor.runPreview")}
         </Button>
       </div>
-      <p className="text-caption text-fg-muted">{t("pipelines.kpiEditor.previewHint", { formula })}</p>
+      <p className="text-caption text-fg-muted">{hint}</p>
       {!answer && !running && !failed && !disabled ? <p className="text-caption text-fg-muted">{t("pipelines.kpiEditor.noPreviewYet")}</p> : null}
       {failed ? <Alert tone="danger">{failed}</Alert> : null}
       {preview?.problem ? <Alert tone="warning">{preview.problem}</Alert> : null}
@@ -480,7 +484,7 @@ function PreviewPanel({ disabled, running, answer, failed, formula, onRun }: Pre
       {preview && Object.values(preview.rows).some((rows) => rows >= PREVIEW_PAGE) ? (
         <Alert tone="info">{t("pipelines.kpiEditor.partial", { rows: PREVIEW_PAGE })}</Alert>
       ) : null}
-      <span data-testid="kpi-preview-end" />
+      <span ref={end} data-testid="kpi-preview-end" />
     </section>
   );
 }

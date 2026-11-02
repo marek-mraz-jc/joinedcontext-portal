@@ -3498,7 +3498,7 @@
     },
     "kpiEditor": {
       "title": "Nový ukazatel z více zdrojů",
-      "lead": "Vyberte dva až pět koncových bodů, určete, jak se jejich řádky spojí a co se má spočítat. Změně oproti minulému týdnu stačí jeden. Každé pole se kontroluje při psaní; Náhled spočítá hodnotu z toho, co koncové body poskytují teď. Nic se nezapíše, dokud změnu neschválí schvalovatel.",
+      "lead": "Vyberte zdroje, určete, jak se jejich řádky spojí a co se má spočítat. Nic se nezapíše, dokud změnu neschválí schvalovatel.",
       "name": "Název ukazatele",
       "titleField": "Nadpis",
       "sources": "Zdroje",
@@ -3556,6 +3556,7 @@
       "runPreview": "Spočítat teď",
       "previewing": "Počítá se…",
       "previewHint": "Přečte nejvýše 100 řádků každého zdroje tak, jak je vidíte vy, a spočítá {formula}.",
+      "previewHintChange": "Přečte nejvýše 100 řádků zdroje tak, jak je vidíte vy, teď a před týdnem, a spočítá rozdíl.",
       "partial": "Náhled se zastavil u {rows} řádků zdroje, proto tato hodnota není konečná: běh přečte všechny řádky.",
       "noKeys": "Žádný klíč není ve všech zdrojích, teď by se tedy nezapsal žádný ukazatel.",
       "indicator": "Ukazatel",

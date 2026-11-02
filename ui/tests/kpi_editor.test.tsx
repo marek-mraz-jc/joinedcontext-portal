@@ -243,6 +243,7 @@ describe("the KPI editor", () => {
     expect(screen.getByLabelText(new RegExp(k.join))).toBeDisabled();
     expect(screen.getByText(k.joinHint.change)).toBeInTheDocument();
     expect(screen.getByText(/Reads this source's history/)).toBeInTheDocument();
+    expect(screen.queryByText(/prev\(/)).toBeNull();
     await waitFor(() => expect(propose()).toBeEnabled());
     expect(screen.getByText(k.noPreviewYet)).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: k.runPreview }));
