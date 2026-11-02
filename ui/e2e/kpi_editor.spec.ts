@@ -37,8 +37,9 @@ interface Stub {
 
 /** The check refuses MIN as the unit of a ratio, names parking unreadable, and previews two districts. */
 function checked(body: Record<string, unknown>) {
-  const pipeline = body.pipeline as { spec: { steps: { kpi: { unitCode: string } }[] } };
+  const pipeline = body.pipeline as { spec: { steps: { kpi: { unitCode: string; formula: string } }[] } };
   const unit = pipeline.spec.steps[0]?.kpi.unitCode;
+  if (pipeline.spec.steps[0]?.kpi.formula.includes("prev(")) return changed(body);
   const problems =
     unit === "C62"
       ? []
@@ -58,6 +59,23 @@ function checked(body: Record<string, unknown>) {
             ],
             rows: { parking: 48, stops: 31 },
           },
+        }
+      : {}),
+  };
+}
+
+/** A change over parking: 48 places now, 54 a week ago; `history: false` when the source has none. */
+let history = true;
+function changed(body: Record<string, unknown>) {
+  const reason = "input parking: it has no history 7 days back, so there is no value; check that its space keeps this attribute's history and that much of it exists";
+  return {
+    problems: [],
+    sources: [{ name: "parking", endpoint: "helsinki-parking", readable: true }],
+    ...(body.preview
+      ? {
+          preview: history
+            ? { values: [{ key: null, name: "parking-change", value: -6 }], rows: { parking: 48, "parking@P7D": 48 } }
+            : { values: [], rows: { parking: 48 }, problem: reason },
         }
       : {}),
   };
@@ -111,6 +129,20 @@ async function shot(page: Page, name: string): Promise<void> {
   await page.setViewportSize({ width: 1440, height: 1000 });
 }
 
+/** The dialog's whole height at each width, for a judge: the panel scrolls inside the viewport. */
+async function fullShot(page: Page, name: string): Promise<void> {
+  const dir = process.env.JC_SHOTS;
+  if (!dir) return;
+  for (const width of [1440, 400]) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.getByTestId("kpi-preview-end").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: `${dir}/change-${name}-${width}-bottom.png` });
+    await page.getByTestId("kpi-editor").evaluate((el) => el.scrollIntoView());
+    await page.screenshot({ path: `${dir}/change-${name}-${width}-top.png` });
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
+}
+
 async function pick(page: Page, label: string, option: string, nth = 0): Promise<void> {
   const box = page.getByRole("combobox", { name: label }).nth(nth);
   await box.click();
@@ -118,6 +150,49 @@ async function pick(page: Page, label: string, option: string, nth = 0): Promise
 }
 
 test.describe("the KPI editor over several sources", () => {
+  test("a person builds a change since last week over parking, sees no history, then a value, and proposes", async ({ page }) => {
+    const stub: Stub = { checks: [], proposed: [] };
+    await stubApi(page, stub);
+    await page.goto("/projects/helsinki/pipelines?lang=en");
+    await page.getByRole("button", { name: "New pipeline" }).first().click();
+    await page.getByRole("button", { name: /Analyse \(KPI\)|KPI/ }).first().click();
+    await page.getByRole("button", { name: "Combine several sources…" }).click();
+    const editor = page.getByTestId("kpi-editor");
+    await editor.getByLabel("Indicator name").fill("parking-change");
+    const first = editor.getByTestId("kpi-source-0");
+    await first.getByLabel("Input name").fill("parking");
+    await first.getByLabel("Endpoint").selectOption("helsinki-parking");
+    await pick(page, "Entity type", "ParkingSite");
+    await pick(page, "Number it reads", "occupiedSpotNumber");
+    await editor.getByLabel("What to compute").selectOption("change");
+    await expect(editor.getByTestId("kpi-source-1")).toHaveCount(0);
+    await expect(editor.getByLabel("How the rows meet")).toBeDisabled();
+    await expect(editor.getByText("sum(parking.occupiedSpotNumber) - prev(sum(parking.occupiedSpotNumber), P7D)").first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Propose change" })).toBeEnabled();
+    await fullShot(page, "chosen");
+
+    history = false;
+    await editor.getByRole("button", { name: "Compute now" }).click();
+    await expect(editor.getByText(/it has no history 7 days back/)).toBeVisible();
+    await fullShot(page, "no-history");
+
+    history = true;
+    await editor.getByRole("button", { name: "Compute now" }).click();
+    await expect(editor.getByRole("cell", { name: "-6", exact: true })).toBeVisible();
+    await expect(editor.getByText("parking: 48 rows · parking a week ago: 48 rows")).toBeVisible();
+    await fullShot(page, "previewed");
+
+    await page.getByRole("button", { name: "Propose change" }).click();
+    await expect.poll(() => stub.proposed.length).toBe(2);
+    const proposed = stub.proposed.at(-1) as { spec: { sources: { query: { attrs: string[] } }[]; steps: { kpi: Record<string, unknown> }[] } };
+    expect(proposed.spec.sources).toHaveLength(1);
+    expect(proposed.spec.sources[0].query.attrs).toEqual(["occupiedSpotNumber"]);
+    expect(proposed.spec.steps[0].kpi).toMatchObject({
+      formula: "sum(parking.occupiedSpotNumber) - prev(sum(parking.occupiedSpotNumber), P7D)",
+      join: { by: "time" },
+    });
+  });
+
   test("a person builds parking per transit stop by district, sees a refusal, previews and proposes", async ({ page }) => {
     const stub: Stub = { checks: [], proposed: [] };
     await stubApi(page, stub);
