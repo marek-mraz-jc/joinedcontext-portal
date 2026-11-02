@@ -18,7 +18,7 @@ for (const view of ["the records", "a note under review"]) {
       await page.setViewportSize(size);
       await page.goto(BASE);
       await expect(page.getByRole("heading", { name: TITLE, level: 1 })).toBeVisible();
-      await expect(page.getByRole("row").filter({ has: page.getByRole("gridcell") })).toHaveCount(REGION.length);
+      await expect(page.locator("tbody").getByRole("row")).toHaveCount(REGION.length);
       if (view === "a note under review") {
         await page.getByRole("textbox", { name: NOTE_BOX }).first().fill("Overené s odborom.");
         await page.getByRole("button", { name: REVIEW }).click();
@@ -39,7 +39,7 @@ for (const width of [1440, 400]) {
     const served = await serve(page, "member");
     await page.setViewportSize({ width, height: 900 });
     await page.goto(BASE);
-    await expect(page.getByRole("row").filter({ has: page.getByRole("gridcell") })).toHaveCount(REGION.length);
+    await expect(page.locator("tbody").getByRole("row")).toHaveCount(REGION.length);
     await expect(page.getByText(STEWARDS_ONLY)).toBeVisible();
     await expect(page.getByRole("textbox", { name: NOTE_BOX })).toHaveCount(0);
     await expect(page.getByRole("button", { name: REVIEW })).toHaveCount(0);
