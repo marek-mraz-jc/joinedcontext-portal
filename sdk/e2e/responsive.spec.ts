@@ -227,6 +227,64 @@ test.describe("the template's views", () => {
   }
 });
 
+// The default type page's grid (T-6437): what each width owes a person, measured in the browser.
+test.describe("the type page's grid", () => {
+  test.beforeAll(buildFixture);
+  const open = async (page: Page, width: number) => {
+    const problems: string[] = [];
+    await serve(page, problems);
+    await page.setViewportSize({ width, height: 800 });
+    await page.goto(`${PAGE}#/AirQualityObserved`);
+    await expect(page.locator(".jc-type-grid tbody td").first()).toBeVisible();
+  };
+
+  test("at 375 px the header is one line and a row shows every value without a swipe", async ({ page }) => {
+    await open(page, 375);
+    const head = page.locator(".jc-type-grid thead");
+    expect((await head.boundingBox())?.height).toBeLessThan(60);
+    const row = page.locator(".jc-type-grid tbody tr.jc-grid-tr").first();
+    const cells = await row.locator("td").evaluateAll((all) =>
+      all.map((cell) => ({ right: cell.getBoundingClientRect().right, clipped: cell.scrollWidth > cell.clientWidth, label: cell.getAttribute("data-label") })),
+    );
+    expect(cells.map((cell) => cell.label)).toEqual(["Station name", "pm25", "Temperature", "Date observed"]);
+    for (const cell of cells) {
+      expect(cell.right).toBeLessThanOrEqual(375);
+      expect(cell.clipped).toBe(false);
+    }
+    const scroll = page.locator(".jc-type-grid .jc-grid-scroll");
+    expect(await scroll.evaluate((box) => box.scrollWidth - box.clientWidth)).toBe(0);
+    await expect(page.getByText("Swipe sideways")).toHaveCount(0);
+  });
+
+  test("at 375 px a column's menu opens whole, beyond the sliding header", async ({ page }) => {
+    await open(page, 375);
+    await page.getByRole("button", { name: "Column options: pm25" }).click();
+    const menu = page.locator(".jc-grid-meta-menu");
+    await expect(menu).toBeVisible();
+    const box = await menu.boundingBox();
+    expect(box?.x).toBeGreaterThanOrEqual(0);
+    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(375);
+    expect(box?.height).toBeGreaterThan(100);
+  });
+
+  test("at 768 px the last column ends inside the grid", async ({ page }) => {
+    await open(page, 768);
+    const scroll = page.locator(".jc-type-grid .jc-grid-scroll");
+    expect(await scroll.evaluate((box) => box.scrollWidth - box.clientWidth)).toBe(0);
+  });
+
+  test("at 1440 px a number sits at its cell's end, in tabular figures", async ({ page }) => {
+    await open(page, 1440);
+    const number = page.locator('.jc-type-grid tbody td[data-kind="number"]').first();
+    const style = await number.locator(".jc-grid-cell").evaluate((cell) => {
+      const { textAlign, fontVariantNumeric } = getComputedStyle(cell);
+      return { textAlign, fontVariantNumeric };
+    });
+    expect(style).toEqual({ textAlign: "end", fontVariantNumeric: "tabular-nums" });
+    await expect(page.locator(".jc-type-grid tbody td.jc-grid-pinned .jc-grid-cell").first()).not.toHaveCSS("text-align", "end");
+  });
+});
+
 const LIVE = (process.env.JC_APP_URLS ?? "").split(/\s+/).filter(Boolean);
 
 test.describe("live", () => {

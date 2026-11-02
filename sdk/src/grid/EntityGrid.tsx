@@ -1794,6 +1794,7 @@ function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: strin
                   <td
                     key={`${row.id}-${col.key}`}
                     data-col={col.attr ? undefined : col.key}
+                    data-label={col.label}
                     data-kind={col.pinned ? undefined : kindOf.get(col.key)}
                     className={`jc-grid-td${col.pinned ? " jc-grid-pinned" : ""}${locks.get(col.key) !== undefined ? " jc-grid-td--locked" : ""}${classNames?.cell ? ` ${classNames.cell}` : ""}`}
                     {...getCellProps(row, rowIndex, col, colIndex)}
