@@ -147,7 +147,7 @@ describe("the public link", () => {
     await expectNoViolations(screen.getByTestId("public-view"));
   });
 
-  const DOWN = en.spaces.share.down.replace("{name}", en.spaces.share.heading);
+  const DOWN = en.spaces.share.downUnnamed;
   const statuses: Array<[string, () => Response, string, number]> = [
     ["404 says the view is not published", () => json({ title: "Not Found" }, 404), en.spaces.share.notPublished, 1],
     ["401 says the view is not open to the public", () => json({ title: "Unauthorized" }, 401), en.spaces.share.closed, 1],
@@ -196,6 +196,7 @@ describe("reading a failure", () => {
   it("names the view and the next step when the service is down", () => {
     const t = (key: string, options?: Record<string, unknown>) => `${key} ${String(options?.name)}`;
     expect(failureText(new ApiError(503, "Service Unavailable"), t, "Air quality")).toBe("spaces.share.down Air quality");
+    expect(failureText(new ApiError(503, "Service Unavailable"), t)).toBe("spaces.share.downUnnamed undefined");
     expect(en.spaces.share.down).toContain("{name}");
     expect(en.spaces.share.down).toContain("Try again in a minute");
   });

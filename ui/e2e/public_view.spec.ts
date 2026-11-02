@@ -92,6 +92,16 @@ test.describe("a published data view", () => {
     });
   }
 
+  test("a failed read names the view when its catalogue entry answered", async ({ page }) => {
+    await anonymous(page, []);
+    await endpoint(page);
+    await page.route("**/ngsi-ld/v1/types", problem(503));
+    await page.goto(`/v/${SLUG}?lang=en`);
+    await expect(page.getByRole("alert")).toContainText("“City bike stations in Helsinki” cannot be shown just now", { timeout: 10_000 });
+    await expect(page.getByRole("heading", { level: 1, name: "City bike stations in Helsinki" })).toBeVisible();
+    await shoot(page, "down-named");
+  });
+
   test("a failed read comes back on Retry", async ({ page }) => {
     let down = true;
     await anonymous(page, []);
@@ -104,7 +114,7 @@ test.describe("a published data view", () => {
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([{ id: "urn:ngsi-ld:BikeHireDockingStation:x:1", name: "Kamppi" }]) });
     });
     await page.goto(`/v/${SLUG}?lang=en`);
-    await expect(page.getByRole("alert")).toContainText("The data service did not answer.", { timeout: 10_000 });
+    await expect(page.getByRole("alert")).toContainText("the data service did not answer.", { timeout: 10_000 });
     down = false;
     await page.getByRole("button", { name: "Retry" }).click();
     await expect(page.getByRole("table").getByText("Kamppi")).toBeVisible();

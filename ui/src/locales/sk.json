@@ -860,6 +860,7 @@
       "busy": "Práve je tu priveľa návštev. Skúste to znova o {seconds} s.",
       "busyLater": "Práve je tu priveľa návštev. Skúste to znova o minútu.",
       "down": "„{name}“ sa teraz nedá zobraziť: služba s údajmi neodpovedala. Skúste to znova o minútu, odkaz zostáva rovnaký.",
+      "downUnnamed": "Toto zobrazenie sa teraz nedá zobraziť: služba s údajmi neodpovedala. Skúste to znova o minútu, odkaz zostáva rovnaký.",
       "types": "Typy",
       "first": "Prvých {count} entít.",
       "count": "{count, plural, one {# entita} few {# entity} other {# entít}}.",

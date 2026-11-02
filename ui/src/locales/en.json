@@ -860,6 +860,7 @@
       "busy": "Too many visits just now. Try again in {seconds} s.",
       "busyLater": "Too many visits just now. Try again in a minute.",
       "down": "“{name}” cannot be shown just now: the data service did not answer. Try again in a minute; the link stays the same.",
+      "downUnnamed": "This view cannot be shown just now: the data service did not answer. Try again in a minute; the link stays the same.",
       "types": "Types",
       "first": "The first {count} entities.",
       "count": "{count, plural, one {# entity} other {# entities}}.",

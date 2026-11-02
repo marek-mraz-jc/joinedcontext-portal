@@ -68,7 +68,7 @@ export function retryPublic(failures: number, error: unknown): boolean {
 export const publicRetryDelay = (attempt: number): number => 500 * 2 ** attempt;
 
 /** What a failed read tells the visitor, one sentence per kind of failure. */
-export function failureText(error: unknown, t: (key: string, options?: Record<string, unknown>) => string, name: string): string {
+export function failureText(error: unknown, t: (key: string, options?: Record<string, unknown>) => string, name?: string): string {
   const status = error instanceof ApiError ? error.status : 0;
   if (status === 404) return t("spaces.share.notPublished");
   if (status === 401 || status === 403) return t("spaces.share.closed");
@@ -76,7 +76,7 @@ export function failureText(error: unknown, t: (key: string, options?: Record<st
     const seconds = error instanceof PublicReadError ? error.retryAfter : undefined;
     return seconds === undefined ? t("spaces.share.busyLater") : t("spaces.share.busy", { seconds });
   }
-  return t("spaces.share.down", { name });
+  return name ? t("spaces.share.down", { name }) : t("spaces.share.downUnnamed");
 }
 
 /** The text of one language in a JSON-LD value: the page's language, its base, English, the first. */
@@ -109,7 +109,7 @@ function textOf(value: unknown): string {
 }
 
 /** A failed read with the button that asks again. */
-function Failure({ error, name, onRetry }: { error: unknown; name: string; onRetry: () => void }): JSX.Element {
+function Failure({ error, name, onRetry }: { error: unknown; name?: string; onRetry: () => void }): JSX.Element {
   const { t } = useTranslation();
   const again = !(error instanceof ApiError) || error.status >= 500 || error.status === 429;
   return (
@@ -173,7 +173,8 @@ export function PublicViewPage({ slug }: { slug: string }): JSX.Element {
   );
   const locale = i18n.language;
   const typeLabel = (name: string) => columnLabel(undefined, name, locale);
-  const title = inLanguage(entry.data?.["dct:title"], locale) ?? (type ? typeLabel(type) : t("spaces.share.heading"));
+  const name = inLanguage(entry.data?.["dct:title"], locale);
+  const title = name ?? (type ? typeLabel(type) : t("spaces.share.heading"));
 
   // Every state keeps the page's one heading: the catalogue's title, never the link's slug.
   if (types.isPending || types.isError || types.data.length === 0) {
@@ -186,7 +187,7 @@ export function PublicViewPage({ slug }: { slug: string }): JSX.Element {
             {t("app.loading")}
           </p>
         ) : (
-          <Failure error={types.isError ? types.error : new ApiError(404, "Not Found")} name={title} onRetry={() => void types.refetch()} />
+          <Failure error={types.isError ? types.error : new ApiError(404, "Not Found")} name={name} onRetry={() => void types.refetch()} />
         )}
       </div>
     );
