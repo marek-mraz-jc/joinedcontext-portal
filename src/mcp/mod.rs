@@ -32,7 +32,8 @@
 //!
 //! Limits (AG-60), counted here and not only at the edge, whose bucket is keyed by the raw
 //! token string and does not exist for a caller inside the cluster (T-0839):
-//! - `MAX_CALLS_PER_MINUTE` per token subject; the call past it answers `429` with `Retry-After`.
+//! - `PERSON_LIMITS.parallel_calls` at once per token subject, shared with the connectors; the
+//!   call past it answers `429` with `Retry-After`. Calls a minute have no limit (T-6484).
 //! - `MAX_REQUEST_BYTES` on the request and `MAX_RESPONSE_BYTES` on the answer; either answers
 //!   `413` naming what to narrow, so one call cannot spend the Portal's memory on one client.
 
@@ -52,9 +53,8 @@ pub mod connector;
 pub mod elicitation;
 pub mod tasks;
 
-/// Calls one bearer subject may make in a minute (AG-60). Generous for a working agent, far
-/// under what a loop costs: the edge's 1200 a minute is shared with the whole REST API.
-const MAX_CALLS_PER_MINUTE: u32 = crate::connectors::PERSON_LIMITS.calls_per_minute;
+/// Calls one bearer subject may have running (AG-60): the budget its connectors share.
+const MAX_PARALLEL_CALLS: u32 = crate::connectors::PERSON_LIMITS.parallel_calls;
 /// The largest request this route reads: a manifest, a draft or a bundle of arguments.
 const MAX_REQUEST_BYTES: usize = 1024 * 1024;
 /// The largest answer it writes. A list that does not fit is narrowed by the caller, never
@@ -193,13 +193,9 @@ pub async fn handle_mcp(
         );
     }
 
-    if !state.mcp_call_allowed(
-        &session.identity.subject,
-        MAX_CALLS_PER_MINUTE,
-        crate::auth::session::now_unix(),
-    ) {
-        return rate_limited();
-    }
+    let Ok(_in_flight) = state.mcp_enter(&[(&session.identity.subject, MAX_PARALLEL_CALLS)]) else {
+        return too_many_at_once();
+    };
 
     let caller = crate::ops::Caller {
         bearer: Some(crate::ops::Bearer(token.to_owned())),
@@ -1489,21 +1485,21 @@ fn too_large(detail: &str, id: &Value) -> Response {
         .into_response()
 }
 
-/// One subject past its calls a minute (AG-60): the next minute is when it may call again.
-fn rate_limited() -> Response {
+/// One subject past its calls at once (AG-60): it may call again when one has answered.
+fn too_many_at_once() -> Response {
     (
         StatusCode::TOO_MANY_REQUESTS,
         [
             (header::CONTENT_TYPE, "application/json"),
-            (header::RETRY_AFTER, "60"),
+            (header::RETRY_AFTER, "1"),
         ],
         Json(json!({
             "jsonrpc": "2.0",
             "error": {
                 "code": -32000,
                 "message": format!(
-                    "this token has made {MAX_CALLS_PER_MINUTE} calls in a minute, the limit of \
-                     this route; the next minute opens a new budget (AG-60)"
+                    "{MAX_PARALLEL_CALLS} of your calls are running now, the most at once; send \
+                     this one when one of them has answered (AG-60)"
                 )
             }
         })),

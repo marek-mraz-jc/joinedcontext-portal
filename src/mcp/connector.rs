@@ -387,35 +387,13 @@ async fn judge(
             "refused: too large".to_owned(),
         );
     }
-    // The person's window first: it is the one their other connectors and `/api/v1/mcp` share.
+    // The person's slots first: they are the ones their other connectors and `/api/v1/mcp` share.
     let (person, own, limits) = (
         identity.subject.clone(),
         format!("\u{0}c/{}", connector.id),
         connector.limits,
     );
     let person_limits = connectors::PERSON_LIMITS;
-    if let Err((which, wait)) = state.mcp_admit(
-        &[
-            (&person, person_limits.calls_per_minute),
-            (&own, limits.calls_per_minute),
-        ],
-        crate::auth::session::now_unix(),
-    ) {
-        let why = if which == 0 {
-            format!(
-                "you made {} MCP calls in this minute over all your connectors, your limit; \
-                 calls open again in {wait} seconds",
-                person_limits.calls_per_minute
-            )
-        } else {
-            format!(
-                "this connector made {} calls in this minute, its limit; calls open again in \
-                 {wait} seconds",
-                limits.calls_per_minute
-            )
-        };
-        return (limited(&why, wait), "refused: rate limit".to_owned());
-    }
     let _in_flight = match state.mcp_enter(&[
         (&person, person_limits.parallel_calls),
         (&own, limits.parallel_calls),
