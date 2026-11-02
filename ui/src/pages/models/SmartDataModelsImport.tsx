@@ -382,13 +382,14 @@ export function SmartDataModelsImport({
           </Button>
         ) : null}
         {(catalogue.data?.failed ?? []).length > 0 ? (
-          <details className="text-caption text-fg-muted">
-            <summary className="cursor-pointer">{t("models.sdm.notConverted", { count: catalogue.data?.failed?.length ?? 0 })}</summary>
-            <p className="mt-1">{t("models.sdm.notConvertedHint")}</p>
-            <ul className="mt-1 flex max-h-48 flex-col gap-1 overflow-auto">
+          <details className="text-body">
+            <summary className="cursor-pointer text-fg-muted">{t("models.sdm.notConverted", { count: catalogue.data?.failed?.length ?? 0 })}</summary>
+            <p className="mt-1 text-fg-muted">{t("models.sdm.notConvertedHint")}</p>
+            <ul className="mt-2 flex max-h-48 flex-col gap-2 overflow-auto">
               {catalogue.data?.failed?.map((one) => (
                 <li key={one.id} className="break-words">
-                  <span className="font-mono">{one.id}</span>: {one.finding}
+                  <p className="font-medium">{one.id}</p>
+                  <p className="text-fg-muted">{one.finding}</p>
                 </li>
               ))}
             </ul>
