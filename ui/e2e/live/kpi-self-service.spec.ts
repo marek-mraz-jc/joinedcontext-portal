@@ -36,7 +36,7 @@ interface Kpi {
   title: string;
   sources: [Source, Source];
   join?: "time" | "area" | "entity";
-  choice?: "count" | "sum" | "average" | "share" | "per";
+  choice?: "count" | "sum" | "average" | "share" | "rest" | "per";
   typed?: string;
   unit: string;
   /** The keys an area join must answer: the stations' districts, and only those. */
