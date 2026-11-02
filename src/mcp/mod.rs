@@ -586,7 +586,7 @@ const UNITS: &[(&str, &str, &str)] = &[
     (
         "analyse",
         "Compute a KPI over a space and write it back through an endpoint.",
-        "1. jc_catalog_search for the source endpoint.\n2. jc_kpi_compute on a sample to see the numbers.\n3. jc_draft_put a KPI Pipeline, jc_pipeline_test it, jc_resource_propose it.",
+        "1. jc_catalog_search for the source endpoint.\n2. jc_kpi_compute on the endpoint to see the number.\n3. jc_draft_put a KPI Pipeline, jc_pipeline_test it, jc_resource_propose it.",
     ),
     (
         "model",

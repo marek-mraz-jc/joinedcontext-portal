@@ -529,10 +529,21 @@ async fn judge(
                     "refused: target".to_owned(),
                 );
             }
-            let response = dispatch(state.clone(), caller, body).await;
             let shows = project
                 .as_deref()
                 .is_some_and(|p| connector.shows_personal(p, &params["arguments"]));
+            if !shows {
+                if let Err(why) =
+                    indicator_stays_open(state, project.as_deref(), name, params).await
+                {
+                    let answer = refused_call(id, &why);
+                    return (
+                        json_response(StatusCode::OK, &answer),
+                        "refused: personal data".to_owned(),
+                    );
+                }
+            }
+            let response = dispatch(state.clone(), caller, body).await;
             let response = if shows {
                 response
             } else {
@@ -706,6 +717,32 @@ fn caller(
         identity,
         via: crate::ops::Via::Mcp,
         access: Some(connector.access()),
+    }
+}
+
+/// An indicator read from an Endpoint folds entities the answer never carries, so the answer's
+/// filter sees nothing: one built on a personal attribute, by its fold or its `q`, is refused
+/// before the read (AG-158). Rows a client sends are already its own.
+async fn indicator_stays_open(
+    state: &AppState,
+    project: Option<&str>,
+    tool: &str,
+    params: &Value,
+) -> Result<(), String> {
+    let args = &params["arguments"];
+    if tool != "jc_kpi_compute" || args.get("endpoint").is_none() {
+        return Ok(());
+    }
+    let text = |key: &str| args[key].as_str().unwrap_or("");
+    let marks = match project {
+        Some(project) => personal_data::of_project(state, project).await?,
+        None => return Err("a call that reads an Endpoint names its project".to_owned()),
+    };
+    match personal_data::mentioned(&marks, &[text("attribute"), text("q")]) {
+        Some(name) => Err(format!(
+            "the models mark {name} personal, so this connector computes nothing from it; a scope item with personalData ticked reaches it"
+        )),
+        None => Ok(()),
     }
 }
 

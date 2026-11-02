@@ -2880,6 +2880,59 @@ async fn a_replace_plan_says_when_the_stored_attributes_could_not_be_checked() {
     assert_eq!(harness.run(&scenario, &own).await, Ok(()));
 }
 
+/// T-6484: an indicator reads its Endpoint as the person, and the door holds that read to the
+/// scope and to the personal marks: the fold an answer's filter never sees.
+#[tokio::test]
+async fn an_indicator_reads_only_what_the_connector_may_read() {
+    let harness = Harness::start(36).await;
+    let own = project_of(36);
+    let reports = json!({ "name": "one-person", "type": "PotholeReport", "agg": "count",
+                          "q": "contactEmail==\"jana@example.org\"", "endpoint": "{project}-reports" });
+    let scenario: Scenario = serde_json::from_value(json!({
+        "id": "S-00", "segment": "publish", "as": "steward", "says": "selftest",
+        "expect": "selftest", "deny": "selftest", "script": [
+            { "proves": "expect", "manifest": { "kind": "Group", "name": "people",
+                  "spec": { "members": [{ "user": "scn.steward@hel.fi" }] } } },
+            { "proves": "expect", "manifest": { "kind": "DelegationPolicy", "name": "publish",
+                  "spec": { "subjects": [{ "kind": "Group", "name": "people" }], "projects": ["{project}"],
+                            "segments": ["publish"], "maxExpiry": "P90D" } } },
+            { "proves": "expect", "rest": { "method": "POST", "path": "/connectors",
+                  "body": { "name": "s00-whole", "segments": ["publish"],
+                            "scope": [{ "project": "{project}", "access": "read" }],
+                            "expiresAt": "{in7days}" } },
+              "contains": ["\"state\":\"active\""] },
+            { "proves": "expect", "via": "connector", "call": "jc_kpi_compute",
+              "args": { "name": "busy-counters", "type": "BikeCounter", "agg": "count", "q": "count>10",
+                        "endpoint": "{project}-counters" },
+              "contains": ["\"value\":1", "{project}-counters"] },
+            { "proves": "deny", "via": "connector", "call": "jc_kpi_compute",
+              "args": { "name": "bike-total", "type": "BikeCounter", "attribute": "count", "agg": "sum" },
+              "refused": true, "contains": ["name the Endpoint to read"] },
+            { "proves": "deny", "via": "connector", "call": "jc_kpi_compute",
+              "args": { "name": "longest-mail", "type": "PotholeReport", "attribute": "contactEmail",
+                        "agg": "max", "endpoint": "{project}-reports" },
+              "refused": true, "contains": ["contactEmail personal"] },
+            { "proves": "deny", "via": "connector", "call": "jc_kpi_compute", "args": reports,
+              "refused": true, "contains": ["contactEmail personal"] },
+            { "proves": "expect", "rest": { "method": "POST", "path": "/connectors",
+                  "body": { "name": "s00-counters", "segments": ["publish"],
+                            "scope": [{ "project": "{project}", "endpoint": "{project}-counters", "access": "read" }],
+                            "expiresAt": "{in7days}" } },
+              "contains": ["\"state\":\"active\""] },
+            { "proves": "expect", "via": "connector", "call": "jc_kpi_compute",
+              "args": { "name": "bike-sum", "type": "BikeCounter", "attribute": "count", "agg": "sum",
+                        "endpoint": "{project}-counters" },
+              "contains": ["\"value\":49"] },
+            { "proves": "deny", "via": "connector", "call": "jc_kpi_compute",
+              "args": { "name": "{project}-counters", "type": "PotholeReport", "agg": "count",
+                        "endpoint": "{project}-reports" },
+              "refused": true, "contains": ["{project}-reports"] }
+        ]
+    }))
+    .expect("scenario");
+    assert_eq!(harness.run(&scenario, &own).await, Ok(()));
+}
+
 /// T-6363: a connector narrowed to one Pipeline tests a planned edit of it on a sample and then
 /// plans the edit: the records gate it names is one the connector can pass. Another Pipeline's
 /// draft stays out of reach.

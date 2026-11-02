@@ -1169,6 +1169,12 @@
       call: jc_kpi_compute
       args: { name: daily-bike-mean, type: BikeCounter, attribute: count, agg: avg, rows: [{ id: c1, count: 42 }, { id: c2, count: 8 }, { id: c3, count: 10 }] }
       contains: ['"value":20']
+    # T-6484: read from the Endpoint as the person, the fixture's two counters hold 42 and 7.
+    - proves: expect
+      via: connector
+      call: jc_kpi_compute
+      args: { name: daily-bike-count, type: BikeCounter, attribute: count, agg: sum, endpoint: '{project}-counters' }
+      contains: ['KeyPerformanceIndicator', '"value":49', 'sum(count)', '{project}-counters']
     - proves: deny
       via: connector
       call: jc_kpi_compute

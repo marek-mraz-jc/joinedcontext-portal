@@ -553,12 +553,9 @@ impl Ceiling {
         args: &Value,
     ) -> Result<(), String> {
         let kind = resource_kind(op, args);
-        let named = args.get("name").and_then(Value::as_str);
-        let by_endpoint = args.get("endpoint").and_then(Value::as_str);
         let endpoint = match kind {
-            // An Endpoint tool names it as `name`, or as `endpoint` (jc_data_write, T-6389).
-            Some("Endpoint") => named.or(by_endpoint),
-            _ => by_endpoint,
+            Some("Endpoint") => object_named(op, args),
+            _ => args.get("endpoint").and_then(Value::as_str),
         };
         let fits = |p: &DelegationPolicySpec| {
             let (tools, kinds) = reach_under(p, connector);
@@ -1185,7 +1182,7 @@ impl Connector {
             return self.admits_step(project, args, space_of);
         }
         let name = names_its_object(op)
-            .then(|| text("name").or_else(|| text("endpoint")))
+            .then(|| object_named(op, args))
             .flatten();
         match (kind, name) {
             (Some(kind), Some(name))
@@ -1319,6 +1316,16 @@ fn names_its_object(op: &Operation) -> bool {
             && input.pointer("/properties/name").is_some())
         || (op.kind == "Endpoint" && input.pointer("/properties/endpoint").is_some())
         || op.name == "jc_schema_get"
+}
+
+/// The object a call names: `name`, or `endpoint` (jc_data_write, T-6389). `jc_kpi_compute`'s
+/// `name` is the indicator's own, so only its `endpoint` is what it reads.
+fn object_named<'a>(op: &Operation, args: &'a Value) -> Option<&'a str> {
+    let text = |key: &str| args.get(key).and_then(Value::as_str);
+    if op.name == "jc_kpi_compute" {
+        return text("endpoint");
+    }
+    text("name").or_else(|| text("endpoint"))
 }
 
 /// Whether a client id binds: a published client whose redirect URIs no local program can use
@@ -2991,6 +2998,23 @@ pub(crate) mod tests {
         assert!(narrow
             .admits(query, "doprava", &json!({}), &|_, _| None)
             .is_err());
+        // An indicator's `name` is its own: only `endpoint` is what it reads (T-6484).
+        let kpi = op("jc_kpi_compute");
+        assert_eq!(
+            narrow.admits(
+                kpi,
+                "doprava",
+                &json!({ "name": "daily", "endpoint": "counters" }),
+                &|_, _| None
+            ),
+            Ok(())
+        );
+        for args in [
+            json!({ "name": "counters", "endpoint": "parking" }),
+            json!({ "name": "counters", "rows": [] }),
+        ] {
+            assert!(narrow.admits(kpi, "doprava", &args, &|_, _| None).is_err());
+        }
         assert!(!narrow.lists(get, "air"));
         assert_eq!(
             narrow.admits(
