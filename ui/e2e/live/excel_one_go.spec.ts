@@ -10,12 +10,12 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { expect, test } from "@playwright/test";
-import type { BrowserContext, Page } from "@playwright/test";
+import type { Browser, BrowserContext, Page } from "@playwright/test";
 import { APPROVER, EDITOR, STEWARD, VIEWER, approve, ask, csrf, proposedChange, rejectOpen, removeCompletely, signIn, sweepDrafts } from "./portal";
 
 type Session = { context: BrowserContext; page: Page };
 
-const PROJECT = "helsinki";
+const PROJECT = "bbsk";
 const WORKBOOK = join(dirname(fileURLToPath(import.meta.url)), "fixtures/kulturne-miesta-bbsk.xlsx");
 const SHEET = "Kultúrne miesta";
 const TYPE = "KulturneMiesta";
@@ -25,6 +25,7 @@ const SPACE = `t6445-excel-${Date.now().toString().slice(-6)}`;
 const SHOTS = process.env.SHOTS_DIR;
 /** `EXCEL_VIDEO=<dir>`: the recorded run (T-6445): it starts from the assistant, holds each state to be read and asks about the data. */
 const VIDEO = process.env.EXCEL_VIDEO;
+const PLAIN = "Create a context space and a data model from my Excel file and load all its rows.";
 const QUESTIONS = [
   `Which attributes does the data model of the context space ${SPACE} have, and are their types right?`,
   `How many ${TYPE} records are there per Mesto in ${SPACE}? Show the five largest.`,
@@ -39,20 +40,20 @@ const hold = async (page: Page, ms = 2_500) => {
   if (VIDEO) await page.waitForTimeout(ms);
 };
 
-/** The newest assistant answer once it stopped growing. */
-async function settledAnswer(page: Page, earlier: number): Promise<string> {
-  const answers = page.getByRole("listitem").filter({ hasText: "Assistant" });
-  await expect.poll(() => answers.count(), { timeout: 180_000 }).toBeGreaterThan(earlier);
+/** What the assistant answered to `question`, once it stopped working and growing. */
+async function settledAnswer(page: Page, question: string): Promise<string> {
+  const chat = page.locator("#run-chat");
   let text = "";
   await expect
     .poll(
       async () => {
-        const now = await answers.last().innerText();
-        const same = now === text && now.length > 40;
-        text = now;
+        const now = await chat.innerText();
+        const after = now.slice(now.lastIndexOf(question) + question.length).trim();
+        const same = after === text && after.length > 40 && (await page.getByTestId("assistant-busy").count()) === 0;
+        text = after;
         return same;
       },
-      { timeout: 240_000, intervals: [4_000] },
+      { timeout: 240_000, intervals: [6_000] },
     )
     .toBe(true);
   return text;
@@ -102,26 +103,29 @@ test.afterAll(async ({ browser }) => {
   await removed("spaces", SPACE);
   await sweepDrafts(editor.context, editor.page, PROJECT, new RegExp(`^${SPACE}`));
   await steward.context.close();
+  const video = editor.page.video();
   await editor.context.close();
+  if (VIDEO) await video?.saveAs(join(VIDEO, "flow.webm"));
 });
 
 test("one .xlsx makes the model, the space and its rows, read back through the Endpoint", async ({ browser }) => {
   started = Date.now();
-  editor = await signIn(browser, EDITOR, VIDEO ? `/projects/${PROJECT}?lang=en` : `/projects/${PROJECT}/spaces/complete?lang=en`);
+  const recorded = { newContext: () => browser.newContext({ recordVideo: { dir: VIDEO ?? "", size: { width: 1440, height: 900 } }, viewport: { width: 1440, height: 900 } }) } as Browser;
+  editor = await signIn(VIDEO ? recorded : browser, EDITOR, VIDEO ? `/projects/${PROJECT}?lang=en` : `/projects/${PROJECT}/spaces/complete?lang=en`);
   const page = editor.page;
   if (VIDEO) {
-    await ask(page, "Create a context space and a data model from my Excel file and load all its rows.");
-    await expect(page).toHaveURL(/\/spaces\/complete/, { timeout: 120_000 }).catch(() => console.log("the assistant did not open the page"));
-    await hold(page, 6_000);
-    if (!/\/spaces\/complete/.test(page.url())) await page.goto(`/projects/${PROJECT}/spaces/complete?lang=en`);
+    await page.getByRole("button", { name: "Open the assistant" }).click();
+    await hold(page, 3_000);
+    await page.getByLabel(/^Attach a table/).setInputFiles(WORKBOOK);
+    await expect(page).toHaveURL(/\/spaces\/complete/, { timeout: 30_000 });
   }
   lap = Date.now();
   await expect(page.getByRole("heading", { name: "Complete this space", level: 1 })).toBeVisible();
   await shot(page, "1-empty");
 
   await page.locator("#complete-space").fill(SPACE);
-  await page.keyboard.press("Tab");
-  await page.getByLabel("Files", { exact: true }).setInputFiles(WORKBOOK);
+  await page.getByRole("heading", { name: "Complete this space", level: 1 }).click();
+  if (!VIDEO) await page.getByLabel("Files", { exact: true }).setInputFiles(WORKBOOK);
   await page.locator("#complete-sheet-0").selectOption(SHEET);
   await expect(page.locator("#complete-sheet-0")).toContainText(`${ROWS} rows`);
   took("Name the space, choose the file and the sheet", 2);
@@ -139,21 +143,23 @@ test("one .xlsx makes the model, the space and its rows, read back through the E
   await hold(page, 4_000);
   await shot(page, "3-drafts-checked");
 
-  const answered = page.waitForResponse((r) => r.url().includes("jc_space_complete"));
+  const answered = page.waitForResponse((r) => r.url().includes("jc_space_complete"), { timeout: 120_000 });
   await page.locator("#complete-propose").click();
   const out = (await (await answered).json()) as { drafts?: { kind: string; manifest: { spec?: { slug?: string } } }[] };
   slug = out.drafts?.find((d) => d.kind === "Endpoint")?.manifest.spec?.slug ?? "";
-  expect(slug).not.toBe("");
+  expect(slug, JSON.stringify(out).slice(0, 800)).not.toBe("");
   const change = await proposedChange(page);
   took("Propose all", 1);
   await hold(page);
   mark("proposed");
   await shot(page, "4-proposed");
 
-  const approver = await signIn(browser, APPROVER, `/projects/${PROJECT}/approvals?lang=en`);
+  const approver = await signIn(VIDEO ? recorded : browser, APPROVER, `/projects/${PROJECT}/approvals?lang=en`);
   lap = Date.now();
   await approve(approver.page, PROJECT, change, SPACE);
+  const approving = approver.page.video();
   await approver.context.close();
+  if (VIDEO) await approving?.saveAs(join(VIDEO, "approver.webm"));
   took("The approver types the space name and approves (another person, their own page)", 1);
 
   const write = page.getByRole("button", { name: new RegExp(`Write ${ROWS} rows`) });
@@ -178,14 +184,24 @@ test("one .xlsx makes the model, the space and its rows, read back through the E
     await page.getByRole("link", { name: "Open the space" }).click();
     await page.getByRole("tab", { name: "Data model" }).click();
     await hold(page, 5_000);
+    // The assistant takes a person who may propose an App (T-6464); the editor has only the page.
+    const asker = await signIn(recorded, STEWARD, `/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
+    await asker.page.getByRole("tab", { name: "Data model" }).click();
+    await ask(asker.page, PLAIN);
+    const plainWords = await settledAnswer(asker.page, PLAIN).catch((err) => `no answer: ${String(err).slice(0, 200)}`);
     const answered: { question: string; answer: string }[] = [];
     for (const question of QUESTIONS) {
-      const earlier = await page.getByRole("listitem").filter({ hasText: "Assistant" }).count();
-      await ask(page, question);
-      answered.push({ question, answer: await settledAnswer(page, earlier) });
-      await hold(page, 6_000);
+      await ask(asker.page, question);
+      answered.push({ question, answer: await settledAnswer(asker.page, question) });
+      await asker.page.screenshot({ path: join(VIDEO, `turn-${answered.length}-1440.png`) });
+      await hold(asker.page, 6_000);
     }
-    writeFileSync(join(VIDEO, "answers.json"), JSON.stringify({ space: SPACE, marks, answered }, null, 1));
+    const asked = asker.page.video();
+    await asker.page.setViewportSize({ width: 400, height: 800 });
+    await asker.page.screenshot({ path: join(VIDEO, "turn-3-400.png") });
+    await asker.context.close();
+    await asked?.saveAs(join(VIDEO, "assistant.webm"));
+    writeFileSync(join(VIDEO, "answers.json"), JSON.stringify({ space: SPACE, marks, plainWords, answered }, null, 1));
   }
 
   const total = timings.reduce((sum, one) => sum + one.seconds, 0);

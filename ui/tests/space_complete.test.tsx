@@ -509,6 +509,13 @@ slots:
       expect(screen.getByRole("link", { name: "Open the space" })).toBeInTheDocument();
     }, 30_000);
 
+    it("opens with the table the assistant's dock handed over", async () => {
+      world();
+      rememberPrefill(window.location.pathname, { file: xlsxFile("mesto.xlsx", SHEETS) });
+      renderComponent();
+      expect(await screen.findByRole("combobox", { name: "Sheet" })).toBeInTheDocument();
+    });
+
     it("keeps a table with a README beside it a feed: no upload, and Complete says the source fills it", async () => {
       const user = userEvent.setup();
       const dev = world();

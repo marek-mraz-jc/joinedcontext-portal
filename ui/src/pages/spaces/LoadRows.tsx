@@ -150,7 +150,7 @@ export function LoadRows({ project, space, type, source, table, change: proposed
               {t("spaces.import.downloadRefused")}
             </Button>
           ) : (
-            <Link to="/projects/$project/spaces/$name" params={{ project, name: space }} className={buttonClass("primary", "sm") + " w-fit"}>
+            <Link to="/projects/$project/$plural/$name" params={{ project, plural: "spaces", name: space }} className={buttonClass("primary", "sm") + " w-fit"}>
               {t("spaces.upload.openSpace")}
             </Link>
           )}

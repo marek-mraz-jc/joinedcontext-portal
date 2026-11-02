@@ -179,24 +179,6 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CompleteResult | null>(null);
-  // The agent already completed the space (AG-73): its drafts open here ready to propose. Taken
-  // once the page is on screen: a render React throws away and starts over (the dock's stream
-  // updates while the navigation is pending) would otherwise take them and show nothing (T-0894).
-  useEffect(() => {
-    const handed = handedOver(takePrefill(window.location.pathname));
-    if (handed.file !== null) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- a hand-off read once after mount, as below
-      void takeFiles([handed.file]);
-      return;
-    }
-    if (handed.result === null && handed.url === "") {
-      return;
-    }
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- taking the prefill empties it, so it is taken once after mount; lazy state lost it to a discarded render (T-0894)
-    setUrl(handed.url);
-    setResult(handed.result);
-  }, []);
-
   const takeFiles = async (selected: File[]) => {
     setError(null);
     setResult(null);
@@ -222,6 +204,25 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
       setError(unreadableText(t, err));
     }
   };
+
+  // The agent already completed the space (AG-73): its drafts open here ready to propose. Taken
+  // once the page is on screen: a render React throws away and starts over (the dock's stream
+  // updates while the navigation is pending) would otherwise take them and show nothing (T-0894).
+  useEffect(() => {
+    const handed = handedOver(takePrefill(window.location.pathname));
+    if (handed.file !== null) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- a hand-off, taken once after mount
+      void takeFiles([handed.file]);
+      return;
+    }
+    if (handed.result === null && handed.url === "") {
+      return;
+    }
+    // Taking the prefill empties it, so it is taken once after mount; lazy state lost it to a discarded render (T-0894).
+    setUrl(handed.url);
+    setResult(handed.result);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once after mount, as said above
+  }, []);
 
   /** What the op reads: the text files as they are, each workbook as its chosen sheet's CSV. */
   const given = () => [
