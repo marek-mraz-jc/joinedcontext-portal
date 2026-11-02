@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import type { ChangeEvent, JSX, ReactNode } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { UseQueryResult } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Alert, Badge, Button, Card, CardHeader, Field, InlineError, Input, Select, Skeleton } from "../../ui";
 import { reasonProblem } from "../reason";
@@ -331,9 +332,72 @@ function Timeline({ measurements, open, form }: { measurements: Measurement[]; o
   );
 }
 
+/** The timeline's panel: paging, the read's loading, empty and failed states, and what a write said. */
+export function TimelinePanel({
+  history,
+  measurements,
+  saved,
+  older,
+  newest,
+  open,
+  form,
+}: {
+  history: Pick<UseQueryResult<{ versions: boolean }>, "isPending" | "isError" | "isSuccess" | "error" | "data" | "refetch">;
+  measurements: Measurement[];
+  saved: boolean;
+  older?: () => void;
+  newest?: () => void;
+  open: (measurement: Measurement, revertTo?: Version) => void;
+  form?: { measurement: Measurement; node: ReactNode };
+}): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <Panel
+      id="history-timeline-title"
+      title={t("attributeHistory.timeline")}
+      actions={
+        <>
+          {newest ? (
+            <Button size="sm" variant="secondary" onClick={newest}>
+              {t("attributeHistory.newest")}
+            </Button>
+          ) : null}
+          {older ? (
+            <Button size="sm" variant="secondary" onClick={older}>
+              {t("attributeHistory.older")}
+            </Button>
+          ) : null}
+        </>
+      }
+    >
+      {saved ? <Alert tone="success" className="mb-2">{t("attributeHistory.saved")}</Alert> : null}
+      {history.isPending ? (
+        <div role="status" aria-busy="true" aria-label={t("app.loading")}>
+          <Skeleton className="h-32 w-full" />
+        </div>
+      ) : null}
+      {/* An unreadable history is not an empty one: it says so and offers a retry. */}
+      {history.isError ? (
+        <InlineError className="flex flex-wrap items-center gap-2">
+          {history.error instanceof Error ? history.error.message : t("app.error.generic")}
+          <Button size="sm" variant="ghost" onClick={() => void history.refetch()}>
+            {t("app.error.retry")}
+          </Button>
+        </InlineError>
+      ) : null}
+      {history.isSuccess && measurements.length === 0 ? (
+        <p role="status" className="text-caption text-fg-muted">
+          {t("attributeHistory.noHistory")}
+        </p>
+      ) : null}
+      {history.data && !history.data.versions ? <p className="mb-2 text-caption text-fg-muted">{t("attributeHistory.versionsRestricted")}</p> : null}
+      {measurements.length > 0 ? <Timeline measurements={measurements} open={open} form={form} /> : null}
+    </Panel>
+  );
+}
+
 /** One attribute's measurements and every form that writes them. */
 function OneAttribute({ slug, entityId, attribute }: { slug: string; entityId: string; attribute: string }): JSX.Element {
-  const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [before, setBefore] = useState<string | undefined>(undefined);
   const [editing, setEditing] = useState<{ measurement: Measurement; revertTo?: Version } | null>(null);
@@ -363,62 +427,24 @@ function OneAttribute({ slug, entityId, attribute }: { slug: string; entityId: s
   // A short page is the last one: nothing older to ask for.
   const oldest = measurements.length >= PAGE ? measurements.at(-1)?.observedAt : undefined;
 
+  const form = editing
+    ? {
+        measurement: editing.measurement,
+        node: <VersionForm key={`${editing.measurement.observedAt}-${editing.revertTo?.instanceId ?? "correct"}`} target={target} measurement={editing.measurement} revertTo={editing.revertTo} close={() => setEditing(null)} />,
+      }
+    : undefined;
+
   return (
     <div className="flex flex-col gap-4 text-body">
-      <Panel
-        id="history-timeline-title"
-        title={t("attributeHistory.timeline")}
-        actions={
-          <>
-            {before ? (
-              <Button size="sm" variant="secondary" onClick={() => setBefore(undefined)}>
-                {t("attributeHistory.newest")}
-              </Button>
-            ) : null}
-            {oldest ? (
-              <Button size="sm" variant="secondary" onClick={() => setBefore(oldest)}>
-                {t("attributeHistory.older")}
-              </Button>
-            ) : null}
-          </>
-        }
-      >
-        {saved ? <Alert tone="success" className="mb-2">{t("attributeHistory.saved")}</Alert> : null}
-        {history.isPending ? (
-          <div role="status" aria-busy="true" aria-label={t("app.loading")}>
-            <Skeleton className="h-32 w-full" />
-          </div>
-        ) : null}
-        {/* An unreadable history is not an empty one: it says so and offers a retry. */}
-        {history.isError ? (
-          <InlineError className="flex flex-wrap items-center gap-2">
-            {history.error instanceof Error ? history.error.message : t("app.error.generic")}
-            <Button size="sm" variant="ghost" onClick={() => void history.refetch()}>
-              {t("app.error.retry")}
-            </Button>
-          </InlineError>
-        ) : null}
-        {history.isSuccess && measurements.length === 0 ? (
-          <p role="status" className="text-caption text-fg-muted">
-            {t("attributeHistory.noHistory")}
-          </p>
-        ) : null}
-        {history.data && !history.data.versions ? <p className="mb-2 text-caption text-fg-muted">{t("attributeHistory.versionsRestricted")}</p> : null}
-        {measurements.length > 0 ? (
-          <Timeline
-            measurements={measurements}
-            open={(measurement, revertTo) => setEditing({ measurement, revertTo })}
-            form={
-              editing
-                ? {
-                    measurement: editing.measurement,
-                    node: <VersionForm key={`${editing.measurement.observedAt}-${editing.revertTo?.instanceId ?? "correct"}`} target={target} measurement={editing.measurement} revertTo={editing.revertTo} close={() => setEditing(null)} />,
-                  }
-                : undefined
-            }
-          />
-        ) : null}
-      </Panel>
+      <TimelinePanel
+        history={history}
+        measurements={measurements}
+        saved={saved}
+        older={oldest ? () => setBefore(oldest) : undefined}
+        newest={before ? () => setBefore(undefined) : undefined}
+        open={(measurement, revertTo) => setEditing({ measurement, revertTo })}
+        form={form}
+      />
       <EditCurrent key={`edit-${String(newest?.instanceId)}`} target={target} />
       <AddOldValue target={target} />
       <CsvImport target={target} measurements={measurements} complete={complete} />

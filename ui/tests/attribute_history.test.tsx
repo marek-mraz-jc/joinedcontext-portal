@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
-import { AttributeHistory } from "../src/components/entities/history/AttributeHistory";
+import { AttributeHistory, TimelinePanel } from "../src/components/entities/history/AttributeHistory";
 
 const SEEN: Request[] = [];
 const VERSIONS = [
@@ -141,5 +141,32 @@ describe("AttributeHistory", () => {
     show(["pm10", "no2"]);
     await userEvent.selectOptions(await screen.findByLabelText(/Attribute/), "no2");
     await waitFor(() => expect(SEEN.some((request) => request.url.includes("attrs=no2"))).toBe(true));
+  });
+});
+
+describe("TimelinePanel", () => {
+  const read = { isPending: false, isError: false, isSuccess: true, error: null, data: { versions: true }, refetch: vi.fn() };
+  const panel = (props: Partial<Parameters<typeof TimelinePanel>[0]>) =>
+    render(
+      <I18nextProvider i18n={i18n}>
+        <TimelinePanel history={read} measurements={[]} saved={false} open={() => undefined} {...props} />
+      </I18nextProvider>,
+    );
+
+  beforeEach(() => i18n.changeLanguage("en"));
+
+  it("offers paging only where it leads somewhere", async () => {
+    const older = vi.fn();
+    panel({ older });
+    await userEvent.click(screen.getByRole("button", { name: "Older" }));
+    expect(older).toHaveBeenCalledOnce();
+    expect(screen.queryByRole("button", { name: "Newest" })).toBeNull();
+  });
+
+  it("confirms a save, shows the read in flight, and says when versions are withheld", () => {
+    panel({ saved: true, history: { ...read, isPending: true, isSuccess: false, data: { versions: false } } });
+    expect(screen.getByText("Saved. The change stands in the timeline.")).toBeTruthy();
+    expect(screen.getByRole("status", { name: i18n.t("app.loading") })).toBeTruthy();
+    expect(screen.getByText(/readVersions/)).toBeTruthy();
   });
 });
