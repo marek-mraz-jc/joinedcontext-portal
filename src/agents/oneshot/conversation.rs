@@ -1158,14 +1158,6 @@ impl Driver {
         u64::try_from(self.started.elapsed().as_millis()).unwrap_or(u64::MAX)
     }
 
-    /// The capabilities the person chose, as the newest message left them (AG-92).
-    pub(super) fn capabilities(&self) -> Option<crate::agents::capabilities::Capabilities> {
-        self.capabilities
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
-    }
-
     /// The first call of an answer the chosen capabilities leave out, and why (AG-92): a tool
     /// that does more than read under `read`, or a change to the entities of an endpoint the
     /// person left at `read`.
