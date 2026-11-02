@@ -163,15 +163,6 @@ fn without_repeats(items: Vec<String>) -> Vec<String> {
 }
 
 /// What a value is, for a sentence about a manifest the repository holds.
-/// A requested representation as an Endpoint lists it. A request reads as a person writes it,
-/// and GeoJSON is what `ogc-features` answers now that the file is retired (T-4597).
-fn listed_name(requested: &str) -> &str {
-    match requested.trim() {
-        "geojson" => Representation::OgcFeatures.as_str(),
-        name => name,
-    }
-}
-
 /// `spec.representations.ical` for an Endpoint that lists `ical`: one calendar over the types
 /// a preset maps, since a calendar is served only for a listed output (EP-159). No type named
 /// means `Event`, as an App's calendar; another type writes its own mapping in the form.
@@ -355,7 +346,11 @@ pub fn render(
             params
                 .representations
                 .iter()
-                .map(|r| listed_name(r).to_owned())
+                // A person asking for GeoJSON means what `ogc-features` answers (T-4597).
+                .map(|r| match r.trim() {
+                    "geojson" => Representation::OgcFeatures.as_str().to_owned(),
+                    name => name.to_owned(),
+                })
                 .collect(),
         )
     };
@@ -776,7 +771,7 @@ pub fn edit(endpoints: &[Value], params: &EditEndpoint) -> Result<Edit, String> 
         .add_representations
         .iter()
         .chain(&params.remove_representations)
-        .find(|r| !REPRESENTATIONS.contains(&listed_name(r)))
+        .find(|r| !REPRESENTATIONS.contains(&r.trim()))
     {
         return Err(format!(
             "representation '{bad}' is not one of {}",
@@ -791,12 +786,12 @@ pub fn edit(endpoints: &[Value], params: &EditEndpoint) -> Result<Edit, String> 
             !params
                 .remove_representations
                 .iter()
-                .any(|gone| listed_name(gone) == r.as_str())
+                .any(|gone| gone.trim() == r.as_str())
         })
         .cloned()
         .collect();
     for added in &params.add_representations {
-        let added = listed_name(added);
+        let added = added.trim();
         if !representations.iter().any(|r| r == added) {
             representations.push(added.to_owned());
         }

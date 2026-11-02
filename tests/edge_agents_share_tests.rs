@@ -260,7 +260,7 @@ fn a_retired_file_is_refused_on_a_share_and_dropped_by_an_edit() {
     params.representations = vec!["ngsi-ld".to_owned(), "xlsx".to_owned()];
     let refused = render(PROJECT, &params, &[]).expect_err("xlsx is retired");
     assert!(refused.contains("'xlsx'"), "{refused}");
-    assert!(refused.contains("ngsi-ld, csv"), "{refused}");
+    assert!(refused.contains("ngsi-ld, mcp, csv"), "{refused}");
 
     let mut stored = bikes();
     stored[0]["spec"]["enabledRepresentations"] = json!(["ngsi-ld", "geojson", "zip"]);
