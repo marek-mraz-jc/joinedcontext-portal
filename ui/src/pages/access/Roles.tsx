@@ -83,6 +83,7 @@ export function fromRoleEnvelope(manifest: unknown): RoleForm {
  * the taxonomy is a seed the organization extends, so nothing is decided by these names.
  */
 export const SEEDED_ROLES = [
+  "member",
   "viewer",
   "model-editor",
   "pipeline-editor",

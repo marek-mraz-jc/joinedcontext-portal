@@ -493,6 +493,14 @@
         "manifest_grid.test.tsx"
       ]
     },
+    "src/components/layout/MemberFrame.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "member_catalogue.test.tsx"
+      ]
+    },
     "src/components/layout/NewProject.tsx": {
       "controls": {
         "Button": 4

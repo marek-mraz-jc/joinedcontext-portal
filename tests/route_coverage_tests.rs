@@ -49,6 +49,7 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("GET", "/branding", "the instance's look, not a project's data"),
 ("GET", "/branding/{asset}", "the instance's look, not a project's data"),
 ("GET", "/catalogue", "the public open-data catalogue, read from CKAN as an anonymous caller (EP-81): not a project's data"),
+("GET", "/catalogue/readable", "the catalogue page's list of what the caller may read, decided per Endpoint by the gateway (access/simulate); it writes nothing, and an agent asks the gateway's MCP hub, which decides the same way (T-6411)"),
 ("GET", "/catalogue/datasets/{name}", "the public open-data catalogue, read from CKAN as an anonymous caller (EP-82): not a project's data"),
 ("GET", "/catalogue/datasets/{name}/sample", "a public Endpoint read anonymously, as any visitor of the catalogue reads it (EP-82)"),
 ("GET", "/catalogue/datasets/{name}/map", "a public Endpoint read anonymously, as any visitor of the catalogue reads it (EP-82, T-5628)"),

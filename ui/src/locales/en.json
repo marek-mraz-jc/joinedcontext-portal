@@ -8858,6 +8858,27 @@
       "hint": "Copy the address into a feed reader or calendar, for example Feedly or Google Calendar; new items appear by themselves.",
       "calendarAppNamed": "Add to a calendar: {title}",
       "calendarFileNamed": "Download {title} (.ics)"
+    },
+    "readable": {
+      "title": "Datasets you may read",
+      "lead": "Internal datasets of your organization that you have been granted, read live from their Endpoint.",
+      "loading": "Checking which datasets you may read…",
+      "empty": {
+        "title": "No internal dataset is shared with you yet",
+        "description": "Ask a data steward of your organization to grant your group access. The public datasets below are open to everyone."
+      },
+      "public": "Plus {count} public datasets, listed below.",
+      "unanswered": "{count} datasets could not be checked just now and are not listed. Reload the page in a minute.",
+      "access": {
+        "public": "Public",
+        "organization": "Your organization",
+        "group": "Group {group}",
+        "granted": "Granted to you"
+      },
+      "open": "Open dataset",
+      "endpoint": {
+        "lead": "Read live from Endpoint {slug} with your own access."
+      }
     }
   },
   "dataagreements": {
@@ -11316,6 +11337,14 @@
       "aiConnectors": "Claude and other assistants that read data as you",
       "project": "spaces, members, secrets",
       "administration": "for platform administrators"
-    }
+    },
+    "descriptionOwn": "Your own settings."
+  },
+  "member": {
+    "nav": "Member menu",
+    "catalogue": "Catalogue",
+    "connectors": "AI connectors",
+    "settings": "Settings",
+    "signOut": "Sign out"
   }
 }

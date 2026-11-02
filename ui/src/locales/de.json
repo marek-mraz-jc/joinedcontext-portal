@@ -8858,6 +8858,27 @@
       "hint": "Kopieren Sie die Adresse in einen Feedreader oder Kalender, zum Beispiel Feedly oder Google Kalender; neue Einträge erscheinen von selbst.",
       "calendarAppNamed": "Zum Kalender hinzufügen: {title}",
       "calendarFileNamed": "{title} herunterladen (.ics)"
+    },
+    "readable": {
+      "title": "Datensätze, die Sie lesen dürfen",
+      "lead": "Interne Datensätze Ihrer Organisation, für die Sie freigeschaltet sind, live aus ihrem Endpoint gelesen.",
+      "loading": "Prüfe, welche Datensätze Sie lesen dürfen…",
+      "empty": {
+        "title": "Noch kein interner Datensatz ist für Sie freigegeben",
+        "description": "Bitten Sie eine Datenverantwortliche Ihrer Organisation, Ihrer Gruppe Zugriff zu geben. Die öffentlichen Datensätze unten sind für alle offen."
+      },
+      "public": "Dazu {count} öffentliche Datensätze, unten aufgeführt.",
+      "unanswered": "{count} Datensätze konnten gerade nicht geprüft werden und fehlen. Laden Sie die Seite in einer Minute neu.",
+      "access": {
+        "public": "Öffentlich",
+        "organization": "Ihre Organisation",
+        "group": "Gruppe {group}",
+        "granted": "Ihnen freigegeben"
+      },
+      "open": "Datensatz öffnen",
+      "endpoint": {
+        "lead": "Live aus Endpoint {slug} mit Ihrem eigenen Zugriff gelesen."
+      }
     }
   },
   "dataagreements": {
@@ -11316,6 +11337,14 @@
       "aiConnectors": "Claude und andere Assistenten, die Daten in Ihrem Namen lesen",
       "project": "Bereiche, Mitglieder, Geheimnisse",
       "administration": "für Plattform-Administratoren"
-    }
+    },
+    "descriptionOwn": "Ihre eigenen Einstellungen."
+  },
+  "member": {
+    "nav": "Mitgliedsmenü",
+    "catalogue": "Katalog",
+    "connectors": "KI-Konnektoren",
+    "settings": "Einstellungen",
+    "signOut": "Abmelden"
   }
 }

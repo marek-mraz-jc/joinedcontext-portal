@@ -20,6 +20,8 @@ import {
   PermissionGuard,
 } from "../../components/ui";
 import { useThemeLabel } from "./labels";
+import { useAuthStatus } from "../../auth/AuthProvider";
+import { ReadableDatasets } from "./ReadableDatasets";
 
 export { problemOf, useThemeLabel } from "./labels";
 
@@ -54,6 +56,8 @@ export function CataloguePage({
 }): JSX.Element {
   const { t } = useTranslation();
   const [publishing, setPublishing] = useState(false);
+  // Signed in: the internal datasets the gateway grants the person come first (T-6411).
+  const signedIn = useAuthStatus() === "authenticated";
   const catalogue = useQuery({
     ...catalogueQuery(search),
     placeholderData: keepPreviousData,
@@ -78,6 +82,7 @@ export function CataloguePage({
   return (
     <div className="flex flex-col gap-section">
       {header}
+      {signedIn ? <ReadableDatasets /> : null}
       {project ? (
         <Suspense fallback={null}>
           <PublishDatasetDialog project={project} open={publishing} onOpenChange={setPublishing} />

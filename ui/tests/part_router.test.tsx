@@ -7,7 +7,7 @@
  * and an address with no page behind it fell through to the router's own built-in fallback,
  * two untranslated words on a white page with no way back.
  */
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
@@ -98,9 +98,10 @@ describe("the router's own pages", () => {
     expect(fetchMock.mock.calls.length).toBeGreaterThan(before);
   });
 
-  it("still says the repository is empty when it really is", async () => {
+  it("sends a member, signed in with no project, to the catalogue (ADR-N-067, T-6411)", async () => {
     show("/", { status: 200, body: { items: [] } });
-    expect(await screen.findByText(en.projects.empty.title)).toBeInTheDocument();
+    await waitFor(() => expect(window.location.pathname).toBe("/catalogue"));
+    expect(screen.queryByText(en.projects.empty.title)).toBeNull();
   });
 
   it("waits while the list is on its way", async () => {

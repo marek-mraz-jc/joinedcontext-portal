@@ -802,7 +802,7 @@ pub async fn callback(
 
 /// The payload of a JWT-shaped string, decoded and nothing more: no signature is checked here,
 /// so a caller reads only what it has already verified or what it treats as a hint.
-fn jwt_payload<T: serde::de::DeserializeOwned>(token: &str) -> Option<T> {
+pub(crate) fn jwt_payload<T: serde::de::DeserializeOwned>(token: &str) -> Option<T> {
     let payload = token.split('.').nth(1)?;
     let bytes =
         base64::engine::Engine::decode(&base64::engine::general_purpose::URL_SAFE_NO_PAD, payload)

@@ -8858,6 +8858,27 @@
       "hint": "Zkopírujte adresu do čtečky novinek nebo kalendáře, například Feedly nebo Google Kalendář; nové položky se objeví samy.",
       "calendarAppNamed": "Přidat do kalendáře: {title}",
       "calendarFileNamed": "Stáhnout {title} (.ics)"
+    },
+    "readable": {
+      "title": "Datové sady, které můžete číst",
+      "lead": "Interní datové sady vaší organizace, ke kterým máte přístup, čtené živě z jejich Endpointu.",
+      "loading": "Ověřuji, které datové sady můžete číst…",
+      "empty": {
+        "title": "Zatím s vámi není sdílena žádná interní datová sada",
+        "description": "Požádejte správce dat vaší organizace, aby vaší skupině udělil přístup. Veřejné datové sady níže jsou otevřené všem."
+      },
+      "public": "A {count} veřejných datových sad, uvedených níže.",
+      "unanswered": "{count} datových sad se teď nepodařilo ověřit a nejsou uvedeny. Načtěte stránku znovu za minutu.",
+      "access": {
+        "public": "Veřejné",
+        "organization": "Vaše organizace",
+        "group": "Skupina {group}",
+        "granted": "Uděleno vám"
+      },
+      "open": "Otevřít datovou sadu",
+      "endpoint": {
+        "lead": "Čteno živě z Endpointu {slug} s vaším vlastním přístupem."
+      }
     }
   },
   "dataagreements": {
@@ -11316,6 +11337,14 @@
       "aiConnectors": "Claude a další asistenti, kteří čtou data vaším jménem",
       "project": "prostory, členové, tajemství",
       "administration": "pro administrátory platformy"
-    }
+    },
+    "descriptionOwn": "Vaše vlastní nastavení."
+  },
+  "member": {
+    "nav": "Nabídka člena",
+    "catalogue": "Katalog",
+    "connectors": "AI konektory",
+    "settings": "Nastavení",
+    "signOut": "Odhlásit se"
   }
 }

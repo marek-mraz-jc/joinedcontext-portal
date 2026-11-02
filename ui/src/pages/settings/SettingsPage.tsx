@@ -13,9 +13,10 @@ interface Entry {
 
 /**
  * Every setting a person reaches, by whose it is (owner 2026-11-01): their own (AI connectors),
- * the project's, and the platform's for a platform administrator. The account menu opens it.
+ * the project's, and the platform's for a platform administrator. The account menu opens it. A
+ * member with no project (ADR-N-067) gets their own settings alone.
  */
-export function SettingsPage({ project }: { project: string }): JSX.Element {
+export function SettingsPage({ project }: { project?: string }): JSX.Element {
   const { t } = useTranslation();
   const { opensAdministration } = useAdministers();
   const groups: { scope: "personal" | "project" | "platform"; entries: Entry[] }[] = [
@@ -23,20 +24,24 @@ export function SettingsPage({ project }: { project: string }): JSX.Element {
       scope: "personal",
       entries: [{ key: "aiConnectors", icon: "access", link: <Link to="/ai-connectors">{t("aiConnectors.title")}</Link> }],
     },
-    {
-      scope: "project",
-      entries: [
-        {
-          key: "project",
-          icon: "spaces",
-          link: (
-            <Link to="/projects/$project/settings" params={{ project }}>
-              {t("settingsPage.projectSettings", { project })}
-            </Link>
-          ),
-        },
-      ],
-    },
+    ...(project === undefined
+      ? []
+      : [
+          {
+            scope: "project" as const,
+            entries: [
+              {
+                key: "project",
+                icon: "spaces" as IconName,
+                link: (
+                  <Link to="/projects/$project/settings" params={{ project }}>
+                    {t("settingsPage.projectSettings", { project })}
+                  </Link>
+                ),
+              },
+            ],
+          },
+        ]),
     ...(opensAdministration
       ? [
           {
@@ -58,7 +63,7 @@ export function SettingsPage({ project }: { project: string }): JSX.Element {
   ];
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={t("settingsPage.title")} description={t(opensAdministration ? "settingsPage.description" : "settingsPage.descriptionMember")} />
+      <PageHeader title={t("settingsPage.title")} description={t(opensAdministration ? "settingsPage.description" : project === undefined ? "settingsPage.descriptionOwn" : "settingsPage.descriptionMember")} />
       {/* Side by side on a wide screen: one link per card stretched across 1440 px read as empty. */}
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
         {groups.map((group) => (

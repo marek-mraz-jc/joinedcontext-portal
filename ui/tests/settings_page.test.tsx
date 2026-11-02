@@ -42,6 +42,13 @@ describe("the settings page (T-6344)", () => {
     await expectNoViolations(container);
   });
 
+  it("gives a member with no project their own settings alone (T-6411)", () => {
+    show(<SettingsPage />);
+    expect(screen.getByRole("link", { name: "My AI connectors" })).toHaveAttribute("href", "/ai-connectors");
+    expect(screen.queryByRole("link", { name: /Settings of/ })).toBeNull();
+    expect(screen.getByText("Your own settings.")).toBeInTheDocument();
+  });
+
   it("adds Administration for a platform administrator", () => {
     opensAdministration = true;
     show(<SettingsPage project="doprava" />);

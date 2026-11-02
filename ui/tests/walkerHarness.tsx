@@ -39,6 +39,7 @@ export const ADDRESSES: Record<string, string[]> = {
   "/endpoints": ["/endpoints"],
   "/catalogue": ["/catalogue"],
   "/catalogue/$name": ["/catalogue/air"],
+  "/catalogue/endpoint/$slug": ["/catalogue/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa"],
   "/v/$slug": ["/v/air-board"],
   "/f/$slug": ["/f/air-form"],
   "/d/$slug": ["/d/air-docs"],
@@ -120,6 +121,8 @@ function answer(path: string): Response | undefined {
   if (path === "/api/v1/organization/setup") return jsonResponse(SETUP_NOTHING_DONE);
   // The catalogue is a page of its own shape, not a list: empty, as an installation with no
   // published dataset answers it.
+  // What the signed-in person may read (T-6411): nothing internal, as a new member sees it.
+  if (path === "/api/v1/catalogue/readable") return jsonResponse({ datasets: [], unanswered: 0 });
   if (path === "/api/v1/catalogue") {
     const none = { publisher: [], theme: [], format: [], licence: [], spatial: [], year: [] };
     return jsonResponse({ total: 0, page: 1, pageSize: 20, datasets: [], facets: none, unavailable: [] });
