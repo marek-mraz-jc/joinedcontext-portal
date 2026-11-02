@@ -4,6 +4,7 @@
 
 mod common;
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
@@ -13,14 +14,17 @@ use wiremock::matchers::{method, path, path_regex, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use common::{envelope, person, send};
+use joinedcontext_portal::api::kpi_check::records_verdict;
 use joinedcontext_portal::config::Config;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
+use joinedcontext_portal::pipeline_validation::ModelSchema;
 use joinedcontext_portal::reconciler::views::ViewSync;
 use joinedcontext_portal::state::AppState;
 
 const PARKING: &str = "p4y7pq2mzt6vhx3nbwrs5cjdaf";
 const STOPS: &str = "s3nq7pzk2mtv6hx5brj4gcdsfa";
 const SECRET: &str = "x7nq7pzk2mtv6hx5brj4gcdsfa";
+const WRITER: &str = "w3nq7pzk2mtv6hx5brj4gcdsfa";
 const TOKEN: &str = "an-admin-token-of-at-least-32-bytes!";
 const ROUTE: &str = "/api/v1/projects/city/kpis/check";
 
@@ -34,7 +38,7 @@ fn repository(dir: &Path) -> jcctl::loader::Repository {
     let head = |kind: &str, name: &str| {
         format!("apiVersion: joinedcontext.com/v1alpha1\nkind: {kind}\nmetadata:\n  name: {name}\n  namespace: city\nspec:\n")
     };
-    for space in ["mobility", "secret"] {
+    for space in ["mobility", "secret", "city-kpi"] {
         write(
             &format!("projects/city/spaces/{space}/space.yaml"),
             format!("{}  isSandbox: false\n", head("ContextSpace", space)),
@@ -44,6 +48,7 @@ fn repository(dir: &Path) -> jcctl::loader::Repository {
         ("mobility", "parking", PARKING),
         ("mobility", "stops", STOPS),
         ("secret", "hidden", SECRET),
+        ("city-kpi", "kpi-writer", WRITER),
     ] {
         write(
             &format!("projects/city/spaces/{space}/endpoints/{name}.yaml"),
@@ -53,6 +58,10 @@ fn repository(dir: &Path) -> jcctl::loader::Repository {
     write(
         "projects/city/spaces/mobility/policies/read.yaml",
         format!("{}  contextSpaceRef: mobility\n  assigner: did:web:city.example\n  assignee: {{ kind: role, id: public }}\n  operations: [retrieveOps]\n  information:\n    - entities: [{{ type: ParkingSite }}, {{ type: TransitStop }}]\n      propertyNames: [occupied, district]\n", head("Policy", "read")),
+    );
+    write(
+        "projects/city/spaces/city-kpi/policies/write.yaml",
+        format!("{}  contextSpaceRef: city-kpi\n  assigner: did:web:city.example\n  assignee: {{ kind: serviceAccount, id: pipelines }}\n  operations: [upsertBatch, createBatch, queryBatch]\n  information:\n    - entities:\n        - type: KeyPerformanceIndicator\n      propertyNames: [name, calculationFormula, currentValue, calculationPeriod, updatedAt, derivedFrom, computedBy]\n", head("Policy", "write")),
     );
     jcctl::loader::Repository::load(dir).expect("the repository loads")
 }
@@ -122,7 +131,7 @@ struct Rig {
 async fn rig() -> Rig {
     let broker = broker().await;
     let mut state = AppState::new(Config::for_tests(), None);
-    for space in ["mobility", "secret"] {
+    for space in ["mobility", "secret", "city-kpi"] {
         state
             .mirror
             .upsert(envelope("ContextSpace", space, "city", json!({})));
@@ -131,6 +140,7 @@ async fn rig() -> Rig {
         ("mobility", "parking", PARKING),
         ("mobility", "stops", STOPS),
         ("secret", "hidden", SECRET),
+        ("city-kpi", "kpi-writer", WRITER),
     ] {
         state.mirror.upsert(envelope(
             "Endpoint",
@@ -342,6 +352,135 @@ async fn a_source_in_an_unread_space_is_unknown() {
 
 /// PF-52: a reader who may not propose a pipeline is refused before anything is read; a workload
 /// token's 403 is the authorization matrix's service-account cell (tests/authz_matrix.yaml).
+/// The rig with `mobility`'s model: `occupied` in UCUM minutes, `capacity` a plain count.
+fn with_model(rig: &Rig) {
+    rig.state.model_schemas.replace(HashMap::from([(
+        ("city".to_owned(), "mobility".to_owned()),
+        Arc::new(ModelSchema::compile(
+            "mobility",
+            "1.0.0",
+            &json!({ "definitions": {
+                "ParkingSite": { "properties": {
+                    "id": { "type": "string" }, "type": { "type": "string" },
+                    "occupied": { "type": ["number", "null"], "x-ngsi-ld-kind": "Property", "x-unit": { "ucumCode": "min" } },
+                    "district": { "type": ["string", "null"], "x-ngsi-ld-kind": "Property" }
+                } },
+                "TransitStop": { "properties": {
+                    "id": { "type": "string" }, "type": { "type": "string" },
+                    "district": { "type": ["string", "null"], "x-ngsi-ld-kind": "Property" }
+                } }
+            }}),
+            &["ParkingSite".to_owned(), "TransitStop".to_owned()],
+            false,
+        )),
+    )]));
+}
+
+/// The check's answer to jana.
+async fn checked(rig: &Rig, body: Value) -> Value {
+    let answer = send(&rig.state, person("jana"), "POST", ROUTE, Some(body)).await;
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
+    serde_json::from_str(&answer.text).expect("JSON")
+}
+
+/// PL-103: the editor adds whatever the formula names to the source's attributes, so a typo is
+/// caught against the model; else the broker answers no rows and the sum reads as a real 0.
+#[tokio::test]
+async fn an_attribute_the_model_lacks_is_refused_at_its_source() {
+    let rig = rig().await;
+    with_model(&rig);
+    let mut body = draft("sum(parking.noSuchField) / count(stops)", "stops");
+    body["pipeline"]["spec"]["sources"][0]["query"]["attrs"] = json!(["noSuchField", "district"]);
+    let answer = checked(&rig, body).await;
+    assert_eq!(
+        answer["problems"][0]["field"], "spec.sources[0].query.attrs",
+        "{answer}"
+    );
+    let reason = answer["problems"][0]["reason"].as_str().expect("a reason");
+    assert!(
+        reason.contains("`noSuchField`") && reason.contains("ParkingSite"),
+        "{reason}"
+    );
+    assert_eq!(
+        previews(&rig.broker).await,
+        0,
+        "a refused draft reads nothing"
+    );
+}
+
+/// PL-103: a model names most units in UCUM; the check holds them to the declared UN/CEFACT code.
+#[tokio::test]
+async fn a_unit_the_model_names_in_ucum_is_held_to_the_declared_code() {
+    let rig = rig().await;
+    with_model(&rig);
+    let mut body = draft("sum(parking.occupied) + sum(parking.occupied)", "stops");
+    let answer = checked(&rig, body.clone()).await;
+    assert_eq!(
+        answer["problems"][0]["field"], "spec.steps.kpi.unitCode",
+        "{answer}"
+    );
+    assert!(
+        answer["problems"][0]["reason"]
+            .as_str()
+            .expect("a reason")
+            .contains("MIN"),
+        "{answer}"
+    );
+    body["pipeline"]["spec"]["steps"][0]["kpi"]["unitCode"] = json!("MIN");
+    let answer = checked(&rig, body).await;
+    assert_eq!(answer["problems"], json!([]), "{answer}");
+}
+
+/// PL-85: the one record a kpi step writes is judged where a write is, so its proposal passes the
+/// gate; a target Endpoint the project lacks stays red.
+#[tokio::test]
+async fn a_kpi_draft_gets_its_record_check_from_the_target_it_writes() {
+    let rig = rig().await;
+    let mut body = draft("sum(parking.occupied) / count(stops)", "stops");
+    let manifest = &mut body["pipeline"];
+    manifest["spec"]["outputs"][0]["type"] = json!("KeyPerformanceIndicator");
+    let green = records_verdict(&rig.state, "city", manifest).expect("a verdict");
+    assert!(green.ok && green.checked == 1, "{green:?}");
+    manifest["spec"]["outputs"][0]["targetEndpoint"] =
+        json!("urn:ngsi-ld:Endpoint:hel.fi:city-kpi:gone");
+    let red = records_verdict(&rig.state, "city", manifest).expect("a verdict");
+    assert!(!red.ok, "no such Endpoint in the project: {red:?}");
+}
+
+/// Any other Pipeline keeps its test on a sample.
+#[tokio::test]
+async fn a_pipeline_without_a_kpi_step_gets_no_record_check_here() {
+    let rig = rig().await;
+    let manifest = json!({ "metadata": { "name": "plain" }, "spec": {
+        "class": "scheduled", "schedule": "0 * * * *",
+        "source": { "endpointRef": { "kind": "Endpoint", "name": "parking" } },
+        "compute": { "kind": "bloblang", "bloblang": "root = this" },
+        "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:mobility:parking" } });
+    assert!(records_verdict(&rig.state, "city", &manifest).is_none());
+}
+
+/// A source with no rows gives no value and says so; a sum over nothing must not read as 0.
+#[tokio::test]
+async fn an_empty_source_gives_no_value_and_says_why() {
+    let rig = rig().await;
+    rig.broker.reset().await;
+    Mock::given(method("POST"))
+        .and(path_regex("^/q/views/[a-z0-9-]+/preview$"))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({ "count": 0, "entities": [] })),
+        )
+        .mount(&rig.broker)
+        .await;
+    let answer = checked(&rig, draft("sum(parking.occupied) / count(stops)", "stops")).await;
+    assert_eq!(answer["preview"]["values"], json!([]), "{answer}");
+    assert_eq!(answer["preview"]["rows"]["parking"], 0, "{answer}");
+    let problem = answer["preview"]["problem"].as_str().expect("a problem");
+    assert!(
+        problem.contains("input parking") && problem.contains("no rows"),
+        "{problem}"
+    );
+}
+
 #[tokio::test]
 async fn only_a_person_who_may_propose_checks() {
     let r = rig().await;
