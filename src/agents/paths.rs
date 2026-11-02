@@ -159,7 +159,10 @@ impl Path {
                 "find data the project has or why a pipeline wrote nothing, and answer from it, \
                  changing nothing"
             }
-            Path::ShareData => "share data through an endpoint with other projects or the public",
+            Path::ShareData => {
+                "share data through an endpoint with other projects or the public, or embed it \
+                 on a website"
+            }
             Path::BuildApp => "build an application that reads the project's endpoints",
             Path::BuildDashboard => "draw a dashboard over an endpoint",
             Path::CreateDataModel => {
