@@ -606,7 +606,16 @@ impl Driver {
                     .into_iter()
                     .take(data_query::MAX_CALLS.saturating_sub(results.len()))
                 {
-                    let text = self.registry_call(&call).await?;
+                    // A run outside the schedule is the person's word: the question ends the
+                    // turn, and their answer runs it (T-6482, AG-63).
+                    let text = if call.name == crate::connectors::RUN {
+                        match self.ask_to_run(&call.arguments).await? {
+                            Ok(asked) => return Ok(asked),
+                            Err(reason) => format!("error: {reason}"),
+                        }
+                    } else {
+                        self.registry_call(&call).await?
+                    };
                     results.push((drafted(&call.name, Some(call.arguments)), text));
                 }
                 continue;
@@ -1150,7 +1159,7 @@ impl Driver {
     }
 
     /// The capabilities the person chose, as the newest message left them (AG-92).
-    fn capabilities(&self) -> Option<crate::agents::capabilities::Capabilities> {
+    pub(super) fn capabilities(&self) -> Option<crate::agents::capabilities::Capabilities> {
         self.capabilities
             .lock()
             .unwrap_or_else(PoisonError::into_inner)

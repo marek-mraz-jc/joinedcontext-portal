@@ -68,11 +68,8 @@ pub(super) fn offered(
         // A run reads data through the agent proxy's query_endpoint; jc_data_query exchanges the
         // caller's own token, which a run does not hold (T-5986).
         .filter(|op| op.name != crate::ops::data_query::NAME)
-        // T-6028: a run and its log reach MCP connectors; this prompt keeps its 4k-token turn
-        // (AG-72), and a person runs a pipeline from its page.
-        .filter(|op| {
-            ![crate::connectors::RUN, crate::ops::pipeline_runs::LOGS].contains(&op.name.as_str())
-        })
+        // T-6028: a run's log reaches MCP connectors; this prompt keeps its 4k-token turn (AG-72).
+        .filter(|op| op.name != crate::ops::pipeline_runs::LOGS)
         // T-6039: the project's members reach access connectors; this prompt keeps its 4k-token
         // turn (AG-72), and a person picks a subject from the RoleBinding form.
         .filter(|op| op.name != crate::ops::people::MEMBERS)
@@ -124,7 +121,8 @@ pub(super) fn section(ops: &[OperationSummary]) -> String {
             format!(
                 "- `{}` — {}{}\n",
                 op.name,
-                op.description.trim(),
+                // The first sentence: describe_tool answers the rest (AG-72).
+                op.description.trim().split(". ").next().unwrap_or_default(),
                 if acts(&op.name) {
                     " (changes something: a draft, a Verdict or a Change)"
                 } else {
@@ -136,9 +134,8 @@ pub(super) fn section(ops: &[OperationSummary]) -> String {
     format!(
         r#"## THE PLATFORM'S OPERATIONS
 
-Everything the platform does, it does through one of these operations. They are the same
-operations the Portal's own pages and every MCP client call, so what you do here is what a
-person sees there.
+Everything the platform does, it does through one of these operations, the same ones the
+Portal's own pages and every MCP client call.
 
 {listed}
 Ask for one operation's input schema before you call it the first time:
@@ -167,6 +164,10 @@ asks for, and propose nothing:
 ```json
 {{ "tool": "jc_ui_navigate", "arguments": {{ "page": "new", "plural": "serviceaccounts" }} }}
 ```
+
+An AI client's connector is the person's own, no ServiceAccount: open page `connectors`, where
+they create, edit and revoke it; you do neither. Call `jc_pipeline_run` unasked: the platform asks
+the person and their answer runs it.
 
 To show the data, open `entities` with the endpoint, the entity type and a `q` for a subset; to map
 it, `map` with the same and `color`, a number attribute. A row lacking an attribute (`!attr`)
@@ -492,7 +493,7 @@ impl Driver {
 
 /// The pages the assistant may open, and what each one needs (UI-59). The route is built here,
 /// so a page the enum does not name cannot be reached however the model spells it.
-const PAGES: [(&str, &str); 21] = [
+const PAGES: [(&str, &str); 22] = [
     ("spaces", "/projects/{project}/spaces"),
     ("space", "/projects/{project}/spaces/{name}"),
     ("models", "/projects/{project}/models"),
@@ -527,6 +528,9 @@ const PAGES: [(&str, &str); 21] = [
     ),
     ("ckan", "/projects/{project}/ckan"),
     ("assistant", "/projects/{project}/assistant"),
+    // A person's own connectors (T-6482, AG-151, AG-157): no project's page, and the assistant
+    // only opens it; the person creates and revokes there.
+    ("connectors", "/ai-connectors"),
     ("app", "/projects/{project}/apps/{name}"),
     // A resource of any kind, the way `model` and `endpoint` open one of theirs.
     // Its page is the kind's, never its plural spelled as a path (`datamodels` is `models`).

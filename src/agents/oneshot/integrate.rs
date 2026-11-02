@@ -156,6 +156,7 @@ impl Driver {
                 | build::AUDIENCE_STEP
                 | build::DESCRIBE_STEP),
             ) => self.build_answer(step, &answers, &events).await,
+            Some(run_now::STEP) => self.run_answer(&answers).await,
             _ => Ok(None),
         }
     }

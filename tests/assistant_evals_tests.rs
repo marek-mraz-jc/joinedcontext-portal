@@ -65,6 +65,13 @@ const UNRECORDED_LATER: [(&str, &str); 8] = [
     ("connector", "T-5950"),
 ];
 
+/// Case conversations added after 2026-10-06, each owing its recording with the task that added
+/// it, counted apart like [`UNRECORDED_LATER`].
+const UNRECORDED_CASES_LATER: [(&str, &str); 2] = [
+    ("connector--revoke", "T-6482"),
+    ("pipeline--run-now", "T-6482"),
+];
+
 /// What separates a workflow from its case in a conversation's file name.
 const CASE: &str = "--";
 
@@ -808,7 +815,7 @@ async fn a_viewer_is_refused_every_conversation() {
         let (status, body) = start(&state, &config, "viewer", &conversation.refusal.says).await;
         assert_eq!(status, StatusCode::FORBIDDEN, "{name}: {body}");
         assert!(
-            body.to_string().contains("App"),
+            body.to_string().contains("propose"),
             "{name}: the refusal names what is missing: {body}"
         );
     }
@@ -828,13 +835,17 @@ async fn every_recorded_conversation_did_on_dev_and_still_does_what_it_expects()
     let later = |name: &str| {
         UNRECORDED_LATER
             .iter()
+            .chain(&UNRECORDED_CASES_LATER)
             .any(|(workflow, _)| *workflow == name)
     };
     for (name, conversation) in conversations() {
         let Some(recorded) = recording(&name) else {
+            if later(&name) {
+                continue;
+            }
             if name.contains(CASE) {
                 unrecorded_cases += 1;
-            } else if !later(&name) {
+            } else {
                 unrecorded += 1;
             }
             continue;
