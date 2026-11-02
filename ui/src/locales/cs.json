@@ -7579,7 +7579,8 @@
         "unresolvedTitle": "Adresy, které v organizaci nikdo nemá",
         "unresolved": "Tyto zůstanou, jak jsou, a skupina, která některou uvádí, se nesynchronizuje, dokud se neopraví: {addresses}. Osobu pozvěte nebo adresu z manifestu odstraňte."
       },
-      "invitedMember": "Realm poslal na {email} e-mail k ověření adresy a nastavení hesla. Je členem {organization} bez projektu: přihlásí se do katalogu a čte, co její politiky zpřístupňují všem nebo jeho skupinám."
+      "invitedMember": "Realm poslal na {email} e-mail k ověření adresy a nastavení hesla. Je členem {organization} bez projektu: přihlásí se do katalogu a čte, co její politiky zpřístupňují všem nebo jeho skupinám.",
+      "idHint": "Skupiny, přiřazení rolí a politiky označují tuto osobu tímto identifikátorem:"
     },
     "setup": {
       "title": "Nastavení",
@@ -7971,7 +7972,8 @@
       "platformHint": "Nevyužité místo na svazku a server, když se nic nezměřilo."
     },
     "nav": {
-      "back": "Zpět na projekty"
+      "back": "Zpět na projekty",
+      "notAdmin": "Správa je pro administrátory organizace. Vaše projekty jsou o krok zpět."
     },
     "group": {
       "access": "Lidé a přístup",
@@ -11408,5 +11410,10 @@
       "group": "Skupina {group}",
       "granted": "Přiděleno jmenovitě"
     }
+  },
+  "askAdmins": {
+    "title": "Obraťte se na administrátora organizace",
+    "contacts": "Kontakty vaší organizace",
+    "back": "Zpět na vaše projekty"
   }
 }

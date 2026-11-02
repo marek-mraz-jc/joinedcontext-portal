@@ -20,6 +20,7 @@ import {
   TableRowHeaderCell,
 } from "../../components/ui";
 import { AccessBadge } from "../catalogue/ReadableDatasets";
+import { AskAdmins } from "./AskAdmins";
 
 type DataAccess = components["schemas"]["DataAccess"];
 type AccessColumn = components["schemas"]["AccessColumn"];
@@ -75,10 +76,20 @@ function Answer({
   children: () => ReactNode;
 }): JSX.Element {
   const { t } = useTranslation();
-  if (query.isPending) return <PageLoading label={loading} />;
+  if (query.isPending) {
+    // The gateway decides each cell, which can take seconds: the wait says so in words (T-6423).
+    return (
+      <div className="flex flex-col gap-2">
+        <p aria-hidden="true" className="text-caption text-fg-muted">
+          {loading}
+        </p>
+        <PageLoading label={loading} lines={1} />
+      </div>
+    );
+  }
   if (query.isError) {
     if (query.error instanceof ApiError && query.error.status === 403) {
-      return <Alert tone="info">{t("dataAccess.adminOnly")}</Alert>;
+      return <AskAdmins message={t("dataAccess.adminOnly")} />;
     }
     return <PageFailed error={query.error} onRetry={() => void query.refetch()} />;
   }

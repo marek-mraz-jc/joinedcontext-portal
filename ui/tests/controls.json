@@ -908,6 +908,7 @@
         "Button": 6
       },
       "tests": [
+        "data_access.test.tsx",
         "group_page.test.tsx"
       ]
     },

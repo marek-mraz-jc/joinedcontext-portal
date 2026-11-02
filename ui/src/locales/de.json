@@ -7579,7 +7579,8 @@
         "unresolvedTitle": "Adressen, die niemand in der Organisation hat",
         "unresolved": "Diese bleiben, wie sie sind, und eine Gruppe, die eine davon nennt, wird erst synchronisiert, wenn sie korrigiert ist: {addresses}. Laden Sie die Person ein oder entfernen Sie die Adresse aus dem Manifest."
       },
-      "invitedMember": "Der Realm hat {email} eine E-Mail zur Bestätigung der Adresse und zum Setzen eines Passworts gesendet. Die Person ist Mitglied von {organization} ohne Projekt: Sie meldet sich im Katalog an und liest, was dessen Richtlinien allen oder ihren Gruppen freigeben."
+      "invitedMember": "Der Realm hat {email} eine E-Mail zur Bestätigung der Adresse und zum Setzen eines Passworts gesendet. Die Person ist Mitglied von {organization} ohne Projekt: Sie meldet sich im Katalog an und liest, was dessen Richtlinien allen oder ihren Gruppen freigeben.",
+      "idHint": "Gruppen, Rollenbindungen und Richtlinien nennen diese Person mit dieser Kennung:"
     },
     "setup": {
       "title": "Einrichtung",
@@ -7971,7 +7972,8 @@
       "platformHint": "Ungenutzter Volume-Platz, und der Server, wenn nichts gemessen wurde."
     },
     "nav": {
-      "back": "Zurück zu den Projekten"
+      "back": "Zurück zu den Projekten",
+      "notAdmin": "Die Verwaltung ist für Administratoren der Organisation. Ihre Projekte sind einen Schritt zurück."
     },
     "group": {
       "access": "Personen und Zugriff",
@@ -11408,5 +11410,10 @@
       "group": "Gruppe {group}",
       "granted": "Namentlich gewährt"
     }
+  },
+  "askAdmins": {
+    "title": "Fragen Sie einen Administrator der Organisation",
+    "contacts": "Kontakte Ihrer Organisation",
+    "back": "Zurück zu Ihren Projekten"
   }
 }

@@ -61,3 +61,15 @@ export function PermissionGuard({
     disabledReason: deniedReason(t, project, verb, kind),
   });
 }
+
+/**
+ * The guard's reason as a visible line (T-6423): a section whose controls the caller's role denies
+ * says so once in words, since a disabled button's own reason is a tooltip and screen-reader text.
+ * Nothing while the permissions load or when the role allows the verb.
+ */
+export function DeniedNote({ project, kind, verb }: { project: string; kind: string; verb: Verb }): JSX.Element | null {
+  const { t } = useTranslation();
+  const { can, checking } = usePermissions(project);
+  if (checking || can(kind, verb)) return null;
+  return <p className="text-caption text-fg-muted">{deniedReason(t, project, verb, kind)}</p>;
+}

@@ -44,6 +44,7 @@ import { People } from "./People";
 import { KindList } from "../../routes/ResourceListPage";
 import { ValidationHealth } from "./ValidationHealth";
 import { OrganizationConnectors } from "./OrganizationConnectors";
+import { AskAdmins } from "./AskAdmins";
 import { DataAccessMatrix } from "./DataAccess";
 import { HealthLog } from "../health/HealthLog";
 import { Brokers } from "./Brokers";
@@ -320,7 +321,7 @@ export function OrganizationPage({ tab, anchor }: { tab: OrganizationTab; anchor
         {/* The purpose line a person who cannot administer still reads (T-3852). */}
         <PageHeader title={t("organization.title")} description={t("organization.lead")} />
         {known ? (
-          <Alert tone="info">{t("organization.adminOnly")}</Alert>
+          <AskAdmins message={t("organization.adminOnly")} back={anchor} />
         ) : (
           <PageLoading label={t("app.loading")} />
         )}
