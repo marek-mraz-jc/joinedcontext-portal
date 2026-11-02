@@ -6,10 +6,16 @@ import { I18nextProvider } from "react-i18next";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 import i18n, { SUPPORTED_LOCALES } from "../src/i18n";
 import { expectDenied, expectNoRawKeys, expectNoViolations, expectTabOrder } from "./checks";
-import { SpaceComplete } from "../src/pages/spaces/SpaceComplete";
+import { CompleteFlow, SpaceComplete } from "../src/pages/spaces/SpaceComplete";
 import { rememberPrefill, takePrefill } from "../src/assistant/state";
 import en from "../src/locales/en.json";
 import { xlsxFile } from "./xlsxFixture";
+
+vi.mock("../src/auth/AuthProvider", () => ({
+  useAuthStatus: () => "authenticated",
+  useAuth: () => ({ status: "authenticated", identity: { username: "jana", email: "jana@hel.fi" } }),
+  useSignIn: () => () => undefined,
+}));
 
 const navigate = vi.fn();
 
@@ -429,7 +435,14 @@ slots:
         ["Štadión", 48.55, 19.42],
       ],
     };
-    const change = (phase: string) => ({ kind: "Change", metadata: { name: "chg-9" }, spec: {}, status: { phase, lane: "red" } });
+    const change = (phase: string) => ({
+      kind: "Change",
+      metadata: { name: "chg-9" },
+      spec: {},
+      status: { phase, lane: "red" },
+      summary: { key: "change.summary.create", params: { kind: "ContextSpace", name: "miesta" } },
+      author: { email: "aino@hel.fi" },
+    });
     const completed = (proposed: boolean) => ({
       space: "miesta",
       found: [],
@@ -440,10 +453,11 @@ slots:
     });
 
     /** A dev that answers the op, the Change, the grant and the write; `at` moves it along. */
-    function world(): { at: { phase: string; grant: string }; ops: Record<string, unknown>[]; written: unknown[][] } {
-      const at = { phase: "PendingApproval", grant: "" };
-      const ops: Record<string, unknown>[] = [];
-      const written: unknown[][] = [];
+    function world(): { at: { phase: string; grant: string }; ops: Record<string, unknown>[]; written: unknown[][]; live: boolean } {
+      const dev = { at: { phase: "", grant: "" }, ops: [] as Record<string, unknown>[], written: [] as unknown[][], live: false };
+      const at = dev.at;
+      at.phase = "PendingApproval";
+      const { ops, written } = dev;
       vi.stubGlobal(
         "fetch",
         withSpaceList(async (input, init) => {
@@ -452,7 +466,12 @@ slots:
           if (path.endsWith("/ops/jc_space_complete")) {
             const body = (await request.clone().json()) as Record<string, unknown>;
             ops.push(body);
-            return Response.json(completed(body.propose === true));
+            return Response.json(dev.live ? { ...completed(false), proposeReady: false, alreadyLive: true } : completed(body.propose === true));
+          }
+          if (path.endsWith("/changes/chg-9/approve")) {
+            ops.push({ approved: await request.clone().text() });
+            at.phase = "Merged";
+            return Response.json({ ...change("Merged"), status: { phase: "Merged", lane: "red" } });
           }
           if (path.endsWith("/changes/chg-9")) return Response.json(change(at.phase));
           if (path.endsWith("/policies/miesta-upload")) {
@@ -469,7 +488,7 @@ slots:
           return new Response(null, { status: 404 });
         }),
       );
-      return { at, ops, written };
+      return dev;
     }
 
     async function proposed(user: ReturnType<typeof userEvent.setup>): Promise<void> {
@@ -508,12 +527,113 @@ slots:
       expect(screen.getByRole("link", { name: "Open the space" })).toBeInTheDocument();
     }, 30_000);
 
-    it("opens with the table the assistant's dock handed over", async () => {
+    it("runs in the dock on the table attached there, with no feed address to fill", async () => {
       world();
-      rememberPrefill(window.location.pathname, { file: xlsxFile("mesto.xlsx", SHEETS) });
-      renderComponent();
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <QueryClientProvider client={queryClient}>
+          <I18nextProvider i18n={i18n}>
+            <CompleteFlow project="helsinki" file={xlsxFile("mesto.xlsx", SHEETS)} inDock />
+          </I18nextProvider>
+        </QueryClientProvider>,
+      );
       expect(await screen.findByRole("combobox", { name: "Sheet" })).toBeInTheDocument();
+      expect(screen.queryByLabelText(en.spaces.complete.url)).toBeNull();
     });
+
+    it("shows the drafted model with a value of the file, and proposes a corrected type as the model file", async () => {
+      const user = userEvent.setup();
+      const dev = world();
+      renderComponent();
+      await user.upload(screen.getByLabelText(en.spaces.complete.files), xlsxFile("mesto.xlsx", SHEETS));
+      await user.selectOptions(await screen.findByRole("combobox", { name: "Sheet" }), "Kultúrne miesta");
+      await user.click(screen.getByRole("button", { name: en.spaces.complete.action }));
+      const review = await screen.findByTestId("model-review");
+      expect(review).toHaveTextContent("Dom kultúry");
+      await user.selectOptions(within(review).getByLabelText("Zemepisná šírka"), "string");
+      await user.click(screen.getByRole("button", { name: en.spaces.complete.proposeAll }));
+      await screen.findByRole("button", { name: "Write 2 rows" });
+      const files = dev.ops[1].files as { name: string; content: string }[];
+      const model = files.find((f) => f.name === "miesta.linkml.yaml");
+      expect(model?.content).toMatch(/Zemepisn_rka: \{ range: string/);
+      expect(screen.queryByTestId("model-review")).toBeNull();
+    }, 30_000);
+
+    it("offers an approver the decision in place, the name typed back on a red lane", async () => {
+      const user = userEvent.setup();
+      const dev = world();
+      renderComponent();
+      await proposed(user);
+      const approve = await screen.findByRole("button", { name: en.approvals.approve });
+      expect(approve).toHaveAttribute("aria-disabled", "true");
+      await user.type(screen.getByLabelText(en.approvals.confirmLabel), "miesta");
+      await user.click(approve);
+      await waitFor(() => expect(dev.ops.some((op) => "approved" in op)).toBe(true));
+      await waitFor(() => expect(screen.queryByRole("button", { name: en.approvals.approve })).toBeNull(), { timeout: 8_000 });
+    }, 30_000);
+
+    it("tells someone who may not approve who decides, and offers no button", async () => {
+      const user = userEvent.setup();
+      world();
+      const answer = globalThis.fetch;
+      vi.stubGlobal("fetch", (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(new URL(String(input), window.location.origin), init);
+        return new URL(request.url).pathname.endsWith("/permissions/me")
+          ? Promise.resolve(Response.json({ project: "helsinki", bootstrap: false, grants: [{ role: "editor", scope: "project:helsinki", rule: { kinds: ["ContextSpace", "DataModel", "Endpoint", "Policy"], verbs: ["read", "propose"] } }] }))
+          : answer(input, init);
+      });
+      renderComponent();
+      await proposed(user);
+      expect(await screen.findByText(en.changes.whoApproves)).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: en.approvals.approve })).toBeNull();
+    }, 30_000);
+
+    it("keeps the model unsent when the person corrected nothing", async () => {
+      const user = userEvent.setup();
+      const dev = world();
+      renderComponent();
+      await proposed(user);
+      expect((dev.ops[1].files as { name: string }[]).some((f) => f.name.endsWith(".linkml.yaml"))).toBe(false);
+    }, 30_000);
+
+    it("after a 504 the same Propose is answered the open Change, one proposal on the page", async () => {
+      const user = userEvent.setup();
+      const dev = world();
+      const answer = globalThis.fetch;
+      let cut = true;
+      vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+        const request = input instanceof Request ? input : new Request(new URL(String(input), window.location.origin), init);
+        if (new URL(request.url).pathname.endsWith("/ops/jc_space_complete") && cut && (await request.clone().json() as { propose?: boolean }).propose) {
+          cut = false;
+          return new Response("gateway timeout", { status: 504 });
+        }
+        return answer(input, init);
+      });
+      renderComponent();
+      await user.upload(screen.getByLabelText(en.spaces.complete.files), xlsxFile("mesto.xlsx", SHEETS));
+      await user.selectOptions(await screen.findByRole("combobox", { name: "Sheet" }), "Kultúrne miesta");
+      await user.click(screen.getByRole("button", { name: en.spaces.complete.action }));
+      await user.click(await screen.findByRole("button", { name: en.spaces.complete.proposeAll }));
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: en.spaces.complete.proposeAll }));
+      await screen.findByRole("button", { name: "Write 2 rows" });
+      expect(screen.queryByRole("alert")).toBeNull();
+      expect(screen.getAllByText("chg-9")).toHaveLength(1);
+      expect(dev.ops.filter((op) => op.propose === true)).toHaveLength(1);
+    }, 30_000);
+
+    it("loads the rows at once when the space already serves this model, and proposes nothing", async () => {
+      const user = userEvent.setup();
+      const dev = world();
+      dev.live = true;
+      renderComponent();
+      await user.upload(screen.getByLabelText(en.spaces.complete.files), xlsxFile("mesto.xlsx", SHEETS));
+      await user.selectOptions(await screen.findByRole("combobox", { name: "Sheet" }), "Kultúrne miesta");
+      await user.click(screen.getByRole("button", { name: en.spaces.complete.action }));
+      const write = await screen.findByRole("button", { name: "Write 2 rows" });
+      expect(screen.queryByRole("button", { name: en.spaces.complete.proposeAll })).toBeNull();
+      await waitFor(() => expect(write).not.toHaveAttribute("aria-disabled", "true"), { timeout: 12_000 });
+    }, 30_000);
 
     it("keeps a table with a README beside it a feed: no upload, and Complete says the source fills it", async () => {
       const user = userEvent.setup();

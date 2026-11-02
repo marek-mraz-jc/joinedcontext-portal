@@ -465,7 +465,8 @@
     "accepted": "Als Änderung vorgeschlagen:",
     "review": "In Freigaben öffnen",
     "approvedAsProposed": "Beim Vorschlagen genehmigt, wird angewendet:",
-    "open": "Änderung öffnen"
+    "open": "Änderung öffnen",
+    "whoApproves": "Als Nächstes entscheidet eine andere Person mit Genehmigungsrecht in diesem Projekt. Sie findet es unter Genehmigungen, und diese Ansicht aktualisiert sich selbst."
   },
   "resourceDelete": {
     "title": "{name} entfernen",
@@ -675,7 +676,21 @@
       "open": "Öffnen",
       "noDrafts": "Noch keine Entwürfe vervollständigt.",
       "needInput": "Geben Sie eine Endpunkt-URL ein oder fügen Sie eine Datei hinzu.",
-      "filesHint": "Eine Probe der Daten als CSV, Excel (.xlsx), JSON oder GeoJSON, mit Manifesten, README oder .env, die die Quelle beschreiben; zusammen bis 10 MB. Beispiel: stationen.xlsx."
+      "filesHint": "Eine Probe der Daten als CSV, Excel (.xlsx), JSON oder GeoJSON, mit Manifesten, README oder .env, die die Quelle beschreiben; zusammen bis 10 MB. Beispiel: stationen.xlsx.",
+      "review": {
+        "title": "Vorgeschlagenes Datenmodell {type}: {count, plural, one {# Attribut} other {# Attribute}}",
+        "hint": "Vergleichen Sie jeden Typ mit dem Wert aus Ihrer Datei. Hat der Entwurf eine Spalte falsch gelesen, ändern Sie den Typ hier, zum Beispiel soll eine als Zahl gelesene Postleitzahl Text sein.",
+        "sample": "Beispiel aus der Datei: {value}",
+        "noSample": "Kein Wert in der Datei",
+        "range": {
+          "string": "Text",
+          "integer": "Ganzzahl",
+          "float": "Dezimalzahl",
+          "boolean": "Ja oder nein",
+          "date": "Datum",
+          "datetime": "Datum und Uhrzeit"
+        }
+      }
     },
     "segment": "in Entitäts-IDs: {segment}",
     "quality": {
@@ -1167,7 +1182,7 @@
       "preview": "Vorschau der ersten {count, plural, one {# Entität} other {# Entitäten}} als NGSI-LD",
       "firstRefusal": "Zeile {row}: {reason}",
       "liveNow": "Die Änderung ist live. Schreiben Sie die Zeilen als {type} in {space}. Dieselbe Datei erneut zu schreiben aktualisiert dieselben Entitäten.",
-      "goingLive": "Freigegeben. In einigen Minuten ist sie live und diese Schaltfläche wird von selbst aktiv; bleiben Sie auf dieser Seite.",
+      "goingLive": "Genehmigt. Es geht innerhalb einer Minute live und diese Schaltfläche wird von selbst freigegeben; bleiben Sie hier.",
       "openSpace": "Raum öffnen"
     },
     "toolbar": {

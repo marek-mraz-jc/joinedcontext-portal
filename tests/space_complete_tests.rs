@@ -1436,3 +1436,123 @@ async fn a_proposed_space_commits_its_model_with_the_compiled_artifacts() {
         "./examples/room-bookings.example.jsonld"
     );
 }
+
+/// The same model proposed against a forge holding `open` and a main holding `main`, with
+/// `served` in the mirror: the answer, and how many merge requests the call opened (T-6456).
+async fn proposed_again(open: Option<&str>, main: Option<&str>, served: bool, propose: bool) -> (StatusCode, Value, usize) {
+    use base64::Engine;
+    let gitea = common::forge().await;
+    let model_tools = MockServer::start().await;
+    Mock::given(method("POST"))
+        .and(path("/generate"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "jsonSchema": {}, "context": {}, "docs": "", "example": {} })))
+        .mount(&model_tools)
+        .await;
+    let file = |text: &str| ResponseTemplate::new(200).set_body_json(json!({ "sha": "s", "content": base64::engine::general_purpose::STANDARD.encode(text) }));
+    let held = format!("{}/contents/projects/helsinki/spaces/room-bookings/datamodels/room-bookings.linkml.yaml", common::REPO);
+    if let Some(text) = open {
+        Mock::given(method("GET"))
+            .and(path(format!("{}/pulls", common::REPO)))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([{
+                "number": 7, "html_url": "https://gitea.example/pulls/7", "state": "open",
+                "head": { "ref": "portal/create-contextspace-room-bookings-0a1b2c3d", "sha": "h" },
+                "base": { "ref": "main", "sha": "b" }
+            }])))
+            .mount(&gitea)
+            .await;
+        Mock::given(method("GET")).and(path(held.clone())).and(wiremock::matchers::query_param("ref", "portal/create-contextspace-room-bookings-0a1b2c3d")).respond_with(file(text)).mount(&gitea).await;
+    }
+    if let Some(text) = main {
+        Mock::given(method("GET")).and(path(held.clone())).and(wiremock::matchers::query_param("ref", "main")).respond_with(file(text)).mount(&gitea).await;
+    }
+    let mut config = Config::for_tests();
+    config.model_tools_url = Some(model_tools.uri());
+    let client = joinedcontext_portal::git::GiteaClient::new(gitea.uri().parse().expect("mock url"), "test-owner", "test-repo", "token-xyz").expect("client");
+    let mirror = std::sync::Arc::new(Mirror::new());
+    if served {
+        for (kind, name) in [("ContextSpace", "room-bookings"), ("Policy", "room-bookings-upload")] {
+            mirror.upsert(joinedcontext_portal::resource::ResourceEnvelope {
+                api_version: API_VERSION.to_owned(),
+                kind: kind.to_owned(),
+                metadata: joinedcontext_portal::resource::ObjectMeta::new(name, "helsinki"),
+                spec: json!({}),
+                status: None,
+            });
+        }
+    }
+    let state = AppState::new(config.clone(), None).with_mirror(mirror).with_gitea(std::sync::Arc::new(client));
+    let cookie = session_cookie(&config, "steward.user", Some("steward@hel.fi"), vec!["portal-approver"], vec![]);
+    let payload = json!({
+        "space": "room-bookings",
+        "typeName": "Booking",
+        "upload": true,
+        "files": [{ "name": "room-bookings.linkml.yaml", "content": BOOKING_LINKML }],
+        "propose": propose,
+    });
+    let resp = server::app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/projects/helsinki/ops/jc_space_complete")
+                .header(header::COOKIE, cookie)
+                .header(CSRF_HEADER, TEST_CSRF_TOKEN)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(serde_json::to_vec(&payload).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = resp.status();
+    let bytes = resp.into_body().collect().await.unwrap().to_bytes();
+    let opened = gitea
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|r| r.method.as_str() == "POST" && r.url.path().ends_with("/pulls"))
+        .count();
+    (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null), opened)
+}
+
+#[tokio::test]
+async fn a_retry_of_the_same_model_answers_the_open_change_and_opens_no_second() {
+    let (status, body, opened) = proposed_again(Some(BOOKING_LINKML), None, false, true).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["change"]["metadata"]["name"], "chg-00000007", "{body}");
+    assert_eq!(opened, 0, "{body}");
+}
+
+#[tokio::test]
+async fn a_second_attach_of_the_same_file_shows_the_open_change_before_any_proposal() {
+    let (status, body, opened) = proposed_again(Some(BOOKING_LINKML), None, false, false).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["change"]["metadata"]["name"], "chg-00000007", "{body}");
+    assert_eq!(opened, 0, "{body}");
+}
+
+#[tokio::test]
+async fn another_model_is_refused_while_a_change_of_the_space_is_open() {
+    let (status, body, opened) = proposed_again(Some("classes: {}\n"), None, false, true).await;
+    assert_eq!(status, StatusCode::CONFLICT, "{body}");
+    assert!(body.to_string().contains("chg-00000007"), "{body}");
+    assert_eq!(opened, 0, "{body}");
+}
+
+#[tokio::test]
+async fn a_model_the_space_already_serves_proposes_nothing() {
+    let (status, body, opened) = proposed_again(None, Some(BOOKING_LINKML), true, true).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["alreadyLive"], true, "{body}");
+    assert_eq!(body["proposeReady"], false, "{body}");
+    assert!(body["change"].is_null(), "{body}");
+    assert_eq!(opened, 0, "{body}");
+}
+
+#[tokio::test]
+async fn a_changed_model_of_a_served_space_is_still_proposed() {
+    let (status, body, opened) = proposed_again(None, Some("classes: {}\n"), true, true).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(body["alreadyLive"], false, "{body}");
+    assert!(body["change"].is_object(), "{body}");
+    assert_eq!(opened, 1, "{body}");
+}

@@ -14,6 +14,12 @@ import { UploadCsv } from "../src/pages/spaces/UploadCsv";
 import { expectNoRawKeys } from "./checks";
 import { xlsxFile } from "./xlsxFixture";
 
+vi.mock("../src/auth/AuthProvider", () => ({
+  useAuthStatus: () => "authenticated",
+  useAuth: () => ({ status: "authenticated", identity: { username: "jana", email: "jana@hel.fi" } }),
+  useSignIn: () => () => undefined,
+}));
+
 vi.mock("@tanstack/react-router", () => ({
   useNavigate: () => vi.fn(),
   Link: ({ children, to }: { children: React.ReactNode; to: string }) => <a href={to}>{children}</a>,

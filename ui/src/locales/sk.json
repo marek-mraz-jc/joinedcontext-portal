@@ -465,7 +465,8 @@
     "accepted": "Navrhnuté ako zmena:",
     "review": "Otvoriť v Schvaľovaní",
     "approvedAsProposed": "Schválené pri navrhnutí, nasadzuje sa:",
-    "open": "Otvoriť zmenu"
+    "open": "Otvoriť zmenu",
+    "whoApproves": "Ďalej: rozhodne niekto iný s právom schvaľovať v tomto projekte. Nájde to v Schváleniach a toto zobrazenie sa aktualizuje samo."
   },
   "resourceDelete": {
     "title": "Odstrániť {name}",
@@ -675,7 +676,21 @@
       "open": "Otvoriť",
       "noDrafts": "Zatiaľ nie sú doplnené žiadne návrhy.",
       "needInput": "Zadajte URL endpointu alebo pridajte súbor.",
-      "filesHint": "Ukážka údajov ako CSV, Excel (.xlsx), JSON alebo GeoJSON, s manifestmi, README alebo .env, ktoré opisujú zdroj; spolu do 10 MB. Príklad: stanice.xlsx."
+      "filesHint": "Ukážka údajov ako CSV, Excel (.xlsx), JSON alebo GeoJSON, s manifestmi, README alebo .env, ktoré opisujú zdroj; spolu do 10 MB. Príklad: stanice.xlsx.",
+      "review": {
+        "title": "Navrhnutý dátový model {type}: {count, plural, one {# atribút} few {# atribúty} other {# atribútov}}",
+        "hint": "Porovnajte každý typ s hodnotou zo súboru. Ak návrh zle prečítal stĺpec, zmeňte typ tu, napríklad PSČ prečítané ako číslo má byť text.",
+        "sample": "Príklad zo súboru: {value}",
+        "noSample": "V súbore nie je hodnota",
+        "range": {
+          "string": "Text",
+          "integer": "Celé číslo",
+          "float": "Desatinné číslo",
+          "boolean": "Áno alebo nie",
+          "date": "Dátum",
+          "datetime": "Dátum a čas"
+        }
+      }
     },
     "segment": "v identifikátoroch entít: {segment}",
     "quality": {
@@ -1167,7 +1182,7 @@
       "preview": "Náhľad {count, plural, one {prvej # entity} few {prvých # entít} other {prvých # entít}} ako NGSI-LD",
       "firstRefusal": "Riadok {row}: {reason}",
       "liveNow": "Zmena je aktívna. Zapíšte riadky do {space} ako {type}. Opätovný zápis toho istého súboru aktualizuje tie isté entity.",
-      "goingLive": "Schválené. Do niekoľkých minút sa zmena prejaví a toto tlačidlo sa odomkne samo; zostaňte na tejto stránke.",
+      "goingLive": "Schválené. Do minúty sa to spustí a toto tlačidlo sa odomkne samo; zostaňte tu.",
       "openSpace": "Otvoriť priestor"
     },
     "toolbar": {

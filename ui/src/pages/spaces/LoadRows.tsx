@@ -13,7 +13,7 @@ import { api, queryKeys, unwrap } from "../../api/client";
 import { useOrgDomain } from "../../api/projects";
 import { asManifests, refName } from "../../api/manifest";
 import type { Change } from "../../api/manifest";
-import { ChangeNotice } from "../../components/ChangeNotice";
+import { ChangeDecide, ChangeNotice } from "../../components/ChangeNotice";
 import { spaceSegment } from "../../components/endpoints/policyBinding";
 import { Alert, Button, buttonClass, Card, CodeBlock } from "../../components/ui";
 import { createInBatches, importSlotsOf, rejectedCsv, rowIds, suggestMapping, toEntities } from "./importRows";
@@ -168,6 +168,7 @@ export function LoadRows({ project, space, type, source, table, change: proposed
   return (
     <Card className="flex flex-col gap-4">
       {change ? <ChangeNotice change={change} project={project} /> : null}
+      {change ? <ChangeDecide id={change.metadata.name} project={project} /> : null}
       <p className="text-body">{t(state, { space, type })}</p>
       <RowsCheck checked={checked} />
       {progress ? (

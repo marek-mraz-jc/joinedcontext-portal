@@ -465,7 +465,8 @@
     "accepted": "Proposed as a change:",
     "review": "Review it in Approvals",
     "approvedAsProposed": "Approved as you proposed it, applying:",
-    "open": "Open the change"
+    "open": "Open the change",
+    "whoApproves": "Next: someone with the approve right on this project, other than you, decides. They find it in Approvals, and this view follows by itself."
   },
   "resourceDelete": {
     "title": "Remove {name}",
@@ -675,7 +676,21 @@
       "open": "Open",
       "noDrafts": "No drafts completed yet.",
       "needInput": "Give an endpoint URL or add a file first.",
-      "filesHint": "A sample of the data as CSV, Excel (.xlsx), JSON or GeoJSON, with any manifests, README or .env that describe the source; up to 10 MB together. Example: stations.xlsx."
+      "filesHint": "A sample of the data as CSV, Excel (.xlsx), JSON or GeoJSON, with any manifests, README or .env that describe the source; up to 10 MB together. Example: stations.xlsx.",
+      "review": {
+        "title": "Proposed data model {type}: {count, plural, one {# attribute} other {# attributes}}",
+        "hint": "Check each type against the value from your file. Change a type here if the draft misread a column, for example a postcode read as a number should be text.",
+        "sample": "Example from the file: {value}",
+        "noSample": "No value in the file",
+        "range": {
+          "string": "Text",
+          "integer": "Whole number",
+          "float": "Decimal number",
+          "boolean": "Yes or no",
+          "date": "Date",
+          "datetime": "Date and time"
+        }
+      }
     },
     "segment": "in entity ids: {segment}",
     "quality": {
@@ -1167,7 +1182,7 @@
       "preview": "Preview the first {count, plural, one {# entity} other {# entities}} as NGSI-LD",
       "firstRefusal": "Row {row}: {reason}",
       "liveNow": "The change is live. Write the rows into {space} as {type}. Writing the same file again updates the same entities.",
-      "goingLive": "Approved. It goes live in a few minutes and this button unlocks by itself; stay on this page.",
+      "goingLive": "Approved. It goes live within a minute and this button unlocks by itself; stay here.",
       "openSpace": "Open the space"
     },
     "toolbar": {
