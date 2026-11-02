@@ -4,7 +4,8 @@
  * chosen sheet without asking for the file again. The count through the space's Endpoint is the
  * proof. Run with SHOTS_DIR set to keep the 1440 and 400 pictures and the timings of each step.
  *
- * Names are `t6445-…`, so the janitor sweeps what a dead run leaves.
+ * Names are `t6445-…`, so the janitor sweeps what a dead run leaves. The rows go too, while the
+ * Endpoint stands (T-6471): see `removeRows`.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -87,13 +88,68 @@ let editor: Session;
 let slug = "";
 
 /**
- * Leaves dev with no open Change and no reader of the space. A sync run takes minutes on dev, so
- * nothing here waits for one: a space whose grants are still going is refused with 409 and stays
- * for the residue journey, which removes every `t<task>-` object.
+ * Takes the run's rows out of the broker (T-6471). A space is its own broker Tenant, which outlives
+ * the space, so rows left here stay with nothing to reach them. The upload grant holds no
+ * `deleteBatch` on purpose: a person's load is no licence to delete, and the journey does not widen
+ * it. The steward grants this run's editor the delete in a Policy of its own, which goes with the
+ * space's other Policies, and the rows leave through the Endpoint once a sync has served it.
+ */
+async function removeRows(steward: Session): Promise<void> {
+  const rows = `/api/endpoint/${slug}/ngsi-ld/v1`;
+  const count = async () => {
+    const read = await editor.page.request.get(`${rows}/entities?type=${TYPE}&count=true&limit=0`);
+    return read.ok() ? Number(read.headers()["ngsild-results-count"]) : 0;
+  };
+  if (!slug || (await count()) === 0) return;
+
+  const upload = await steward.page.request.get(`/api/v1/projects/${PROJECT}/policies/${SPACE}-upload`);
+  expect(upload.status(), await upload.text()).toBe(200);
+  const { assignee } = ((await upload.json()) as { spec: { assignee: unknown } }).spec;
+  const proposed = await steward.page.request.post(`/api/v1/projects/${PROJECT}/policies`, {
+    headers: { "x-csrf-token": await csrf(steward.context) },
+    data: {
+      apiVersion: "joinedcontext.com/v1alpha1",
+      kind: "Policy",
+      metadata: { name: `${SPACE}-rows-delete`, namespace: PROJECT, title: { en: `The excel_one_go journey removes the rows of ${SPACE}` } },
+      spec: {
+        contextSpaceRef: { kind: "ContextSpace", name: SPACE },
+        assigner: "did:web:{orgDomain}",
+        assignee,
+        operations: ["queryBatch", "deleteBatch"],
+        information: [{ entities: [{ type: TYPE }] }],
+      },
+    },
+  });
+  expect(proposed.status(), await proposed.text()).toBe(202);
+  await approve(steward.page, PROJECT, ((await proposed.json()) as { metadata: { name: string } }).metadata.name, `${SPACE}-rows-delete`);
+
+  const listed = await editor.page.request.get(`${rows}/entities?type=${TYPE}&limit=1000&pick=id`);
+  expect(listed.status(), await listed.text()).toBe(200);
+  const ids = ((await listed.json()) as { id: string }[]).map((one) => one.id);
+  // The Tenant is this run's, so nothing else can be here; a row that says otherwise stops the journey.
+  expect(ids.filter((id) => !id.startsWith(`urn:ngsi-ld:${TYPE}:`) || !id.includes(`-${SPACE}:`))).toEqual([]);
+  expect(ids).toHaveLength(ROWS);
+  const headers = { "x-csrf-token": await csrf(editor.context), "JC-Reason": "excel_one_go removes its own rows" };
+  const remove = async (part: string[]) => (await editor.page.request.post(`${rows}/entityOperations/delete`, { headers, data: part })).status();
+  const first = ids.slice(0, 100);
+  await expect.poll(() => remove(first), { timeout: 300_000, intervals: [10_000], message: "the delete grant reaches the Endpoint" }).toBe(204);
+  for (let at = 100; at < ids.length; at += 100) expect(await remove(ids.slice(at, at + 100))).toBe(204);
+  expect(await count()).toBe(0);
+}
+
+/**
+ * Leaves dev with no open Change, no rows and no reader of the space. The rows wait for one sync
+ * run; the removals do not: a space whose grants are still going is refused with 409 and stays for
+ * the residue journey, which removes every `t<task>-` object. Rows that would not go fail the run
+ * after everything else is cleaned.
  */
 test.afterAll(async ({ browser }) => {
   const steward = await signIn(browser, STEWARD, `/projects/${PROJECT}?lang=en`);
   await rejectOpen(steward, PROJECT, SPACE, "excel_one_go");
+  const rowsStayed = await removeRows(steward).then(
+    () => undefined,
+    (refused: unknown) => refused,
+  );
   const removed = async (plural: string, name: string) => removeCompletely(steward, PROJECT, plural, name).catch((refused: unknown) => console.log(String(refused)));
   for (const plural of ["endpoints", "policies"]) {
     const answer = await steward.page.request.get(`/api/v1/projects/${PROJECT}/${plural}`);
@@ -106,6 +162,7 @@ test.afterAll(async ({ browser }) => {
   const video = editor.page.video();
   await editor.context.close();
   if (VIDEO) await video?.saveAs(join(VIDEO, "flow.webm"));
+  if (rowsStayed) throw rowsStayed;
 });
 
 test.setTimeout(VIDEO ? 1_200_000 : 600_000);
