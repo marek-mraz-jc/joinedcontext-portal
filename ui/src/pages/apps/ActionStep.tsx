@@ -98,7 +98,7 @@ export function StepNotice({
   return (
     <Alert
       data-testid="step-notice"
-      tone={kind === "refused" || kind === "guarded" ? "warning" : "info"}
+      tone={kind === "refused" ? "warning" : "info"}
       title={t(`agentRun.failure.${kind}`)}
       actions={
         kind === "guarded" && onAskAgain ? (
@@ -291,11 +291,11 @@ export function ActionStep({
         >
           {failed ? "✗" : "✓"}
         </span>
-        {/* The label keeps one line; a flex item that may break words shrinks to one letter per
-            line in the dock's narrow column (T-0892). The reason takes a row of its own, because
-            a cut sentence tells a person nothing. */}
+        {/* A flex item that may break words shrinks to one letter per line in the dock's narrow
+            column (T-0892), so the label keeps a least width and the row wraps. The reason takes a
+            row of its own: a cut sentence tells a person nothing. */}
         {label !== null ? (
-          <span className="min-w-0 flex-1 truncate font-sans" title={label}>
+          <span className="min-w-32 flex-1 font-sans [overflow-wrap:anywhere]" title={label}>
             {label}
           </span>
         ) : (
@@ -313,7 +313,7 @@ export function ActionStep({
           <span className="shrink-0 text-fg-muted">{t("agentRun.step.duration", { ms: duration })}</span>
         ) : null}
         {said !== "" ? (
-          <span data-testid="step-reason" title={said} className="line-clamp-3 min-w-0 basis-full font-sans text-danger">
+          <span data-testid="step-reason" title={said} className={`line-clamp-3 min-w-0 basis-full font-sans ${failure === "argument" ? "text-fg-muted" : "text-danger"}`}>
             {said}
           </span>
         ) : null}

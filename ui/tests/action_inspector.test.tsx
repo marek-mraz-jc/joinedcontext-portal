@@ -116,9 +116,10 @@ describe("the action inspector", () => {
     expect(reason).not.toHaveClass("truncate");
     expect(reason).toHaveTextContent(en.agentRun.failure.other);
     expect(reason).toHaveAttribute("title", en.agentRun.failure.other);
-    const label = reason.parentElement?.querySelector("span.truncate.font-sans") as HTMLElement;
+    const label = reason.parentElement?.querySelector("span.font-sans") as HTMLElement;
     expect(label).not.toBeNull();
-    expect(label).toHaveClass("flex-1");
+    expect(label).toHaveClass("flex-1", "min-w-32");
+    expect(label).not.toHaveClass("truncate");
     expect(label).toHaveAttribute("title", label.textContent ?? "");
   });
 

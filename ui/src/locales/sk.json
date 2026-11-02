@@ -6163,7 +6163,7 @@
       "stopped": "Zastavené"
     },
     "failure": {
-      "argument": "Požiadavka asistenta nesedela na tento krok, nič sa nezmenilo.",
+      "argument": "Tento pokus na krok nesedel, nič sa nezmenilo. Asistent pokračuje inak.",
       "refused": "Toto tu nemôžete urobiť, nič sa nezmenilo.",
       "guarded": "Zastavené: tento krok pochádza z údajov, nie od vás. Nič sa nezmenilo.",
       "page": "Túto stránku sa nepodarilo otvoriť.",

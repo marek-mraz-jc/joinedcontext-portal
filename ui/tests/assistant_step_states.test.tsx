@@ -12,7 +12,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { ActionStep, failureOf, noticesOf, scrubbed, StepNotice } from "../src/pages/apps/ActionStep";
 import { ConversationPanel } from "../src/pages/apps/ConversationPanel";
-import { QueryAnswer, queryResultOf, viewOf } from "../src/pages/apps/QueryResultCard";
+import { QueryAnswer, queryResultOf, viewOf, whenOf } from "../src/pages/apps/QueryResultCard";
 import type { RunEvent } from "../src/pages/apps/useAgentRun";
 
 const tool = (seq: number, name: string, error?: string, extra: Record<string, unknown> = {}): RunEvent =>
@@ -189,6 +189,13 @@ describe("an empty read and one entity", () => {
         ["city", "Chicago"],
       ],
     });
+  });
+
+  it("reads a time as a date and leaves any other value alone", () => {
+    expect(whenOf("2026-11-02T18:07:50.158Z", "en")).toContain("2026");
+    expect(whenOf("2026-11-02T18:07:50.158Z", "en")).not.toContain("T18");
+    expect(whenOf("Banská Bystrica", "en")).toBe("Banská Bystrica");
+    expect(whenOf("2026-11-02", "en")).toBe("2026-11-02");
   });
 
   it("names an entity by its short id on the card", () => {

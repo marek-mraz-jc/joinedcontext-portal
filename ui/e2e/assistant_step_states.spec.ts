@@ -181,6 +181,11 @@ for (const [label, width, height] of [
       const beyond = await frame.evaluate((box) => box.scrollWidth - box.clientWidth);
       expect(beyond).toBeLessThanOrEqual(1);
       await expect(dock).not.toContainText("tokens", { useInnerText: true });
+      // Every row too: the card has no scroll of its own.
+      const rows = await frame.evaluate((box) => box.scrollHeight - box.clientHeight);
+      expect(rows).toBeLessThanOrEqual(1);
+      await expect(card.getByText("Railway station")).toBeVisible();
+      await expect(card).not.toContainText("T18:07:50");
     });
 
     test("slip", async ({ page }) => {
@@ -188,7 +193,7 @@ for (const [label, width, height] of [
       const reasons = dock.getByTestId("step-reason");
       await expect(reasons).toHaveCount(2);
       await expect(dock.getByRole("status").filter({ hasText: "Live" })).toBeVisible();
-      await expect(reasons.first()).toHaveText("The assistant's request did not fit this step, so nothing changed.");
+      await expect(reasons.first()).toHaveText("This try did not fit the step, so nothing changed. The assistant goes on another way.");
       await expect(dock).not.toContainText("argument type", { useInnerText: true });
       await expect(dock).not.toContainText("jc_resource_list", { useInnerText: true });
       await expect(dock.getByTestId("step-notice")).toHaveCount(0);

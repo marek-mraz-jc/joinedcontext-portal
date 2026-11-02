@@ -6163,7 +6163,7 @@
       "stopped": "Stopped"
     },
     "failure": {
-      "argument": "The assistant's request did not fit this step, so nothing changed.",
+      "argument": "This try did not fit the step, so nothing changed. The assistant goes on another way.",
       "refused": "You may not do this here, so nothing changed.",
       "guarded": "Stopped: this step came from data, not from you. Nothing changed.",
       "page": "That page could not be opened.",

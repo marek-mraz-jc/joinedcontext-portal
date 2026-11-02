@@ -6163,7 +6163,7 @@
       "stopped": "Angehalten"
     },
     "failure": {
-      "argument": "Die Anfrage des Assistenten passte nicht zu diesem Schritt, nichts wurde geändert.",
+      "argument": "Dieser Versuch passte nicht zum Schritt, nichts wurde geändert. Der Assistent macht anders weiter.",
       "refused": "Das dürfen Sie hier nicht, nichts wurde geändert.",
       "guarded": "Gestoppt: Dieser Schritt kam aus den Daten, nicht von Ihnen. Nichts wurde geändert.",
       "page": "Diese Seite ließ sich nicht öffnen.",

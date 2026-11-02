@@ -298,6 +298,14 @@ export function schemaOf(given: unknown): QueryView | null {
   return { kind: "schema", format: answer.format, classes, document };
 }
 
+/** An ISO 8601 time as a person reads it, in their language; any other value as it is. */
+export function whenOf(value: string, language?: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(value)) {
+    return value;
+  }
+  return new Date(value).toLocaleString(language, { dateStyle: "medium", timeStyle: "short" });
+}
+
 /** The card of a `query_endpoint` step, or none when the payload is not one. */
 export function queryResultOf(payload: Record<string, unknown>, language?: string): QueryResult | null {
   if (payload.tool !== "query_endpoint" || !isRecord(payload.input)) {
@@ -339,20 +347,18 @@ export function QueryResultCard({ result, project }: { result: QueryResult; proj
  * (T-2766); without it (a change test's sample) the names stay text.
  */
 export function QueryAnswer({ view, project }: { view: QueryView; project?: string }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   return view.kind === "table" && view.total === 0 ? (
     <EmptyState bare icon="search" title={t("assistant.query.nothing")} description={t("assistant.query.nothingHint")} />
   ) : view.kind === "table" ? (
     <div className="@container">
       {/* The shared Table, not a hand-made one: the header scope, the caption a screen reader
           reads, and the sideways scroll a keyboard can drive all come from one place (UI-01,
-          UI-27). `max-h-80` keeps a ten-row answer inside the conversation instead of pushing
-          the thread down. The dock is narrow at every screen width, so the table stacks by its
-          own width: each row a card, every column in reach without a sideways scroll. */}
+          UI-27). The dock is narrow at every screen width, so the table stacks by its own width:
+          each row a card, every row and column in reach in the conversation's own scroll. */}
       <Table
         caption={t("assistant.query.caption")}
         zebra={false}
-        maxHeight="max-h-80"
         className="table-stack-narrow mt-1 text-caption"
       >
         <TableHead>
@@ -372,7 +378,7 @@ export function QueryAnswer({ view, project }: { view: QueryView; project?: stri
                   {/* A table cell takes no max-width, so the fold is on a block inside it: a
                       4 000-character value used to widen its column to 4 000 characters and
                       push every other column off the card (T-2460). */}
-                  <span className="block max-w-48 truncate">{cell}</span>
+                  <span className="block max-w-48 truncate">{whenOf(cell, i18n.resolvedLanguage)}</span>
                 </TableCell>
               ))}
             </TableRow>
