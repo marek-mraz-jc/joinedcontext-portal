@@ -25,6 +25,7 @@ import {
   PageHeader,
   Skeleton,
   Textarea,
+  safeHref,
 } from "../components/ui";
 import { ResourcePageFailed } from "../components/ui/PageState";
 
@@ -262,7 +263,7 @@ export function ApprovalDetailPage({
                 href={proposal.status.mergeRequest}
                 className="text-primary-soft-fg [overflow-wrap:anywhere]"
               >
-                {t("approvals.openMergeRequest")}
+                {safeHref(proposal.status.mergeRequest) ? t("approvals.openMergeRequest") : proposal.status.mergeRequest}
               </ExternalLink>
             </dd>
           </div>

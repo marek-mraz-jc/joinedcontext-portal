@@ -118,7 +118,8 @@ fn no_public_read(state: &AppState, project: &str, spec: &Value) -> Option<Strin
     let granted = state
         .mirror
         .list(project, "Policy", &crate::store::ListOptions::default())
-        .into_iter()
+        .items
+        .iter()
         .any(|policy| {
             let spec = &policy.spec;
             crate::resource::reference_name(&spec["contextSpaceRef"]).as_deref() == Some(space)
