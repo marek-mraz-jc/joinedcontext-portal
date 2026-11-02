@@ -7,6 +7,8 @@ use serde_json::{json, Value};
 
 use super::{Caller, OpError};
 use crate::api::catalogue::{endpoint_url, served_representations};
+use crate::auth::session::Identity;
+use crate::permissions::{organization_of, ORG_NAMESPACE};
 use crate::resource::ResourceEnvelope;
 use crate::state::AppState;
 use crate::store::ListOptions;
@@ -16,6 +18,52 @@ const EMBED_HEIGHT: u32 = 640;
 /// The viz host's frame sandbox (`embed.js`), so a pasted frame reads as the Embed button's.
 const EMBED_SANDBOX: &str =
     "allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox";
+
+/// Why the gateway refuses `identity` at an Endpoint of `project` with this `spec`, by the rule of
+/// its `admit_on` (EP-14, EP-15, ADR-N-067 2.3): a group named like an admitted project, and for
+/// `organization` also a group inside that Organization or of one of its projects. `None` when the
+/// person is admitted or the Endpoint is public: only the Policies decide those. The caller reads
+/// the Endpoint already, so this says nothing they could not read. The gateway answers such a
+/// person 404 as for a slug nobody made (PF-32), which alone reads as "not deployed yet".
+pub(super) fn not_admitted(
+    state: &AppState,
+    identity: &Identity,
+    project: &str,
+    spec: &Value,
+) -> Option<String> {
+    let groups = || identity.groups.iter().map(|g| g.trim_start_matches('/'));
+    let admits = match spec["audience"].as_str()? {
+        "organization" => {
+            let organization = organization_of(&state.mirror, project)?;
+            let inside = format!("{organization}/");
+            let its_project = |g: &str| {
+                state.mirror.get(ORG_NAMESPACE, "Project", g).is_some()
+                    && organization_of(&state.mirror, g).as_deref() == Some(&organization)
+            };
+            if groups().any(|g| g.starts_with(&inside) || its_project(g)) {
+                return None;
+            }
+            format!("audience organization admits members of Organization {organization}")
+        }
+        "project-list" => {
+            let listed: Vec<&str> = spec["allowedProjects"]
+                .as_array()
+                .map(|all| all.iter().filter_map(Value::as_str).collect())
+                .unwrap_or_default();
+            if groups().any(|g| g == project || listed.contains(&g)) {
+                return None;
+            }
+            format!("audience project-list admits the group of project {project} and of its allowedProjects")
+        }
+        _ => return None,
+    };
+    Some(format!(
+        "you would not reach this Endpoint: {admits}, and your sign-in holds none of those groups, \
+         so the gateway answers your reads and writes through it 404. An organization \
+         administrator adds you to the group {project}, or audience public leaves it to the \
+         Policies alone who reads and writes"
+    ))
+}
 
 /// The types an Endpoint serves and its address: what a listing row carries.
 pub(super) struct Reach {
@@ -240,6 +288,50 @@ pub(super) async fn writers(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `project` in `organization`, as the repository names it.
+    fn with_project(state: &AppState, project: &str, organization: &str) {
+        state.mirror.upsert(ResourceEnvelope {
+            api_version: crate::resource::API_VERSION.to_owned(),
+            kind: "Project".to_owned(),
+            metadata: crate::resource::ObjectMeta::new(project, ORG_NAMESPACE),
+            spec: json!({ "organizationRef": organization }),
+            status: None,
+        });
+    }
+
+    fn person(groups: &[&str]) -> Identity {
+        serde_json::from_value(json!({ "subject": "s", "username": "u", "groups": groups }))
+            .expect("identity")
+    }
+
+    #[test]
+    fn a_person_outside_the_audience_is_told_before_the_gateway_answers_404() {
+        let state = state();
+        with_project(&state, "city", "hel");
+        with_project(&state, "other", "hel");
+        with_project(&state, "far", "espoo");
+        let organization = json!({ "audience": "organization" });
+        let refused = |groups: &[&str], spec: &Value| {
+            not_admitted(&state, &person(groups), "city", spec)
+        };
+        // T-6451: an org-admin by RoleBinding alone, in a group that is no project.
+        let text = refused(&["/platform-readers"], &organization).expect("refused");
+        assert!(text.contains("Organization hel"), "{text}");
+        assert!(text.contains("group city"), "{text}");
+        assert!(text.contains("audience public"), "{text}");
+        // A project of another Organization admits nothing here, as at the gateway (PF-32).
+        assert!(refused(&["far"], &organization).is_some());
+        // Member of the Organization, or of one of its projects.
+        assert_eq!(refused(&["/hel/members"], &organization), None);
+        assert_eq!(refused(&["city"], &organization), None);
+        assert_eq!(refused(&["other"], &organization), None);
+        let list = json!({ "audience": "project-list", "allowedProjects": ["other"] });
+        assert!(refused(&["hel/members"], &list).is_some());
+        assert_eq!(refused(&["other"], &list), None);
+        assert_eq!(refused(&["city"], &list), None);
+        assert_eq!(refused(&[], &json!({ "audience": "public" })), None);
+    }
 
     fn state() -> AppState {
         let mut config = crate::config::Config::for_tests();

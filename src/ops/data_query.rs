@@ -354,6 +354,23 @@ pub(super) fn unshared(project: &str, name: &str) -> OpError {
     )))
 }
 
+/// A 404 on the caller's own Endpoint the gateway answers because it does not admit them: a
+/// refusal that names the fix. Nothing to say leaves the gateway's own answer to speak.
+pub(super) fn not_admitted(
+    caller: &Caller,
+    state: &AppState,
+    project: &str,
+    name: &str,
+) -> Result<(), OpError> {
+    let why = state.mirror.get(project, "Endpoint", name).and_then(|endpoint| {
+        super::endpoint_reach::not_admitted(state, &caller.identity, project, &endpoint.spec)
+    });
+    match why {
+        Some(why) => Err(OpError::Api(ApiError::Denied(format!("Endpoint {name}: {why}")))),
+        None => Ok(()),
+    }
+}
+
 /// The gateway's status for an NGSI-LD read, as the error the caller can act on; `Ok` on 200.
 fn refusal_of(
     status: u16,
@@ -488,6 +505,9 @@ async fn run(
     }
     let bytes = capped_page(answer).await?;
     let body: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+    if status == 404 && input.id.is_none() {
+        not_admitted(caller, state, project, name)?;
+    }
     refusal_of(status, input.temporal.is_some(), name, &slug, &body)?;
     answer_of(&input, body, total)
 }

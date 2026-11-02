@@ -490,6 +490,15 @@ async fn checked(
             findings.extend(warnings);
         }
     }
+    if let (Some(m), "Endpoint") = (&manifest, info.kind) {
+        let reach = super::endpoint_reach::not_admitted(state, &caller.identity, &home, &m["spec"]);
+        if let (Some(message), Some(findings)) = (
+            reach,
+            answer.pointer_mut("/verdict/findings").and_then(Value::as_array_mut),
+        ) {
+            findings.push(json!({ "level": "warning", "path": "spec.audience", "message": message }));
+        }
+    }
     let model = match change.source {
         None => None,
         Some(_) => Some(model_checked(caller, state, at, &home, change, manifest.as_ref()).await?),
