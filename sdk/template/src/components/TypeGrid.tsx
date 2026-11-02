@@ -3,7 +3,7 @@ import { displayName, endpointSource, parseGridConfig, projectRow, useClient, us
 import type { GridColumn, RichRow } from "@joinedcontext/sdk";
 import { EntityGrid } from "@joinedcontext/sdk/grid";
 import { t } from "../i18n";
-import { columnsOf, shapeOf, spokenName } from "../pages/shape";
+import { columnsOf, shapeOf, spokenName } from "./shape";
 import { Problem } from "./states";
 
 export interface TypeGridProps {

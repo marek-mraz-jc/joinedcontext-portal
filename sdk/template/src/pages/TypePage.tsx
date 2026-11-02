@@ -9,7 +9,7 @@ import { StatTiles } from "../components/StatTiles";
 import type { StatTile } from "../components/StatTiles";
 import { TypeGrid } from "../components/TypeGrid";
 import { t } from "../i18n";
-import { filtersOf, shapeOf, wordsOf } from "./shape";
+import { filtersOf, shapeOf, wordsOf } from "../components/shape";
 
 function Filter({ binding }: { binding: FilterBinding }) {
   switch (binding.def.kind) {

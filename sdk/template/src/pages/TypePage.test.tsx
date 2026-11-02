@@ -4,7 +4,7 @@ import { JcProvider } from "@joinedcontext/sdk";
 import type { Row, Schema } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import App from "../App";
-import { filtersOf, shapeOf } from "./shape";
+import { filtersOf, shapeOf } from "../components/shape";
 
 vi.mock("maplibre-gl", () => ({
   Map: class {
