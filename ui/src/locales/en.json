@@ -3513,6 +3513,7 @@
       },
       "choice": "What to compute",
       "choices": {
+        "rest": "Share in use: one minus first sum divided by second sum",
         "count": "Count the rows of the first source",
         "sum": "Sum of the first source's number",
         "average": "Average of the first source's number",

@@ -3513,6 +3513,7 @@
       },
       "choice": "Čo vypočítať",
       "choices": {
+        "rest": "Využitý podiel: jedna mínus prvý súčet delený druhým súčtom",
         "count": "Počet riadkov prvého zdroja",
         "sum": "Súčet čísla prvého zdroja",
         "average": "Priemer čísla prvého zdroja",

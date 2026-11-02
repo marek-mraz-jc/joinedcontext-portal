@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { KpiEditorDialog } from "../src/pages/pipelines/KpiEditor";
-import { choiceFormula, emptyDraft, kpiManifest, kpiTargets, missingOf, placeOf } from "../src/pages/pipelines/kpiEditor";
+import { choiceFormula, emptyDraft, formulaOf, kpiManifest, kpiTargets, missingOf, placeOf } from "../src/pages/pipelines/kpiEditor";
 import type { KpiDraft } from "../src/pages/pipelines/kpiEditor";
 import type { Manifest } from "../src/api/manifest";
 import { expectNoViolations } from "./checks";
@@ -165,6 +165,10 @@ describe("the KPI editor", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("writes the share in use from a plain choice", () => {
+    expect(formulaOf({ ...DRAFT, choice: "rest" })).toBe("1 - sum(parking.occupied) / sum(stops.)");
   });
 
   it("says a preview that stopped at the page is not the final value", async () => {

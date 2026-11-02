@@ -3513,6 +3513,7 @@
       },
       "choice": "Was berechnet wird",
       "choices": {
+        "rest": "Genutzter Anteil: eins minus erste Summe geteilt durch zweite Summe",
         "count": "Zeilen der ersten Quelle zählen",
         "sum": "Summe der Zahl der ersten Quelle",
         "average": "Durchschnitt der Zahl der ersten Quelle",

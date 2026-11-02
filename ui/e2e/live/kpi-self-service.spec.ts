@@ -52,7 +52,7 @@ const KPIS: Kpi[] = [
       { ...PARKING, name: "free", attribute: "availableSpotNumber" },
       { ...PARKING, name: "all", attribute: "totalSpotNumber" },
     ],
-    typed: "1 - sum(free.availableSpotNumber) / sum(all.totalSpotNumber)",
+    choice: "rest",
     unit: "P1",
   },
   {
