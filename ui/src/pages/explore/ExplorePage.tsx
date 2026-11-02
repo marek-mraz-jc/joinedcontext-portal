@@ -121,6 +121,8 @@ export function ExplorePage({
     initialType ? { type: initialType, q: initialQ } : {},
   );
   const [selected, setSelected] = useState<string | null>(initialEntityId ?? null);
+  // The address follows `selected`, so the prop does too: only its first value is a link.
+  const [linkedEntity] = useState(initialEntityId);
   // The type's entities, or its data-quality report (T-3252).
   const [askedView, setView] = useState<"entities" | "quality" | "map">(initialView ?? "entities");
   /** What the grid's filter row asks, for the map and the export of the view (T-3253). */
@@ -191,8 +193,9 @@ export function ExplorePage({
     return [...new Set(grants.map((entry) => entry.resource?.type).filter((type): type is string => Boolean(type)))];
   }, [access.data]);
   // Without a type asked or linked the grid opens on the first one the person may read (T-6107);
-  // a linked entity waits for its own type instead.
-  const firstType = selected || !slug || access.isPending ? undefined : (readable ? types.find((type) => readable.includes(type)) : types[0]);
+  // a linked entity waits for its own type instead. A row opened here stays on the page's type: the
+  // grid is keyed by it, so losing it for a moment threw the person's filters away (T-6454).
+  const firstType = (selected && selected === linkedEntity) || !slug || access.isPending ? undefined : (readable ? types.find((type) => readable.includes(type)) : types[0]);
   const query: EntityQuery = useMemo(
     () =>
       askedQuery.type
