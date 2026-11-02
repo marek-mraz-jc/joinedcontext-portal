@@ -387,6 +387,7 @@ mod tests {
             name: "OnStreetParking".into(),
             description: Some("A street segment where vehicles park".into()),
             attributes: vec!["availableSpotNumber".into()],
+            commit: None,
         };
         for q in ["onstreet", "datamodel.parking", "vehicles", "availablespot"] {
             assert!(matches(&model, q), "{q}");

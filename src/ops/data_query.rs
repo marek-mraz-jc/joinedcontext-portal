@@ -29,7 +29,7 @@ const MAX_BODY: usize = 8 * 1024 * 1024;
 /// The query string of one gateway read, as key and value pairs.
 pub type Query = Vec<(String, String)>;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Default, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct DataQueryInput {
     pub endpoint: String,
@@ -438,7 +438,7 @@ fn answer_of(input: &DataQueryInput, body: Value, total: Option<u64>) -> Result<
     Ok(out)
 }
 
-async fn run(
+pub(super) async fn run(
     caller: &Caller,
     state: &AppState,
     project: &str,
@@ -526,7 +526,7 @@ async fn run(
 async fn endpoint_token(caller: &Caller, state: &AppState, slug: &str) -> Result<String, OpError> {
     let bearer = caller.bearer.as_ref().ok_or_else(|| {
         ApiError::Denied(
-            "jc_data_query reads as you with the token your MCP client presented: call it \
+            "a data read goes as you with the token your MCP client presented: call it \
              through /api/v1/mcp or a connector"
                 .into(),
         )
