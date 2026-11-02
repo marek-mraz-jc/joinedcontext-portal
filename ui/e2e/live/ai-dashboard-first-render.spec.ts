@@ -13,7 +13,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
-import { STEWARD, csrf, signIn } from "./portal";
+import { STEWARD, ask, csrf, signIn } from "./portal";
 import { shot } from "./shoot";
 
 const PROJECT = process.env.AI_DASHBOARD_PROJECT ?? "helsinki";
@@ -195,6 +195,31 @@ for (let round = 1; round <= RUNS; round += 1) {
     expect(firstRenderS, note).not.toBeNull();
   });
 }
+
+test("assistant: the same prompt from the Assistant page, timed to its first map", async ({ browser }) => {
+  test.skip(process.env.AI_DASHBOARD_ASSISTANT !== "1", "one paid conversation, on its own: AI_DASHBOARD_ASSISTANT=1");
+  const { context, page } = await signIn(browser, STEWARD, `/projects/${PROJECT}/assistant?lang=en`);
+  await both(page, "assistant", "prompt");
+  const pressed = Date.now();
+  await ask(page, PROMPT);
+  // The dock answers in words, opens a form or starts a build: a map may stand anywhere, or nowhere.
+  const trail: { s: number; url: string }[] = [];
+  let drawn: number | null = null;
+  let said = "";
+  while (Date.now() - pressed < 240_000 && drawn === null) {
+    await page.waitForTimeout(3_000);
+    const s = (Date.now() - pressed) / 1000;
+    if (trail.at(-1)?.url !== page.url()) trail.push({ s, url: page.url() });
+    for (const frame of page.frames()) {
+      if ((await frame.locator("canvas").count().catch(() => 0)) > 0) drawn = s;
+    }
+    said = await page.getByRole("list", { name: "Conversation" }).first().innerText({ timeout: 1_000 }).catch(() => said);
+    if (/navigat|Open|propos|cannot|can't|endpoint/i.test(said) && s > 60 && (await page.getByRole("button", { name: "Send" }).first().isEnabled().catch(() => false))) break;
+  }
+  await both(page, "assistant", drawn === null ? "no-map" : "first-render");
+  writeFileSync(join(DIR, "assistant.json"), `${JSON.stringify({ firstRenderS: drawn, trail, said: said.slice(0, 3_000) }, null, 1)}\n`);
+  await context.close();
+});
 
 test("deny: the App asks for a type its Endpoint does not serve, and no row of it reaches the preview", async ({ browser }) => {
   const { context, page } = await signIn(browser, STEWARD, `/projects/${PROJECT}/apps?lang=en`);
