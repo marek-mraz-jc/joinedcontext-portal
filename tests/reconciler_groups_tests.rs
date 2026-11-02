@@ -9,7 +9,9 @@
 use joinedcontext_portal::config::ClientAuth;
 use std::sync::Arc;
 
-use joinedcontext_portal::reconciler::groups::{GroupSync, MANAGED_BY, MANAGED_VALUE};
+use joinedcontext_portal::reconciler::groups::{
+    derived_groups, DerivedGroup, GroupSync, MANAGED_BY, MANAGED_VALUE,
+};
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
 use joinedcontext_portal::store::Mirror;
 use serde_json::{json, Value};
@@ -388,6 +390,160 @@ async fn a_run_records_the_realms_unmanaged_groups_for_the_write_doors() {
 /// PF-87, T-2655: a project's derived groups are kept like a manifest's: the one the realm holds
 /// gets the members the bindings name and loses the one they do not, and a Group manifest that
 /// takes a derived group's name keeps it, with the clash as the derived group's error.
+fn derived(name: &str, member: &str, organization: Option<&str>) -> DerivedGroup {
+    DerivedGroup {
+        name: name.to_owned(),
+        members: [member.to_owned()].into_iter().collect(),
+        organization: organization.map(str::to_owned),
+    }
+}
+
+/// T-6461: a derived group carries its project's Organization as the attributes the token claims
+/// read, when it is created and on a group already in the realm, and a project that moved
+/// Organization takes it with it; a group that already says so is not written, and the manifest's
+/// group is never given one.
+#[tokio::test]
+async fn a_derived_group_carries_the_organization_of_its_project() {
+    let keycloak = realm().await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/groups")))
+        .and(query_param("briefRepresentation", "false"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            { "id": "old", "name": "old-readers", "attributes": { MANAGED_BY: [MANAGED_VALUE] } },
+            { "id": "moved", "name": "moved-readers", "attributes": {
+                MANAGED_BY: [MANAGED_VALUE], "jc_org": ["hel"], "jc_groups": ["/hel/moved-readers"]
+            } },
+            { "id": "kept", "name": "kept-readers", "attributes": {
+                MANAGED_BY: [MANAGED_VALUE], "jc_org": ["hel"], "jc_groups": ["/hel/kept-readers"]
+            } }
+        ])))
+        .mount(&keycloak)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!("{REALM}/groups")))
+        .and(query_param("search", "new-readers"))
+        .respond_with(
+            ResponseTemplate::new(200)
+                .set_body_json(json!([{ "id": "new", "name": "new-readers" }])),
+        )
+        .mount(&keycloak)
+        .await;
+    Mock::given(method("POST"))
+        .and(path(format!("{REALM}/groups")))
+        .respond_with(ResponseTemplate::new(201))
+        .mount(&keycloak)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path_regex(format!("^{REALM}/groups/(old|moved)$")))
+        .respond_with(ResponseTemplate::new(204))
+        .mount(&keycloak)
+        .await;
+    Mock::given(method("GET"))
+        .and(path_regex(format!("^{REALM}/groups/[a-z]+/members$")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([{ "id": READER }])))
+        .mount(&keycloak)
+        .await;
+
+    let generated = vec![
+        derived("new-readers", READER, Some("hel")),
+        derived("old-readers", READER, Some("hel")),
+        derived("moved-readers", READER, Some("espoo")),
+        derived("kept-readers", READER, Some("hel")),
+    ];
+    let outcomes = sync(&keycloak)
+        .converge_with(&mirror_with(Vec::new()), &generated)
+        .await;
+    assert!(outcomes.iter().all(|o| o.error.is_none()), "{outcomes:?}");
+
+    let requests = keycloak.received_requests().await.expect("recorded");
+    let wrote = |verb: &str, address: String| {
+        requests
+            .iter()
+            .find(|r| r.method.as_str() == verb && r.url.path() == address)
+            .map(|r| serde_json::from_slice::<Value>(&r.body).expect("a JSON body"))
+    };
+    let attributes = |organization: &str, group: &str| {
+        json!({
+            MANAGED_BY: [MANAGED_VALUE],
+            "jc_org": [organization],
+            "jc_groups": [format!("/{organization}/{group}")]
+        })
+    };
+    let made = wrote("POST", format!("{REALM}/groups")).expect("the new group");
+    assert_eq!(made["attributes"], attributes("hel", "new-readers"));
+    let old = wrote("PUT", format!("{REALM}/groups/old")).expect("the old group");
+    assert_eq!(old["name"], "old-readers");
+    assert_eq!(old["attributes"], attributes("hel", "old-readers"));
+    let moved = wrote("PUT", format!("{REALM}/groups/moved")).expect("the moved group");
+    assert_eq!(moved["attributes"], attributes("espoo", "moved-readers"));
+    assert!(wrote("PUT", format!("{REALM}/groups/kept")).is_none());
+}
+
+fn organizational(kind: &str, name: &str, spec: Value) -> ResourceEnvelope {
+    ResourceEnvelope {
+        kind: kind.to_owned(),
+        spec,
+        ..group(name, &[])
+    }
+}
+
+fn bound_in(name: &str, person: &str, scope: Value) -> ResourceEnvelope {
+    organizational(
+        "RoleBinding",
+        name,
+        json!({ "subjects": [{ "user": person }], "role": "steward", "scope": scope }),
+    )
+}
+
+/// EP-172, T-6461: membership follows bindings and nothing else. The binding of the project and
+/// of its Organization count, with the project's Organization; one of another Organization, or
+/// of another project, does not; taking a binding away takes the person out.
+#[test]
+fn the_derived_groups_follow_the_bindings_of_their_organization_only() {
+    let world = || {
+        vec![
+            organizational("Organization", "hel", json!({})),
+            organizational("Organization", "espoo", json!({})),
+            organizational("Project", "doprava", json!({ "organizationRef": "hel" })),
+            organizational("Project", "tapiola", json!({ "organizationRef": "espoo" })),
+            organizational(
+                "Role",
+                "steward",
+                json!({ "rules": [{ "kinds": ["*"], "verbs": ["read", "propose"] }] }),
+            ),
+            bound_in("hers", READER, json!({ "project": "doprava" })),
+            bound_in("wide", LEAD, json!({ "organization": "hel" })),
+            bound_in("theirs", SNEAKY, json!({ "organization": "espoo" })),
+            bound_in("next-door", NEWCOMER, json!({ "project": "tapiola" })),
+        ]
+    };
+    let projects = [("doprava".to_owned(), "doprava".to_owned())]
+        .into_iter()
+        .collect();
+    let readers_of = |mirror: &Mirror| {
+        derived_groups(mirror, &projects, chrono::Utc::now())
+            .into_iter()
+            .find(|group| group.name == "doprava-readers")
+            .expect("the readers")
+    };
+
+    let readers = readers_of(&mirror_with(world()));
+    assert_eq!(readers.organization.as_deref(), Some("hel"));
+    assert_eq!(
+        readers.members,
+        [READER, LEAD].map(str::to_owned).into_iter().collect()
+    );
+
+    let unbound = world()
+        .into_iter()
+        .filter(|envelope| envelope.metadata.name != "hers")
+        .collect();
+    assert_eq!(
+        readers_of(&mirror_with(unbound)).members,
+        [LEAD.to_owned()].into_iter().collect()
+    );
+}
+
 #[tokio::test]
 async fn a_projects_derived_groups_follow_its_bindings_and_never_take_a_manifests_name() {
     let keycloak = realm().await;
@@ -429,14 +585,8 @@ async fn a_projects_derived_groups_follow_its_bindings_and_never_take_a_manifest
         .mount(&keycloak)
         .await;
     let generated = vec![
-        (
-            "doprava-readers".to_owned(),
-            [READER.to_owned()].into_iter().collect(),
-        ),
-        (
-            "doprava-writers".to_owned(),
-            [WRITER.to_owned()].into_iter().collect(),
-        ),
+        derived("doprava-readers", READER, None),
+        derived("doprava-writers", WRITER, None),
     ];
     let outcomes = sync(&keycloak).converge_with(&mirror, &generated).await;
 

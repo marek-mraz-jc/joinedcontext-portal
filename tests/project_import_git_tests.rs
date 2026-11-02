@@ -449,23 +449,11 @@ async fn an_export_imports_as_a_new_project() {
         );
     }
 
-    let entry = server
-        .received_requests()
+    let (_, yaml) = common::committed_files(&server, REPO)
         .await
-        .expect("requests")
         .into_iter()
-        .find(|r| {
-            r.method.as_str() == "PUT"
-                && r.url.path() == format!("{REPO}/contents/projects/doprava.yaml")
-        })
+        .find(|(path, _)| path == "projects/doprava.yaml")
         .expect("the registry entry");
-    let body: Value = serde_json::from_slice(&entry.body).expect("json");
-    let yaml = String::from_utf8(
-        STANDARD
-            .decode(body["content"].as_str().unwrap_or_default())
-            .unwrap_or_default(),
-    )
-    .unwrap_or_default();
     let entry: Value = serde_norway::from_str(&yaml).expect("yaml");
     assert_eq!(entry["spec"]["repository"]["name"], "doprava");
     assert_eq!(entry["spec"]["parameters"]["audience"], "organization");
