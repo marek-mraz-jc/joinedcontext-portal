@@ -6425,6 +6425,7 @@
     "trail": "Stránky, ktoré asistent otvoril",
     "prefilledNotice": "Toto vyplnil asistent. Skontroluj to pred návrhom.",
     "readOnly": "Vaša rola tu dovoľuje iba čítať, preto asistent nemôže začať. Rolu editora vám môže dať správca projektu alebo administrátor.",
+    "readOnlyComposer": "Vaša rola tu dovoľuje iba čítať",
     "pathsDenied": "Niektoré cesty sú sivé: vaša rola vám dovoľuje prezerať, nie vytvárať. Toto právo vám môže dať správca projektu alebo administrátor.",
     "paths": {
       "integrate-pipeline": {

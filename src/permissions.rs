@@ -2035,6 +2035,50 @@ mod tests {
         ));
     }
 
+    /// T-6464: propose on any kind opens a conversation; reading does not, and the build lane's
+    /// rule, which writes `status.build` alone (AP-73), does not either.
+    #[test]
+    fn a_conversation_needs_a_real_propose_on_some_kind() {
+        let mirror = Mirror::new();
+        for (role, rule) in [
+            (
+                "builder",
+                serde_json::json!({ "kinds": ["App"], "verbs": ["propose"],
+                                    "constraints": [{ "field": "status.build" }] }),
+            ),
+            (
+                "reader",
+                serde_json::json!({ "kinds": ["App", "Endpoint"], "verbs": ["read"] }),
+            ),
+            (
+                "editor",
+                serde_json::json!({ "kinds": ["Endpoint"], "verbs": ["read", "propose"] }),
+            ),
+        ] {
+            mirror.upsert(org("Role", role, serde_json::json!({ "rules": [rule] })));
+            mirror.upsert(org(
+                "RoleBinding",
+                &format!("{role}-here"),
+                serde_json::json!({ "subjects": [{ "user": format!("{role}@hel.fi") }],
+                                    "role": role, "scope": { "project": "espoo" } }),
+            ));
+        }
+        for (role, converses) in [("builder", false), ("reader", false), ("editor", true)] {
+            let who = Identity {
+                client: None,
+                subject: format!("f:1:{role}"),
+                username: format!("{role}@hel.fi"),
+                email: Some(format!("{role}@hel.fi")),
+                name: None,
+                roles: Vec::new(),
+                groups: Vec::new(),
+                second_factor: false,
+            };
+            let grants = effective(&mirror, "portal-approver", &who, "espoo", Utc::now());
+            assert_eq!(grants.check_converses("espoo").is_ok(), converses, "{role}");
+        }
+    }
+
     #[test]
     fn the_organization_is_everyone_a_binding_in_force_names_each_once() {
         let mirror = Mirror::new();
