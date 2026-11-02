@@ -205,7 +205,7 @@ function EntityFormBody({
   // A long form puts the refusal under the fold: the person pressed Create and saw nothing.
   const refusal = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
-    if (sent.status === "refused") refusal.current?.scrollIntoView?.({ block: "nearest" });
+    if (sent.status === "refused") refusal.current?.scrollIntoView?.({ block: "center" });
   }, [sent]);
 
   const submit = async (event: FormEvent) => {
@@ -416,7 +416,7 @@ export function PublicFormPage({
   if (schema.isPending || schema.isError || !type || fields.length === 0) {
     return (
       <div ref={frameRef} className="flex flex-col gap-3" data-testid="public-form">
-        <Heading className="text-title font-semibold text-fg">{type ?? slug}</Heading>
+        <Heading className="text-title font-semibold text-fg">{type ?? t("spaces.form.publicTitle")}</Heading>
         <p className="text-body text-fg-muted" role="status">
           {schema.isPending ? t("app.loading") : t("spaces.form.notPublished")}
         </p>

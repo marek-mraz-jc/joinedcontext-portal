@@ -198,7 +198,7 @@ export function TypeApi({
                 {viewQueryUrls(slug, type, q, servedRepresentations(endpoint.spec as Record<string, unknown>)).map((each) => (
                   <li key={each.key} className="flex flex-wrap items-center gap-2">
                     <span className="w-28 shrink-0 text-caption font-semibold text-fg-muted">{t(`spaces.api.surface.${each.key}`)}</span>
-                    <code className="min-w-0 flex-1 font-mono text-caption text-fg [overflow-wrap:anywhere]">{each.url}</code>
+                    <code className="order-last min-w-0 basis-full font-mono text-caption text-fg [overflow-wrap:anywhere] sm:order-none sm:flex-1 sm:basis-0">{each.url}</code>
                     <CopyUrlButton url={each.url} label={t("spaces.api.copySurface", { surface: t(`spaces.api.surface.${each.key}`) })} />
                   </li>
                 ))}
@@ -212,7 +212,7 @@ export function TypeApi({
                 </div>
               ))}
             </dl>
-            <CodeBlock label={t("codeBlock.curl")} className="overflow-x-auto rounded-md bg-surface-subtle p-2 font-mono text-caption">
+            <CodeBlock label={t("codeBlock.curl")} className="whitespace-pre-wrap rounded-md bg-surface-subtle p-2 font-mono text-caption [overflow-wrap:anywhere]">
               {`curl -H "Authorization: Bearer $TOKEN" \\\n  "${endpointUrl(slug, `/ngsi-ld/v1/entities?type=${encodeURIComponent(type)}&limit=10`)}"`}
             </CodeBlock>
             <div className="flex flex-wrap items-center gap-2">

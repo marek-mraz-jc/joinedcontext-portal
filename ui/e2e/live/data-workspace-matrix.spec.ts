@@ -34,6 +34,7 @@ async function cell(page: Page, who: string, view: string, address: (lang: strin
         await page.emulateMedia({ colorScheme: theme });
         await page.goto(address(lang), { waitUntil: "load" });
         await ready(page);
+        await expect(page.getByText(/^(Loading|Načítava)/), "the cell is drawn, not its skeleton").toHaveCount(0, { timeout: 60_000 });
         const sideways = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
         const headings = await page.getByRole("heading", { level: 1 }).count();
         const axe = await axeViolations(page);
@@ -60,7 +61,11 @@ for (const [who, person] of PEOPLE) {
     try {
       const space = (lang: string) => `/projects/helsinki/spaces/helsinki?lang=${lang}&type=${TYPE}`;
       const grid = await cell(page, who, "grid", space, async (p) => {
-        await expect(p.getByRole("columnheader").first()).toBeVisible({ timeout: 60_000 });
+        // A read of 100 rows can pass dev's 10 s cut under load; the page then says so with no rows.
+        await expect(async () => {
+          if ((await p.getByRole("button", { name: /Retry|Skúsiť/ }).count()) > 0 || (await p.locator("tbody tr td").count()) === 0) await p.reload();
+          await expect(p.locator("tbody tr td").first()).toBeVisible({ timeout: 25_000 });
+        }).toPass({ timeout: 120_000 });
       });
       const api = await cell(page, who, "api", (lang) => `${space(lang)}&view=api`, async (p) => {
         await expect(p.locator("#space-data-view-tab-api")).toHaveAttribute("aria-selected", "true", { timeout: 60_000 });

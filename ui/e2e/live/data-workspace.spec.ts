@@ -76,7 +76,7 @@ test("a steward opens a row form and corrects a cell in the grid with a reason, 
     await page.getByPlaceholder("Search").first().fill(seed.id.split(":").pop() ?? seed.id);
     const cell = page.getByLabel(/^Edit status$/i).first();
     await expect(cell).toBeVisible({ timeout: 60_000 });
-    const edited = seed.status === "closed" ? "open" : "closed";
+    const edited = seed.status === "working" ? "outOfService" : "working";
     restore = seed;
     await cell.fill(edited);
     await page.keyboard.press("Enter");

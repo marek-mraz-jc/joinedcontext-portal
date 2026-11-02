@@ -959,6 +959,7 @@
         "date": "Geben Sie ein gültiges Datum ein, etwa 2026-10-11."
       },
       "notPublished": "Dieses Formular ist nicht oder nicht mehr veröffentlicht.",
+      "publicTitle": "Formular",
       "publicLead": "Ihre Antworten legen einen Datensatz an. Nichts davon wird Ihnen wieder angezeigt.",
       "publicData": "Ihre Antworten werden öffentliche Daten dieses Bereichs: Jeder, dem der Bereich Daten veröffentlicht, kann sie lesen. Senden Sie keine persönlichen Angaben.",
       "trap": "Lassen Sie dieses Feld leer",

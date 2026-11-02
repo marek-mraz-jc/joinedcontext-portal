@@ -959,6 +959,7 @@
         "date": "Zadejte platné datum."
       },
       "notPublished": "Tento formulář není zveřejněn nebo už není.",
+      "publicTitle": "Formulář",
       "publicLead": "Vaše odpovědi vytvoří jeden záznam. Nic z toho, co pošlete, se vám nezobrazí zpět.",
       "publicData": "Vaše odpovědi se stanou veřejnými daty tohoto prostoru: přečte je každý, komu prostor data zveřejňuje. Neposílejte osobní údaje.",
       "trap": "Toto pole nechte prázdné",
