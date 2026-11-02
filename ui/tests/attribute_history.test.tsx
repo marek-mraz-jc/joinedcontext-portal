@@ -1,10 +1,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, renderHook, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
+import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
-import { AttributeHistory, TimelinePanel } from "../src/components/entities/history/AttributeHistory";
+import { AttributeHistory, CsvNotes, TimelinePanel, useWrite } from "../src/components/entities/history/AttributeHistory";
+import { MAX_CSV_ROWS } from "../src/components/entities/history/historyApi";
+import type { CsvProblem } from "../src/components/entities/history/historyApi";
 
 const SEEN: Request[] = [];
 const VERSIONS = [
@@ -168,5 +171,75 @@ describe("TimelinePanel", () => {
     expect(screen.getByText("Saved. The change stands in the timeline.")).toBeTruthy();
     expect(screen.getByRole("status", { name: i18n.t("app.loading") })).toBeTruthy();
     expect(screen.getByText(/readVersions/)).toBeTruthy();
+  });
+});
+
+describe("useWrite", () => {
+  const wrapper = ({ children }: { children: ReactNode }) => <I18nextProvider i18n={i18n}>{children}</I18nextProvider>;
+  const target = (written: () => Promise<void>) => ({ slug: "slug", entityId: "urn:ngsi-ld:S:1", attribute: "pm10", sample: 12, written });
+
+  it("is busy while the write runs and reports the landed write to the page", async () => {
+    const written = vi.fn(async () => undefined);
+    let land = () => {};
+    const { result } = renderHook(() => useWrite(target(written)), { wrapper });
+    let done: Promise<boolean> = Promise.resolve(false);
+    act(() => {
+      done = result.current.run(() => new Promise((resolve) => (land = resolve)));
+    });
+    expect(result.current.busy).toBe(true);
+    expect(written).not.toHaveBeenCalled();
+    await act(async () => {
+      land();
+      expect(await done).toBe(true);
+    });
+    expect(written).toHaveBeenCalledTimes(1);
+    expect(result.current).toMatchObject({ busy: false, error: null });
+  });
+
+  it("keeps the gateway's message on a failed write, tells the page nothing and clears on the next try", async () => {
+    const written = vi.fn(async () => undefined);
+    const { result } = renderHook(() => useWrite(target(written)), { wrapper });
+    await act(async () => {
+      expect(await result.current.run(() => Promise.reject(new Error("no grant")))).toBe(false);
+    });
+    expect(written).not.toHaveBeenCalled();
+    expect(result.current).toMatchObject({ busy: false, error: "no grant" });
+    await act(async () => {
+      expect(await result.current.run(() => Promise.resolve())).toBe(true);
+    });
+    expect(result.current.error).toBeNull();
+  });
+
+  it("says something a person can read when the failure carries no message", async () => {
+    const { result } = renderHook(() => useWrite(target(async () => undefined)), { wrapper });
+    await act(async () => {
+      await result.current.run(() => Promise.reject("gone"));
+    });
+    expect(result.current.error).toBe(i18n.t("app.error.generic"));
+  });
+});
+
+describe("CsvNotes", () => {
+  const notes = (problems: CsvProblem[], unchecked: number) =>
+    render(
+      <I18nextProvider i18n={i18n}>
+        <CsvNotes problems={problems} unchecked={unchecked} />
+      </I18nextProvider>,
+    );
+
+  it("says nothing about a clean file", () => {
+    const { container } = notes([], 0);
+    expect(container.textContent).toBe("");
+  });
+
+  it("counts the rows it could not check and names each refused line with its reason", () => {
+    notes([{ line: 3, reason: "badInstant" }, { line: 9, reason: "tooManyRows" }], 2);
+    expect(screen.getByText(i18n.t("attributeHistory.csvUnchecked", { count: 2 }))).toBeTruthy();
+    const items = within(screen.getByRole("list")).getAllByRole("listitem").map((item) => item.textContent);
+    expect(items).toEqual([
+      i18n.t("attributeHistory.csvProblems", { line: 3, reason: i18n.t("attributeHistory.csvProblem.badInstant") }),
+      i18n.t("attributeHistory.csvProblems", { line: 9, reason: i18n.t("attributeHistory.csvProblem.tooManyRows", { max: MAX_CSV_ROWS }) }),
+    ]);
+    expect(screen.getByText(i18n.t("attributeHistory.csvLeftOut"))).toBeTruthy();
   });
 });
