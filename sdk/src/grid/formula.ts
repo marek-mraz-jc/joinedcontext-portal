@@ -145,7 +145,7 @@ export function parseFormula(text: string, known?: readonly string[]): FormulaPa
     if (token.kind === "num") return { op: "num", value: token.value };
     if (token.kind === "name") {
       if (token.value === "true" || token.value === "false") return { op: "bool", value: token.value === "true" };
-      if (isOp("(")) throw new Refused(`"${token.value}(" calls a function, and a formula calls none`, token.at);
+      if (isOp("(")) throw new Refused(`"${token.value}(" is a function, which a formula cannot use: write attribute names, numbers and + - * / only`, token.at);
       if (known && !known.includes(token.value)) throw new Refused(`"${token.value}" is no attribute of this type`, token.at);
       if (!attrs.includes(token.value)) attrs.push(token.value);
       return { op: "attr", name: token.value };

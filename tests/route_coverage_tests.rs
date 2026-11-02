@@ -191,6 +191,8 @@ const ROUTE_COVERAGE: &[(&str, &str, &str)] = &[
 ("POST", "/projects/{project}/apps/{name}/rebuild", "a person asks the forge to run the App's reviewed build.yml again (AP-103); an agent changes an application by a run, which the workflow builds on merge"),
 ("GET", "/projects/{project}/apps/{name}/builds", "the App page's list of its earlier successful builds on the forge, read beside its build links (AP-171)"),
 ("POST", "/projects/{project}/apps/{name}/restore", "a person opens a merge request bringing the App's repository back to an earlier build (AP-171); an agent changes an application by a run, which the workflow builds on merge"),
+("GET", "/projects/{project}/apps/{name}/dashboard", "the App page's dashboard editor reads the App's src/dashboard.json and the attributes its dropdowns offer (T-6402); an agent reads the App's source in its run"),
+("POST", "/projects/{project}/apps/{name}/dashboard", "a person's no-code edit of a dashboard App, proposed as the App's Change (T-6402); an agent changes an application by a run, which proposes the same Change"),
 ("GET", "/projects/{project}/assistant/access", "what the assistant may reach here; the registry's own listing answers the same question"),
 ("POST", "/projects/{project}/assistant/conversations", "the assistant's own door; jc_run_create starts a conversation"),
 ("POST", "/projects/{project}/assistant/propose-endpoint", "jc_endpoint_propose"),

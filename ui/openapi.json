@@ -7498,6 +7498,234 @@
         }
       }
     },
+    "/api/v1/projects/{project}/apps/{name}/dashboard": {
+      "get": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "The Editable Dashboard Of An Application",
+        "description": "The App's src/dashboard.json, the attributes of its type the caller may read, and whether the caller may propose an edit (T-6402).",
+        "operationId": "dashboard",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "App name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The dashboard file and what may go in it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppDashboard"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such App the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No forge, or the forge did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "apps"
+        ],
+        "summary": "Propose An Edit Of An Application's Dashboard",
+        "description": "Checks the new src/dashboard.json (formulas parsed, never run; every attribute one of the App's type the caller may read; the grid's source and type unchanged), then commits it on a branch of the App's repository and proposes the App at that commit as a Change; approving it merges the branch and builds the App. dryRun answers the file before and after and writes nothing (T-6402).",
+        "operationId": "propose",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "description": "App name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DashboardEdit"
+              },
+              "example": {
+                "config": {
+                  "colour": {
+                    "attr": "occupancy",
+                    "bands": [
+                      {
+                        "below": 10,
+                        "label": "Almost empty",
+                        "tone": "danger"
+                      },
+                      {
+                        "label": "Bikes available",
+                        "tone": "success"
+                      }
+                    ]
+                  },
+                  "grid": {
+                    "columns": [
+                      {
+                        "attr": "name"
+                      },
+                      {
+                        "attr": "occupancy",
+                        "formula": "availableBikeNumber / totalSlotNumber * 100",
+                        "label": "Occupancy %"
+                      }
+                    ],
+                    "source": {
+                      "kind": "endpoint",
+                      "slug": "bikes"
+                    },
+                    "type": "BikeHireDockingStation"
+                  }
+                },
+                "dryRun": true
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Dry run: the file before and after",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardProposal"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "The Change that proposes the edit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardProposal"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not propose App here, or reads none of its attributes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such App the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Not built on the forge, no dashboard file, or nothing changed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A field of the file is refused; each error names its path",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "No forge, or the forge refused",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/apps/{name}/export": {
       "get": {
         "tags": [
@@ -40076,6 +40304,43 @@
           }
         }
       },
+      "AppDashboard": {
+        "type": "object",
+        "description": "The App's dashboard file and what the editor offers for it.",
+        "required": [
+          "path",
+          "config",
+          "attributes",
+          "edit"
+        ],
+        "properties": {
+          "attributes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Attribute"
+            },
+            "description": "The attributes of that type the person may read: every attribute dropdown offers these."
+          },
+          "config": {
+            "type": "object",
+            "description": "The file as the default branch holds it; `null` when the App keeps none."
+          },
+          "edit": {
+            "$ref": "#/components/schemas/EditOffer"
+          },
+          "entityType": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The entity type the dashboard lists, from its grid."
+          },
+          "path": {
+            "type": "string",
+            "description": "The file's path in the App's repository: `src/dashboard.json`."
+          }
+        }
+      },
       "AppMe": {
         "type": "object",
         "description": "The caller as a published App sees them: the object the static host writes into\n`#jc-config` as `user` (AP-95).",
@@ -43507,6 +43772,58 @@
         ],
         "description": "The ticket, handed to the workspace and to nobody else. It is in the create answer because\nthe caller is the Portal's own UI in the one deployment that has no cluster to schedule in;\nin a cluster the Job env is the only carrier and this field is absent."
       },
+      "DashboardEdit": {
+        "type": "object",
+        "description": "The edited file, and whether to only preview it.",
+        "required": [
+          "config"
+        ],
+        "properties": {
+          "config": {
+            "type": "object",
+            "description": "The whole new `src/dashboard.json`."
+          },
+          "dryRun": {
+            "type": "boolean",
+            "description": "`true` answers the file before and after and writes nothing."
+          }
+        },
+        "additionalProperties": false
+      },
+      "DashboardProposal": {
+        "type": "object",
+        "description": "What an edit proposes: the file before and after, and the Change once it is proposed.",
+        "required": [
+          "before",
+          "after"
+        ],
+        "properties": {
+          "after": {
+            "type": "string"
+          },
+          "before": {
+            "type": "string"
+          },
+          "change": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/Change",
+                "description": "The Change that proposes the App at the edited commit; absent on a dry run."
+              }
+            ]
+          },
+          "pullRequestUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The App repository's merge request the approval merges; absent on a dry run."
+          }
+        }
+      },
       "DataView": {
         "type": "object",
         "description": "A saved view as the API answers it.",
@@ -44259,6 +44576,24 @@
           "consumes",
           "publishes"
         ]
+      },
+      "EditOffer": {
+        "type": "object",
+        "description": "Whether Edit is offered, and why not when it is not.",
+        "required": [
+          "allowed"
+        ],
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
       },
       "EditPerson": {
         "type": "object",
