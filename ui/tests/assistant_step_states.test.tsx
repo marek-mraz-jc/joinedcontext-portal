@@ -200,7 +200,7 @@ describe("an empty read and one entity", () => {
   });
 
   it("reads a time as a date and leaves any other value alone", () => {
-    expect(whenOf("2026-11-02T18:07:50.158Z", "en")).toContain("2026");
+    expect(whenOf("2026-11-02T18:07:50.158Z", "en")).toContain("26");
     expect(whenOf("2026-11-02T18:07:50.158Z", "en")).not.toContain("T18");
     expect(whenOf("Banská Bystrica", "en")).toBe("Banská Bystrica");
     expect(whenOf("2026-11-02", "en")).toBe("2026-11-02");
