@@ -63,7 +63,7 @@ describe("the datasets a signed-in person may read (T-6411)", () => {
     await i18n.changeLanguage("en");
   });
 
-  it("lists each internal dataset with what grants it and counts the public ones", async () => {
+  it("lists each internal dataset with what grants it and leaves the public ones to the search below", async () => {
     const { container } = renderPart(<ReadableDatasets />, { answer: readable(ANALYST) });
     const counts = await screen.findByRole("link", { name: `${en.catalogue.readable.open}: Counts` });
     expect(counts).toHaveAttribute("href", "/catalogue/endpoint/countszzzzzzzzzzzzzzzzzzzzzz");
@@ -71,8 +71,16 @@ describe("the datasets a signed-in person may read (T-6411)", () => {
     expect(screen.getByText("Group traffic-analysts")).toBeInTheDocument();
     // The public one is listed by the open-data search below, not twice.
     expect(screen.queryByRole("link", { name: /Bikes/ })).toBeNull();
-    expect(screen.getByText("Public datasets, listed below: 1.")).toBeInTheDocument();
+    // No count of public rows beside a CKAN list that may show another number (UI judge, T-6411).
+    expect(screen.queryByText(/Public datasets/)).toBeNull();
     await expectNoViolations(container);
+  });
+
+  it("shows the failure state, not a crash, when the answer holds no dataset list", async () => {
+    renderPart(<ReadableDatasets />, {
+      answer: (url: URL) => (url.pathname === "/api/v1/catalogue/readable" ? json({ unanswered: 0 }) : undefined),
+    });
+    expect(await screen.findByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
   });
 
   it("says what to do next when nothing internal is shared, and warns of what it could not check", async () => {
@@ -102,6 +110,7 @@ describe("a dataset by its Endpoint (T-6411)", () => {
     });
     expect(await screen.findByText(en.entityGrid.signedOutTitle)).toBeInTheDocument();
     expect(screen.queryByRole("grid")).toBeNull();
+    expect(screen.getByRole("heading", { level: 1, name: en.catalogue.readable.endpoint.visitorTitle })).toBeInTheDocument();
     // A visitor's page never asks what a signed-in person may read.
     const asked = (globalThis.fetch as unknown as { mock: { calls: unknown[][] } }).mock.calls.map((call) => String(call[0]));
     expect(asked.some((url) => url.includes("/catalogue/readable"))).toBe(false);
@@ -114,6 +123,9 @@ describe("a dataset by its Endpoint (T-6411)", () => {
     expect(await screen.findByText(en.entityGrid.noAccessTitle)).toBeInTheDocument();
     expect(screen.queryByRole("grid")).toBeNull();
     expect(screen.queryByRole("button", { name: en.entityGrid.signIn })).toBeNull();
+    // The page says why it cannot name the dataset, never a bare "Dataset".
+    expect(await screen.findByRole("heading", { level: 1, name: en.catalogue.readable.endpoint.refusedTitle })).toBeInTheDocument();
+    expect(screen.getByText(en.catalogue.readable.endpoint.refusedLead)).toBeInTheDocument();
   });
 
   it("names the dataset and what grants it to a person who may read it", async () => {

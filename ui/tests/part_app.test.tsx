@@ -46,6 +46,9 @@ function stub(options: { session?: "held" | "none" | "in" } = {}) {
       if (path.endsWith("/branding")) {
         return json(NEUTRAL_BRANDING);
       }
+      if (path === "/api/v1/catalogue/readable") {
+        return json({ datasets: [], unanswered: 0 });
+      }
       if (path.endsWith("/auth/me")) {
         if (held) {
           await waiting;
@@ -113,7 +116,9 @@ describe("the Portal's root against the UI contract", () => {
     await waitFor(() => expect(screen.queryByRole("status")).toBeNull());
     // The shell is what the router mounts into: the installation's name in the header, and the
     // route's own content below it. What each route puts there is that page's own task.
-    expect(await screen.findByText(NEUTRAL_BRANDING.shortName!)).toBeInTheDocument();
+    // A member (no project) is sent on to the catalogue and the shell mounts again: read the live DOM.
+    await waitFor(() => expect(screen.getByText(NEUTRAL_BRANDING.shortName!)).toBeInTheDocument());
+    expect(window.location.pathname).toBe("/catalogue");
     expect(container.querySelector("main, [role=main]")).not.toBeNull();
   });
 

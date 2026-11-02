@@ -24,7 +24,7 @@ export function AccessBadge({ dataset }: { dataset: Pick<ReadableDataset, "acces
 /**
  * The internal datasets a signed-in person may read (ADR-N-067 §2.4, T-6411): the server asks
  * the gateway per Endpoint and lists only what it grants, so the page shows every row it gets.
- * The public ones are counted here and listed by the open-data search below.
+ * The public ones are listed by the open-data search below, not here.
  */
 export function ReadableDatasets(): JSX.Element {
   const { t } = useTranslation();
@@ -33,11 +33,10 @@ export function ReadableDatasets(): JSX.Element {
     if (readable.isPending) {
       return <PageLoading label={t("catalogue.readable.loading")} />;
     }
-    if (readable.isError) {
+    if (readable.isError || !Array.isArray(readable.data.datasets)) {
       return <PageFailed error={readable.error} onRetry={() => void readable.refetch()} />;
     }
     const internal = readable.data.datasets.filter((dataset) => dataset.access !== "public");
-    const open = readable.data.datasets.length - internal.length;
     return (
       <>
         {readable.data.unanswered > 0 ? (
@@ -52,7 +51,6 @@ export function ReadableDatasets(): JSX.Element {
             ))}
           </ul>
         )}
-        {open > 0 ? <p className="text-caption text-fg-muted">{t("catalogue.readable.public", { count: open })}</p> : null}
       </>
     );
   })();
