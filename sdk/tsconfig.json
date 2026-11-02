@@ -24,6 +24,9 @@
       "@joinedcontext/sdk": [
         "./src/sdk/index.ts"
       ],
+      "@joinedcontext/sdk/grid": [
+        "./src/sdk/grid.ts"
+      ],
       "@joinedcontext/sdk/server": [
         "./src/sdk/server.ts"
       ],

@@ -9,7 +9,7 @@
 - `useAccess().can("updateAttrs", "Alert", "status")`: a person without the editor role sees the
   bulk actions disabled with the reason the endpoint gives, never a button that fails.
 - `useSave().update` once per selected alert, and a summary of what went through and what did not.
-- `Page`, `Header`, `Split` from the SDK; the template's `EntityTable` with a checkbox column
+- `Page`, `Header`, `Split` from the SDK; this sample's `EntityTable` with a checkbox column
   (`ColumnDef.render`), `FilterBar`, `SearchBox`, `SelectFilter`, `EntityDetail`.
 
 ## What to copy

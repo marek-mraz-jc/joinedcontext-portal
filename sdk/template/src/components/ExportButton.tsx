@@ -1,9 +1,30 @@
-import { download, format, pointOf, toCsv, toGeoJson, toPdf, toPng, useClient } from "@joinedcontext/sdk";
+import { columnKind, download, format, pointOf, toCsv, toGeoJson, toPdf, toPng, useClient } from "@joinedcontext/sdk";
 import type { Row } from "@joinedcontext/sdk";
-import { defaultColumns } from "./EntityTable";
 import { t } from "../i18n";
 
 export type ExportFormat = "csv" | "geojson" | "pdf" | "png";
+
+/** The attributes an export carries by default: the first `max` the rows hold, no geometry. */
+export function defaultColumns(rows: Row[], max = 8): string[] {
+  if (max <= 0) return [];
+  const sample = rows.slice(0, 50);
+  const seen = new Set<string>();
+  const cols: string[] = [];
+
+  for (const row of sample) {
+    for (const key of Object.keys(row)) {
+      if (key === "id" || key === "type" || key === "@context") continue;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (columnKind(sample, key) !== "geo") {
+        cols.push(key);
+        if (cols.length >= max) return cols;
+      }
+    }
+  }
+
+  return cols;
+}
 
 export function ExportButton({
   rows,

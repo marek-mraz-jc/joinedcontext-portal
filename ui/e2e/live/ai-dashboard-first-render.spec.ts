@@ -1,0 +1,223 @@
+/**
+ * T-6403 (AP-48, T-6384): the app-builder eval of the bike prompt, timed on dev. One prompt, one
+ * Endpoint: `AI_DASHBOARD_RUNS` builder runs (default 1), each from Generate to the first map drawn
+ * in the preview, then what the App is built from, what the run cost, and a deny case: the App asks
+ * for a type its Endpoint does not serve.
+ *
+ * A run is paid, so this spec runs only with JC_LIVE_MODEL_RUN=1. `AI_DASHBOARD_DIR` receives
+ * report.json and the 1440 + 400 px shots.
+ *
+ * Every wait is on the thing the step needs, never on the network going idle (T-2452).
+ */
+import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
+import { STEWARD, csrf, signIn } from "./portal";
+import { shot } from "./shoot";
+
+const PROJECT = process.env.AI_DASHBOARD_PROJECT ?? "helsinki";
+const ENDPOINT = process.env.AI_DASHBOARD_ENDPOINT ?? "helsinki-bikes";
+const RUNS = Number(process.env.AI_DASHBOARD_RUNS ?? "1");
+const DIR = process.env.AI_DASHBOARD_DIR ?? "test-results/ai-dashboard";
+const SUFFIX = Date.now().toString(36);
+const PROMPT = "Map the shared bike stations, colour-coded by occupancy, and count the empty ones";
+/** A type no bike Endpoint serves: the App's grant lacks it. */
+const DENIED_PROMPT = "List the air quality stations of the city with their PM10 values";
+
+test.setTimeout(1_200_000);
+test.skip(process.env.JC_LIVE_MODEL_RUN !== "1", "a live model run is paid: JC_LIVE_MODEL_RUN=1 with the owner's go");
+test.describe.configure({ mode: "serial" });
+
+interface RunEvent {
+  kind: string;
+  payload: Record<string, unknown>;
+}
+
+interface Measured {
+  name: string;
+  run: string;
+  /** Generate to the map's canvas drawn in the preview, in seconds; null when it never drew. */
+  firstRenderS: number | null;
+  /** Generate to the run waiting for the person, tests included. */
+  waitingS: number | null;
+  costUsd: number;
+  tokens: number;
+  calls: number;
+  models: string[];
+  /** Seconds from the run's start per event kind's first sight, for where the minute goes. */
+  phases: Record<string, number>;
+  usesEntityGrid: boolean;
+  formulaColumn: boolean;
+  handTable: boolean;
+  preview: string;
+  note: string;
+}
+
+const results: Measured[] = [];
+
+/** Every event of a run so far: the stream replays them, then goes quiet. */
+async function runEvents(page: Page, id: string): Promise<RunEvent[]> {
+  return page.evaluate(
+    async ({ url, kinds }) => {
+      const events: { kind: string; payload: unknown }[] = [];
+      await new Promise<void>((resolve) => {
+        const source = new EventSource(url);
+        let quiet = setTimeout(resolve, 8_000);
+        const take = (message: MessageEvent<string>) => {
+          events.push({ kind: message.type, payload: JSON.parse(message.data) as unknown });
+          clearTimeout(quiet);
+          quiet = setTimeout(() => {
+            source.close();
+            resolve();
+          }, 2_000);
+        };
+        for (const kind of kinds) source.addEventListener(kind, take);
+      });
+      return events;
+    },
+    { url: `/api/v1/projects/${PROJECT}/agent-runs/${id}/events`, kinds: ["status", "message", "thought", "tool", "commit", "preview", "tests", "usage", "app-build"] },
+  ) as Promise<RunEvent[]>;
+}
+
+/** Start of each phase, read from the frames' own timestamps (RunTimeSpent reads the same). */
+function phases(events: RunEvent[]): Record<string, number> {
+  const stamp = (event: RunEvent) => Date.parse(String(event.payload.timestamp ?? ""));
+  const stamped = events.filter((event) => !Number.isNaN(stamp(event)));
+  const first = stamped[0] ? stamp(stamped[0]) : 0;
+  const seen: Record<string, number> = {};
+  for (const event of stamped) {
+    const key = event.kind === "status" ? `status:${String(event.payload.status)}` : event.kind;
+    seen[key] ??= (stamp(event) - first) / 1000;
+  }
+  return seen;
+}
+
+/** Starts one builder run through the form a person uses; answers the run's id and when Generate was pressed. */
+async function generate(page: Page, name: string, prompt: string, label: string): Promise<{ id: string; pressed: number }> {
+  await page.goto(`/projects/${PROJECT}/apps?lang=en`, { waitUntil: "load" });
+  await page.getByRole("button", { name: "Generate your own app" }).first().click();
+  await page.getByLabel("Endpoint").first().selectOption(ENDPOINT);
+  await page.getByLabel("What should the app do?").first().fill(prompt);
+  await page.getByText("Details:", { exact: false }).first().click();
+  await page.getByLabel("App name").fill(name);
+  await both(page, label, "prompt");
+  const started = page.waitForResponse((answer) => answer.request().method() === "POST" && answer.url().endsWith(`/projects/${PROJECT}/agent-runs`));
+  const pressed = Date.now();
+  await page.getByRole("button", { name: "Generate the app" }).click();
+  const answer = await started;
+  expect(answer.status(), await answer.text()).toBeLessThan(300);
+  const { id } = (await answer.json()) as { id: string };
+  await page.waitForURL(new RegExp(`/projects/${PROJECT}/apps/${name}`), { timeout: 60_000 });
+  return { id, pressed };
+}
+
+/** One shot at 1440 and 400 px, back at 1440 afterwards. */
+async function both(page: Page, label: string, state: string): Promise<void> {
+  for (const width of [1440, 400]) {
+    await page.setViewportSize({ width, height: 900 });
+    await shot(page, { area: "ai-dashboard", route: `/projects/${PROJECT}/apps`, state: `${label}-${state}`, who: "steward", lang: "en" }, DIR);
+  }
+  await page.setViewportSize({ width: 1440, height: 900 });
+}
+
+/** Cancels the run, so the organization's two builder slots stay free for the next. */
+async function cancel(page: Page, id: string): Promise<void> {
+  const headers = { "x-csrf-token": await csrf(page.context()) };
+  await page.request.post(`/api/v1/projects/${PROJECT}/agent-runs/${id}/cancel`, { headers });
+}
+
+/** The App's own modules: the preview serves them as `data:` URLs in its import map. */
+function sourceOf(html: string): Record<string, string> {
+  const map = /<script type="importmap">(.*?)<\/script>/s.exec(html)?.[1] ?? "{}";
+  const imports = (JSON.parse(map) as { imports?: Record<string, string> }).imports ?? {};
+  return Object.fromEntries(
+    Object.entries(imports)
+      .filter(([name, url]) => name.startsWith("@app/src/") && url.startsWith("data:text/javascript,"))
+      .map(([name, url]) => [name, decodeURIComponent(url.slice("data:text/javascript,".length))]),
+  );
+}
+
+for (let round = 1; round <= RUNS; round += 1) {
+  test(`run ${round} of ${RUNS}: the bike prompt draws its map`, async ({ browser }) => {
+    const { context, page } = await signIn(browser, STEWARD, `/projects/${PROJECT}/apps?lang=en`);
+    const name = `t6403-bikes-${SUFFIX}-${round}`;
+    const label = `run${round}`;
+    const { id, pressed } = await generate(page, name, PROMPT, label);
+    const preview = page.frameLocator("iframe").first();
+    // The map stands and its rows arrived: a canvas beside a `Loading` line is not a dashboard yet.
+    let firstRenderS: number | null = null;
+    let note = "";
+    try {
+      await expect(preview.locator("canvas").first()).toBeVisible({ timeout: 300_000 });
+      await expect(preview.locator(".jc-loading, [aria-busy=true]")).toHaveCount(0, { timeout: 120_000 });
+      firstRenderS = (Date.now() - pressed) / 1000;
+      await both(page, label, "first-render");
+    } catch (error) {
+      note = String(error).split("\n")[0] ?? "";
+      await both(page, label, "no-render");
+    }
+    let waitingS: number | null = null;
+    await expect(page.getByTestId("run-progress").filter({ hasText: "Waiting for you" }))
+      .toBeVisible({ timeout: 300_000 })
+      .then(() => {
+        waitingS = (Date.now() - pressed) / 1000;
+      })
+      .catch(() => undefined);
+    const events = await runEvents(page, id);
+    const usage = events.filter((event) => event.kind === "usage").map((event) => event.payload);
+    const frame = page.frames().find((each) => each !== page.mainFrame());
+    const html = frame ? await frame.content() : "";
+    writeFileSync(join(DIR, `${label}-events.json`), `${JSON.stringify(events, null, 1)}\n`);
+    const modules = sourceOf(html);
+    // What the model chose: the template's components are files of the App whether used or not.
+    const written = Object.entries(modules).filter(([file]) => !file.includes("/components/"));
+    const source = written.map(([, text]) => text).join("\n");
+    writeFileSync(join(DIR, `${label}-source.json`), `${JSON.stringify(modules, null, 1)}\n`);
+    results.push({
+      name,
+      run: id,
+      firstRenderS,
+      waitingS,
+      costUsd: usage.reduce((sum, each) => sum + (typeof each.costUsd === "number" ? each.costUsd : 0), 0),
+      tokens: usage.reduce((sum, each) => sum + Number(each.tokensThisStep ?? 0), 0),
+      calls: usage.length,
+      models: [...new Set(usage.map((each) => String(each.model ?? "")))],
+      phases: phases(events),
+      usesEntityGrid: /components\/TypeGrid|@joinedcontext\/sdk\/grid/.test(source),
+      formulaColumn: /formula:/.test(source),
+      handTable: /_jsxs?\("table"/.test(source),
+      preview: new URL(page.url()).pathname,
+      note,
+    });
+    await cancel(page, id);
+    await context.close();
+    expect(firstRenderS, note).not.toBeNull();
+  });
+}
+
+test("deny: the App asks for a type its Endpoint does not serve, and no row of it reaches the preview", async ({ browser }) => {
+  const { context, page } = await signIn(browser, STEWARD, `/projects/${PROJECT}/apps?lang=en`);
+  const { id } = await generate(page, `t6403-denied-${SUFFIX}`, DENIED_PROMPT, "deny");
+  const preview = page.frameLocator("iframe").first();
+  await expect(page.getByTestId("run-progress").filter({ hasText: "Waiting for you" })).toBeVisible({ timeout: 600_000 });
+  await both(page, "deny", "first-render");
+  const reads: { status: number; rows: number }[] = [];
+  const frame = page.frames().find((each) => each !== page.mainFrame());
+  const config = JSON.parse((await frame?.locator("#jc-config").textContent()) ?? "{}") as { slug: string };
+  const door = await page.request.get(`/api/endpoint/${config.slug}/ngsi-ld/v1/entities?type=AirQualityObserved&limit=1`);
+  const body = (await door.json().catch(() => null)) as unknown;
+  reads.push({ status: door.status(), rows: Array.isArray(body) ? body.length : 0 });
+  const events = await runEvents(page, id);
+  const text = await preview.locator("body").innerText();
+  writeFileSync(join(DIR, "deny.json"), `${JSON.stringify({ run: id, reads, events, text: text.slice(0, 2_000) }, null, 1)}\n`);
+  await cancel(page, id);
+  await context.close();
+  expect(reads[0]?.rows, "the Endpoint hands out no row of a type it does not serve").toBe(0);
+  expect(door.status(), "the door refuses or answers empty, never a 5xx").toBeLessThan(500);
+});
+
+test.afterAll(() => {
+  mkdirSync(DIR, { recursive: true });
+  writeFileSync(join(DIR, "report.json"), `${JSON.stringify(results, null, 2)}\n`);
+});

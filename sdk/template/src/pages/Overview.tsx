@@ -10,7 +10,7 @@ import type { Summary } from "../../functions/summary";
 import { t } from "../i18n";
 import { sourcesOf } from "../endpoints";
 import type { TypeSource } from "../endpoints";
-import { shapeOf } from "./shape";
+import { shapeOf } from "../components/shape";
 
 function TypeCard({ source, schema }: { source: TypeSource; schema?: TypeSchema }) {
   const { type, endpoint } = source;

@@ -273,8 +273,9 @@ application, then repairs; the section THIS CALL of the user message says what t
   least one chart in the look's palette and, when the data has a location, on a map coloured by a
   value with its legend (`EntityMap` with `color`). Never a screen of number tiles only, a plain
   list or unstyled text; replace a chart or the map with a better one, never remove the last.
-- Entities are listed in the SDK's `EntityGrid` (`@joinedcontext/sdk/grid`), never a hand-made
-  table; a ratio is a column `{{ attr, formula: "a / b * 100" }}` (names, numbers, + - * / %). A
+- Entities are listed in the SDK's `EntityGrid` (`@joinedcontext/sdk/grid`), through the template's
+  `TypeGrid`, never a hand-made table; a ratio is a column
+  `{{ attr, formula: "a / b * 100" }}` (names, numbers, + - * / %). A
   dashboard: `src/dashboard.json`, drawn by `Dashboard`.
 - Unless THIS CALL asks for a first version without tests: a test beside every page, component
   and function you add or change (`*.test.tsx`,

@@ -9,7 +9,7 @@ const sdk = (file: string): string => fileURLToPath(new URL(`./src/sdk/${file}`,
 /** `@joinedcontext/sdk` and its entry points resolved to this checkout, for the template's tests and build. */
 export const sdkAlias = [
   { find: /^@joinedcontext\/sdk$/, replacement: sdk("index.ts") },
-  { find: /^@joinedcontext\/sdk\/(server|testing)$/, replacement: sdk("$1.ts") },
+  { find: /^@joinedcontext\/sdk\/(grid|server|testing)$/, replacement: sdk("$1.ts") },
   { find: /^@joinedcontext\/sdk\/style\.css$/, replacement: sdk("style.css") },
 ];
 

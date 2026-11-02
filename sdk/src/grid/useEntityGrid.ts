@@ -509,7 +509,8 @@ export interface UseEntityGridOptions {
   paged?: boolean;
   /**
    * Attributes left out of the grid, as a saved view hides them (API/01 §30): their columns are not
-   * drawn and not filtered. The primary attribute is never hidden; it names the row.
+   * drawn and not filtered. The primary attribute is never hidden; it names the row. The keys
+   * `id` and `entity:type` leave those two columns out, for a grid over one type with a pinned name.
    */
   hidden?: readonly string[];
   /** The person's own order, widths and labels of the columns (T-4827). */
@@ -653,9 +654,11 @@ function buildColumns(
   const cols: VisibleColumn[] = [];
 
   // What every entity has comes first and stays (T-6210, owner 2026-10-31): its id, pinned, then its
-  // type; the name follows when the type has one. Neither is hidden or moved.
-  cols.push({ key: "id", attr: null, meta: null, label: labels.id, pinned: true });
-  cols.push({ key: "entity:type", attr: null, meta: null, label: labels.type, pinned: false });
+  // type; the name follows when the type has one. Neither is moved. A grid over one named type can
+  // leave them out, by the keys `id` and `entity:type` in `hidden`: its pinned attribute then leads.
+  const left = new Set(hidden);
+  if (!left.has("id")) cols.push({ key: "id", attr: null, meta: null, label: labels.id, pinned: true });
+  if (!left.has("entity:type")) cols.push({ key: "entity:type", attr: null, meta: null, label: labels.type, pinned: false });
 
   // The model's relationship ends are columns even on a page where no entity holds one yet: an
   // empty end is what a person comes to fill, and a computed end is never in a row at all.
@@ -677,7 +680,6 @@ function buildColumns(
     colMap.set(c.attr, c);
   }
 
-  const left = new Set(hidden);
   for (const attr of attrList) {
     // Hidden covers what the person may not read, so even the name leaves when it is not theirs.
     if (left.has(attr)) continue;
@@ -685,7 +687,7 @@ function buildColumns(
     const label = layout.labels?.[attr] ?? gridCol?.label ?? readableName(attr);
     const width = layout.width?.[attr] ?? gridCol?.width;
     const symbol = unitSymbol(unitOfColumn(rows, attr));
-    cols.push({ key: attr, attr, meta: null, label: symbol ? `${label} (${symbol})` : label, pinned: false, ...(width ? { width } : {}) });
+    cols.push({ key: attr, attr, meta: null, label: symbol ? `${label} (${symbol})` : label, pinned: left.has("id") && attr === primary, ...(width ? { width } : {}) });
 
     const metaKeys = shown[attr] ?? [];
     for (const meta of metaKeys) {

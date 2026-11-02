@@ -121,7 +121,15 @@ impl Driver {
     /// One POST to the proxy, asked once more when a gateway failed, answering the response
     /// only when it succeeded: a 402 is the key's credit, any other refusal says its status.
     async fn send_llm(&self, path: &str, body: &Value) -> Result<reqwest::Response, CallError> {
-        let effortful = with_effort(path, body, self.reasoning_effort.as_deref());
+        let first_version = body["max_tokens"] == json!(FIRST_VERSION_BUDGET);
+        let effort = self.reasoning_effort.as_deref().map(|effort| {
+            if first_version {
+                FIRST_VERSION_EFFORT
+            } else {
+                effort
+            }
+        });
+        let effortful = with_effort(path, body, effort);
         let body = effortful.as_ref().unwrap_or(body);
         // A provider that was busy or failed for a moment is asked once more before the person
         // is told: on dev one 502 ended an answer and had the person send it again, and a 429 or
@@ -1225,6 +1233,44 @@ mod stream_tests {
 #[cfg(test)]
 mod effort_tests {
     use super::*;
+
+    /// AG-72 (T-6403): the first version a person waits for goes at low, the rest of the run at the
+    /// profile's effort, and a profile without one sends none.
+    #[tokio::test]
+    async fn the_first_version_goes_at_low_effort_and_the_rest_at_the_profiles() {
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("POST"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(json!({
+                "choices": [{ "message": { "role": "assistant", "content": "Done." } }],
+            })))
+            .mount(&server)
+            .await;
+        let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
+        let mut driver = Driver::for_tests(state, "helsinki");
+        driver.proxy_base = server.uri();
+        driver.provider = "openrouter".into();
+        driver.reasoning_effort = Some("medium".into());
+        for budget in [FIRST_VERSION_BUDGET, CODE_OUTPUT_BUDGET] {
+            driver
+                .complete_once("rules", "hello", budget, false, &[])
+                .await
+                .expect("an answer");
+        }
+        driver.reasoning_effort = None;
+        driver
+            .complete_once("rules", "hello", FIRST_VERSION_BUDGET, false, &[])
+            .await
+            .expect("an answer");
+        let efforts: Vec<Value> = server
+            .received_requests()
+            .await
+            .expect("recorded")
+            .iter()
+            .map(|request| serde_json::from_slice::<Value>(&request.body).expect("a JSON body"))
+            .map(|body| body["reasoning"]["effort"].clone())
+            .collect();
+        assert_eq!(efforts, [json!("low"), json!("medium"), Value::Null]);
+    }
 
     /// JC1-26: the profile's reasoning effort reaches every chat call the run makes.
     #[tokio::test]

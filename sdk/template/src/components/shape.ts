@@ -1,5 +1,5 @@
 import { columnKind, distinct } from "@joinedcontext/sdk";
-import type { FilterDef, Row, TypeSchema } from "@joinedcontext/sdk";
+import type { FilterDef, GridColumn, Row, TypeSchema } from "@joinedcontext/sdk";
 
 /** What a page needs to know about one entity type to pick its filters, map and charts. */
 export interface Shape {
@@ -60,12 +60,32 @@ export function shapeOf(schema: TypeSchema | null | undefined, rows: Row[]): Sha
   return shape;
 }
 
+/**
+ * What a row shows in a table, most telling first: its name, measures, categories, time. A map
+ * shows the geometry and an entity panel the relationships, so neither takes a column.
+ */
+export function columnsOf(shape: Shape): GridColumn[] {
+  const names = [shape.label, ...shape.numbers.slice(0, 3), ...shape.categories.slice(0, 2), shape.time];
+  return [...new Set(names)].filter((attr) => attr !== undefined).map((attr) => ({ attr, label: spokenName(attr) }));
+}
+
+/** `stationName` in a sentence: `station name`. */
+export function wordsOf(attr: string): string {
+  return attr.replace(/([a-z\d])([A-Z])/g, "$1 $2").toLowerCase();
+}
+
+/** `stationName` as a header reads it: `Station name`; `pm25` stays. */
+export function spokenName(attr: string): string {
+  const words = wordsOf(attr);
+  return /\d/.test(attr) ? words : words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 /** Search over the texts, a select per category (two at most), a range and a date range. */
 export function filtersOf(shape: Shape): FilterDef[] {
   const filters: FilterDef[] = [];
   if (shape.texts.length > 0) filters.push({ kind: "search", attrs: shape.texts });
-  for (const attr of shape.categories.slice(0, 2)) filters.push({ kind: "select", attr });
-  if (shape.numbers[0]) filters.push({ kind: "range", attr: shape.numbers[0] });
-  if (shape.time) filters.push({ kind: "dateRange", attr: shape.time });
+  for (const attr of shape.categories.slice(0, 2)) filters.push({ kind: "select", attr, label: spokenName(attr) });
+  if (shape.numbers[0]) filters.push({ kind: "range", attr: shape.numbers[0], label: spokenName(shape.numbers[0]) });
+  if (shape.time) filters.push({ kind: "dateRange", attr: shape.time, label: spokenName(shape.time) });
   return filters;
 }
