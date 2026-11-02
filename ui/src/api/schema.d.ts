@@ -4209,7 +4209,7 @@ export interface paths {
         put?: never;
         /**
          * Compute KPI
-         * @description Folds an attribute over context entities and renders a KeyPerformanceIndicator entity
+         * @description Folds an attribute over an Endpoint or rows into a KeyPerformanceIndicator entity
          */
         post: operations["jc_kpi_compute"];
         delete?: never;
@@ -8495,17 +8495,12 @@ export interface components {
             verbs: string[];
         };
         /**
-         * @description What one connector may spend (T-5968): its own calls a minute, calls at once and answer size.
-         *     The person's own budget (`PERSON_LIMITS`) holds across all their connectors and `/api/v1/mcp`
-         *     together, so a second connector adds no calls. Counted on the verified token's subject and the
-         *     connector id from the path, never on a header.
+         * @description What one connector may spend (T-5968): calls at once and answer size; calls a minute have no
+         *     limit (owner 2026-11-02, T-6484). The person's own budget (`PERSON_LIMITS`) holds across all
+         *     their connectors and `/api/v1/mcp` together, so a second connector adds no parallel calls.
+         *     Counted on the verified token's subject and the connector id from the path, never on a header.
          */
         ConnectorLimits: {
-            /**
-             * Format: int32
-             * @description Tool calls a minute; the call past it answers 429 with `Retry-After`.
-             */
-            callsPerMinute: number;
             /**
              * Format: int32
              * @description Calls answered at once; the next answers 429 until one ends.
@@ -27090,11 +27085,13 @@ export interface operations {
                     agg: "avg" | "sum" | "count" | "min" | "max";
                     /** @description The attribute folded; ignored by count */
                     attribute?: string;
+                    /** @description The Endpoint read as you; or rows */
+                    endpoint?: string;
                     /** @description The indicator, its URN's {localId} */
                     name: string;
                     /** @description An NGSI-LD q narrowing the entities read */
                     q?: string;
-                    /** @description Entities the caller already holds, to compute over */
+                    /** @description Entities to fold; or endpoint */
                     rows?: Record<string, never>[];
                     /** @description The indicator's title as people read it */
                     title?: string;

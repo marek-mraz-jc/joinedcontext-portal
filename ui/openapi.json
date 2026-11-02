@@ -21182,7 +21182,7 @@
     },
     "/api/v1/projects/{project}/ops/jc_kpi_compute": {
       "post": {
-        "description": "Folds an attribute over context entities and renders a KeyPerformanceIndicator entity",
+        "description": "Folds an attribute over an Endpoint or rows into a KeyPerformanceIndicator entity",
         "operationId": "jc_kpi_compute",
         "parameters": [
           {
@@ -21222,6 +21222,11 @@
                     "maxLength": 128,
                     "type": "string"
                   },
+                  "endpoint": {
+                    "description": "The Endpoint read as you; or rows",
+                    "maxLength": 253,
+                    "type": "string"
+                  },
                   "name": {
                     "description": "The indicator, its URN's {localId}",
                     "maxLength": 253,
@@ -21233,7 +21238,7 @@
                     "type": "string"
                   },
                   "rows": {
-                    "description": "Entities the caller already holds, to compute over",
+                    "description": "Entities to fold; or endpoint",
                     "items": {
                       "maxProperties": 512,
                       "type": "object"
@@ -43451,19 +43456,12 @@
       },
       "ConnectorLimits": {
         "type": "object",
-        "description": "What one connector may spend (T-5968): its own calls a minute, calls at once and answer size.\nThe person's own budget (`PERSON_LIMITS`) holds across all their connectors and `/api/v1/mcp`\ntogether, so a second connector adds no calls. Counted on the verified token's subject and the\nconnector id from the path, never on a header.",
+        "description": "What one connector may spend (T-5968): calls at once and answer size; calls a minute have no\nlimit (owner 2026-11-02, T-6484). The person's own budget (`PERSON_LIMITS`) holds across all\ntheir connectors and `/api/v1/mcp` together, so a second connector adds no parallel calls.\nCounted on the verified token's subject and the connector id from the path, never on a header.",
         "required": [
-          "callsPerMinute",
           "parallelCalls",
           "resultBytes"
         ],
         "properties": {
-          "callsPerMinute": {
-            "type": "integer",
-            "format": "int32",
-            "description": "Tool calls a minute; the call past it answers 429 with `Retry-After`.",
-            "minimum": 0
-          },
           "parallelCalls": {
             "type": "integer",
             "format": "int32",

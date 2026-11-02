@@ -149,11 +149,6 @@ pub struct AppState {
     /// ponytail: per-replica map; move it to the preferences database when the portal
     /// runs more than one replica (the reconciler is leader-elected, the UI is not).
     revocations: Arc<RwLock<HashMap<String, i64>>>,
-    /// What each bearer subject has spent on `/api/v1/mcp` in the current minute (AG-60): the
-    /// unix second the window opened and the calls counted in it.
-    /// ponytail: per-replica map, like `revocations`; one bucket per subject is enough while
-    /// the Portal is one replica.
-    mcp_calls: Arc<RwLock<HashMap<String, (i64, u32)>>>,
     /// The calls each key is answering right now (T-5968); a key leaves at zero.
     mcp_in_flight: Arc<Mutex<HashMap<String, u32>>>,
     /// The forge reads of the open changes, per head and base commit (T-6347).
