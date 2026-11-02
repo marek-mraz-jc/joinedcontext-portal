@@ -121,7 +121,7 @@ describe("template", () => {
 
     const page = screen.getByRole("region", { name: "Note" });
     expect(await within(page).findByText("check the lock")).toBeInTheDocument();
-    fireEvent.click(within(within(page).getByRole("grid")).getAllByRole("button").find((each) => each.className === "jc-grid-open") as HTMLElement);
+    fireEvent.click(within(within(page).getByRole("grid")).getAllByRole("button").find((each) => each.className === "jc-open") as HTMLElement);
     expect(within(page).queryByTestId("jc-map")).not.toBeInTheDocument();
     const panel = await screen.findByRole("dialog");
     expect(await within(panel).findByText("check the lock")).toBeInTheDocument();

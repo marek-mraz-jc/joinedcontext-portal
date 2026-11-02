@@ -31,7 +31,7 @@ export function TypeGrid({ type, endpoint, columns, pageSize = 50, onSelect }: T
     () =>
       onSelect && {
         id: (_cell: unknown, row: RichRow) => (
-          <button type="button" className="jc-grid-open" onClick={() => onSelect(row.id)}>
+          <button type="button" className="jc-open" onClick={() => onSelect(row.id)}>
             {displayName(projectRow(row, language))}
           </button>
         ),

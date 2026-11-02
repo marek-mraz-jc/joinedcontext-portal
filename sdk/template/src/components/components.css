@@ -558,3 +558,15 @@ body {
   white-space: nowrap;
   border: 0;
 }
+
+/* A row of `TypeGrid` opens by its name. */
+.jc-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--jc-color-accent);
+  font: inherit;
+  text-align: start;
+  text-decoration: underline;
+  cursor: pointer;
+}
