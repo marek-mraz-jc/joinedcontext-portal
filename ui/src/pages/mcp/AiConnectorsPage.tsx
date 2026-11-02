@@ -1,5 +1,5 @@
 import { clsx } from "clsx";
-import { Fragment, useCallback, useRef, useState, useSyncExternalStore } from "react";
+import { Fragment, useCallback, useState, useSyncExternalStore } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -63,9 +63,11 @@ export function AiConnectorsPage(): JSX.Element {
   const items = list.data?.items ?? [];
   const live = items.filter((one) => one.state === "active").length;
   // What was revoked before this visit folds away; a card revoked just now stays to say so.
-  const revoked = useRef<Set<string> | null>(null);
-  if (list.data && !revoked.current) revoked.current = new Set(items.filter((one) => one.state === "revoked").map((one) => one.id));
-  const folded = items.filter((one) => revoked.current?.has(one.id));
+  const [seenLive, setSeenLive] = useState<ReadonlySet<string>>(new Set());
+  const newlyLive = items.filter((one) => one.state !== "revoked" && !seenLive.has(one.id));
+  if (newlyLive.length > 0) setSeenLive(new Set([...seenLive, ...newlyLive.map((one) => one.id)]));
+  const isFolded = (one: AiConnector) => one.state === "revoked" && !seenLive.has(one.id);
+  const folded = items.filter(isFolded);
   const create = (
     <Button disabled={live >= 20} disabledReason={t("aiConnectors.full")} onClick={() => setCreating(true)}>
       {t("aiConnectors.new")}
@@ -80,7 +82,7 @@ export function AiConnectorsPage(): JSX.Element {
         <EmptyState title={t("aiConnectors.empty")} description={t("aiConnectors.emptyHint")} icon="endpoints" action={create} />
       ) : null}
       {items
-        .filter((one) => !revoked.current?.has(one.id))
+        .filter((one) => !isFolded(one))
         .map((connector) => (
           <AiConnectorCard key={connector.id} connector={connector} justCreated={connector.id === created} />
         ))}
