@@ -244,6 +244,21 @@ impl Mirror {
     }
 
     /// A copy of what the mirror holds now, to overlay without touching the original.
+    /// What `fresh` holds of `kinds` that this mirror lacks or holds with another spec, as
+    /// `fresh` has it.
+    pub fn behind(&self, fresh: &Mirror, kinds: &[&str]) -> Vec<ResourceEnvelope> {
+        let held = self.resources.read().unwrap_or_else(|p| p.into_inner());
+        let fresh = fresh.resources.read().unwrap_or_else(|p| p.into_inner());
+        fresh
+            .iter()
+            .filter(|(key, env)| {
+                kinds.contains(&key.kind.as_str())
+                    && held.get(*key).is_none_or(|old| old.spec != env.spec)
+            })
+            .map(|(_, env)| env.clone())
+            .collect()
+    }
+
     pub fn snapshot(&self) -> Mirror {
         let copy = Mirror::new();
         copy.replace_all(self);
