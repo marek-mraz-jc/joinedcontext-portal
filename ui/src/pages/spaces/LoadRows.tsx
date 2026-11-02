@@ -13,7 +13,7 @@ import { api, queryKeys, unwrap } from "../../api/client";
 import { useOrgDomain } from "../../api/projects";
 import { asManifests, refName } from "../../api/manifest";
 import type { Change } from "../../api/manifest";
-import { ChangeNotice } from "../../components/ChangeNotice";
+import { ChangeDecide, ChangeNotice } from "../../components/ChangeNotice";
 import { spaceSegment } from "../../components/endpoints/policyBinding";
 import { Alert, Button, buttonClass, Card, CodeBlock } from "../../components/ui";
 import { createInBatches, importSlotsOf, rejectedCsv, rowIds, suggestMapping, toEntities } from "./importRows";
@@ -167,9 +167,10 @@ export function LoadRows({ project, space, type, source, table, change: proposed
   const state = live ? "spaces.upload.liveNow" : merged ? "spaces.upload.goingLive" : "spaces.upload.afterApproval";
   return (
     <Card className="flex flex-col gap-4">
-      {change ? <ChangeNotice change={change} project={project} /> : null}
-      <p className="text-body">{t(state, { space, type })}</p>
+      {change ? <ChangeNotice change={change} project={project} plain /> : null}
+      {change ? <ChangeDecide id={change.metadata.name} project={project} /> : null}
       <RowsCheck checked={checked} />
+      <p className="text-body">{t(state, { space, type })}</p>
       {progress ? (
         <p role="status" className="text-body">
           {t("spaces.import.writing", progress)}

@@ -65,6 +65,7 @@ import { runUiAction, uiActionOf } from "./uiActions";
 
 // The model parser and the app builder load when the dock shows them, not with every page (T-3316).
 const ModelFileDrop = lazy(() => import("../pages/models/ModelFileDrop").then((m) => ({ default: m.ModelFileDrop })));
+const CompleteFlow = lazy(() => import("../pages/spaces/SpaceComplete").then((m) => ({ default: m.CompleteFlow })));
 const AppGenerator = lazy(() => import("../pages/apps/AppGenerator").then((m) => ({ default: m.AppGenerator })));
 
 /**
@@ -253,6 +254,8 @@ export function AssistantDock({
     };
   }, [project, queryClient]);
   const [building, setBuilding] = useState(false);
+  // The table the person attached: the dock shows its way into a space until they go back.
+  const [table, setTable] = useState<File | null>(null);
   const [layout, setLayout] = useState<Layout>(storedLayout);
   useEffect(() => {
     try {
@@ -528,11 +531,8 @@ export function AssistantDock({
           rememberPrefill(`/projects/${activeProject}/models`, { source });
           void navigate({ to: "/projects/$project/models", params: { project: activeProject } });
         }}
-        onTable={(file) => {
-          // A table goes where its rows can load too: Complete this space drafts the model as well.
-          rememberPrefill(`/projects/${activeProject}/spaces/complete`, { file });
-          void navigate({ to: "/projects/$project/spaces/complete", params: { project: activeProject } });
-        }}
+        // A table takes the one flow that also loads its rows, here in the dock (T-6456).
+        onTable={setTable}
       />
     </Suspense>
   );
@@ -623,7 +623,16 @@ export function AssistantDock({
     );
   }
 
-  const conversation = building ? (
+  const conversation = table ? (
+        <Card padding="sm" id="run-chat" data-testid="assistant-table" className="flex min-h-48 w-full flex-1 flex-col gap-3 overflow-y-auto">
+          <Button size="sm" onClick={() => setTable(null)} className="self-start">
+            {t("assistant.backToChat")}
+          </Button>
+          <Suspense fallback={<p className="text-caption text-fg-muted">{t("app.loading")}</p>}>
+            <CompleteFlow key={`${activeProject}/${table.name}/${table.lastModified}`} project={activeProject} file={table} inDock />
+          </Suspense>
+        </Card>
+      ) : building ? (
         <Card padding="sm" id="run-chat" data-testid="assistant-build" className="flex min-h-48 w-full flex-1 flex-col gap-3 overflow-y-auto">
           <Button
             size="sm"
