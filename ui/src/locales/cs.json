@@ -3264,7 +3264,8 @@
       "operationsLegend": "Co tam pipeline dělá",
       "operations": {
         "read": "Čtení",
-        "write": "Zápis"
+        "write": "Zápis",
+        "history": "Čtení i historie"
       },
       "types": "Typy a atributy",
       "typesHelp": "Uveďte každý typ entity a každý atribut, který pipeline potřebuje. Žádost nikdy nežádá o všechny.",
@@ -3484,7 +3485,7 @@
     },
     "kpiEditor": {
       "title": "Nový ukazatel z více zdrojů",
-      "lead": "Vyberte dva až pět koncových bodů, určete, jak se jejich řádky spojí a co se má spočítat. Každé pole se kontroluje při psaní; Náhled spočítá hodnotu z toho, co koncové body poskytují teď. Nic se nezapíše, dokud změnu neschválí schvalovatel.",
+      "lead": "Vyberte dva až pět koncových bodů, určete, jak se jejich řádky spojí a co se má spočítat. Změně oproti minulému týdnu stačí jeden. Každé pole se kontroluje při psaní; Náhled spočítá hodnotu z toho, co koncové body poskytují teď. Nic se nezapíše, dokud změnu neschválí schvalovatel.",
       "name": "Název ukazatele",
       "titleField": "Nadpis",
       "sources": "Zdroje",
@@ -3508,7 +3509,8 @@
       "joinHint": {
         "time": "Jeden ukazatel za běh ze všech řádků, které zdroje vrátily.",
         "area": "Jeden ukazatel za každou hodnotu oblasti, kterou mají všechny zdroje; k názvu se přidá její zkratka.",
-        "entity": "Jeden ukazatel za každou entitu, kterou uvádějí všechny zdroje; k názvu se přidá její zkratka."
+        "entity": "Jeden ukazatel za každou entitu, kterou uvádějí všechny zdroje; k názvu se přidá její zkratka.",
+        "change": "Všechny řádky běhu: změna je jedna hodnota za celý zdroj."
       },
       "key": {
         "area": "Atribut oblasti",
@@ -3522,7 +3524,8 @@
         "sum": "Součet čísla prvního zdroje",
         "average": "Průměr čísla prvního zdroje",
         "share": "Podíl: první součet dělený druhým součtem",
-        "per": "První součet na řádek druhého zdroje"
+        "per": "První součet na řádek druhého zdroje",
+        "change": "Změna oproti minulému týdnu"
       },
       "writes": "Vzorec, který zapíše: {formula}",
       "advanced": "Pokročilé: napsat vzorec",
@@ -3566,9 +3569,13 @@
         "target": "Koncový bod prostoru ukazatelů, přes který se zapisuje, například kpi-writer.",
         "formula": "sum, avg, min, max z input.attribute a count(input), s + - * / a závorkami, například sum(parking.occupiedSpotNumber) / count(stops).",
         "areaKey": "Atribut s názvem nebo kódem oblasti v tomto zdroji, například district.",
-        "entityKey": "id pro samotnou entitu nebo vztah, který ji pojmenovává, například refParkingSite."
+        "entityKey": "id pro samotnou entitu nebo vztah, který ji pojmenovává, například refParkingSite.",
+        "change": "Čte historii tohoto zdroje: stačí jeden zdroj a prostor musí mít toto číslo uložené alespoň týden. Do té doby běh nic nezapíše a řekne proč."
       },
-      "previewFirst": "Náhled se spustí, až budou všechna pole zkontrolovaná bez problému."
+      "previewFirst": "Náhled se spustí, až budou všechna pole zkontrolovaná bez problému.",
+      "rowsBack": "{name}, před {period}: {count} řádků",
+      "rowsWeekBack": "{name} před týdnem: {count} řádků",
+      "noPreviewYet": "Hodnota zatím není: spočítáte ji tlačítkem."
     }
   },
   "dashboards": {

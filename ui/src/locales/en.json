@@ -3264,7 +3264,8 @@
       "operationsLegend": "What the pipeline does there",
       "operations": {
         "read": "Read",
-        "write": "Write"
+        "write": "Write",
+        "history": "Read and its history"
       },
       "types": "Types and attributes",
       "typesHelp": "Name each entity type and every attribute the pipeline needs. A request never asks for all of them.",
@@ -3484,7 +3485,7 @@
     },
     "kpiEditor": {
       "title": "New KPI over several sources",
-      "lead": "Pick two to five endpoints, say how their rows meet and what to compute. Each field is checked as you type; Preview computes the value on what the endpoints serve now. Nothing is written until the change is approved.",
+      "lead": "Pick two to five endpoints, say how their rows meet and what to compute. A change since last week needs one. Each field is checked as you type; Preview computes the value on what the endpoints serve now. Nothing is written until the change is approved.",
       "name": "Indicator name",
       "titleField": "Title",
       "sources": "Sources",
@@ -3508,7 +3509,8 @@
       "joinHint": {
         "time": "One indicator per run over every row each source returned.",
         "area": "One indicator per area value every source has, its slug added to the name.",
-        "entity": "One indicator per entity every source names, its slug added to the name."
+        "entity": "One indicator per entity every source names, its slug added to the name.",
+        "change": "All rows of the run: a change is one value over the whole source."
       },
       "key": {
         "area": "Area attribute",
@@ -3522,7 +3524,8 @@
         "sum": "Sum of the first source's number",
         "average": "Average of the first source's number",
         "share": "Share: first sum divided by second sum",
-        "per": "First sum per row of the second source"
+        "per": "First sum per row of the second source",
+        "change": "Change since last week"
       },
       "writes": "The formula it writes: {formula}",
       "advanced": "Advanced: type the formula",
@@ -3566,9 +3569,13 @@
         "target": "The KPI space's endpoint the indicator is written through, for example kpi-writer.",
         "formula": "sum, avg, min, max of input.attribute and count(input), with + - * / and parentheses, for example sum(parking.occupiedSpotNumber) / count(stops).",
         "areaKey": "The attribute holding the area name or code on this source, for example district.",
-        "entityKey": "id for the entity itself, or the relationship naming it, for example refParkingSite."
+        "entityKey": "id for the entity itself, or the relationship naming it, for example refParkingSite.",
+        "change": "Reads this source's history: one source is enough, and the space must have kept this number for a week. Until then a run writes nothing and says why."
       },
-      "previewFirst": "Preview runs once every field is checked without a problem."
+      "previewFirst": "Preview runs once every field is checked without a problem.",
+      "rowsBack": "{name}, {period} back: {count} rows",
+      "rowsWeekBack": "{name} a week ago: {count} rows",
+      "noPreviewYet": "No value yet: press the button to compute it."
     }
   },
   "dashboards": {

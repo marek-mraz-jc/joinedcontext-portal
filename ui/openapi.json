@@ -48044,7 +48044,8 @@
         "description": "What the pipeline asks to do through the Endpoint.",
         "enum": [
           "read",
-          "write"
+          "write",
+          "history"
         ]
       },
       "OrganizationLimits": {

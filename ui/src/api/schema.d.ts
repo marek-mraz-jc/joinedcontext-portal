@@ -10172,7 +10172,7 @@ export interface components {
          * @description What the pipeline asks to do through the Endpoint.
          * @enum {string}
          */
-        Operations: "read" | "write";
+        Operations: "read" | "write" | "history";
         OrganizationLimits: {
             entries: components["schemas"]["LimitEntry"][];
             projects: components["schemas"]["ProjectQuota"][];

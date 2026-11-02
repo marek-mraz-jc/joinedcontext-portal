@@ -5016,6 +5016,49 @@ output:
             .collect()
     }
 
+    /// PL-117: a change over one source is the general renderer's: a second input reads the
+    /// Temporal API with the pipeline's token, its page named apart, no rows meaning no history,
+    /// and the batch waits for both pages.
+    #[test]
+    fn a_read_back_is_one_more_input_on_the_temporal_api() {
+        let mut spec: Value = serde_json::to_value(kpi_spec("scheduled")).expect("a value");
+        spec["sources"].as_array_mut().expect("sources").truncate(1);
+        spec["sources"][0]["query"]["q"] = serde_json::json!("occupiedSpotNumber>0");
+        spec["steps"][0]["kpi"]["formula"] = serde_json::json!(
+            "sum(parking.occupiedSpotNumber) - prev(sum(parking.occupiedSpotNumber), P7D)"
+        );
+        spec["steps"][0]["kpi"]["join"] = serde_json::json!({ "by": "time" });
+        let spec: PipelineSpec = serde_json::from_value(spec).expect("a spec");
+        assert!(is_merged(&spec) && eligible(&spec));
+        let stream = render_merged(
+            &spec,
+            "parking-change",
+            "helsinki",
+            &kpi_sources(&spec),
+            &["kpislug".to_owned()],
+        )
+        .expect("renders");
+        let broker = &stream["input"]["broker"];
+        assert_eq!(broker["batching"]["count"], 2);
+        assert_eq!(broker["inputs"].as_array().expect("inputs").len(), 2);
+        let earlier = broker["inputs"][1].to_string();
+        assert!(earlier.contains("/api/endpoint/slug/ngsi-ld/v1/temporal/entities?type=ParkingSite&attrs=occupiedSpotNumber"), "{earlier}");
+        assert!(earlier.contains("q=occupiedSpotNumber%3E0"), "{earlier}");
+        assert!(
+            earlier.contains("&timerel=before&lastN=1&timeAt=${! now().ts_sub_iso8601("),
+            "{earlier}"
+        );
+        assert!(earlier.contains("oauth2"), "{earlier}");
+        assert!(
+            earlier.contains("it has no history 7 days back"),
+            "{earlier}"
+        );
+        assert!(earlier.contains("parking@P7D"), "{earlier}");
+        let current = broker["inputs"][0].to_string();
+        assert!(!current.contains("temporal"), "{current}");
+        assert!(stream["pipeline"].to_string().contains("was_parking_p7d"));
+    }
+
     /// PL-104 (T-4864): each source keeps its read's error and is wrapped with its name, the
     /// broker folds one page per source into one message, jc-core's mapping computes, and a
     /// problem is reported to the run log instead of written.

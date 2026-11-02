@@ -8,6 +8,7 @@ import { useMemo, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { api, ApiError, queryKeys, unwrap } from "../../api/client";
 import { asManifests } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
@@ -25,7 +26,6 @@ import { reachableEndpoints } from "./PipelineEditor";
 import {
   FORMULA_CHOICES,
   MAX_SOURCES,
-  MIN_SOURCES,
   PREVIEW_PAGE,
   SCHEDULES,
   emptyDraft,
@@ -33,8 +33,10 @@ import {
   formulaOf,
   kpiManifest,
   kpiTargets,
+  leastSources,
   missingOf,
   placeOf,
+  withChoice,
 } from "./kpiEditor";
 import type { FormulaChoice, JoinBy, KpiDraft, KpiSourceDraft, ProblemPlace, ScheduleChoice } from "./kpiEditor";
 
@@ -237,7 +239,7 @@ function SourceList({ project, draft, endpoints, problems, checked, onChange }: 
           endpoints={endpoints}
           errors={problemsAt(problems, (p) => p.at === "source" && p.index === index)}
           readable={checked?.sources.find((s) => s.name === source.name)?.readable}
-          canRemove={draft.sources.length > MIN_SOURCES}
+          canRemove={draft.sources.length > leastSources(draft)}
           onChange={(patch) => set(index, patch)}
           onRemove={() => onChange(draft.sources.filter((_, i) => i !== index))}
         />
@@ -346,9 +348,17 @@ function SourceRow({ project, index, source, join, endpoints, errors, readable, 
 
 function JoinFields({ draft, problems, update }: { draft: KpiDraft; problems?: string[]; update: (patch: Partial<KpiDraft>) => void }): JSX.Element {
   const { t } = useTranslation();
+  // A change is computed over all rows of the run (PL-117).
+  const fixed = !draft.advanced && draft.choice === "change";
   return (
-    <Field id="kpi-join" label={t("pipelines.kpiEditor.join")} help={t(`pipelines.kpiEditor.joinHint.${draft.join}`)} errors={problems} required>
-      <Select id="kpi-join" value={draft.join} onChange={(e) => update({ join: e.target.value as JoinBy })}>
+    <Field
+      id="kpi-join"
+      label={t("pipelines.kpiEditor.join")}
+      help={t(fixed ? "pipelines.kpiEditor.joinHint.change" : `pipelines.kpiEditor.joinHint.${draft.join}`)}
+      errors={problems}
+      required
+    >
+      <Select id="kpi-join" value={draft.join} disabled={fixed} title={fixed ? t("pipelines.kpiEditor.joinHint.change") : undefined} onChange={(e) => update({ join: e.target.value as JoinBy })}>
         {(["time", "area", "entity"] as JoinBy[]).map((one) => (
           <option key={one} value={one}>
             {t(`pipelines.kpiEditor.joinBy.${one}`)}
@@ -359,7 +369,13 @@ function JoinFields({ draft, problems, update }: { draft: KpiDraft; problems?: s
   );
 }
 
-function FormulaFields({ draft, problems, update }: { draft: KpiDraft; problems?: string[]; update: (patch: Partial<KpiDraft>) => void }): JSX.Element {
+interface FormulaFieldsProps {
+  draft: KpiDraft;
+  problems?: string[];
+  update: (patch: Partial<KpiDraft>) => void;
+}
+
+function FormulaFields({ draft, problems, update }: FormulaFieldsProps): JSX.Element {
   const { t } = useTranslation();
   return (
     <div className="flex flex-col gap-2">
@@ -375,7 +391,7 @@ function FormulaFields({ draft, problems, update }: { draft: KpiDraft; problems?
           errors={problems}
           required
         >
-          <Select id="kpi-choice" value={draft.choice} onChange={(e) => update({ choice: e.target.value as FormulaChoice })}>
+          <Select id="kpi-choice" value={draft.choice} onChange={(e) => update(withChoice(draft, e.target.value as FormulaChoice))}>
             {FORMULA_CHOICES.map((one) => (
               <option key={one} value={one}>
                 {t(`pipelines.kpiEditor.choices.${one}`)}
@@ -384,6 +400,7 @@ function FormulaFields({ draft, problems, update }: { draft: KpiDraft; problems?
           </Select>
         </Field>
       )}
+      {!draft.advanced && draft.choice === "change" ? <p className="text-caption text-fg-muted">{t("pipelines.kpiEditor.hint.change")}</p> : null}
       <Switch
         id="kpi-advanced"
         checked={draft.advanced}
@@ -392,6 +409,13 @@ function FormulaFields({ draft, problems, update }: { draft: KpiDraft; problems?
       />
     </div>
   );
+}
+
+/** A source's row count; a read back goes by `parking@P7D` (PL-117). */
+function rowsLine(t: TFunction, page: string, count: number): string {
+  const [name, period] = page.split("@");
+  if (period === "P7D") return t("pipelines.kpiEditor.rowsWeekBack", { name, count });
+  return period ? t("pipelines.kpiEditor.rowsBack", { name, period, count }) : t("pipelines.kpiEditor.rows", { name, count });
 }
 
 interface PreviewPanelProps {
@@ -424,6 +448,7 @@ function PreviewPanel({ disabled, running, answer, failed, formula, onRun }: Pre
         </Button>
       </div>
       <p className="text-caption text-fg-muted">{t("pipelines.kpiEditor.previewHint", { formula })}</p>
+      {!answer && !running && !failed && !disabled ? <p className="text-caption text-fg-muted">{t("pipelines.kpiEditor.noPreviewYet")}</p> : null}
       {failed ? <Alert tone="danger">{failed}</Alert> : null}
       {preview?.problem ? <Alert tone="warning">{preview.problem}</Alert> : null}
       {preview && !preview.problem && preview.values.length === 0 ? <p className="text-caption text-fg-muted">{t("pipelines.kpiEditor.noKeys")}</p> : null}
@@ -448,13 +473,14 @@ function PreviewPanel({ disabled, running, answer, failed, formula, onRun }: Pre
       {preview ? (
         <p className="text-caption text-fg-muted">
           {Object.entries(preview.rows)
-            .map(([name, rows]) => t("pipelines.kpiEditor.rows", { name, count: rows }))
+            .map(([page, rows]) => rowsLine(t, page, rows))
             .join(" · ")}
         </p>
       ) : null}
       {preview && Object.values(preview.rows).some((rows) => rows >= PREVIEW_PAGE) ? (
         <Alert tone="info">{t("pipelines.kpiEditor.partial", { rows: PREVIEW_PAGE })}</Alert>
       ) : null}
+      <span data-testid="kpi-preview-end" />
     </section>
   );
 }

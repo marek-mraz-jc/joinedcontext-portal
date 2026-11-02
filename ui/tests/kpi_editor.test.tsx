@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { KpiEditorDialog } from "../src/pages/pipelines/KpiEditor";
-import { choiceFormula, emptyDraft, formulaOf, kpiManifest, kpiTargets, missingOf, placeOf } from "../src/pages/pipelines/kpiEditor";
+import { choiceFormula, emptyDraft, formulaOf, kpiManifest, kpiTargets, leastSources, missingOf, placeOf, withChoice } from "../src/pages/pipelines/kpiEditor";
 import type { KpiDraft } from "../src/pages/pipelines/kpiEditor";
 import type { Manifest } from "../src/api/manifest";
 import { expectNoViolations } from "./checks";
@@ -79,6 +79,25 @@ describe("the KPI editor's model", () => {
     expect((typed.spec.steps as { kpi: { formula: string } }[])[0].kpi.formula).toBe("max(parking.occupied)");
     const timed = kpiManifest("helsinki", { ...DRAFT, join: "time" });
     expect((timed.spec.steps as { kpi: { join: unknown } }[])[0].kpi.join).toEqual({ by: "time" });
+  });
+
+  it("writes a change as the first sum now minus a week ago, over one source and all its rows (PL-117)", () => {
+    const area = { ...DRAFT, join: "area" as const };
+    const change = withChoice(area, "change");
+    expect(change.sources).toEqual([DRAFT.sources[0]]);
+    expect(change.join).toBe("time");
+    expect(formulaOf(change)).toBe("sum(parking.occupied) - prev(sum(parking.occupied), P7D)");
+    expect(missingOf(change)).toBeUndefined();
+    expect(leastSources(change)).toBe(1);
+    const spec = kpiManifest("helsinki", change).spec as { sources: { query: { attrs: string[] } }[]; steps: { kpi: { join: unknown } }[] };
+    expect(spec.sources).toHaveLength(1);
+    expect(spec.sources[0].query.attrs).toEqual(["occupied"]);
+    expect(spec.steps[0].kpi.join).toEqual({ by: "time" });
+
+    const back = withChoice(change, "share");
+    expect(back.sources).toHaveLength(2);
+    expect(leastSources(back)).toBe(2);
+    expect(leastSources({ ...back, advanced: true, typed: "prev(sum(parking.occupied), PT1H)" })).toBe(1);
   });
 
   it("places each refusal beside its field and says what is still missing", () => {
@@ -212,6 +231,34 @@ describe("the KPI editor", () => {
     show();
     expect(await screen.findByText(k.notReadable)).toBeInTheDocument();
     expect(screen.getByText(k.askAccess)).toBeInTheDocument();
+  });
+
+  it("offers a change since last week, fixes the join and previews the value with its history", async () => {
+    stubFetch({
+      preview: { values: [{ key: null, name: "parking-per-stop", value: -6 }], rows: { parking: 48, "parking@P7D": 47 } },
+    });
+    show({ ...DRAFT, join: "time" });
+    await userEvent.selectOptions(screen.getByLabelText(new RegExp(k.choice)), "change");
+    expect(screen.queryByTestId("kpi-source-1")).not.toBeInTheDocument();
+    expect(screen.getByLabelText(new RegExp(k.join))).toBeDisabled();
+    expect(screen.getByText(k.joinHint.change)).toBeInTheDocument();
+    expect(screen.getByText(/Reads this source's history/)).toBeInTheDocument();
+    await waitFor(() => expect(propose()).toBeEnabled());
+    expect(screen.getByText(k.noPreviewYet)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: k.runPreview }));
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("-6")).toBeInTheDocument();
+    expect(screen.getByText(/parking a week ago: 47 rows/)).toBeInTheDocument();
+  });
+
+  it("shows no value and the reason when the source has no history", async () => {
+    const reason = "input parking: it has no history 7 days back, so there is no value";
+    stubFetch({ preview: { values: [], rows: { parking: 48 }, problem: reason } });
+    show(withChoice({ ...DRAFT, join: "time" }, "change"));
+    await waitFor(() => expect(propose()).toBeEnabled());
+    await userEvent.click(screen.getByRole("button", { name: k.runPreview }));
+    expect(await screen.findByText(reason)).toBeInTheDocument();
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
   it("says what is missing before it checks anything", async () => {
