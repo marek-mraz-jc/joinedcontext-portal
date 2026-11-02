@@ -575,6 +575,14 @@ body {
   .jc-grid .jc-grid-kind {
     display: none;
   }
+  /* A header's controls wrap under its label, so three columns fit. */
+  .jc-grid .jc-grid-th {
+    white-space: normal;
+  }
+  /* The name is the row's whole label: it keeps its width, the other columns scroll. */
+  .jc-shell .jc-grid td.jc-grid-pinned {
+    max-width: none;
+  }
 }
 
 .jc-embedded-frame {
@@ -618,7 +626,7 @@ body {
 }
 
 /* A row of `TypeGrid` opens by its name. */
-.jc-open {
+.jc-open, .jc-shell .jc-grid .jc-open {
   padding: 0;
   border: 0;
   background: none;
