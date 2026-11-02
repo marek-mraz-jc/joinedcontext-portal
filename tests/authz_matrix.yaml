@@ -206,6 +206,10 @@ routes:
   - route: GET /catalogue
     rule: "public"
     expect: [allow, allow, allow, allow, allow, allow, allow, allow]
+  - route: GET /catalogue/readable
+    rule: "public"
+    expect: [allow, allow, allow, allow, allow, allow, allow, allow]
+    note: "public Endpoints for anyone; a signed-in caller also gets what the gateway grants them, so the fixture's (no gateway) answers the public list (T-6411)"
   - route: GET /catalogue/datasets/{name}
     rule: "public"
     expect: [404, 404, 404, 404, 404, 404, 404, 404]

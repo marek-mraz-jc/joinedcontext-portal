@@ -17,6 +17,7 @@ import { lastProject, usePreferredProject, useProjects } from "./api/projects";
 import { BrandMark } from "./components/layout/BrandMark";
 import { Shell } from "./components/layout/LazyShell";
 import { PublicFrame } from "./components/layout/PublicFrame";
+import { MemberFrame } from "./components/layout/MemberFrame";
 import { isHiddenSection } from "./components/layout/navigation";
 import { useHiddenSections } from "./branding";
 import { EmptyState, PageFailed, PageLoading } from "./components/ui";
@@ -55,6 +56,9 @@ const AiConnectorsPage = lazy(() => import("./pages/mcp/AiConnectorsPage").then(
 const SettingsPage = lazy(() => import("./pages/settings/SettingsPage").then((module) => ({ default: module.SettingsPage })));
 const McpServersPage = lazy(() => import("./pages/mcp/McpServersPage").then((module) => ({ default: module.McpServersPage })));
 const CataloguePage = lazy(() => import("./pages/catalogue/CataloguePage").then((module) => ({ default: module.CataloguePage })));
+const EndpointDatasetPage = lazy(() =>
+  import("./pages/catalogue/EndpointDatasetPage").then((module) => ({ default: module.EndpointDatasetPage })),
+);
 const DatasetPage = lazy(() => import("./pages/catalogue/DatasetPage").then((module) => ({ default: module.DatasetPage })));
 import { parseCatalogueSearch } from "./pages/catalogue/search";
 const EndpointDocs = lazy(() => import("./pages/endpoints/EndpointDocs").then((module) => ({ default: module.EndpointDocs })));
@@ -209,6 +213,10 @@ function NotFound(): React.JSX.Element {
 function IndexRedirect(): React.JSX.Element {
   const projects = useProjects();
   const first = usePreferredProject();
+  // A member (ADR-N-067, T-6411): signed in with no project, so the catalogue is home.
+  if (!first && projects.isSuccess) {
+    return <Navigate to="/catalogue" />;
+  }
   if (!first) {
     return <NoProject projects={projects} />;
   }
@@ -259,12 +267,12 @@ function SignedInCatalogue({
   if (projects.isPending) {
     return <main aria-busy="true" className="min-h-screen bg-bg" />;
   }
-  // Signed in with no project to open, or a project list that failed: the catalogue still reads.
-  return first ? (
-    <Shell project={first}>{children(first)}</Shell>
-  ) : (
-    <PublicFrame>{children(null)}</PublicFrame>
-  );
+  if (first) {
+    return <Shell project={first}>{children(first)}</Shell>;
+  }
+  // A member with no project gets the member shell (ADR-N-067, T-6411); a project list that
+  // failed keeps the public frame, and the catalogue still reads.
+  return projects.isSuccess ? <MemberFrame>{children(null)}</MemberFrame> : <PublicFrame>{children(null)}</PublicFrame>;
 }
 
 /** Every public dataset of the installation, readable without signing in (EP-81). */
@@ -286,6 +294,19 @@ const catalogueRoute = createRoute({
         )}
       </CatalogueFrame>
     );
+  },
+});
+
+/**
+ * One dataset by its Endpoint, read live with the person's own session (ADR-N-067 §2.4,
+ * T-6411): the grid shows "sign in" or "no access" where the Endpoint refuses (T-6376).
+ */
+const catalogueEndpointRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/catalogue/endpoint/$slug",
+  component: function CatalogueEndpointRoute() {
+    const { slug } = catalogueEndpointRoute.useParams();
+    return <CatalogueFrame>{() => <EndpointDatasetPage slug={slug} />}</CatalogueFrame>;
   },
 });
 
@@ -1041,6 +1062,9 @@ const aiConnectorsRoute = createRoute({
   component: function AiConnectorsRoute() {
     const projects = useProjects();
     const first = usePreferredProject();
+    if (!first && projects.isSuccess) {
+      return <MemberFrame><AiConnectorsPage /></MemberFrame>;
+    }
     if (!first) {
       return <NoProject projects={projects} />;
     }
@@ -1059,6 +1083,9 @@ const settingsRoute = createRoute({
   component: function SettingsRoute() {
     const projects = useProjects();
     const first = usePreferredProject();
+    if (!first && projects.isSuccess) {
+      return <MemberFrame><SettingsPage /></MemberFrame>;
+    }
     if (!first) {
       return <NoProject projects={projects} />;
     }
@@ -1427,6 +1454,7 @@ const devRoutes = import.meta.env.DEV
 export const routeTree = rootRoute.addChildren([
   loginRoute,
   catalogueRoute,
+  catalogueEndpointRoute,
   catalogueDatasetRoute,
   publicViewRoute,
   publicFormRoute,

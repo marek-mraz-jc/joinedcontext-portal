@@ -43,3 +43,11 @@ export function datasetQuery(name: string) {
     queryFn: async () => unwrap(await api.GET("/api/v1/catalogue/datasets/{name}", { params: { path: { name } } })),
   };
 }
+
+/** What the signed-in person may read, decided per Endpoint by the gateway (T-6411). */
+export function readableQuery() {
+  return {
+    queryKey: ["catalogue", "readable"] as const,
+    queryFn: async () => unwrap(await api.GET("/api/v1/catalogue/readable")),
+  };
+}

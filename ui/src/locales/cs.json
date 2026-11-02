@@ -8858,7 +8858,33 @@
       "hint": "Zkopírujte adresu do čtečky novinek nebo kalendáře, například Feedly nebo Google Kalendář; nové položky se objeví samy.",
       "calendarAppNamed": "Přidat do kalendáře: {title}",
       "calendarFileNamed": "Stáhnout {title} (.ics)"
-    }
+    },
+    "readable": {
+      "title": "Datové sady, které můžete číst",
+      "lead": "Interní datové sady vaší organizace, ke kterým máte přístup, čtené živě z jejich Endpointu.",
+      "loading": "Ověřuji, které datové sady můžete číst…",
+      "empty": {
+        "title": "Zatím s vámi není sdílena žádná interní datová sada",
+        "description": "Požádejte správce dat vaší organizace, aby vaší skupině udělil přístup. Veřejné datové sady níže jsou otevřené všem."
+      },
+      "unanswered": "{count} datových sad se teď nepodařilo ověřit a nejsou uvedeny. Načtěte stránku znovu za minutu.",
+      "access": {
+        "public": "Veřejné",
+        "organization": "Vaše organizace",
+        "group": "Skupina {group}",
+        "granted": "Uděleno vám"
+      },
+      "open": "Otevřít datovou sadu",
+      "endpoint": {
+        "title": "Datová sada",
+        "lead": "Tato datová sada se čte živě z jejího Endpointu s vaším vlastním přístupem.",
+        "visitorTitle": "Datová sada katalogu",
+        "visitorLead": "Čte se živě z jejího Endpointu. Pokud datová sada není veřejná, rámeček níže vás vyzve k přihlášení.",
+        "refusedTitle": "Datová sada, kterou zatím nemůžete otevřít",
+        "refusedLead": "Není mezi datovými sadami, které vám někdo zpřístupnil. Rámeček níže říká, jak získat přístup."
+      }
+    },
+    "leadSignedIn": "Datové sady, které můžete číst, a pak každá veřejná datová sada katalogů otevřených dat této instalace. Hledejte, filtrujte, otevřete datovou sadu a použijte její data."
   },
   "dataagreements": {
     "field": {
@@ -11316,6 +11342,14 @@
       "aiConnectors": "Claude a další asistenti, kteří čtou data vaším jménem",
       "project": "prostory, členové, tajemství",
       "administration": "pro administrátory platformy"
-    }
+    },
+    "descriptionOwn": "Vaše vlastní nastavení."
+  },
+  "member": {
+    "nav": "Nabídka člena",
+    "catalogue": "Katalog",
+    "connectors": "AI konektory",
+    "settings": "Nastavení",
+    "signOut": "Odhlásit se"
   }
 }

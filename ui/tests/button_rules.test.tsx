@@ -68,6 +68,7 @@ const PAGES = [
   `/projects/${PROJECT}/knowledge/conversations`,
   "/catalogue",
   "/catalogue/ovzdusie",
+  "/catalogue/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa",
   "/v/ovzdusie-board",
   "/f/ovzdusie-form",
   "/d/abcdefghijklmnopqrstuvwxyz234567",
@@ -131,6 +132,8 @@ const WORKSPACE = {
 
 /** One manifest of whatever kind the page asks for, so a list page is not empty. */
 function answer(path: string): Response | undefined {
+  // What the signed-in person may read (T-6411): nothing internal, as a new member sees it.
+  if (path === "/api/v1/catalogue/readable") return jsonResponse({ datasets: [], unanswered: 0 });
   if (path === "/api/v1/catalogue") {
     const none = { publisher: [], theme: [], format: [], licence: [], spatial: [], year: [] };
     return jsonResponse({

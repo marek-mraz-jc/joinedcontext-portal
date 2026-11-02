@@ -139,6 +139,7 @@ describe("the catalogue (EP-81, EP-82)", () => {
     answers = {
       "/api/v1/projects": { status: 200, body: { apiVersion: LIST, kind: "List", items: [{ name: "helsinki" }] } },
       "/api/v1/catalogue": { status: 200, body: PAGE },
+      "/api/v1/catalogue/readable": { status: 200, body: { datasets: [], unanswered: 0 } },
       "/api/v1/catalogue/datasets/bbsk-kpi": { status: 200, body: DETAIL },
       "/api/v1/catalogue/datasets/bbsk-kpi/map": { status: 200, body: { ...MAP, total: 0, features: [] } },
     };

@@ -128,6 +128,12 @@ export const PROBE = { user: "demo.probe@hel.fi", password: process.env.PROBE_PA
  */
 export const AUTHOR = { user: "demo.author@hel.fi", password: process.env.AUTHOR_PASSWORD ?? "" };
 export const MEMBER = { user: "demo.member@hel.fi", password: process.env.MEMBER_PASSWORD ?? "" };
+/**
+ * Organization members with no project and no RoleBinding (ADR-N-067 2.2, 2.7; T-6408): the first
+ * in /helsinki/members alone, the second also in /helsinki/traffic-analysts. No realm role, no TOTP.
+ */
+export const ORGMEMBER = { user: "demo.orgmember@hel.fi", password: process.env.ORGMEMBER_PASSWORD ?? "" };
+export const ANALYST = { user: "demo.analyst@hel.fi", password: process.env.ANALYST_PASSWORD ?? "" };
 export const NEIGHBOUR = { user: "demo.neighbour@hel.fi", password: process.env.NEIGHBOUR_PASSWORD ?? "" };
 
 /**
@@ -144,7 +150,7 @@ export async function signIn(
   if (!who.password) {
     throw new Error(
       `no password in the environment for ${who.user} ` +
-        "(PORTAL_PASSWORD / APPROVER_PASSWORD / VIEWER_PASSWORD / EDITOR_PASSWORD / JANITOR_PASSWORD / PROBE_PASSWORD / AUTHOR_PASSWORD / MEMBER_PASSWORD / NEIGHBOUR_PASSWORD)",
+        "(PORTAL_PASSWORD / APPROVER_PASSWORD / VIEWER_PASSWORD / EDITOR_PASSWORD / JANITOR_PASSWORD / PROBE_PASSWORD / AUTHOR_PASSWORD / MEMBER_PASSWORD / ORGMEMBER_PASSWORD / ANALYST_PASSWORD / NEIGHBOUR_PASSWORD)",
     );
   }
   const context = await browser.newContext();

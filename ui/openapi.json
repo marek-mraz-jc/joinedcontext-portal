@@ -1348,6 +1348,28 @@
         }
       }
     },
+    "/api/v1/catalogue/readable": {
+      "get": {
+        "tags": [
+          "ckan"
+        ],
+        "summary": "Datasets You May Read",
+        "description": "Every public Endpoint and, signed in, every other Endpoint the gateway lets the caller read, each marked public, organization, the granting group or granted (ADR-N-067 §2.4). The gateway decides each Endpoint for the caller as their own token names them; an Endpoint it does not answer about is counted in `unanswered` and left out. Anonymous callers get the public Endpoints. Changes no data.",
+        "operationId": "get_readable",
+        "responses": {
+          "200": {
+            "description": "The datasets the caller may read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadableCatalogue"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/connectors": {
       "get": {
         "tags": [
@@ -50199,6 +50221,79 @@
             "type": "string"
           },
           "space": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ReadableCatalogue": {
+        "type": "object",
+        "required": [
+          "datasets",
+          "unanswered"
+        ],
+        "properties": {
+          "datasets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReadableDataset"
+            }
+          },
+          "unanswered": {
+            "type": "integer",
+            "description": "Non-public Endpoints the gateway did not answer about; they are left out, never guessed.",
+            "minimum": 0
+          }
+        }
+      },
+      "ReadableDataset": {
+        "type": "object",
+        "description": "One dataset the caller may read.",
+        "required": [
+          "project",
+          "name",
+          "slug",
+          "representations",
+          "access"
+        ],
+        "properties": {
+          "access": {
+            "type": "string",
+            "description": "`public`, `organization` (every member of its Organization), `group` (see `group`) or\n`granted` (a grant to the caller, a role of theirs or their account)."
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "group": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The group whose members it is granted to, when `access` is `group`."
+          },
+          "name": {
+            "type": "string",
+            "description": "The Endpoint's manifest name."
+          },
+          "project": {
+            "type": "string"
+          },
+          "representations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The surfaces it serves; the page builds each URL under `/api/endpoint/{slug}`."
+          },
+          "slug": {
             "type": "string"
           },
           "title": {

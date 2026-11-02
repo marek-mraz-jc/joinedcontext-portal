@@ -471,6 +471,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/catalogue/readable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Datasets You May Read
+         * @description Every public Endpoint and, signed in, every other Endpoint the gateway lets the caller read, each marked public, organization, the granting group or granted (ADR-N-067 §2.4). The gateway decides each Endpoint for the caller as their own token names them; an Endpoint it does not answer about is counted in `unanswered` and left out. Anonymous callers get the public Endpoints. Changes no data.
+         */
+        get: operations["get_readable"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/connectors": {
         parameters: {
             query?: never;
@@ -10953,6 +10973,29 @@ export interface components {
             space: string;
             title?: string | null;
         };
+        ReadableCatalogue: {
+            datasets: components["schemas"]["ReadableDataset"][];
+            /** @description Non-public Endpoints the gateway did not answer about; they are left out, never guessed. */
+            unanswered: number;
+        };
+        /** @description One dataset the caller may read. */
+        ReadableDataset: {
+            /**
+             * @description `public`, `organization` (every member of its Organization), `group` (see `group`) or
+             *     `granted` (a grant to the caller, a role of theirs or their account).
+             */
+            access: string;
+            description?: string | null;
+            /** @description The group whose members it is granted to, when `access` is `group`. */
+            group?: string | null;
+            /** @description The Endpoint's manifest name. */
+            name: string;
+            project: string;
+            /** @description The surfaces it serves; the page builds each URL under `/api/endpoint/{slug}`. */
+            representations: string[];
+            slug: string;
+            title?: string | null;
+        };
         /** @description Whether this replica serves the repository yet: `ready` or `loading`, nothing more (OPS-51). */
         Readiness: {
             status: string;
@@ -13145,6 +13188,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    get_readable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The datasets the caller may read */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadableCatalogue"];
                 };
             };
         };
