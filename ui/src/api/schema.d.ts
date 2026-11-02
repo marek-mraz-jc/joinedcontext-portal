@@ -3361,7 +3361,7 @@ export interface paths {
         put?: never;
         /**
          * Check A KPI Over Several Sources
-         * @description Checks a v1alpha2 Pipeline draft with one kpi step by jc-core's admission rules (PL-102, PL-103), with each attribute's unit from its space's model, and says of each source whether the pipeline's account may read it. `preview: true` also computes the indicator on each source Endpoint's current page, read as the person (PL-105). Needs propose on Pipeline in the project, from a person's session; a source in a space the caller may not read is named as unknown. Changes no data.
+         * @description Checks a v1alpha2 Pipeline draft with one kpi step by jc-core's admission rules (PL-102, PL-103), with each attribute's unit from its space's model, and says of each source whether the pipeline's account may read it. `preview: true` also computes the indicator on each source Endpoint's current page, read as the person (PL-105), and a `prev` term on its history (PL-117). Needs propose on Pipeline in the project, from a person's session; a source in a space the caller may not read is named as unknown. Changes no data.
          */
         post: operations["check_kpi"];
         delete?: never;
@@ -9680,10 +9680,10 @@ export interface components {
         KpiPreview: {
             /**
              * @description Why nothing is computed: a division by zero, an average over nothing, a source that did
-             *     not answer (PL-104).
+             *     not answer (PL-104), no history for a `prev` term (PL-117).
              */
             problem?: string | null;
-            /** @description The rows each source's page held, at most 100. */
+            /** @description The rows each source's page held, at most 100; a read back goes by `parking@P7D`. */
             rows: {
                 [key: string]: number;
             };
@@ -9705,7 +9705,8 @@ export interface components {
             name: string;
             /**
              * @description Whether the pipeline's account reads the source's type through the Endpoint now: a
-             *     Policy grants it, or the Endpoint is public (PL-55, PL-90).
+             *     Policy grants it, its history too for a `prev` term, or the Endpoint is public (PL-55,
+             *     PL-90, PL-117).
              */
             readable: boolean;
         };
@@ -10178,7 +10179,7 @@ export interface components {
          * @description What the pipeline asks to do through the Endpoint.
          * @enum {string}
          */
-        Operations: "read" | "write";
+        Operations: "read" | "write" | "history";
         OrganizationLimits: {
             entries: components["schemas"]["LimitEntry"][];
             projects: components["schemas"]["ProjectQuota"][];
