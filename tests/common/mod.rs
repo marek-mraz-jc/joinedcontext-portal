@@ -631,6 +631,30 @@ pub async fn stream_requests(runner: &MockServer) -> Vec<wiremock::Request> {
         .collect()
 }
 
+/// Every `(path, text)` the commits of `POST {repo}/contents` wrote, each commit in the order it
+/// lists its files.
+pub async fn committed_files(gitea: &wiremock::MockServer, repo: &str) -> Vec<(String, String)> {
+    use base64::Engine;
+    gitea
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .filter(|r| r.method.as_str() == "POST" && r.url.path() == format!("{repo}/contents"))
+        .filter_map(|r| serde_json::from_slice::<serde_json::Value>(&r.body).ok())
+        .flat_map(|commit| commit["files"].as_array().cloned().unwrap_or_default())
+        .filter_map(|file| {
+            let bytes = base64::engine::general_purpose::STANDARD
+                .decode(file["content"].as_str()?)
+                .ok()?;
+            Some((
+                file["path"].as_str()?.to_owned(),
+                String::from_utf8(bytes).ok()?,
+            ))
+        })
+        .collect()
+}
+
 /// The paths a deletion removed in its one commit, `POST /contents` (F-R2POR3-019), sorted.
 pub async fn removed_in_one_commit(gitea: &wiremock::MockServer) -> Vec<String> {
     let mut paths: Vec<String> = gitea

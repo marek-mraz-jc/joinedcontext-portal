@@ -1605,15 +1605,8 @@ impl Syncer {
 
     async fn converge_groups(&self, fresh_mirror: &Mirror, projects: &BTreeMap<String, String>) {
         if let Some(groups) = self.groups.as_ref() {
-            let now = chrono::Utc::now();
-            let generated: Vec<(String, std::collections::BTreeSet<String>)> = projects
-                .keys()
-                .flat_map(|slug| {
-                    let members = crate::permissions::project_members(fresh_mirror, slug, now);
-                    let [(readers, _), (writers, _)] = super::project_teams::teams_of(slug);
-                    [(readers, members.readers), (writers, members.writers)]
-                })
-                .collect();
+            let generated =
+                super::groups::derived_groups(fresh_mirror, projects, chrono::Utc::now());
             let outcomes = groups.converge_with(fresh_mirror, &generated).await;
             for outcome in &outcomes {
                 match (&outcome.error, outcome.drift.is_empty()) {

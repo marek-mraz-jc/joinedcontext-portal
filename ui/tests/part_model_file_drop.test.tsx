@@ -50,7 +50,7 @@ function urlOf(input: unknown): string {
   return typeof input === "string" ? input : input instanceof Request ? input.url : String(input);
 }
 
-function show(answer: InferAnswer | number, props: { icon?: boolean } = {}) {
+function show(answer: InferAnswer | number, props: { icon?: boolean; onTable?: (file: File) => void } = {}) {
   const fetchMock = vi.fn((input: RequestInfo | URL) =>
     urlOf(input).includes("/organizations")
       ? Promise.resolve(
@@ -131,6 +131,18 @@ describe("the model file drop against the UI contract", () => {
     await userEvent.upload(screen.getByLabelText(en.assistant.attach), csv());
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("the sample is not a table");
+  });
+
+  it("gives a table to onTable without sending it, and still drafts from a JSON sample", async () => {
+    const onTable = vi.fn();
+    const { fetchMock } = show(ANSWER, { icon: true, onTable });
+    const file = csv();
+    await userEvent.upload(screen.getByLabelText(en.assistant.attach), file);
+    expect(onTable).toHaveBeenCalledWith(file);
+    expect(fetchMock.mock.calls.filter(([input]) => urlOf(input).includes("infer-schema"))).toHaveLength(0);
+    await userEvent.upload(screen.getByLabelText(en.assistant.attach), new File(["{}"], "sample.json"));
+    await screen.findByRole("dialog");
+    expect(onTable).toHaveBeenCalledTimes(1);
   });
 
   it("has no axe violation, closed and with the preview open", async () => {

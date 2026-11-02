@@ -30,7 +30,7 @@ use crate::apps::reconciler::generate_slug;
 use crate::auth::CurrentUser;
 use crate::change::{self, Change, ChangePhase, ChangeStatus, Lane, Operation};
 use crate::error::{ApiError, ProblemDetails};
-use crate::git::{Author, FileWrite};
+use crate::git::Author;
 use crate::resource::{self, ResourceEnvelope};
 use crate::state::AppState;
 
@@ -1498,7 +1498,6 @@ pub async fn propose_bundle(
         project,
         Proposal {
             files,
-            verb: "import",
             branch,
             title,
             body,
@@ -1513,11 +1512,9 @@ pub async fn propose_bundle(
 pub struct Proposal {
     /// `(repository path, content)` of every file the merge request writes.
     pub files: Vec<(String, String)>,
-    /// The word each file's commit message starts with, `import` or `rename`.
-    pub verb: &'static str,
     /// The branch, `portal/{verb}-…`, which is how the change list recognises it.
     pub branch: String,
-    /// The merge request's title.
+    /// The merge request's title and its one commit's message.
     pub title: String,
     /// Its description: what the reviewer reads before the diff.
     pub body: String,
@@ -1528,8 +1525,8 @@ pub struct Proposal {
 }
 
 /// The forge half of [`propose_bundle`], for every door that writes several files as one Change
-/// in a person's name: the files go onto `proposal.branch` with `identity` as their author, and
-/// one merge request carries them.
+/// in a person's name: the files go onto `proposal.branch` as one commit with `identity` as its
+/// author, so all of them land or none does, and one merge request carries them.
 pub async fn propose_files(
     state: &AppState,
     identity: &crate::auth::session::Identity,
@@ -1538,7 +1535,6 @@ pub async fn propose_files(
 ) -> Result<Change, ApiError> {
     let Proposal {
         files,
-        verb,
         branch,
         title,
         body,
@@ -1554,28 +1550,18 @@ pub async fn propose_files(
     let branch = create_or_reuse_branch(gitea, &held, &default_branch).await?;
 
     let (author_name, author_email) = author_credentials(identity, project);
-    for (path, content) in &files {
-        let existing = gitea
-            .get_file(path, &branch)
-            .await
-            .ok()
-            .flatten()
-            .map(|file| file.sha);
-        let message = format!("{verb} {path}");
-        gitea
-            .put_file(&FileWrite {
-                path,
-                branch: &branch,
-                message: &message,
-                content,
-                sha: existing.as_deref(),
-                author: Author {
-                    name: &author_name,
-                    email: &author_email,
-                },
-            })
-            .await?;
-    }
+    gitea
+        .change_files(
+            &branch,
+            &title,
+            Author {
+                name: &author_name,
+                email: &author_email,
+            },
+            &files,
+            &[],
+        )
+        .await?;
 
     let pull = gitea
         .create_pull_request(&branch, &default_branch, &title, &body)
