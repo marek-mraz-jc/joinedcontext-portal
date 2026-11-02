@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { JSX } from "react";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "../../api/client";
 import { ChangeNotice } from "../../components/ChangeNotice";
@@ -14,7 +15,7 @@ import { TERMINAL_STATES, testsHold, useAgentRun } from "./useAgentRun";
 import type { RunEvent } from "./useAgentRun";
 import { onPickChange, pickedElement, rememberRun, requestOpen } from "../../assistant/state";
 import { appDisplayName, useEndpointTitles } from "./appTitle";
-import { Button, InlineError, PageFailed, PageHeader, PageLoading } from "../../components/ui";
+import { Button, buttonClass, InlineError, PageFailed, PageHeader, PageLoading } from "../../components/ui";
 
 /**
  * One builder run, live (UI-34…UI-40; the timeline, the transcript and the questions are UI-38).
@@ -151,9 +152,14 @@ export function AgentRunPage({
         onApproved={() => void run.refetch()}
       />
       {record.error !== undefined && record.error !== "" && (
-        <InlineError>
-          {record.error} {t("agentRun.failedNext")}
-        </InlineError>
+        <div className="space-y-2">
+          <InlineError>
+            {record.error} {t("agentRun.failedNext")}
+          </InlineError>
+          <Link to="/projects/$project/assistant" params={{ project }} className={buttonClass("primary", "sm")}>
+            {t("agentRun.failedOpen")}
+          </Link>
+        </div>
       )}
       {[cancel.error, publish.error].map((error, index) =>
         error ? (
@@ -258,15 +264,17 @@ export function AgentRunPage({
         )}
 
         <div className="flex flex-wrap gap-2">
-          <Button
-            disabled={over || cancel.isPending}
-            disabledReason={over ? t("agentRun.cancelOver") : t("app.busyReason")}
-            onClick={() => {
-              cancel.mutate();
-            }}
-          >
-            {t("agentRun.cancel")}
-          </Button>
+          {over ? null : (
+            <Button
+              disabled={cancel.isPending}
+              disabledReason={t("app.busyReason")}
+              onClick={() => {
+                cancel.mutate();
+              }}
+            >
+              {t("agentRun.cancel")}
+            </Button>
+          )}
           <Button
             variant="primary"
             disabled={!publishable || held !== null || publish.isPending}

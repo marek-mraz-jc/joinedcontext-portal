@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import { axeViolations } from "./axe";
 
 // A run that failed (T-6442): the page says what happened in a person's words and what to do
-// next, and neither Publish nor Stop can be pressed. `vite preview` has no API, so it is answered
+// next, with the way back to the Assistant; Publish cannot be pressed and Stop is gone. `vite preview` has no API, so it is answered
 // here.
 
 const PROJECT = "helsinki";
@@ -43,7 +43,8 @@ for (const width of [1440, 400]) {
     await expect(page.getByText(/did not answer in time/)).toContainText("Open the Assistant page to build it again.");
     await expect(page.getByRole("button", { name: "Publish this app" })).toBeDisabled();
     await expect(page.getByText("This run has ended, so it has nothing to publish.")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Stop the run" })).toHaveAttribute("aria-disabled", "true");
+    await expect(page.getByRole("link", { name: "Open the Assistant" })).toHaveAttribute("href", `/projects/${PROJECT}/assistant`);
+    await expect(page.getByRole("button", { name: "Stop the run" })).toHaveCount(0);
     expect(await page.locator("body").innerText()).not.toContain("pool timed out");
     expect(await axeViolations(page)).toEqual([]);
     if (process.env.JC_EVIDENCE_DIR) {

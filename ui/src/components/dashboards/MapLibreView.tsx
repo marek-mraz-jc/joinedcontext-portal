@@ -5,7 +5,7 @@ import type { MapGeoJSONFeature, MapLayerMouseEvent, StyleSpecification } from "
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { useTranslation } from "react-i18next";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { basemapColour, outlineColour, plainColour, RAMP, unknownColour } from "./mapColours";
+import { basemapColour, outlineColour, ONE_VALUE_COLOUR, plainColour, RAMP, unknownColour } from "./mapColours";
 
 // MapLibre finds its worker beside its own module (`./maplibre-gl-worker.mjs`), which after
 // bundling is /assets/, where nothing of that name is emitted: every dashboard asked for it and
@@ -89,21 +89,29 @@ export function mapStyleFor(project?: string): string | StyleSpecification {
 const DEFAULT_CENTER: [number, number] = [19.146, 48.736];
 const DEFAULT_ZOOM = 11;
 
+/**
+ * The ramp over a range. A range of one value has no ramp: MapLibre refuses an interpolate whose
+ * stops do not strictly ascend and the layer draws nothing, with no word to the person (T-6442).
+ */
+function rampOver(property: string, [min, max]: [number, number]): unknown {
+  if (min >= max) {
+    return ONE_VALUE_COLOUR;
+  }
+  return [
+    "interpolate",
+    ["linear"],
+    ["to-number", ["get", property], 0],
+    ...RAMP.flatMap((stop, index) => [min + ((max - min) * index) / (RAMP.length - 1), stop]),
+  ];
+}
+
 function paintFor(layer: MapLayer): Record<string, unknown> {
   const color = layer.colorBy
     ? [
         "case",
         // A feature without the number is unknown, not the ramp's low end (T-6442).
         ["has", layer.colorBy.property],
-        [
-          "interpolate",
-          ["linear"],
-          ["to-number", ["get", layer.colorBy.property], 0],
-          ...RAMP.flatMap((stop, index) => {
-            const [min, max] = layer.colorBy?.domain ?? [0, 100];
-            return [min + ((max - min) * index) / (RAMP.length - 1), stop];
-          }),
-        ],
+        rampOver(layer.colorBy.property, layer.colorBy.domain ?? [0, 100]),
         unknownColour(),
       ]
     : plainColour();
@@ -116,17 +124,11 @@ function paintFor(layer: MapLayer): Record<string, unknown> {
   }
 
   const [minRadius, maxRadius] = layer.sizeBy?.range ?? [5, 5];
-  const radius = layer.sizeBy
-    ? [
-        "interpolate",
-        ["linear"],
-        ["to-number", ["get", layer.sizeBy.property], 0],
-        layer.colorBy?.domain?.[0] ?? 0,
-        minRadius,
-        layer.colorBy?.domain?.[1] ?? 100,
-        maxRadius,
-      ]
-    : minRadius;
+  const [low, high] = layer.colorBy?.domain ?? [0, 100];
+  const radius =
+    layer.sizeBy && low < high
+      ? ["interpolate", ["linear"], ["to-number", ["get", layer.sizeBy.property], 0], low, minRadius, high, maxRadius]
+      : minRadius;
   return {
     "circle-color": color,
     "circle-radius": radius,

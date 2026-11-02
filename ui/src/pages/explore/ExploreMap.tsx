@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import { fetchEntities } from "../../components/entities/filters";
 import type { EntityQuery } from "../../components/entities/filters";
 import { MapLibreView } from "../../components/dashboards/MapLibreView";
-import { RAMP, unknownColour } from "../../components/dashboards/mapColours";
+import { ONE_VALUE_COLOUR, RAMP, unknownColour } from "../../components/dashboards/mapColours";
 import { readable } from "../../components/entities/displayOrder";
 import type { Bbox } from "../../components/dashboards/MapLibreView";
 import { InlineError } from "../../components/ui/InlineError";
@@ -54,23 +54,42 @@ export function isLocated(slots: { name: string; kind: string }[]): boolean {
   return slots.some((slot) => slot.kind === "GeoProperty" || slot.name === "location");
 }
 
-/** The coloured map's key; the status line above says the same in words. */
-function ColourKey({ min, max }: { min: string; max: string }): JSX.Element {
+/** The coloured map's key. The words for a screen reader stand in the status line above it. */
+function ColourKey({ attr, domain: [min, max], unknown }: { attr: string; domain: [number, number]; unknown: number }): JSX.Element {
+  const { t } = useTranslation();
+  const number = new Intl.NumberFormat(undefined);
   return (
-    <div aria-hidden="true" className="flex items-center gap-2 text-caption text-fg-muted">
-      <span>{min}</span>
-      <svg width="128" height="8">
-        <linearGradient id="explore-map-ramp">
-          {RAMP.map((stop, index) => (
-            <stop key={stop} offset={index / (RAMP.length - 1)} stopColor={stop} />
-          ))}
-        </linearGradient>
-        <rect width="128" height="8" rx="4" fill="url(#explore-map-ramp)" />
-      </svg>
-      <span>{max}</span>
-      <svg width="10" height="10" className="ml-2">
-        <circle cx="5" cy="5" r="5" fill={unknownColour()} />
-      </svg>
+    <div aria-hidden="true" className="flex flex-wrap items-center gap-x-2 gap-y-1 text-caption text-fg-muted">
+      <span className="font-medium text-fg">{attr}</span>
+      {min === max ? (
+        <>
+          <svg width="10" height="10">
+            <circle cx="5" cy="5" r="5" fill={ONE_VALUE_COLOUR} />
+          </svg>
+          <span>{t("explore.map.keyAll", { value: number.format(min) })}</span>
+        </>
+      ) : (
+        <>
+          <span>{number.format(min)}</span>
+          <svg width="128" height="8">
+            <linearGradient id="explore-map-ramp">
+              {RAMP.map((stop, index) => (
+                <stop key={stop} offset={index / (RAMP.length - 1)} stopColor={stop} />
+              ))}
+            </linearGradient>
+            <rect width="128" height="8" rx="4" fill="url(#explore-map-ramp)" />
+          </svg>
+          <span>{number.format(max)}</span>
+        </>
+      )}
+      {unknown > 0 ? (
+        <>
+          <svg width="10" height="10" className="ml-2">
+            <circle cx="5" cy="5" r="5" fill={unknownColour()} />
+          </svg>
+          <span>{t("explore.map.keyUnknown", { unknown: number.format(unknown) })}</span>
+        </>
+      ) : null}
     </div>
   );
 }
@@ -146,14 +165,16 @@ export function ExploreMap({
     });
   }
   const coloured = colorBy ? colourOf(collection.features, colorBy) : undefined;
+  // Said once, under the key the eye reads: on a phone the sentence would wrap around the map's top.
+  let colourWords = "";
   if (colorBy && coloured?.domain) {
     const [min, max] = coloured.domain;
-    status += `${status.endsWith(".") ? "" : "."} ${t("explore.map.colouredBy", {
+    colourWords = t(min === max ? "explore.map.colouredOne" : "explore.map.colouredBy", {
       attr: readable(colorBy),
       min: number.format(min),
       max: number.format(max),
       unknown: number.format(coloured.unknown),
-    })}`;
+    });
   }
   if (paged) {
     status += `${status.endsWith(".") ? "" : "."} ${t(inView.data?.truncated ? "explore.map.truncated" : "explore.map.paged", { max: number.format(MAP_MAX) })}`;
@@ -163,8 +184,9 @@ export function ExploreMap({
       <p role="status" className="text-caption text-fg-muted">
         {status}
         {inView.isFetching ? ` ${t("explore.map.reading")}` : ""}
+        {colourWords ? <span className="sr-only"> {colourWords}</span> : null}
       </p>
-      {colorBy && coloured?.domain ? <ColourKey min={number.format(coloured.domain[0])} max={number.format(coloured.domain[1])} /> : null}
+      {colorBy && coloured?.domain ? <ColourKey attr={readable(colorBy)} domain={coloured.domain} unknown={coloured.unknown} /> : null}
       {inView.isError ? (
         <InlineError>
           {t("explore.map.viewFailed", { reason: inView.error instanceof Error ? inView.error.message : String(inView.error) })}

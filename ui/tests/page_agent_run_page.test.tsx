@@ -218,6 +218,9 @@ describe("the run page", () => {
     const publish = screen.getByRole("button", { name: new RegExp(`^${en.agentRun.publish}`) });
     expect(publish).toBeDisabled();
     expect(publish).toHaveAccessibleDescription(en.agentRun.publishOver);
+    expect(screen.getByRole("link", { name: en.agentRun.failedOpen })).toHaveAttribute("href", expect.stringMatching(/\/assistant$/));
+    expect(screen.queryByRole("button", { name: en.agentRun.cancel })).toBeNull();
+    expect(screen.queryByText(/Open its steps/)).toBeNull();
   });
 
   it("says the same things in every language", async () => {

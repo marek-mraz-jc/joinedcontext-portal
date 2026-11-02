@@ -6,6 +6,7 @@ import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { App } from "../src/App";
 import { MapLibreView } from "../src/components/dashboards/MapLibreView";
+import { ONE_VALUE_COLOUR } from "../src/components/dashboards/mapColours";
 
 // jsdom has no WebGL, so the map itself is a recorder: the assertions are about what the
 // view asks MapLibre for — the sources, the layers, the click handlers.
@@ -284,6 +285,7 @@ describe("map dashboard", () => {
     expect(JSON.stringify(paint["circle-radius"])).toContain("18");
   });
 
+  // T-6442: MapLibre refuses an interpolate whose stops do not strictly ascend and draws nothing.
   it("opens a popup with the layer's properties on a feature click", async () => {
     renderDashboards();
 
@@ -331,6 +333,32 @@ describe("a clustered point layer (T-3256)", () => {
     calls.popups.length = 0;
     calls.clickHandlers.clear();
     calls.throwOnConstruct = false;
+  });
+
+  it("paints a layer of one value one colour, with no interpolate at all", async () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <MapLibreView
+          label="Map of BikeStation"
+          layers={[
+            {
+              name: "one-value",
+              url: "",
+              data: { type: "FeatureCollection", features: [] },
+              style: "circle",
+              colorBy: { property: "bikes", domain: [0, 0] },
+              sizeBy: { property: "bikes", range: [4, 18] },
+            },
+          ]}
+        />
+      </I18nextProvider>,
+    );
+
+    await waitFor(() => expect(calls.layers.length).toBeGreaterThan(0));
+    const paint = calls.layers[0].paint as Record<string, unknown>;
+    expect(JSON.stringify(paint)).not.toContain("interpolate");
+    expect(paint["circle-color"]).toEqual(["case", ["has", "bikes"], ONE_VALUE_COLOUR, expect.any(String)]);
+    expect(paint["circle-radius"]).toBe(4);
   });
 
   it("clusters the points, draws the clusters apart, and opens a popup with the entity's button", async () => {

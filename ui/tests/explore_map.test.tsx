@@ -102,6 +102,18 @@ describe("the explorer's map", () => {
     expect(colourOf([{ properties: {} }], "bikes")).toEqual({ domain: undefined, unknown: 1 });
   });
 
+  it("says a map of one value in words and draws no ramp for it", async () => {
+    const row = (id: string, bikes?: number) => ({ id: `urn:ngsi-ld:BikeStation:${id}`, type: "BikeStation", location: { type: "Point", coordinates: [24.9, 60.1] }, ...(bikes === undefined ? {} : { bikes }) });
+    stub(() => new Response(JSON.stringify([row("a", 0), row("b", 0), row("c")]), { status: 200, headers: { "NGSILD-Results-Count": "3" } }));
+    show(undefined, undefined, "bikes");
+    await screen.findByRole("application");
+    expect(drawn.layers[0]).toMatchObject({ colorBy: { property: "bikes", domain: [0, 0] } });
+    expect(screen.getByRole("status").textContent).toContain("All points show Bikes 0, so one colour. Grey: no value (1).");
+    expect(screen.getByText("all 0")).toBeInTheDocument();
+    expect(document.querySelector("#explore-map-ramp")).toBeNull();
+    expect(screen.queryByText("0 to 0")).toBeNull();
+  });
+
   it("opens the entity from the popup", async () => {
     stub(() => new Response(JSON.stringify(STATIONS), { headers: { "Content-Type": "application/json" } }));
     const onOpen = show();
