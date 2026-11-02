@@ -2075,34 +2075,33 @@
       refused: true
 - id: S-92
   segment: data-read
-  # A vendor (T-6470, ADR-N-067 2.2): viewer of the project by RoleBinding, no person of the
-  # Organization. The project's groups hold them and no group names the Organization in `jc_org`,
-  # so the grant of the reports to the whole Organization matches nobody here.
+  # A vendor (T-6470, ADR-N-067 2.2): viewer of one project by RoleBinding, no person of the
+  # Organization. A project they are not bound on is closed to them at the Portal; the gateway's
+  # 404 on another project's `organization` Endpoint and its refusal of a `{kind: organization}`
+  # grant are mocked here and proven in the gateway's attack_organization tests.
   as: vendor
-  says: "Show me the bike counters of the project I work on, and the citizen reports too."
-  expect: 'a data-read connector over the intake Endpoint their binding reads: the read answers its entities; no write tool'
-  deny: 'the Endpoint shared with the Organization -> 403 naming the field at creation, refused through the connector, nothing of it in the answer'
+  says: "Show me the bike counters of the project I work on, and those of the other project."
+  expect: 'a data-read connector over the Endpoint of the project they are bound on, which reads its entities'
+  deny: 'a project they are not bound on -> 403 naming the field at creation, nothing of it in the answer'
   script:
     - proves: deny
       rest:
         method: POST
         path: /connectors
-        body: { name: s92-reports, segments: [data-read], scope: [{ project: '{project}', endpoint: '{project}-reports', access: read }], expiresAt: '{in7days}' }
+        body: { name: s92-other, segments: [data-read], scope: [{ project: 't-scn-other', endpoint: 't-scn-other-reports', access: read }], expiresAt: '{in7days}' }
       refused: true
-      contains: ['scope[0]']
+      contains: ['scope[0].project']
     - proves: expect
       rest: { method: GET, path: /connectors/options }
       contains: ['{project}-intake']
-      absent: ['"name":"{project}-reports"']
+      absent: ['t-scn-other']
     - proves: expect
       rest:
         method: POST
         path: /connectors
         body: { name: s92-intake, segments: [data-read], scope: [{ project: '{project}', endpoint: '{project}-intake', access: read }], expiresAt: '{in7days}' }
       contains: ['"state":"active"']
-    - proves: deny
+    - proves: expect
       via: connector
-      call: jc_data_query
-      args: { endpoint: '{project}-reports', type: PotholeReport }
-      refused: true
-      absent: ['urn:ngsi-ld:PotholeReport']
+      contains: ['jc_data_query']
+      absent: ['jc_data_write', 'jc_change_plan']
