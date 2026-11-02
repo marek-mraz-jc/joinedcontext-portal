@@ -168,9 +168,26 @@ fn named_ids(input: &DataWriteInput) -> Vec<String> {
         .collect()
 }
 
+/// The operation a Policy must grant for `action`: the operation group `updateOps` holds none of
+/// these, so a refusal names it (T-6451).
+fn operation_of(action: Action) -> &'static str {
+    match action {
+        Action::Create => "createBatch",
+        Action::Upsert => "upsertBatch",
+        Action::Merge => "mergeBatch",
+        Action::Delete => "deleteBatch",
+    }
+}
+
 /// The answer from the gateway's: every id written on 201/204, the broker's own split on 207,
 /// and a refusal the caller can act on for everything else.
-fn answer_of(name: &str, status: u16, body: &Value, ids: Vec<String>) -> Result<Value, OpError> {
+fn answer_of(
+    name: &str,
+    status: u16,
+    body: &Value,
+    action: Action,
+    ids: Vec<String>,
+) -> Result<Value, OpError> {
     match status {
         201 | 204 => Ok(json!({ "written": ids, "errors": [] })),
         207 => Ok(json!({
@@ -182,8 +199,10 @@ fn answer_of(name: &str, status: u16, body: &Value, ids: Vec<String>) -> Result<
             detail_of(body)
         )))),
         401 | 403 => Err(OpError::Api(ApiError::Denied(format!(
-            "Endpoint {name}'s Policy does not let you write this: {}",
-            detail_of(body)
+            "Endpoint {name}'s Policy does not let you write this: {}; this write needs a Policy \
+             assigned to you that grants the operation {} on these types",
+            detail_of(body),
+            operation_of(action)
         )))),
         404 => Err(OpError::Api(ApiError::NotFound(format!(
             "the gateway does not serve writes on Endpoint {name}: {}",
@@ -253,7 +272,8 @@ async fn run(
     let status = answer.status().as_u16();
     let bytes = capped_page(answer).await?;
     let body: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
-    answer_of(name, status, &body, named_ids(&input))
+    super::data_query::not_admitted(status, caller, state, project, name)?;
+    answer_of(name, status, &body, input.action, named_ids(&input))
 }
 
 pub fn operations() -> Vec<Operation> {
@@ -366,25 +386,26 @@ mod tests {
     fn the_gateways_answer_becomes_what_was_written_or_why_not() {
         let ids = vec!["a".to_owned()];
         assert_eq!(
-            answer_of("e", 201, &Value::Null, ids.clone()).expect("ok")["written"],
+            answer_of("e", 201, &Value::Null, Action::Upsert, ids.clone()).expect("ok")["written"],
             json!(["a"])
         );
         let split = json!({ "success": ["a"], "errors": [{ "entityId": "b", "error": { "title": "Forbidden" } }] });
-        let answer = answer_of("e", 207, &split, ids.clone()).expect("ok");
+        let answer = answer_of("e", 207, &split, Action::Upsert, ids.clone()).expect("ok");
         assert_eq!(answer["errors"][0]["entityId"], "b");
         let detail = json!({ "detail": "the Policy grants no write of type T" });
-        match answer_of("e", 403, &detail, ids.clone()) {
+        match answer_of("e", 403, &detail, Action::Upsert, ids.clone()) {
             Err(OpError::Api(ApiError::Denied(why))) => {
-                assert!(why.contains("no write of type T"), "{why}")
+                assert!(why.contains("no write of type T"), "{why}");
+                assert!(why.contains("the operation upsertBatch"), "{why}");
             }
             other => panic!("{other:?}"),
         }
         assert!(matches!(
-            answer_of("e", 409, &detail, ids.clone()),
+            answer_of("e", 409, &detail, Action::Upsert, ids.clone()),
             Err(OpError::Api(ApiError::Conflict(_)))
         ));
         assert!(matches!(
-            answer_of("e", 502, &Value::Null, ids),
+            answer_of("e", 502, &Value::Null, Action::Upsert, ids),
             Err(OpError::Api(ApiError::Unavailable(_)))
         ));
     }
