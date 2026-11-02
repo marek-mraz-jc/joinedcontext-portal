@@ -134,9 +134,8 @@ pub(super) fn section(ops: &[OperationSummary]) -> String {
     format!(
         r#"## THE PLATFORM'S OPERATIONS
 
-Everything the platform does, it does through one of these operations. They are the same
-operations the Portal's own pages and every MCP client call, so what you do here is what a
-person sees there.
+Everything the platform does, it does through one of these operations, the same ones the
+Portal's own pages and every MCP client call.
 
 {listed}
 Ask for one operation's input schema before you call it the first time:
