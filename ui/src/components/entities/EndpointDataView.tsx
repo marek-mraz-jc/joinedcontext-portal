@@ -25,6 +25,7 @@ import { columnLabel, displayOrder } from "./displayOrder";
 import { gridLabels, PortalEntityGrid } from "./PortalEntityGrid";
 import { filtersFromQ } from "./presetFilters";
 import { unreadableOf, useAttributeAccess } from "../../api/access";
+import { useIsPhone } from "../../phone";
 
 interface SchemaIndex {
   models?: { name?: string; version?: number }[];
@@ -794,6 +795,7 @@ export function EndpointDataView({
   });
   // The space's toolbar over this grid (T-6303), its state held by the toolbar's own hook.
   const tools = useDataToolbarState();
+  const phone = useIsPhone();
   const { extras, group } = tools;
   const { types, type, columns, klass, view: classView, slots, shape, hiddenNow, shownColumns, enums, relations, links, kinds, gridColumns } =
     useTypeColumns(schema.data, model.data, chosen, hidden, extras.hidden, i18n.language, widget.data);
@@ -960,6 +962,7 @@ export function EndpointDataView({
           query={tools.query}
          
           queryBox={tools.showQuery}
+          filterRow={!phone}
           onFilterColumns={tools.onFilterColumns}
           {...openRowProps(onOpenRow)}
         />

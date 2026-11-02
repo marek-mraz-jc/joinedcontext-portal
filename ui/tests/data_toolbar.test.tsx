@@ -95,6 +95,54 @@ describe("the grid's one toolbar (T-6303)", () => {
     expect(screen.getByRole("combobox", { name: en.spaces.toolbar.operator })).toHaveValue("gte");
   });
 
+  describe("on a phone", () => {
+    const stubbed = window.matchMedia;
+    beforeEach(() => {
+      window.matchMedia = ((query: string) => ({ matches: query.startsWith("(max-width"), addEventListener() {}, removeEventListener() {} })) as unknown as typeof window.matchMedia;
+    });
+    afterEach(() => {
+      window.matchMedia = stubbed;
+    });
+
+    it("folds every tool into one menu that counts what is set, and keeps the search outside it", async () => {
+      const user = userEvent.setup();
+      const onShowQuery = vi.fn();
+      const { container } = renderPart(<DataToolbar {...props({ onShowQuery })} />);
+      const tools = screen.getByText(en.spaces.toolbar.tools, { selector: "summary" });
+      expect(tools).toHaveTextContent(`${en.spaces.toolbar.tools}2`);
+      expect(screen.getByRole("searchbox", { name: en.spaces.toolbar.search })).toBeVisible();
+      expect(container.querySelector("details[open]")).toBeNull();
+      await user.click(tools);
+      await user.click(screen.getByText(en.spaces.toolbar.sort, { selector: "summary" }));
+      expect(screen.getByText(en.spaces.toolbar.sort, { selector: "summary" }).closest("details")).toHaveAttribute("open");
+      await user.click(screen.getByRole("button", { name: en.spaces.toolbar.query }));
+      expect(onShowQuery).toHaveBeenCalledWith(true);
+      await expectNoAxeViolations(container);
+    });
+
+    it("closes the menu from its own button and gives focus back", async () => {
+      const user = userEvent.setup();
+      renderPart(<DataToolbar {...props()} />);
+      const tools = screen.getByText(en.spaces.toolbar.tools, { selector: "summary" });
+      await user.click(tools);
+      await user.click(screen.getByRole("button", { name: en.app.close }));
+      expect(tools.closest("details")).not.toHaveAttribute("open");
+      expect(tools).toHaveFocus();
+    });
+
+    it("closes the open tool on Escape and leaves the menu open", async () => {
+      const user = userEvent.setup();
+      renderPart(<DataToolbar {...props()} />);
+      const tools = screen.getByText(en.spaces.toolbar.tools, { selector: "summary" });
+      await user.click(tools);
+      const hide = screen.getByText(en.spaces.toolbar.hide, { selector: "summary" });
+      await user.click(hide);
+      await user.keyboard("{Escape}");
+      expect(hide.closest("details")).not.toHaveAttribute("open");
+      expect(tools.closest("details")).toHaveAttribute("open");
+    });
+  });
+
   it("has no axe violation", async () => {
     const { container } = renderPart(<DataToolbar {...props()} />);
     await expectNoAxeViolations(container);
