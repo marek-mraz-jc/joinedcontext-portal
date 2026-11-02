@@ -3797,29 +3797,38 @@ output_error{stream="kpi"} 6
         )
     }
 
-    /// The space a broker test writes into, with a first Endpoint.
-    fn air_files() -> Vec<(&'static str, String)> {
+    /// The space a merge writes into, and a space beside it the merge has no business with.
+    fn two_spaces() -> Vec<(&'static str, String)> {
         vec![
             (
                 "projects/city/spaces/air/space.yaml",
                 manifest("ContextSpace", "air", json!({})),
             ),
-            air_endpoint(
-                "projects/city/spaces/air/endpoints/first.yaml",
-                "first",
+            (
+                "projects/city/spaces/quiet/space.yaml",
+                manifest("ContextSpace", "quiet", json!({})),
+            ),
+            space_endpoint(
+                "projects/city/spaces/quiet/endpoints/quiet.yaml",
+                "quiet",
                 "cccccccccccccccccccccccccc",
+            ),
+            grant(
+                "projects/city/spaces/quiet/policies/quiet.yaml",
+                "quiet",
+                "quiet",
             ),
         ]
     }
 
-    fn air_endpoint(file: &'static str, name: &str, slug: &str) -> (&'static str, String) {
+    fn space_endpoint(file: &'static str, space: &str, slug: &str) -> (&'static str, String) {
         (
             file,
             manifest(
                 "Endpoint",
-                name,
+                space,
                 json!({
-                    "contextSpaceRef": "air",
+                    "contextSpaceRef": space,
                     "slug": slug,
                     "audience": "public",
                     "enabledRepresentations": ["ngsi-ld"],
@@ -3828,28 +3837,36 @@ output_error{stream="kpi"} 6
         )
     }
 
-    fn vendor_endpoint() -> (&'static str, String) {
-        air_endpoint(
-            "projects/city/spaces/air/endpoints/vendor.yaml",
-            "vendor",
-            "dddddddddddddddddddddddddd",
-        )
-    }
-
-    fn write_grant() -> (&'static str, String) {
+    fn grant(file: &'static str, name: &str, space: &str) -> (&'static str, String) {
         (
-            "projects/city/spaces/air/policies/vendor-write.yaml",
+            file,
             manifest(
                 "Policy",
-                "vendor-write",
+                name,
                 json!({
-                    "contextSpaceRef": "air",
+                    "contextSpaceRef": space,
                     "assigner": "did:web:city.example",
                     "assignee": {"kind": "user", "id": "vendor"},
                     "operations": ["upsertBatch"],
                     "information": [{"entities": [{"type": "Car"}], "propertyNames": ["speed"]}],
                 }),
             ),
+        )
+    }
+
+    fn vendor_endpoint() -> (&'static str, String) {
+        space_endpoint(
+            "projects/city/spaces/air/endpoints/air.yaml",
+            "air",
+            "dddddddddddddddddddddddddd",
+        )
+    }
+
+    fn write_grant() -> (&'static str, String) {
+        grant(
+            "projects/city/spaces/air/policies/vendor-write.yaml",
+            "vendor-write",
+            "air",
         )
     }
 
@@ -3991,7 +4008,9 @@ output_error{stream="kpi"} 6
         let broker = MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/q/views"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(json!({"cccccccccccccccccccccccccc": {}})),
+            )
             .mount(&broker)
             .await;
         Mock::given(method("GET"))
@@ -4011,7 +4030,7 @@ output_error{stream="kpi"} 6
         let token = dir.path().join("token");
         std::fs::write(&token, "t\n").expect("the token");
 
-        let base = air_files();
+        let base = two_spaces();
         let (_forge, gitea, shared) = changing_forge(&base).await;
         let views = super::super::views::ViewSync::new(broker.uri(), &token);
         let syncer =
