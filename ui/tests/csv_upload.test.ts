@@ -5,7 +5,7 @@
  * rows download as CSV no spreadsheet runs as a formula.
  */
 import { describe, expect, it, vi } from "vitest";
-import { MIN_SCORE, modelsOf, rankModels, sampleOf, uploadInput } from "../src/pages/spaces/csvUpload";
+import { MIN_SCORE, modelsOf, rankModels, sampleOf, typeNameOf, uploadInput } from "../src/pages/spaces/csvUpload";
 import type { CatalogueModel } from "../src/pages/spaces/csvUpload";
 import {
   createInBatches,
@@ -15,6 +15,7 @@ import {
   parseCsv,
   readTable,
   rejectedCsv,
+  rowIds,
   suggestMapping,
   toEntities,
 } from "../src/pages/spaces/importRows";
@@ -156,5 +157,45 @@ describe("what the upload proposes", () => {
       propose: true,
     });
     expect(uploadInput({ space: "s", fileName: "p.csv", sample: "a\n", typeName: "Garage" }).files).toHaveLength(1);
+  });
+});
+
+describe("a file's columns against an inferred model (T-6445)", () => {
+  const SLOTS: ImportSlot[] = [
+    { name: "N_zov", kind: "Property", required: true, titles: ["Názov"] },
+    { name: "Zemepisn_rka", kind: "Property", required: true, titles: ["Zemepisná šírka"] },
+    { name: "Zemepisn_d_ka", kind: "Property", required: true, titles: ["Zemepisná dĺžka"] },
+    { name: "location", kind: "GeoProperty", required: false },
+  ];
+  const TABLE = parseCsv("Názov,Zemepisná šírka,Zemepisná dĺžka\nDom kultúry,48.54,19.41\nDom kultúry,48.54,19.41\nŠtadión,48.55,19.42\n");
+  const target = { type: "Miesto", orgDomain: "hel.fi", space: "miesta" };
+
+  it("meets a column by the slot's title and fills both the coordinate slots and the location", () => {
+    const mapping = suggestMapping(TABLE.columns, SLOTS);
+    expect(mapping).toEqual({ Názov: "N_zov", "Zemepisná šírka": LATITUDE, "Zemepisná dĺžka": LONGITUDE });
+    const { entities, rejected } = toEntities(TABLE, mapping, SLOTS, target, rowIds(TABLE));
+    expect(rejected).toEqual([]);
+    expect(entities[0]?.entity).toMatchObject({
+      N_zov: { value: "Dom kultúry" },
+      Zemepisn_rka: { value: 48.54 },
+      Zemepisn_d_ka: { value: 19.41 },
+      location: { value: { type: "Point", coordinates: [19.41, 48.54] } },
+    });
+  });
+
+  it("names a row by its content: the same file gives the same ids, a row held twice stays two", () => {
+    const ids = (table: typeof TABLE) => toEntities(table, suggestMapping(table.columns, SLOTS), SLOTS, target, rowIds(table)).entities.map((e) => e.entity.id);
+    const first = ids(TABLE);
+    expect(new Set(first).size).toBe(3);
+    expect(ids(parseCsv("Názov,Zemepisná šírka,Zemepisná dĺžka\nDom kultúry,48.54,19.41\nDom kultúry,48.54,19.41\nŠtadión,48.55,19.42\n"))).toEqual(first);
+  });
+
+  it("makes a type name of a file or sheet, its diacritics kept as letters", () => {
+    expect(typeNameOf("Kultúrne miesta.csv")).toBe("KulturneMiesta");
+    expect(typeNameOf("stations.csv")).toBe("Station");
+    expect(typeNameOf("bike-counters_2026.xlsx")).toBe("BikeCounters2026");
+    expect(typeNameOf("2026.csv")).toBeUndefined();
+    expect(typeNameOf("名前.csv")).toBeUndefined();
+    expect(typeNameOf("entity.csv")).toBeUndefined();
   });
 });

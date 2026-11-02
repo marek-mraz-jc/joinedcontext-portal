@@ -2088,6 +2088,14 @@
         "import_rows.test.tsx"
       ]
     },
+    "src/pages/spaces/LoadRows.tsx": {
+      "controls": {
+        "Button": 2
+      },
+      "tests": [
+        "upload_csv.test.tsx"
+      ]
+    },
     "src/pages/spaces/PublicView.tsx": {
       "controls": {
         "Button": 2
@@ -2158,7 +2166,7 @@
     },
     "src/pages/spaces/UploadCsv.tsx": {
       "controls": {
-        "Button": 3,
+        "Button": 1,
         "FilePicker": 1,
         "RadioGroup": 1
       },

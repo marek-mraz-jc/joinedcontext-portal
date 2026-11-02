@@ -409,6 +409,131 @@ describe("the complete-a-space page against the UI contract", () => {
     expect(body.input?.files ?? body.files).toEqual([{ name: "Stops.csv", content: "code,lines\r\nH0001,12\r\n" }]);
   });
 
+  describe("one table, one go (T-6445)", () => {
+    const LINKML = `id: https://example.org/models/KulturneMiesta
+name: KulturneMiesta
+imports: [ngsi-ld-core]
+classes:
+  KulturneMiesta:
+    is_a: Entity
+    slots: [N_zov, Zemepisn_rka, Zemepisn_d_ka]
+slots:
+  N_zov: { range: string, required: true, title: { en: Názov } }
+  Zemepisn_rka: { range: float, required: true, title: { en: Zemepisná šírka } }
+  Zemepisn_d_ka: { range: float, required: true, title: { en: Zemepisná dĺžka } }
+`;
+    const SHEETS = {
+      Obce: [["Obec"], ["Detva"]],
+      "Kultúrne miesta": [
+        ["Názov", "Zemepisná šírka", "Zemepisná dĺžka"],
+        ["Dom kultúry", 48.54, 19.41],
+        ["Štadión", 48.55, 19.42],
+      ],
+    };
+    const change = (phase: string) => ({ kind: "Change", metadata: { name: "chg-9" }, spec: {}, status: { phase, lane: "red" } });
+    const completed = (proposed: boolean) => ({
+      space: "miesta",
+      found: [],
+      drafts: [{ kind: "DataModel", name: "miesta", inferred: true, manifest: { kind: "DataModel", spec: { classes: ["KulturneMiesta"], source: LINKML } }, verdict: { ok: true, findings: [], inputDigest: "a" } }],
+      proposeReady: true,
+      lane: "red",
+      change: proposed ? change("PendingApproval") : null,
+    });
+
+    /** A dev that answers the op, the Change, the grant and the write; `at` moves it along. */
+    function world(): { at: { phase: string; grant: string }; ops: Record<string, unknown>[]; written: unknown[][] } {
+      const at = { phase: "PendingApproval", grant: "" };
+      const ops: Record<string, unknown>[] = [];
+      const written: unknown[][] = [];
+      vi.stubGlobal(
+        "fetch",
+        withSpaceList(async (input, init) => {
+          const request = input instanceof Request ? input : new Request(new URL(String(input), window.location.origin), init);
+          const path = new URL(request.url).pathname;
+          if (path.endsWith("/ops/jc_space_complete")) {
+            const body = (await request.clone().json()) as Record<string, unknown>;
+            ops.push(body);
+            return Response.json(completed(body.propose === true));
+          }
+          if (path.endsWith("/changes/chg-9")) return Response.json(change(at.phase));
+          if (path.endsWith("/policies/miesta-upload")) {
+            return at.grant ? Response.json({ kind: "Policy", metadata: { name: "miesta-upload" }, spec: {}, status: { phase: at.grant } }) : new Response(null, { status: 404 });
+          }
+          if (path === "/api/endpoint/miestaslug/ngsi-ld/v1/entityOperations/upsert") {
+            written.push((await request.clone().json()) as unknown[]);
+            return new Response(null, { status: 204 });
+          }
+          if (path.endsWith("/endpoints")) {
+            return Response.json({ kind: "List", metadata: {}, items: [{ kind: "Endpoint", metadata: { name: "miesta-all" }, spec: { contextSpaceRef: "miesta", slug: "miestaslug" }, status: { phase: "Live" } }] });
+          }
+          if (path.endsWith("/organizations")) return Response.json({ items: [{ kind: "Organization", metadata: { name: "hel" }, spec: { domain: "hel.fi" } }] });
+          return new Response(null, { status: 404 });
+        }),
+      );
+      return { at, ops, written };
+    }
+
+    async function proposed(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+      await user.upload(screen.getByLabelText(en.spaces.complete.files), xlsxFile("mesto.xlsx", SHEETS));
+      await user.selectOptions(await screen.findByRole("combobox", { name: "Sheet" }), "Kultúrne miesta");
+      await user.click(screen.getByRole("button", { name: en.spaces.complete.action }));
+      await user.click(await screen.findByRole("button", { name: en.spaces.complete.proposeAll }));
+      await screen.findByRole("button", { name: "Write 2 rows" });
+    }
+
+    it("asks for the Endpoint and the grant, then loads every row once the grant is live", async () => {
+      const user = userEvent.setup();
+      const dev = world();
+      renderComponent();
+      await proposed(user);
+      expect(dev.ops[0]).toMatchObject({ upload: true, typeName: "KulturneMiesta", propose: false });
+      expect(screen.queryByRole("button", { name: en.spaces.complete.proposeAll })).toBeNull();
+
+      // Approved and merged is not yet live: the grant is what lets the rows in.
+      const write = screen.getByRole("button", { name: "Write 2 rows" });
+      expect(write).toHaveAttribute("aria-disabled", "true");
+      dev.at.phase = "Merged";
+      await waitFor(() => expect(screen.queryByText("Review it in Approvals")).toBeNull(), { timeout: 8_000 });
+      expect(write).toHaveAttribute("aria-disabled", "true");
+      dev.at.grant = "Live";
+      await waitFor(() => expect(write).not.toHaveAttribute("aria-disabled", "true"), { timeout: 12_000 });
+
+      await user.click(write);
+      expect(await screen.findByText("2 rows written, none refused.")).toBeInTheDocument();
+      const rows = dev.written[0] as { id: string; N_zov: { value: string }; Zemepisn_rka: { value: number }; location: { value: { coordinates: number[] } } }[];
+      expect(rows).toHaveLength(2);
+      expect(rows[0]).toMatchObject({ N_zov: { value: "Dom kultúry" }, Zemepisn_rka: { value: 48.54 }, location: { value: { coordinates: [19.41, 48.54] } } });
+
+      // The same file again is the same entities, not a second copy.
+      await user.click(await screen.findByRole("button", { name: "Write 2 rows" }));
+      await waitFor(() => expect(dev.written).toHaveLength(2));
+      expect((dev.written[1] as { id: string }[]).map((row) => row.id)).toEqual(rows.map((row) => row.id));
+    }, 30_000);
+
+    it("keeps a table with a README beside it a feed: no upload, and Complete says the source fills it", async () => {
+      const user = userEvent.setup();
+      const dev = world();
+      renderComponent();
+      await user.upload(screen.getByLabelText(en.spaces.complete.files), [new File(["a,b\n1,2\n"], "stations.csv"), new File(["# feed"], "README.md")]);
+      await screen.findByText("Chosen: stations.csv, README.md");
+      await user.click(screen.getByRole("button", { name: en.spaces.complete.action }));
+      await screen.findByText(en.spaces.complete.onApproval);
+      expect(dev.ops[0]).not.toHaveProperty("upload");
+    });
+
+    it("refuses 11 MB before anything is read or sent (DM-55)", async () => {
+      const user = userEvent.setup();
+      const op = vi.fn();
+      vi.stubGlobal("fetch", withSpaceList(op));
+      renderComponent();
+      const big = new File([new Uint8Array(11 * 1024 * 1024)], "big.xlsx");
+      await user.upload(screen.getByLabelText(en.spaces.complete.files), big);
+      expect(await screen.findByRole("alert")).toHaveTextContent("more than 10 MB");
+      expect(screen.queryByText("Chosen: big.xlsx")).toBeNull();
+      expect(op).not.toHaveBeenCalled();
+    });
+  });
+
   it("says a damaged workbook is unreadable and sends nothing", async () => {
     const user = userEvent.setup();
     const op = vi.fn();

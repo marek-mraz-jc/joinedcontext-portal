@@ -14,9 +14,10 @@ import { parse as parseYaml } from "yaml";
 import { Alert, Badge, Button, Card, Field, FileDropZone, Icon, Input, PageHeader } from "../../components/ui";
 import type { IconName } from "../../components/ui";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
-import { SAMPLE_BYTES, sampleOf } from "./csvUpload";
-import { csvOf, readSheets, sheetFileName, unreadableText } from "./importRows";
-import type { Sheet } from "./importRows";
+import { MAX_FILES_BYTES, SAMPLE_BYTES, sampleOf, typeNameOf } from "./csvUpload";
+import { csvOf, MAX_ROWS, parseCsv, readSheets, sheetFileName, unreadableText } from "./importRows";
+import type { Sheet, Table } from "./importRows";
+import { LoadRows } from "./LoadRows";
 import { SheetChoice } from "./SheetChoice";
 
 interface CompletedDraft {
@@ -113,6 +114,44 @@ function summaryOf(draft: CompletedDraft, t: Translate): string | null {
   }
 }
 
+/** The one table these files are, with the name it travels under; none when they are anything else. */
+function rowsOf(files: { name: string; content: string }[], books: { name: string; sheets: Sheet[]; sheet: string }[]): { name: string; table: Table } | undefined {
+  if (files.length + books.length !== 1) return undefined;
+  const book = books[0];
+  const sheet = book?.sheets.find((s) => s.name === book.sheet);
+  if (book && sheet) return { name: sheetFileName(book.name, book.sheets, sheet), table: sheet.table };
+  const file = files[0];
+  return file?.name.toLowerCase().endsWith(".csv") ? { name: file.name, table: parseCsv(file.content) } : undefined;
+}
+
+/** The model the op drafted: the type its rows take and the LinkML that checks them. */
+function draftedModel(drafts: CompletedDraft[]): { type: string; source: string | undefined } | undefined {
+  const spec = drafts.find((d) => d.kind === "DataModel")?.manifest.spec as { classes?: unknown; source?: unknown } | undefined;
+  const type = Array.isArray(spec?.classes) ? spec.classes[0] : undefined;
+  return typeof type === "string" ? { type, source: typeof spec?.source === "string" ? spec.source : undefined } : undefined;
+}
+
+/** How much the chosen table holds; a sheet's option says it already when there are several. */
+function RowsRead({ rows, name, oneSheet }: { rows: { table: Table }; name: string; oneSheet: boolean }): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <>
+      {oneSheet ? <p className="text-caption text-fg-muted">{t("spaces.import.read", { name, rows: rows.table.rows.length, columns: rows.table.columns.length })}</p> : null}
+      {rows.table.total !== undefined ? <Alert tone="warning">{t("spaces.import.cut", { total: rows.table.total, max: MAX_ROWS })}</Alert> : null}
+    </>
+  );
+}
+
+/** What follows a proposal: the rows of the same file, without choosing it again, or the notice alone. */
+function ProposedNext({ project, result, change, rows }: { project: string; result: CompleteResult; change: Change; rows?: { table: Table } }): JSX.Element {
+  const model = draftedModel(result.drafts);
+  return rows && model ? (
+    <LoadRows project={project} space={result.space} type={model.type} source={model.source} table={rows.table} change={change} />
+  ) : (
+    <ChangeNotice change={change} project={project} />
+  );
+}
+
 /** The drafts the assistant's `space_complete` handed over with its navigation, when it did. */
 function handedOver(prefill: Record<string, unknown> | null): { result: CompleteResult | null; url: string } {
   const result = prefill?.result as CompleteResult | undefined;
@@ -153,7 +192,14 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
 
   const takeFiles = async (selected: File[]) => {
     setError(null);
+    setResult(null);
     const workbook = (f: File) => f.name.toLowerCase().endsWith(".xlsx");
+    if (selected.reduce((sum, f) => sum + f.size, 0) > MAX_FILES_BYTES) {
+      setBooks([]);
+      setFiles([]);
+      setError(t("spaces.complete.tooLarge"));
+      return;
+    }
     try {
       const read = await Promise.all(
         selected.filter(workbook).map(async (f) => {
@@ -179,6 +225,9 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
     }),
   ];
   const chosen = [...files.map((f) => f.name), ...books.map((b) => b.name)];
+  // One table and nothing that describes a source: its rows have no feed to come from, so the
+  // person loads them here (T-6445) and the op drafts the Endpoint and the grant for that (DM-81).
+  const rows = url.trim() ? undefined : rowsOf(files, books);
 
   const executeComplete = async (propose: boolean) => {
     setLoading(true);
@@ -194,6 +243,10 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
         payload.url = url.trim();
       } else if (chosen.length > 0) {
         payload.files = given();
+      }
+      if (rows) {
+        payload.upload = true;
+        payload.typeName = typeNameOf(rows.name);
       }
 
       const answer = await callOperation(project, "jc_space_complete", payload);
@@ -301,6 +354,7 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
             onChange={(sheet) => setBooks((all) => all.map((b, i) => (i === at ? { ...b, sheet } : b)))}
           />
         ))}
+        {rows ? <RowsRead rows={rows} name={chosen[0]} oneSheet={(books[0]?.sheets.length ?? 0) < 2} /> : null}
 
         <div className="flex flex-wrap items-center gap-3">
           <Button
@@ -318,7 +372,7 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
             {t("spaces.complete.action")}
           </Button>
 
-          {result?.proposeReady ? (
+          {result?.proposeReady && !result.change ? (
             <Button
               id="complete-propose"
               variant="primary"
@@ -337,9 +391,7 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
         </Alert>
       ) : null}
 
-      {result?.change ? (
-        <ChangeNotice change={result.change} project={project} />
-      ) : null}
+      {result?.change ? <ProposedNext project={project} result={result} change={result.change} rows={rows} /> : null}
 
       {result?.drafts && result.drafts.length > 0 ? (
         <div className="flex flex-col gap-3">
@@ -384,7 +436,7 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
             );
           })}
           {result.proposeReady ? (
-            <p className="text-caption text-fg-muted">{t("spaces.complete.onApproval")}</p>
+            <p className="text-caption text-fg-muted">{t(rows ? "spaces.complete.onApprovalRows" : "spaces.complete.onApproval", { count: rows?.table.rows.length })}</p>
           ) : null}
         </div>
       ) : null}

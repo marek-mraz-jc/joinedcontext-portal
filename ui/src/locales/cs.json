@@ -659,6 +659,8 @@
         "Dashboard": "Mapový dashboard s {count, plural, one {# stránkou} other {# stránkami}}"
       },
       "onApproval": "Navrhnout vše pošle tyto koncepty ke schválení společně. Po schválení se zdroj začne načítat a prostor se naplní.",
+      "onApprovalRows": "Navrhnout vše pošle tyto koncepty ke schválení společně. Po schválení tato stránka nabídne načtení {count, plural, one {# řádku} few {# řádků} many {# řádku} other {# řádků}} ze souboru. Zůstaňte zde nebo si soubor ponechte: řádky se zatím neposílají.",
+      "tooLarge": "To je dohromady více než 10 MB. Vyberte menší soubory nebo použijte Nahrát CSV, kde je limit 50 MB.",
       "title": "Doplnit tento prostor",
       "lead": "Zadejte vzorový soubor nebo adresu zdroje. Portál navrhne datový model, prostor, zdroj dat a pipeline a každý návrh zkontroluje.",
       "space": "Název prostoru",
@@ -1152,7 +1154,8 @@
       "noSlots": "Navržený model pro tento typ nedeklaruje žádná pole: není co zapsat.",
       "write": "{count, plural, =0 {Není co zapsat} one {Zapsat # řádek} few {Zapsat # řádky} other {Zapsat # řádků}}",
       "done": "{written, plural, =0 {Nezapsal se žádný řádek} one {Zapsán # řádek} few {Zapsány # řádky} other {Zapsáno # řádků}}, {refused, plural, =0 {žádný odmítnutý.} other {odmítnutých: #.}}",
-      "preview": "Náhled {count, plural, one {první # entity} few {prvních # entit} other {prvních # entit}} jako NGSI-LD"
+      "preview": "Náhled {count, plural, one {první # entity} few {prvních # entit} other {prvních # entit}} jako NGSI-LD",
+      "firstRefusal": "Řádek {row}: {reason}"
     },
     "toolbar": {
       "filter": "Filtr",

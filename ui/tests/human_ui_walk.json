@@ -2026,6 +2026,11 @@
         "evidence/deployer/T-3986/full-0500/portal-projects-helsinki-endpoints-app-air-quality-dialog-export-steward-en-1440.png"
       ]
     },
+    "src/pages/spaces/LoadRows.tsx": {
+      "walkedBy": "worker-t6445",
+      "date": "2026-11-02",
+      "screenshots": []
+    },
     "src/pages/spaces/PublicView.tsx": {
       "walkedBy": "deployer",
       "date": "2026-10-20",
