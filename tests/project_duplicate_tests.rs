@@ -259,23 +259,11 @@ async fn a_project_is_duplicated_into_a_repository_of_its_own() {
         "main"
     );
 
-    let entry = server
-        .received_requests()
+    let (_, yaml) = common::committed_files(&server, REPO)
         .await
-        .expect("requests")
         .into_iter()
-        .find(|r| {
-            r.method.as_str() == "PUT"
-                && r.url.path() == format!("{REPO}/contents/projects/doprava.yaml")
-        })
-        .expect("the registry entry is in the organization's Change");
-    let body: Value = serde_json::from_slice(&entry.body).expect("json");
-    let yaml = String::from_utf8(
-        STANDARD
-            .decode(body["content"].as_str().unwrap_or_default())
-            .unwrap_or_default(),
-    )
-    .unwrap_or_default();
+        .find(|(path, _)| path == "projects/doprava.yaml")
+        .expect("the registry entry");
     let entry = jc_core::kinds::Project::from_yaml(&yaml).unwrap_or_else(|e| panic!("{e}: {yaml}"));
     assert!(entry.spec.is_registry_entry());
     let entry: Value = serde_norway::from_str(&yaml).expect("yaml");
