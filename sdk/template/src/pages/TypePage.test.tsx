@@ -98,11 +98,11 @@ describe("template", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Station" }));
 
     const page = screen.getByRole("region", { name: "Station" });
-    expect(await within(page).findByText("Kallio")).toBeInTheDocument();
+    expect(await within(page).findByRole("button", { name: "Kallio" })).toBeInTheDocument();
     expect(within(page).getByTestId("jc-map")).toBeInTheDocument();
-    expect(within(page).getByRole("combobox")).toBeInTheDocument(); // the status select
+    expect(within(page).getAllByRole("combobox")[0]).toBeInTheDocument(); // the status select
 
-    fireEvent.click(within(page).getByText("Kallio"));
+    fireEvent.click(await within(page).findByRole("button", { name: "Kallio" }));
     const panel = await screen.findByRole("dialog", { name: "Kallio" });
     fireEvent.click(await within(panel).findByRole("button", { name: "Edit" }));
     // Only the granted attributes are inputs; `name` is shown, not edited.
@@ -120,7 +120,8 @@ describe("template", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Note" }));
 
     const page = screen.getByRole("region", { name: "Note" });
-    fireEvent.click(await within(page).findByText("check the lock"));
+    expect(await within(page).findByText("check the lock")).toBeInTheDocument();
+    fireEvent.click(within(within(page).getByRole("grid")).getAllByRole("button").find((each) => each.className === "jc-grid-open") as HTMLElement);
     expect(within(page).queryByTestId("jc-map")).not.toBeInTheDocument();
     const panel = await screen.findByRole("dialog");
     expect(await within(panel).findByText("check the lock")).toBeInTheDocument();
@@ -171,7 +172,7 @@ describe("template over several endpoints", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Station" }));
 
     const page = screen.getByRole("region", { name: "Station" });
-    fireEvent.click(await within(page).findByText("Kallio"));
+    fireEvent.click(await within(page).findByRole("button", { name: "Kallio" }));
     // Endpoint a grants no write; b does, and b serves Station.
     const panel = await screen.findByRole("dialog", { name: "Kallio" });
     expect(await within(panel).findByRole("button", { name: "Edit" })).toBeInTheDocument();

@@ -3,32 +3,12 @@ import { columnKind, compare, format } from "@joinedcontext/sdk";
 import type { ProblemError, Row } from "@joinedcontext/sdk";
 import { Empty, Loading, Problem } from "./states";
 import { t } from "../i18n";
+import { defaultColumns } from "./ExportButton";
 
 export interface ColumnDef<T extends Row = Row> {
   attr: string;
   label?: string;
   render?: (row: T) => ReactNode;
-}
-
-export function defaultColumns(rows: Row[], max = 8): string[] {
-  if (max <= 0) return [];
-  const sample = rows.slice(0, 50);
-  const seen = new Set<string>();
-  const cols: string[] = [];
-
-  for (const row of sample) {
-    for (const key of Object.keys(row)) {
-      if (key === "id" || key === "type" || key === "@context") continue;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      if (columnKind(sample, key) !== "geo") {
-        cols.push(key);
-        if (cols.length >= max) return cols;
-      }
-    }
-  }
-
-  return cols;
 }
 
 export function EntityTable<T extends Row = Row>({

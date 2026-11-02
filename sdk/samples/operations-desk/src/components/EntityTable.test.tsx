@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ProblemError } from "@joinedcontext/sdk";
 import type { Row } from "@joinedcontext/sdk";
 import { EntityDetail } from "./EntityDetail";
-import { EntityTable, defaultColumns } from "./EntityTable";
+import { EntityTable } from "./EntityTable";
 import { setLanguage } from "../i18n";
 
 const STATIONS: Row[] = [
@@ -29,20 +29,6 @@ const STATIONS: Row[] = [
     location: null,
   },
 ];
-
-describe("defaultColumns", () => {
-  it("excludes id, type, @context, and geo columns, and caps at max", () => {
-    const cols = defaultColumns(STATIONS, 8);
-    expect(cols).toEqual(["name", "bikes"]);
-    expect(cols).not.toContain("id");
-    expect(cols).not.toContain("type");
-    expect(cols).not.toContain("location");
-
-    const capped = defaultColumns(STATIONS, 1);
-    expect(capped).toHaveLength(1);
-    expect(capped[0]).toBe("name");
-  });
-});
 
 describe("EntityTable", () => {
   // T-3418: the hooks run before any early return, so an empty table keeps what the reader chose.

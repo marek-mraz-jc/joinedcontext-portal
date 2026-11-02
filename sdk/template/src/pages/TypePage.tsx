@@ -3,11 +3,11 @@ import { Grid, Page, useEntities, useEntitySelection, useFilters } from "@joined
 import type { FilterBinding, TypeSchema } from "@joinedcontext/sdk";
 import { BarChartCard, TimeSeriesCard } from "../components/charts";
 import { EntityMap } from "../components/EntityMap";
-import { EntityTable } from "../components/EntityTable";
 import { ExportButton } from "../components/ExportButton";
 import { DateRangeFilter, FilterBar, RangeFilter, SearchBox, SelectFilter } from "../components/filters";
 import { StatTiles } from "../components/StatTiles";
 import type { StatTile } from "../components/StatTiles";
+import { TypeGrid } from "../components/TypeGrid";
 import { t } from "../i18n";
 import { filtersOf, shapeOf } from "./shape";
 
@@ -24,10 +24,10 @@ function Filter({ binding }: { binding: FilterBinding }) {
   }
 }
 
-/** One entity type: filters, tiles, map, charts, table and export; a map feature or a row opens the SDK's entity panel. */
+/** One entity type: filters, tiles, map, charts, grid and export; a map feature or a row opens the SDK's entity panel. */
 /** `endpoint` names where the type is read and written, in an application reading several (SDK-02). */
 export function TypePage({ type, schema, endpoint, label = type }: { type: string; schema?: TypeSchema | null; endpoint?: string; label?: string }) {
-  const { rows, loading, error } = useEntities(type, endpoint ? { endpoint } : undefined);
+  const { rows, loading } = useEntities(type, endpoint ? { endpoint } : undefined);
   // The shape is read once the first rows arrive, so the filters keep their positions on a reload.
   const [firstRows, setFirstRows] = useState(rows);
   if (firstRows.length === 0 && rows.length > 0) setFirstRows(rows);
@@ -71,7 +71,7 @@ export function TypePage({ type, schema, endpoint, label = type }: { type: strin
           <TimeSeriesCard rows={shown} time={shape.time} y={measure} title={t("chart.overTime", { measure: measure ?? type })} />
         )}
       </Grid>
-      <EntityTable rows={shown} loading={loading} error={error} selected={selectedId} onSelect={(row) => select(row.id)} caption={label} />
+      <TypeGrid type={type} endpoint={endpoint} onSelect={select} />
       <ExportButton rows={shown} filename={type} formats={shape.geo ? ["csv", "geojson", "pdf"] : ["csv", "pdf"]} location={shape.geo} />
     </Page>
   );

@@ -225,6 +225,8 @@ export interface EndpointOption {
 }
 
 export interface Client extends DataClient {
+  /** The client's own way to the endpoint, for a grid source: `endpointSource(slug, client.transport)`. */
+  readonly transport: Transport;
   functions: { call<T = unknown>(name: string, body?: unknown): Promise<T> };
   /** The `email` service: the platform holds the relay, the App names people (SDK-41, API/06 §4). */
   email: { send(message: Email): Promise<{ id: string }> };
@@ -895,6 +897,7 @@ export function createClient(config: JcConfig, transport: Transport): Client {
 
   return {
     config,
+    transport,
     entities,
     temporal,
     features,
