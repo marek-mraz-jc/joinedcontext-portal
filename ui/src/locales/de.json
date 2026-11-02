@@ -5206,7 +5206,7 @@
     },
     "dashboard": {
       "section": "Dashboard bearbeiten",
-      "intro": "Ändern Sie ohne Code, was die App zeigt. Die Änderung wird in {path} als Änderung der App gespeichert, die eine prüfende Person liest und übernimmt. Zeigt {type}.",
+      "intro": "Ändern Sie ohne Code, was die App zeigt. Jede Bearbeitung wird zu einer Änderung, die eine prüfende Person liest und übernimmt.",
       "unavailable": "Dieses Dashboard lässt sich hier nicht bearbeiten",
       "noFile": "Die App hat keine Dashboard-Datei. Bitten Sie den Assistenten, das Dashboard in src/dashboard.json abzulegen.",
       "choose": "Attribut wählen",

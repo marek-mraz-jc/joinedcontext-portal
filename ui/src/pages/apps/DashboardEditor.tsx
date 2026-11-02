@@ -178,6 +178,7 @@ function BandRow({ band, i, onChange, errors }: { band: Band; i: number; onChang
           id={`band-${i}-below`}
           inputMode="decimal"
           value={band.below ?? ""}
+          placeholder={t("apps.dashboard.defaultBand")}
           onChange={(e) => onChange({ ...band, below: e.target.value === "" ? undefined : Number(e.target.value) })}
         />
       </Field>
@@ -325,7 +326,7 @@ export function PreviewDiff({ path, before, after }: { path: string; before: str
   return (
     <figure className="space-y-2">
       <figcaption className="font-medium">{t("apps.dashboard.previewTitle", { path })}</figcaption>
-      <CodeBlock label={t("apps.dashboard.previewTitle", { path })} className="max-h-96">
+      <CodeBlock label={t("apps.dashboard.previewTitle", { path })} className="max-h-96 whitespace-pre-wrap break-words">
         {text}
       </CodeBlock>
       <p className="text-caption text-fg-muted">{t("apps.dashboard.previewLegend")}</p>
@@ -435,7 +436,7 @@ export function DashboardEditor({ project, name }: { project: string; name: stri
 
   return (
     <Card className="space-y-6">
-      <p className="text-fg-muted">{t("apps.dashboard.intro", { path: offer.path, type: offer.entityType ?? "" })}</p>
+      <p className="text-fg-muted">{t("apps.dashboard.intro")}</p>
       <fieldset disabled={Boolean(proposed)} className="space-y-6">
         <ColumnsSection {...props} />
         <FiltersSection {...props} />

@@ -5206,7 +5206,7 @@
     },
     "dashboard": {
       "section": "Edit the dashboard",
-      "intro": "Change what the App shows without code. The edit is saved to {path} as a Change of the App, which an approver reads and applies. Lists {type}.",
+      "intro": "Change what the App shows without code. Each edit becomes a Change, which an approver reads and applies.",
       "unavailable": "This dashboard cannot be edited here",
       "noFile": "The App keeps no dashboard file. Ask the assistant to keep its dashboard in src/dashboard.json.",
       "choose": "Choose an attribute",

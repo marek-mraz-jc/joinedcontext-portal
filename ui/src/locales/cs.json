@@ -5206,7 +5206,7 @@
     },
     "dashboard": {
       "section": "Upravit dashboard",
-      "intro": "Změňte, co aplikace zobrazuje, bez programování. Úprava se uloží do {path} jako změna aplikace, kterou schvalovatel přečte a použije. Zobrazuje {type}.",
+      "intro": "Změňte, co aplikace zobrazuje, bez programování. Každá úprava se stane změnou, kterou schvalovatel přečte a použije.",
       "unavailable": "Tento dashboard zde nelze upravit",
       "noFile": "Aplikace nemá soubor dashboardu. Požádejte asistenta, aby dashboard uložil do src/dashboard.json.",
       "choose": "Vyberte atribut",
