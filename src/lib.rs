@@ -33,6 +33,7 @@ pub mod entity_comments;
 pub mod entity_trash;
 pub mod erasure;
 pub mod error;
+pub mod grafana;
 pub mod feedback;
 pub mod flow_map;
 pub mod git;

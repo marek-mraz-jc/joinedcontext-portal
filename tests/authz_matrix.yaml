@@ -506,6 +506,20 @@ routes:
     expect: [403, allow, allow, allow, allow, allow, 404, allow]
     body: {"ref": "v0.2.0"}
     note: "the fixture's organization is of layout 1, which has no registry entry: `allow` answers 409; who may propose a repoint is tests/project_registry_tests.rs's"
+  - route: GET /projects/{project}/grafana
+    rule: "project-read, each row filtered by read on its Endpoint"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/grafana/options
+    rule: "project-read, the Endpoints filtered by read"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/grafana
+    rule: "propose on Dashboard and read on the Endpoint"
+    note: "a body the fixture lacks answers 400 for those the rule allows"
+    expect: [403, 403, allow, allow, 403, allow, 404, 403]
+  - route: DELETE /projects/{project}/grafana/{id}
+    rule: "propose on Dashboard"
+    note: "no such row in the fixture"
+    expect: [403, 403, allow, allow, 403, allow, 404, 403]
   - route: GET /projects/{project}/activity
     rule: "project-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

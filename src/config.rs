@@ -7,6 +7,28 @@ pub use crate::auth::client_auth::ClientAuth;
 
 /// Portal server configuration. Secrets are redacted in `Debug` so a config dump
 /// never puts a client secret or a cookie key into the log (CC-40).
+/// Where the project's Grafana is and who the Portal is to it (T-6509).
+#[derive(Clone)]
+pub struct GrafanaConfig {
+    /// The server inside the cluster, with its path prefix.
+    pub url: String,
+    /// The same server as a person's browser reaches it.
+    pub public_url: String,
+    pub user: String,
+    pub password: String,
+}
+
+impl std::fmt::Debug for GrafanaConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GrafanaConfig")
+            .field("url", &self.url)
+            .field("public_url", &self.public_url)
+            .field("user", &"[redacted]")
+            .field("password", &"[redacted]")
+            .finish()
+    }
+}
+
 #[derive(Clone)]
 pub struct Config {
     /// The address to listen on (`JC_PORTAL_BIND`, default `0.0.0.0:8080`).
@@ -186,6 +208,9 @@ pub struct Config {
     /// knowledge routes ask with the Portal's own token (API/01 §34, T-3057). `None` leaves those
     /// routes answering 503.
     pub knowledge_url: Option<String>,
+    /// The project's Grafana (`JC_PORTAL_GRAFANA_URL` and friends, T-6509); `None` where the
+    /// deployment runs none, and the Grafana page says so.
+    pub grafana: Option<GrafanaConfig>,
     /// Root of the built app bundles, one directory per app (`JC_PORTAL_APPS_DIR`). `None`
     /// leaves every
     /// `/apps/{name}/` path answering 404 rather than reading a guessed directory (AP-14).
@@ -392,6 +417,7 @@ impl std::fmt::Debug for Config {
             .field("ui_url", &self.ui_url)
             .field("functions_url", &self.functions_url)
             .field("knowledge_url", &self.knowledge_url)
+            .field("grafana", &self.grafana)
             .field("apps_dir", &self.apps_dir)
             .field("apps_cache_dir", &self.apps_cache_dir)
             .field("apps_url", &self.apps_url.as_ref().map(Url::as_str))
@@ -543,6 +569,33 @@ fn pipeline_secret_backend(
 /// `JC_PORTAL_APPS_URL`: an absolute `http(s)` origin with nothing after it. A path would be
 /// dropped by the redirect anyway, so it is refused here rather than silently ignored.
 /// An optional address that must be http(s): a typo is refused at startup, not on first use.
+/// The Grafana the Portal saves visualizations into: all four variables or none, because half
+/// of them is a page that promises a save it cannot make.
+fn grafana_config(
+    lookup: &impl Fn(&str) -> Option<String>,
+) -> Result<Option<GrafanaConfig>, ConfigError> {
+    let trimmed = |url: Option<String>| url.map(|url| url.trim_end_matches('/').to_owned());
+    let url = trimmed(http_url(lookup, "JC_PORTAL_GRAFANA_URL")?);
+    let public_url = trimmed(http_url(lookup, "JC_PORTAL_GRAFANA_PUBLIC_URL")?);
+    let user = lookup("JC_PORTAL_GRAFANA_USER").filter(|v| !v.trim().is_empty());
+    let password = lookup("JC_PORTAL_GRAFANA_PASSWORD").filter(|v| !v.is_empty());
+    match (url, public_url, user, password) {
+        (None, None, None, None) => Ok(None),
+        (Some(url), Some(public_url), Some(user), Some(password)) => Ok(Some(GrafanaConfig {
+            url,
+            public_url,
+            user,
+            password,
+        })),
+        _ => Err(ConfigError::Invalid {
+            var: "JC_PORTAL_GRAFANA_URL",
+            reason: "set it with JC_PORTAL_GRAFANA_PUBLIC_URL, JC_PORTAL_GRAFANA_USER and \
+                     JC_PORTAL_GRAFANA_PASSWORD, or none of the four"
+                .into(),
+        }),
+    }
+}
+
 fn http_url(
     lookup: &impl Fn(&str) -> Option<String>,
     var: &'static str,
@@ -1747,6 +1800,7 @@ impl Config {
         let pipeline_test_capture_url = http_url(&lookup, "JC_PORTAL_PIPELINE_TEST_CAPTURE_URL")?
             .map(|url| url.trim_end_matches('/').to_owned());
 
+        let grafana = grafana_config(&lookup)?;
         let knowledge_url = http_url(&lookup, "JC_PORTAL_KNOWLEDGE_URL")?
             .map(|url| url.trim_end_matches('/').to_owned());
 
@@ -1858,6 +1912,7 @@ impl Config {
             ui_url,
             functions_url,
             knowledge_url,
+            grafana,
             apps_dir,
             smtp_url,
             erasure_key,
@@ -1929,6 +1984,7 @@ impl Config {
             ui_url: None,
             functions_url: None,
             knowledge_url: None,
+            grafana: None,
             app_settings: None,
             build_pods: None,
             agent_settings: None,
