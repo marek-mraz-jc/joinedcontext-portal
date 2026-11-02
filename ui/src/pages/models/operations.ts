@@ -69,6 +69,10 @@ export type Operation =
    */
   | { op: "setEnumValue"; enum: string; value: string; field: "title" | "description"; locale?: string; text: string }
   | { op: "removeEnumValue"; enum: string; value: string }
+  /** Renames the enumeration in every slot `range` that names it. */
+  | { op: "renameEnum"; name: string; to: string }
+  /** Renames a stored value, keeping its labels; rows already stored keep the old value. */
+  | { op: "renameEnumValue"; enum: string; value: string; to: string }
   /**
    * A relationship, both ends in one step (DM-64): `name` on `from` points at `to`, `inverse` on
    * `to` points back. The cardinality is read from `from` to `to`; `required` is allowed on the
@@ -628,6 +632,32 @@ function mutate(document: Document, model: LinkmlModel, operation: Operation): v
     case "removeEnumValue":
       document.deleteIn(enumValuePath(model, operation.enum, operation.value));
       return;
+    case "renameEnum": {
+      enumOf(model, operation.name);
+      requireName(operation.to, "enum");
+      if (model.enums.some((entry) => entry.name === operation.to)) {
+        refuse(`enum '${operation.to}' already exists`);
+      }
+      renameKey(document, "enums", operation.name, operation.to);
+      for (const slot of model.slots) {
+        if (slot.range === operation.name) {
+          document.setIn(["slots", slot.name, "range"], operation.to);
+        }
+      }
+      return;
+    }
+    case "renameEnumValue": {
+      const [, , , value] = enumValuePath(model, operation.enum, operation.value);
+      const to = operation.to.trim();
+      if (to === "") {
+        refuse("a value needs a name");
+      }
+      if (enumOf(model, operation.enum).permissible_values.some((candidate) => candidate.name === to)) {
+        refuse(`enum '${operation.enum}' already has the value '${to}'`);
+      }
+      renameKey(document, ["enums", operation.enum, "permissible_values"], value, to);
+      return;
+    }
     case "addRelationship":
       addRelationship(document, model, operation);
       return;

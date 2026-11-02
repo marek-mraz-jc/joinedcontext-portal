@@ -32,9 +32,31 @@ export interface CatalogueSubject {
 }
 
 export interface Catalogue {
+  /** Models the mirror could not convert: listed with why, never offered (T-6353). */
+  failed?: { id: string; finding: string }[];
   subjects?: CatalogueSubject[];
   refreshedAt?: string;
   stale?: boolean;
+}
+
+/** The models the mirror could not convert, each with why: named, never offered (T-6353). */
+function NotConverted({ failed }: { failed: NonNullable<Catalogue["failed"]> }): React.JSX.Element | null {
+  const { t } = useTranslation();
+  if (failed.length === 0) return null;
+  return (
+    <details className="text-body">
+      <summary className="cursor-pointer text-fg-muted">{t("models.sdm.notConverted", { count: failed.length })}</summary>
+      <p className="mt-1 text-fg-muted">{t("models.sdm.notConvertedHint")}</p>
+      <ul className="mt-2 flex max-h-48 flex-col gap-2 overflow-auto">
+        {failed.map((one) => (
+          <li key={one.id} className="break-words">
+            <p className="font-medium">{one.id}</p>
+            <p className="text-fg-muted">{one.finding}</p>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
 }
 
 export interface SmartDataModelsImportProps {
@@ -379,6 +401,7 @@ export function SmartDataModelsImport({
             {t("models.sdm.showMore", { count: unlisted })}
           </Button>
         ) : null}
+        <NotConverted failed={catalogue.data?.failed ?? []} />
         {!catalogue.isLoading && !catalogue.isError && visible.length === 0 ? (
           subjects.length === 0 ? (
             <EmptyState
