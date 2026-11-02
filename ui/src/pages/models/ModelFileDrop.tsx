@@ -190,12 +190,15 @@ export function credentialInAddress(url: URL): boolean {
 export function ModelFileDrop({
   project,
   onPopulate,
+  onTable,
   compact = false,
   icon = false,
 }: {
   project: string;
   /** The draft source the editor opens with, and the answer it came from. */
   onPopulate: (source: string, answer: InferAnswer) => void;
+  /** Takes a CSV or Excel table instead of drafting a model from it (T-6445). */
+  onTable?: (file: File) => void;
   /** The label and input only, for a dock with no room for the lead. */
   compact?: boolean;
   /** A paperclip button only, for a chat composer. */
@@ -215,6 +218,10 @@ export function ModelFileDrop({
     setProblem(null);
     if (file.size > MAX_SAMPLE_BYTES) {
       setProblem(t("models.infer.tooLarge"));
+      return;
+    }
+    if (onTable && /\.(csv|tsv|xlsx)$/i.test(file.name)) {
+      onTable(file);
       return;
     }
     const form = inferForm(file);

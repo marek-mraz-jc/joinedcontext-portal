@@ -134,6 +134,30 @@ for (const [label, width, height] of [["1440", 1440, 900], ["400", 400, 860]] as
       expect(await axeViolations(page)).toEqual([]);
     });
 
+    test("a failed check names what to fix and offers no proposal", async ({ page }) => {
+      await stub(page, []);
+      await page.route("**/ops/jc_space_complete", (route) =>
+        route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({
+            space: "garages",
+            found: [],
+            drafts: [{ kind: "DataModel", name: "garages", inferred: true, manifest: { kind: "DataModel", metadata: { name: "garages" }, spec: {} }, verdict: { ok: false, findings: [{ level: "error", path: "linkml", message: "the sample has no header row" }], inputDigest: "a" } }],
+            proposeReady: false,
+            lane: "yellow",
+            change: null,
+          }),
+        }),
+      );
+      await page.goto(`/projects/${PROJECT}/spaces/complete?lang=en`);
+      await page.getByLabel("Files", { exact: true }).setInputFiles(BOOK);
+      await page.getByRole("button", { name: "Complete", exact: true }).click();
+      await expect(page.getByTestId("complete-draft-DataModel")).toContainText("Check failed");
+      await expect(page.getByTestId("complete-draft-DataModel")).toContainText("no header row");
+      await expect(page.getByRole("button", { name: "Propose all" })).toHaveCount(0);
+      await shot(page, `complete-failed-check-${label}`);
+    });
+
     test("the assistant's file question takes a workbook and asks which sheet", async ({ page }) => {
       const sent: { path: string; body: unknown }[] = [];
       await stub(page, sent);

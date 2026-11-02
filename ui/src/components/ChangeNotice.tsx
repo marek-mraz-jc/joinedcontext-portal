@@ -36,7 +36,8 @@ export function ChangeNotice({
       <span className="flex flex-wrap items-center gap-2">
         <span>{waiting ? t("changes.accepted") : t("changes.approvedAsProposed")}</span>
         <span className="font-mono font-medium">{change.metadata.name}</span>
-        <LifecycleBadge kind="lane" value={change.status.lane} />
+        {/* The lane says who must approve: once approved, red beside Merged only reads as a failure. */}
+        {waiting ? <LifecycleBadge kind="lane" value={change.status.lane} /> : null}
         <LifecycleBadge kind="phase" value={change.status.phase} />
       </span>
     </Alert>

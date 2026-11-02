@@ -640,7 +640,6 @@
         "Layer": "Kartenebene",
         "Dashboard": "Dashboard"
       },
-      "drafted": "Entworfen",
       "alreadyThere": "Bereits vorhanden",
       "checkPassed": "Prüfung bestanden",
       "checkFailed": "Prüfung nicht bestanden",
@@ -659,6 +658,11 @@
         "Dashboard": "Ein Karten-Dashboard mit {count, plural, one {# Seite} other {# Seiten}}"
       },
       "onApproval": "Alle vorschlagen sendet diese Entwürfe gemeinsam zur Freigabe. Nach der Freigabe wird die Quelle abgerufen und der Raum füllt sich.",
+      "onApprovalRows": "Alle vorschlagen sendet diese Entwürfe gemeinsam zur Freigabe. Nach der Freigabe bietet diese Seite an, {count, plural, one {# Zeile} other {# Zeilen}} der Datei zu laden. Bleiben Sie hier oder behalten Sie die Datei: Die Zeilen werden noch nicht gesendet.",
+      "inChange": "Was diese Änderung enthält ({count})",
+      "tooLarge": "Das sind zusammen mehr als 10 MB. Wählen Sie kleinere Dateien oder nutzen Sie CSV hochladen mit bis zu 50 MB.",
+      "urlHint": "Die Adresse eines Live-Feeds anstelle einer Datei. Beispiel: https://example.org/stations.json",
+      "failedNext": "Noch kann nichts vorgeschlagen werden. Beheben Sie in der Datei, was die Prüfung nennt, und wählen Sie sie erneut.",
       "title": "Diesen Raum vervollständigen",
       "lead": "Geben Sie eine Beispieldatei oder die Adresse eines Feeds an. Das Portal entwirft das Datenmodell, den Raum, die Datenquelle und die Pipeline und prüft jeden Entwurf.",
       "space": "Name des Raums",
@@ -1156,7 +1160,11 @@
       "noSlots": "Das vorgeschlagene Modell deklariert für diesen Typ keine Felder: Es gibt nichts zu schreiben.",
       "write": "{count, plural, =0 {Nichts zu schreiben} one {# Zeile schreiben} other {# Zeilen schreiben}}",
       "done": "{written, plural, =0 {Keine Zeile geschrieben} one {# Zeile geschrieben} other {# Zeilen geschrieben}}, {refused, plural, =0 {keine abgelehnt.} other {# abgelehnt.}}",
-      "preview": "Vorschau der ersten {count, plural, one {# Entität} other {# Entitäten}} als NGSI-LD"
+      "preview": "Vorschau der ersten {count, plural, one {# Entität} other {# Entitäten}} als NGSI-LD",
+      "firstRefusal": "Zeile {row}: {reason}",
+      "liveNow": "Die Änderung ist live. Schreiben Sie die Zeilen als {type} in {space}. Dieselbe Datei erneut zu schreiben aktualisiert dieselben Entitäten.",
+      "goingLive": "Freigegeben. In einigen Minuten ist sie live und diese Schaltfläche wird von selbst aktiv; bleiben Sie auf dieser Seite.",
+      "openSpace": "Raum öffnen"
     },
     "toolbar": {
       "filter": "Filter",
@@ -6386,7 +6394,7 @@
     "sideView": "Neben der Seite",
     "floatView": "Über der Seite schweben",
     "cancel": "Assistent stoppen",
-    "attach": "Eine Probe (CSV, Excel, JSON oder PDF) anhängen und ein Datenmodell entwerfen",
+    "attach": "Eine Tabelle (CSV oder Excel) anhängen und daraus einen Raum erstellen, oder eine JSON- oder PDF-Probe für ein Datenmodell",
     "backToChat": "Zurück zum Assistenten",
     "empty": {
       "lead": "Wählen Sie, was Sie tun möchten, oder fragen Sie in eigenen Worten.",
