@@ -203,6 +203,26 @@ describe("the run page", () => {
     expect(reached[0]).toBe(screen.getByRole("button", { name: en.agentRun.back }));
   });
 
+  // T-6442: a failed run says what happened in a person's words, what to do next, and Publish
+  // refuses with its reason.
+  it("says a failed run's next step and holds Publish back", async () => {
+    renderRun({
+      run: {
+        ...RUN,
+        status: "failed",
+        error: "The Portal's database did not answer in time. Start the run again in a minute.",
+      },
+    });
+    const alert = await screen.findByText(/did not answer in time/);
+    expect(alert.textContent).toContain(en.agentRun.failedNext);
+    const publish = screen.getByRole("button", { name: new RegExp(`^${en.agentRun.publish}`) });
+    expect(publish).toBeDisabled();
+    expect(publish).toHaveAccessibleDescription(en.agentRun.publishOver);
+    expect(screen.getByRole("link", { name: en.agentRun.failedOpen })).toHaveAttribute("href", expect.stringMatching(/\/assistant$/));
+    expect(screen.queryByRole("button", { name: en.agentRun.cancel })).toBeNull();
+    expect(screen.queryByText(/Open its steps/)).toBeNull();
+  });
+
   it("says the same things in every language", async () => {
     await inEveryLocale(async (locale) => {
       cleanup();

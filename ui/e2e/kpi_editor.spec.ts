@@ -32,7 +32,7 @@ const endpoint = (name: string, space: string) => ({
 
 interface Stub {
   checks: Record<string, unknown>[];
-  proposed: Record<string, unknown>[];
+  proposed: (Record<string, unknown> | string)[];
 }
 
 /** The check refuses MIN as the unit of a ratio, names parking unreadable, and previews two districts. */
@@ -87,7 +87,7 @@ async function stubApi(page: Page, stub: Stub): Promise<void> {
       });
     }
     if (request.method() !== "GET") {
-      stub.proposed.push(body());
+      stub.proposed.push(request.url().includes("dryRun") ? "dry run" : body());
       return json({ kind: "Change", metadata: { name: "chg-1", namespace: "helsinki" }, status: { phase: "PendingApproval" } }, 202);
     }
     if (path === "/api/v1/projects") return json({ kind: "ProjectList", items: [{ name: "helsinki" }] });
@@ -160,7 +160,8 @@ test.describe("the KPI editor over several sources", () => {
     await shot(page, "filled");
 
     await page.getByRole("button", { name: "Propose change" }).click();
-    await expect.poll(() => stub.proposed.length).toBeGreaterThan(0);
+    await expect.poll(() => stub.proposed.length).toBe(2);
+    expect(stub.proposed[0], "every proposal needs a fresh check (PF-57)").toBe("dry run");
     const proposed = stub.proposed.at(-1) as { apiVersion: string; spec: { sources: unknown[]; steps: { kpi: Record<string, unknown> }[] } };
     expect(proposed.apiVersion).toBe("joinedcontext.com/v1alpha2");
     expect(proposed.spec.sources).toHaveLength(2);

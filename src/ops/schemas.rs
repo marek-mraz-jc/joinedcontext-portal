@@ -57,6 +57,7 @@ fn output_schema() -> Value {
             "fields": { "type": "string" },
             "example": { "type": "object" },
             "more": { "type": "string" },
+            "note": { "type": "string" },
             "path": { "type": "string" },
             "schema": { "type": "object" }
         },
@@ -735,6 +736,16 @@ fn example_of(defs: &Defs, schema: &Value, depth: usize) -> Value {
 /// The registry name of get_schema (AG-146).
 pub const GET: &str = "jc_schema_get";
 
+/// What a kind draws while this installation hides the Dashboards page (T-2874, T-6442): a client
+/// that plans a Layer for a map would get nothing on screen.
+fn hidden_note(kind: &str) -> Option<&'static str> {
+    matches!(kind, "Dashboard" | "Layer").then_some(
+        "This installation hides the Dashboards page, so nothing draws this kind on screen. For \
+         a map, send the person the Portal's Explore address with view=map (the connector's \
+         instructions spell it), or use jc_ui_navigate with page `map` in a paired tab.",
+    )
+}
+
 pub fn operations() -> Vec<Operation> {
     vec![Operation {
         name: GET,
@@ -747,10 +758,16 @@ pub fn operations() -> Vec<Operation> {
         verb: None,
         lane: Lane::Green,
         validate: |val| parse_input::<SchemaInput>(val.clone()).map(|_| ()),
-        run: |_caller, _state, _project, val| {
+        run: |_caller, state, _project, val| {
             Box::pin(async move {
                 let input = parse_input::<SchemaInput>(val)?;
-                schema_of(&input.kind, input.path.as_deref())
+                let mut answer = schema_of(&input.kind, input.path.as_deref())?;
+                if !state.config.dashboards {
+                    if let Some(note) = hidden_note(&input.kind) {
+                        answer["note"] = json!(note);
+                    }
+                }
+                Ok(answer)
             })
         },
     }]
@@ -759,6 +776,17 @@ pub fn operations() -> Vec<Operation> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-6442: a connector planned a Layer and got nothing on screen: while the Dashboards page
+    /// is hidden, the schema of what only that page draws says where a map is drawn instead.
+    #[test]
+    fn what_only_the_hidden_dashboards_page_draws_says_so() {
+        for kind in ["Dashboard", "Layer"] {
+            assert!(hidden_note(kind).is_some_and(|note| note.contains("view=map")));
+        }
+        assert_eq!(hidden_note("Endpoint"), None);
+        assert!(output_schema()["properties"]["note"].is_object());
+    }
 
     fn invalid_at(result: Result<Value, OpError>) -> (String, String) {
         match result {

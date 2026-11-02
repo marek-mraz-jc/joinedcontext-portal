@@ -58,9 +58,10 @@ pub(super) fn ui_specs() -> Vec<ToolSpec> {
                     "page": { "type": "string", "enum": tools_registry::page_names() },
                     "name": text("The name of what the page opens, e.g. a space or an app", 200),
                     "plural": text("The plural of the kind, for the pages `new`, `draft` and `resource`", 64),
-                    "endpoint": text("The Endpoint whose data the `entities` grid shows", 200),
-                    "type": text("The entity type of the `entities` grid", 200),
-                    "q": text("An NGSI-LD filter of the `entities` grid, e.g. availableBikeNumber==0", 500)
+                    "endpoint": text("The Endpoint the `entities` grid or `map` shows", 200),
+                    "type": text("Its entity type", 200),
+                    "q": text("An NGSI-LD filter, e.g. availableBikeNumber==0", 500),
+                    "color": text("The number the `map` colours by", 200)
                 },
                 "required": ["page"],
                 "additionalProperties": false

@@ -34,10 +34,11 @@ const MAX_NODES: usize = 64;
 
 /// The node names a tap reports, the labels of the metrics' `nodes`.
 pub fn is_node(node: &str) -> bool {
-    matches!(node, "input" | "output" | "compute")
-        || node
-            .strip_prefix("step_")
+    let numbered = |prefix: &str| {
+        node.strip_prefix(prefix)
             .is_some_and(|n| !n.is_empty() && n.len() <= 4 && n.bytes().all(|b| b.is_ascii_digit()))
+    };
+    matches!(node, "input" | "output" | "compute") || numbered("step_") || numbered("compute_")
 }
 
 /// One tap: a branch that sends a sample of the message to `url` and keeps nothing of the answer.
@@ -260,7 +261,14 @@ mod tests {
 
     #[test]
     fn a_node_is_one_the_metrics_name() {
-        for ok in ["input", "output", "compute", "step_0", "step_12"] {
+        for ok in [
+            "input",
+            "output",
+            "compute",
+            "compute_1",
+            "step_0",
+            "step_12",
+        ] {
             assert!(is_node(ok), "{ok}");
         }
         for bad in [

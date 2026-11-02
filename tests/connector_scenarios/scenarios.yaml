@@ -2019,3 +2019,57 @@
       refused: true
       contains: ['{project}-reports']
       absent: ['urn:ngsi-ld:BikeCounter']
+- id: S-91
+  segment: context
+  # T-6451: the whole platform from one connector, as the live walk on dev did it
+  # (evidence/T-6451, conformance tests/connectors/scenarios-wave/T-6451.yaml).
+  as: org-admin
+  says: "Create a context space for my organization's vendor data, a data model, a write Endpoint, a data source and pipeline from a public URL, a Policy giving read to a second group, and a map layer."
+  expect: 'one connector with every segment plans space, Endpoint, Policy, DataSource and Layer as one change request and the Pipeline as the next; an audience the person is outside of warns in the plan with the fix; nothing is live before a person approves'
+  deny: 'approving through the connector is no tool; a key typed into the chat is refused; a project outside the scope is refused'
+  script:
+    - proves: expect
+      manifest: { kind: Group, name: vendors, spec: { members: [{ user: scn.org-admin@hel.fi }] } }
+    - proves: expect
+      manifest: { kind: DelegationPolicy, name: vendors-all, spec: { subjects: [{ kind: Group, name: vendors }], projects: ['{project}'], segments: [data-read, context, pipeline, access, publish, apps, operate], writes: true, maxExpiry: P90D } }
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s91-vendor, segments: [data-read, context, pipeline, access, publish, apps, operate], scope: [{ project: '{project}', access: write }], writes: true, expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      via: connector
+      contains: ['jc_change_plan', 'jc_data_write', 'jc_pipeline_run']
+      absent: ['jc_change_approve']
+    - proves: expect
+      via: connector
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: ContextSpace, name: vendor, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: ContextSpace, metadata: { name: vendor, namespace: '{project}' }, spec: { isSandbox: true } } }, { op: create, kind: Endpoint, name: '{project}-vendor', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-vendor', namespace: '{project}' }, spec: { contextSpaceRef: vendor, audience: public, enabledRepresentations: [ngsi-ld] } } }, { op: create, kind: Policy, name: vendor-readers, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Policy, metadata: { name: vendor-readers, namespace: '{project}' }, spec: { contextSpaceRef: vendor, assigner: 'did:web:{orgDomain}', assignee: { kind: group, id: scn-readers }, operations: [retrieveOps], information: [{ entities: [{ type: BikeCounter }] }] } } }, { op: create, kind: DataSource, name: vendor-feed, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: DataSource, metadata: { name: vendor-feed, namespace: '{project}' }, spec: { type: http, http: { url: 'https://data.example.sk/counters.csv', format: csv } } } }, { op: create, kind: Layer, name: vendor-map, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Layer, metadata: { name: vendor-map, namespace: '{project}' }, spec: { entityType: BikeCounter, sourceEndpointRef: '{project}-vendor' } } }] }
+      keep: planId
+      contains: ['"planId"', '"ok":true']
+      absent: ['you would not reach']
+    - proves: expect
+      via: connector
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['"changeRequests":[{', 'a person with approve']
+    # A pipeline goes through jc_pipeline_test before a plan takes it.
+    - proves: deny
+      via: connector
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Pipeline, name: vendor-load, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Pipeline, metadata: { name: vendor-load, namespace: '{project}' }, spec: { class: scheduled, schedule: '0 * * * *', source: { dataSourceRef: { kind: DataSource, name: counters-csv } }, targetEndpoint: 'urn:ngsi-ld:Endpoint:hel.fi:{project}-doprava:{project}-intake', output: { type: BikeCounter, mode: upsert }, quotas: { maxMemoryMb: 128, cpuMillicores: 100 } } } }] }
+      refused: true
+      contains: ['jc_pipeline_test']
+    # The person is in no group of this project, so the gateway would answer them 404 (T-6451).
+    - proves: deny
+      via: connector
+      call: jc_change_plan
+      args: { changes: [{ op: create, kind: Endpoint, name: '{project}-listed', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-listed', namespace: '{project}' }, spec: { contextSpaceRef: doprava, audience: project-list, allowedProjects: [t-scn-other], enabledRepresentations: [ngsi-ld] } } }] }
+      contains: ['you would not reach this Endpoint', '"path":"spec.audience"']
+    - proves: deny
+      via: connector
+      call: jc_change_plan
+      project: other
+      args: { changes: [{ op: create, kind: ContextSpace, name: vendor, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: ContextSpace, metadata: { name: vendor, namespace: t-scn-other }, spec: { isSandbox: true } } }] }
+      refused: true

@@ -13,6 +13,7 @@ use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, State};
 use axum::routing::post;
 use axum::{Json, Router};
+use chrono::{SecondsFormat, Utc};
 use jc_core::kinds::{PipelineSource, PipelineSpec, Step, Verb};
 use jc_core::kpi_join::{Expr, Input, KpiStep};
 use serde::{Deserialize, Serialize};
@@ -204,6 +205,47 @@ fn admitted(
 
 type Compiled = (KpiStep, Expr, Vec<Input>);
 
+/// The record check of a Pipeline with a kpi step (PL-85), `None` for any other. A kpi step has no
+/// harness (`jc_pipeline_test` runs one Bento mapping over one sample, a kpi run folds a batch of
+/// pages), so the indicator it writes is judged where a write is judged: model, target Endpoint
+/// and lifetime. The formula itself was checked as it was typed.
+/// ponytail: only a value's shape is judged, the REST door's check; a draft of the MCP door still
+/// meets `jc_pipeline_test`'s refusal, upgrade path a kpi harness in jcctl.
+pub fn records_verdict(
+    state: &AppState,
+    project: &str,
+    manifest: &Value,
+) -> Option<crate::ops::verdict::RecordsVerdict> {
+    let spec: PipelineSpec = serde_json::from_value(manifest["spec"].clone()).ok()?;
+    let target = spec.outputs().first()?.target_endpoint.to_string();
+    let pipeline = manifest["metadata"]["name"].as_str()?;
+    let record = indicator(kpi_step(&spec)?, &target, project, pipeline)?;
+    let records = [record];
+    let checked =
+        crate::record_check::check_records(state, project, manifest, &records, Utc::now()).ok()?;
+    Some(checked.verdict(manifest, &records))
+}
+
+/// The indicator a run writes, as jc-core's mapping writes it (`kpi_join::bloblang`), `value` 0.
+fn indicator(step: &KpiStep, target: &str, project: &str, pipeline: &str) -> Option<Value> {
+    let (scope, _) = target
+        .strip_prefix("urn:ngsi-ld:Endpoint:")?
+        .rsplit_once(':')?;
+    let (domain, _) = scope.split_once(':')?;
+    let now = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+    Some(serde_json::json!({
+        "id": format!("urn:ngsi-ld:KeyPerformanceIndicator:{scope}:{}", step.name),
+        "type": "KeyPerformanceIndicator",
+        "name": { "type": "Property", "value": step.name },
+        "calculationFormula": { "type": "Property", "value": step.formula },
+        "currentValue": { "type": "Property", "value": 0, "unitCode": step.unit_code, "observedAt": now },
+        "calculationPeriod": { "type": "Property", "value": { "start": now, "end": now } },
+        "updatedAt": { "type": "Property", "value": { "@type": "DateTime", "@value": now } },
+        "derivedFrom": { "type": "Property", "value": [target] },
+        "computedBy": { "type": "Property", "value": format!("urn:ngsi-ld:Pipeline:{domain}:{project}:{pipeline}") },
+    }))
+}
+
 /// The problems and the sources of `pipeline`, and the step compiled when it has no problem.
 fn check(
     state: &AppState,
@@ -241,6 +283,16 @@ fn check(
             Some((name, endpoint)) => {
                 input.endpoint.clone_from(&name);
                 input.units = units(state, project, &endpoint, &input.entity_type);
+                checked
+                    .problems
+                    .extend(
+                        unknown_attribute(state, project, &endpoint, input).map(|reason| {
+                            KpiProblem {
+                                field: format!("spec.sources[{at}].query.attrs"),
+                                reason,
+                            }
+                        }),
+                    );
                 checked.sources.push(KpiSource {
                     name: input.name.clone(),
                     readable: endpoint["spec"]["audience"] == "public"
@@ -343,24 +395,64 @@ fn known_endpoint(
         .then(|| (reference.name().to_owned(), endpoint))
 }
 
+/// `entity_type` as the Endpoint's space model describes it, when the model is known.
+fn class_of(
+    state: &AppState,
+    project: &str,
+    endpoint: &Value,
+    entity_type: &str,
+) -> Option<crate::pipeline_validation::ClassAttributes> {
+    crate::permissions::space_ref(endpoint)
+        .and_then(|space| state.model_schemas.get(project, &space))
+        .and_then(|schema| schema.attributes(entity_type))
+}
+
 /// The UN/CEFACT code of each attribute of `entity_type` the Endpoint's space model gives one.
+/// A model names most units in UCUM (`ug/m3`), and the indicator's `unitCode` is UN/CEFACT.
 fn units(
     state: &AppState,
     project: &str,
     endpoint: &Value,
     entity_type: &str,
 ) -> BTreeMap<String, String> {
-    crate::permissions::space_ref(endpoint)
-        .and_then(|space| state.model_schemas.get(project, &space))
-        .and_then(|schema| schema.attributes(entity_type))
+    class_of(state, project, endpoint, entity_type)
         .map(|class| {
             class
                 .attributes
                 .into_iter()
-                .filter_map(|a| Some((a.name, a.unit?.code?)))
+                .filter_map(|a| {
+                    let unit = a.unit?;
+                    let code = unit.code.or_else(|| cefact(unit.ucum.as_deref()?))?;
+                    Some((a.name, code))
+                })
                 .collect()
         })
         .unwrap_or_default()
+}
+
+/// The current UN/CEFACT code of a UCUM unit.
+fn cefact(ucum: &str) -> Option<String> {
+    jc_core::units::all()
+        .iter()
+        .find(|unit| unit.ucum == Some(ucum) && !unit.deprecated)
+        .map(|unit| unit.code.to_owned())
+}
+
+/// The first attribute a source reads that its type's model does not hold: the broker would
+/// answer no rows for it, and a sum over nothing reads as a real 0.
+fn unknown_attribute(
+    state: &AppState,
+    project: &str,
+    endpoint: &Value,
+    input: &Input,
+) -> Option<String> {
+    let class = class_of(state, project, endpoint, &input.entity_type)?;
+    let known = |name: &&String| class.attributes.iter().any(|a| &a.name == *name);
+    let unknown = input.attrs.iter().find(|name| !known(name))?;
+    Some(format!(
+        "`{unknown}` is not an attribute of {} in this Endpoint's model; pick one from the list",
+        input.entity_type
+    ))
 }
 
 fn policies(state: &AppState, project: &str) -> Vec<Value> {
@@ -398,6 +490,13 @@ async fn preview(
         .iter()
         .map(|(name, rows)| (name.clone(), rows.len()))
         .collect();
+    // A run over an empty source writes nothing (render.rs kpi_source): no 0 that reads as a value.
+    problem = problem.or_else(|| {
+        pages
+            .iter()
+            .find(|(_, rows)| rows.is_empty())
+            .map(|(name, _)| empty_source(name))
+    });
     let values = match problem {
         Some(_) => Vec::new(),
         None => match jc_core::kpi_join::evaluate(step, expr, &pages) {
@@ -413,6 +512,14 @@ async fn preview(
         rows,
         problem,
     }
+}
+
+/// Why a source with no rows gives no value, and what to do about it.
+fn empty_source(name: &str) -> String {
+    format!(
+        "input {name}: {}",
+        crate::reconciler::streams::EMPTY_KPI_SOURCE
+    )
 }
 
 /// One source's page through its Endpoint's compiled view, as the person (or the anonymous

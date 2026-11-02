@@ -21,6 +21,7 @@ const RATE = Number(__ENV.JC_K6_RATE || 60);
 const DURATION = __ENV.JC_K6_DURATION || '60s';
 const P95_MS = Number(__ENV.JC_K6_P95_MS || 50);
 const TOOLS = ['tools/list', 'jc_resource_list', 'jc_resource_get'];
+const PEOPLE = 49;
 const proven = new Counter('revoke_proven');
 
 const budget = {};
@@ -34,7 +35,8 @@ export const options = {
       rate: RATE,
       timeUnit: '1s',
       duration: DURATION,
-      preAllocatedVUs: 20,
+      // Started ahead: a VU started during a stall counts as a dropped arrival.
+      preAllocatedVUs: 200,
       maxVUs: 200,
     },
     revoke: { executor: 'per-vu-iterations', exec: 'revoke', vus: 1, iterations: 1, startTime: '20s' },
@@ -90,7 +92,11 @@ function refused(res, connector) {
 
 export function mix() {
   const n = exec.scenario.iterationInTest;
-  const connector = plan.connectors[n % plan.connectors.length];
+  // Round the people, then each person's connectors: the plan lists them person by person, and
+  // walking it in that order sends one person 20 calls in a row, so a stall of 150 ms puts more
+  // than that person's 8 parallel calls in flight and the door rightly answers 429.
+  const perPerson = plan.connectors.length / PEOPLE;
+  const connector = plan.connectors[(n % PEOPLE) * perPerson + (Math.floor(n / PEOPLE) % perPerson)];
   const tool = TOOLS[n % TOOLS.length];
   const res = call(connector, tool);
   check(

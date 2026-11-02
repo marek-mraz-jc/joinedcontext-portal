@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { JSX } from "react";
+import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "../../api/client";
 import { ChangeNotice } from "../../components/ChangeNotice";
@@ -14,7 +15,7 @@ import { TERMINAL_STATES, testsHold, useAgentRun } from "./useAgentRun";
 import type { RunEvent } from "./useAgentRun";
 import { onPickChange, pickedElement, rememberRun, requestOpen } from "../../assistant/state";
 import { appDisplayName, useEndpointTitles } from "./appTitle";
-import { Button, InlineError, PageFailed, PageHeader, PageLoading } from "../../components/ui";
+import { Alert, Button, buttonClass, InlineError, PageFailed, PageHeader, PageLoading } from "../../components/ui";
 
 /**
  * One builder run, live (UI-34…UI-40; the timeline, the transcript and the questions are UI-38).
@@ -151,9 +152,16 @@ export function AgentRunPage({
         onApproved={() => void run.refetch()}
       />
       {record.error !== undefined && record.error !== "" && (
-        <InlineError>
-          {record.error}
-        </InlineError>
+        <Alert
+          tone="danger"
+          actions={
+            <Link to="/projects/$project/assistant" params={{ project }} className={buttonClass("primary", "sm")}>
+              {t("agentRun.failedOpen")}
+            </Link>
+          }
+        >
+          {record.error} {t("agentRun.failedNext")}
+        </Alert>
       )}
       {[cancel.error, publish.error].map((error, index) =>
         error ? (
@@ -258,25 +266,32 @@ export function AgentRunPage({
         )}
 
         <div className="flex flex-wrap gap-2">
-          <Button
-            disabled={over || cancel.isPending}
-            disabledReason={over ? t("agentRun.cancelOver") : t("app.busyReason")}
-            onClick={() => {
-              cancel.mutate();
-            }}
-          >
-            {t("agentRun.cancel")}
-          </Button>
+          {over ? null : (
+            <Button
+              disabled={cancel.isPending}
+              disabledReason={t("app.busyReason")}
+              onClick={() => {
+                cancel.mutate();
+              }}
+            >
+              {t("agentRun.cancel")}
+            </Button>
+          )}
           <Button
             variant="primary"
             disabled={!publishable || held !== null || publish.isPending}
-            aria-describedby={held ? "run-tests-hold" : undefined}
+            aria-describedby={held ? "run-tests-hold" : record.status === "failed" ? "run-publish-over" : undefined}
             onClick={() => {
               publish.mutate();
             }}
           >
             {t("agentRun.publish")}
           </Button>
+          {record.status === "failed" ? (
+            <span id="run-publish-over" className="basis-full text-caption text-fg-muted">
+              {t("agentRun.publishOver")}
+            </span>
+          ) : null}
           {held ? (
             <span id="run-tests-hold" className="basis-full text-caption text-fg-muted">
               {held.running
@@ -362,7 +377,7 @@ function Building({
     <div
       role="status"
       data-testid="run-building"
-      className="flex h-preview min-h-preview-min flex-col items-center justify-center gap-3 rounded border border-dashed border-border px-6 text-center"
+      className={`flex ${over ? "py-8" : "h-preview min-h-preview-min"} flex-col items-center justify-center gap-3 rounded border border-dashed border-border px-6 text-center`}
     >
       {stuck ? (
         <>

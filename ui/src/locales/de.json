@@ -806,6 +806,8 @@
     "api": {
       "lead": "Wie ein Programm {type} liest: über einen Endpoint dieses Raums, mit eigenem Token, und die Webhooks, die ihm sagen, wenn sich etwas ändert.",
       "noEndpoint": "Noch kein Endpoint bedient diesen Raum, daher kann ihn kein Programm lesen. Legen Sie einen bei den Endpoints des Raums an.",
+      "pick": "Endpoint",
+      "pickHint": "{count} Endpoints dieses Bereichs. Jeder hat eigene Adresse und eigenes Token, seine Policy bestimmt die Zeilen, zum Beispiel air-quality.",
       "endpoint": "Über {name}",
       "call": {
         "list": "Liste",
@@ -949,6 +951,7 @@
       },
       "fix": "Vor dem Senden müssen Antworten korrigiert werden: {count}.",
       "refused": "Nicht angelegt: {reason}",
+      "forbidden": "Bitten Sie eine Projektverantwortliche Person um eine Policy, mit der Sie {type} in diesem Bereich anlegen dürfen.",
       "created": "Angelegt: {id}.",
       "noFields": "Das Modell von {type} hat kein Feld, das ein Formular abfragen kann.",
       "problem": {
@@ -960,6 +963,7 @@
         "date": "Geben Sie ein gültiges Datum ein, etwa 2026-10-11."
       },
       "notPublished": "Dieses Formular ist nicht oder nicht mehr veröffentlicht.",
+      "publicTitle": "Formular",
       "publicLead": "Ihre Antworten legen einen Datensatz an. Nichts davon wird Ihnen wieder angezeigt.",
       "publicData": "Ihre Antworten werden öffentliche Daten dieses Bereichs: Jeder, dem der Bereich Daten veröffentlicht, kann sie lesen. Senden Sie keine persönlichen Angaben.",
       "trap": "Lassen Sie dieses Feld leer",
@@ -3521,6 +3525,7 @@
       },
       "choice": "Was berechnet wird",
       "choices": {
+        "rest": "Genutzter Anteil: eins minus erste Summe geteilt durch zweite Summe",
         "count": "Zeilen der ersten Quelle zählen",
         "sum": "Summe der Zahl der ersten Quelle",
         "average": "Durchschnitt der Zahl der ersten Quelle",
@@ -3543,6 +3548,7 @@
       "runPreview": "Jetzt berechnen",
       "previewing": "Wird berechnet…",
       "previewHint": "Liest bis zu 100 Zeilen jeder Quelle so, wie Sie sie sehen, und berechnet {formula}.",
+      "partial": "Die Vorschau endete bei {rows} Zeilen einer Quelle, dieser Wert ist also nicht endgültig: Ein Lauf liest alle Zeilen.",
       "noKeys": "Kein Schlüssel kommt in jeder Quelle vor, daher würde jetzt keine Kennzahl geschrieben.",
       "indicator": "Kennzahl",
       "value": "Wert",
@@ -3555,6 +3561,7 @@
         "target": "Wählen Sie zuerst den Endpunkt, über den die Kennzahl geschrieben wird."
       },
       "hint": {
+        "typeFirst": "Wählen Sie zuerst den Entitätstyp; seine Zahlen erscheinen hier.",
         "name": "Kleinbuchstaben, Ziffern und Bindestriche, höchstens 48, zum Beispiel parking-per-stop.",
         "title": "Was in Listen zu lesen ist, zum Beispiel Belegte Parkplätze je Haltestelle.",
         "sources": "Jede Quelle liest einen Entitätstyp über einen Endpunkt, zum Beispiel Parkplätze über helsinki-parking.",
@@ -4962,7 +4969,7 @@
       "package": "Paket",
       "started": "Die Forge wurde gebeten, den Standardzweig erneut zu bauen; der Lauf erscheint hier in Kürze.",
       "unreadable": "Wo diese Anwendung gebaut wird, konnte gerade nicht aus der Forge gelesen werden.",
-      "notOnForge": "Diese Anwendung wird nicht in der Forge gebaut: Sie hat kein eigenes Repository.",
+      "notOnForge": "Diese Anwendung hat kein eigenes Repository und damit keinen Build zum Anzeigen.",
       "run": {
         "none": "Es lief noch kein Build.",
         "building": "{commit} wird gebaut …",
@@ -5974,7 +5981,11 @@
       "inView": "{shown} in diesem Ausschnitt, {total} insgesamt",
       "noneInView": "Im gezeigten Kartenausschnitt liegt keine Entität dieser Ansicht.",
       "reading": "Lese den sichtbaren Ausschnitt…",
-      "viewFailed": "Der sichtbare Ausschnitt konnte nicht gelesen werden ({reason}); verschieben Sie die Karte, um es erneut zu versuchen."
+      "viewFailed": "Der sichtbare Ausschnitt konnte nicht gelesen werden ({reason}); verschieben Sie die Karte, um es erneut zu versuchen.",
+      "colouredBy": "Die Farbe zeigt {attr} von {min} bis {max}, von Gelb nach Rot. Grau: kein Wert ({unknown}).",
+      "colouredOne": "Alle Punkte zeigen {attr} {min}, daher eine Farbe. Grau: kein Wert ({unknown}).",
+      "keyAll": "alle gleich: {value}",
+      "keyUnknown": "kein Wert ({unknown})"
     },
     "chart": {
       "open": "Diagramm",
@@ -6036,7 +6047,7 @@
       "previewing": "Vorschau ist fertig",
       "awaiting_approval": "Wartet auf Freigabe",
       "published": "Veröffentlicht",
-      "failed": "Der Lauf ist gescheitert. Öffnen Sie seine Schritte, um zu sehen, wo.",
+      "failed": "Der Lauf ist fehlgeschlagen. Bitten Sie den Assistenten, die App erneut zu bauen.",
       "cancelled": "Der Lauf wurde gestoppt.",
       "expired": "Der Lauf ist beendet; die Vorschau bleibt, wie sie gebaut wurde."
     },
@@ -6364,7 +6375,9 @@
       "running": "Veröffentlichen wartet, bis die Tests von Version {version} gelaufen sind.",
       "failed": "Version {version} wird nicht veröffentlicht, solange {failed} ihrer Tests fehlschlagen: {names}. Bitten Sie den Assistenten, sie zu beheben."
     },
-    "cancelOver": "Der Lauf ist beendet; es gibt nichts abzubrechen."
+    "publishOver": "Dieser Lauf ist beendet und hat nichts zu veröffentlichen.",
+    "failedNext": "Es wurde nichts veröffentlicht. Bauen Sie die App auf der Seite Assistent neu.",
+    "failedOpen": "Neu bauen"
   },
   "assistant": {
     "newConversation": "Ein neues Gespräch beginnen",

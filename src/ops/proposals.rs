@@ -509,6 +509,9 @@ pub async fn record_check(
 ) {
     if let Some(own) = own_draft(manifest) {
         record_verdict(caller, state, project, &own, manifest, verdict).await;
+        if let Some(records) = crate::api::kpi_check::records_verdict(state, project, manifest) {
+            record_records(caller, state, project, &own, manifest, records).await;
+        }
     }
 }
 

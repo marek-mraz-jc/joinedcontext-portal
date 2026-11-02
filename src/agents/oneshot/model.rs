@@ -129,8 +129,7 @@ impl Driver {
                 effort
             }
         });
-        let effortful = with_effort(path, body, effort);
-        let body = effortful.as_ref().unwrap_or(body);
+        let body = with_effort(path, body, effort);
         // A provider that was busy or failed for a moment is asked once more before the person
         // is told: on dev one 502 ended an answer and had the person send it again, and a 429 or
         // a dropped connection reads the same (T-2772). A call that timed out is not asked
@@ -142,7 +141,7 @@ impl Driver {
                 .http
                 .post(format!("{}{path}", self.proxy_base))
                 .bearer_auth(&self.bearer)
-                .json(body)
+                .json(&body)
                 .send()
                 .await;
             let response = match sent {
@@ -724,13 +723,24 @@ pub(super) struct ToolAnswer {
 
 /// A whole answer read as JSON; one cut at the output budget applied nothing and says so.
 /// `body` with the profile's reasoning effort (AG-72, JC1-26) in the OpenAI-compatible
-/// `reasoning` member OpenRouter reads, or `None` when there is none to add.
+/// `reasoning` member OpenRouter reads, when there is one to add.
 /// ponytail: the Anthropic messages body gets none; add `thinking` when a profile runs on it.
-fn with_effort(path: &str, body: &Value, effort: Option<&str>) -> Option<Value> {
-    let effort = effort.filter(|_| path.ends_with("/chat/completions"))?;
-    let mut body = body.clone();
-    body["reasoning"] = json!({ "effort": effort });
-    Some(body)
+fn with_effort<'a>(path: &str, body: &'a Value, effort: Option<&str>) -> Effortful<'a> {
+    let effort = effort.filter(|_| path.ends_with("/chat/completions"));
+    Effortful {
+        body,
+        reasoning: effort.map(|effort| json!({ "effort": effort })),
+    }
+}
+
+/// A request body with its `reasoning`, written out over the borrowed body: a turn's prompt is
+/// not copied for one more member.
+#[derive(serde::Serialize)]
+struct Effortful<'a> {
+    #[serde(flatten)]
+    body: &'a Value,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reasoning: Option<Value>,
 }
 
 fn whole_answer(text: &str, budget: u32) -> Result<Value, CallError> {
@@ -1312,8 +1322,9 @@ mod effort_tests {
             assert_eq!(body["reasoning"], json!({ "effort": "medium" }), "{body}");
         }
         assert_eq!(
-            with_effort("/v1/llm/chat/completions", &json!({}), None),
-            None,
+            serde_json::to_value(with_effort("/v1/llm/chat/completions", &json!({}), None))
+                .expect("a JSON body"),
+            json!({}),
             "no effort named, none sent"
         );
     }

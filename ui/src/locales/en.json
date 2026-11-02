@@ -806,6 +806,8 @@
     "api": {
       "lead": "How a program reads {type}: through an Endpoint of this space, with its own token, and the webhooks that tell it when something changes.",
       "noEndpoint": "No Endpoint serves this space yet, so no program can read it. Create one on the space's Endpoints.",
+      "pick": "Endpoint",
+      "pickHint": "{count} Endpoints of this space. Each has its own address and token, and its Policy decides which rows it answers, for example air-quality.",
       "endpoint": "Through {name}",
       "call": {
         "list": "List",
@@ -949,6 +951,7 @@
       },
       "fix": "{count, plural, one {# answer needs} other {# answers need}} fixing before the form can be sent.",
       "refused": "Not created: {reason}",
+      "forbidden": "Ask a project owner for a Policy that lets you create {type} in this space.",
       "created": "Created {id}.",
       "noFields": "The model of {type} has no field a form can ask for.",
       "problem": {
@@ -960,6 +963,7 @@
         "date": "Enter a date the calendar knows, such as 2026-10-11."
       },
       "notPublished": "This form is not published, or no longer.",
+      "publicTitle": "Form",
       "publicLead": "Your answers create one record. Nothing you send is read back to you.",
       "publicData": "Your answers become public data of this space: anyone the space publishes to can read them. Do not send personal details.",
       "trap": "Leave this field empty",
@@ -3521,6 +3525,7 @@
       },
       "choice": "What to compute",
       "choices": {
+        "rest": "Share in use: one minus first sum divided by second sum",
         "count": "Count the rows of the first source",
         "sum": "Sum of the first source's number",
         "average": "Average of the first source's number",
@@ -3543,6 +3548,7 @@
       "runPreview": "Compute now",
       "previewing": "Computing…",
       "previewHint": "Reads up to 100 rows of each source as you see them and computes {formula}.",
+      "partial": "The preview stopped at {rows} rows of a source, so this value is not the final one: a run reads every row.",
       "noKeys": "No key appears in every source, so no indicator would be written now.",
       "indicator": "Indicator",
       "value": "Value",
@@ -3555,6 +3561,7 @@
         "target": "Pick the endpoint the indicator is written through first."
       },
       "hint": {
+        "typeFirst": "Pick the entity type first; its numbers appear here.",
         "name": "Lower-case letters, digits and hyphens, at most 48, for example parking-per-stop.",
         "title": "What people read in lists, for example Occupied parking places per transit stop.",
         "sources": "Each source reads one entity type through one endpoint, for example parking sites through helsinki-parking.",
@@ -4962,7 +4969,7 @@
       "package": "Package",
       "started": "The forge was asked to build the default branch again; the run appears here shortly.",
       "unreadable": "Where this application is built could not be read from the forge right now.",
-      "notOnForge": "This application is not built on the forge: it has no repository of its own.",
+      "notOnForge": "This application has no repository of its own, so it has no build to show.",
       "run": {
         "none": "No build has run yet.",
         "building": "Building {commit}…",
@@ -5974,7 +5981,11 @@
       "inView": "{shown} in this view, {total} in all",
       "noneInView": "No entity of this view lies in the part of the map shown.",
       "reading": "Reading the part in view…",
-      "viewFailed": "The part in view could not be read ({reason}); move the map to try again."
+      "viewFailed": "The part in view could not be read ({reason}); move the map to try again.",
+      "colouredBy": "Colour shows {attr} from {min} to {max}, yellow to red. Grey: no value ({unknown}).",
+      "colouredOne": "All points show {attr} {min}, so one colour. Grey: no value ({unknown}).",
+      "keyAll": "all the same: {value}",
+      "keyUnknown": "no value ({unknown})"
     },
     "chart": {
       "open": "Chart",
@@ -6036,7 +6047,7 @@
       "previewing": "Preview ready",
       "awaiting_approval": "Waiting for approval",
       "published": "Published",
-      "failed": "The run failed. Open its steps to see where.",
+      "failed": "The run failed. Ask the assistant to build the app again.",
       "cancelled": "The run was stopped.",
       "expired": "The run has ended; the preview stays as it was built."
     },
@@ -6364,7 +6375,9 @@
       "running": "Publish waits until the tests of version {version} have run.",
       "failed": "Version {version} is not published while {failed} of its tests fail: {names}. Ask the assistant to fix them."
     },
-    "cancelOver": "The run is over; there is nothing to cancel."
+    "publishOver": "This run has ended, so it has nothing to publish.",
+    "failedNext": "Nothing was published. Open the Assistant page to build it again.",
+    "failedOpen": "Build it again"
   },
   "assistant": {
     "newConversation": "Start a new conversation",
