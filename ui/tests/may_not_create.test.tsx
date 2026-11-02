@@ -3,7 +3,7 @@
  * tooltip only, so a row of greyed create buttons, an enabled "Import rows", a live upload form and
  * a red "no create form" warning met a read-only role with nothing it could read on why.
  */
-import { screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import en from "../src/locales/en.json";
 import { proposesAnything } from "../src/api/permissions";
@@ -31,12 +31,21 @@ describe("a list's greyed create button", () => {
     await waitFor(() => expect(add).toHaveAttribute("aria-disabled", "true"));
     expect(add).toHaveAccessibleDescription(/ContextSpace/);
     expect(screen.queryByText(en.form.mayNotCreate)).toBeNull();
+    expect(screen.getAllByRole("button", { name: new RegExp(en.spaces.fromFile) })[0]).toHaveAttribute("aria-disabled", "true");
   });
 
   it("is enabled for a role that may create there", async () => {
     await renderRoute({ path: "/projects/helsinki/spaces", permissions: SPACE_EDITOR });
     const add = await screen.findByRole("button", { name: new RegExp(en.spaces.add) });
     await waitFor(() => expect(add).not.toHaveAttribute("aria-disabled", "true"));
+  });
+
+  it("leads from the list to the file upload (T-6450)", async () => {
+    await renderRoute({ path: "/projects/helsinki/spaces", permissions: SPACE_EDITOR });
+    const [fromFile] = await screen.findAllByRole("button", { name: new RegExp(en.spaces.fromFile) });
+    await waitFor(() => expect(fromFile).not.toHaveAttribute("aria-disabled", "true"));
+    fireEvent.click(fromFile);
+    await waitFor(() => expect(window.location.pathname).toBe("/projects/helsinki/spaces/upload"));
   });
 });
 

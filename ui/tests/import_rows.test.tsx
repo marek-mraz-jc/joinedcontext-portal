@@ -113,6 +113,14 @@ describe("reading a file", () => {
     expect(table.rows).toEqual([{ name: "Kamppi", bikes: "", open: "true" }]);
   });
 
+  it("takes a formula's saved value and never its text: nothing in a workbook runs (T-6445)", async () => {
+    const book = zip({
+      "xl/worksheets/sheet1.xml": `<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData><row r="1"><c r="A1" t="inlineStr"><is><t>total</t></is></c></row><row r="2"><c r="A2"><f>HYPERLINK("https://evil.example/","x")+SUM(A1:A1)</f><v>42</v></c></row></sheetData></worksheet>`,
+      "xl/vbaProject.bin": "macro bytes the reader never opens",
+    });
+    expect((await parseXlsx(book)).rows).toEqual([{ total: "42" }]);
+  });
+
   it("reads every sheet in the workbook's own order, named as the spreadsheet shows them (JC1-21)", async () => {
     const sheets = await parseWorkbook(
       workbook({
