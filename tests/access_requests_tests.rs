@@ -117,6 +117,10 @@ async fn world(pipeline: &str, pipeline_identity: bool) -> AppState {
     state
 }
 
+/// Every test approves as `olli` in Helsinki, and an import's check is one draft per person and
+/// project in the shared database: one test's import dropped the check of another's.
+static DATABASE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 async fn pool() -> Option<sqlx::PgPool> {
     let url = std::env::var("JC_PORTAL_TEST_DATABASE_URL")
         .ok()
@@ -164,6 +168,7 @@ fn id_of(who: &str) -> String {
 /// before the approval and the requester never reads Helsinki's spaces through the request.
 #[tokio::test]
 async fn a_request_is_approved_in_the_owning_project_and_revoked_there() {
+    let _held = DATABASE.lock().await;
     let Some(pool) = pool().await else { return };
     let pipeline = unique("air");
     let state = state(pool, &pipeline, true).await;
@@ -392,6 +397,7 @@ async fn a_request_is_approved_in_the_owning_project_and_revoked_there() {
 /// proposes anything.
 #[tokio::test]
 async fn two_approvals_at_once_open_one_change() {
+    let _held = DATABASE.lock().await;
     let Some(pool) = pool().await else { return };
     let pipeline = unique("air");
     let state = state(pool, &pipeline, true).await;
@@ -441,6 +447,7 @@ async fn two_approvals_at_once_open_one_change() {
 /// 409 before it proposes anything; the request keeps the revoker who won.
 #[tokio::test]
 async fn two_revokes_at_once_open_one_change() {
+    let _held = DATABASE.lock().await;
     let Some(pool) = pool().await else { return };
     let pipeline = unique("air");
     let state = state(pool, &pipeline, true).await;
@@ -518,6 +525,7 @@ async fn two_revokes_at_once_open_one_change() {
 /// PL-91: the requester never approves their own request, even holding the owner's rights.
 #[tokio::test]
 async fn the_requester_does_not_approve_their_own_request() {
+    let _held = DATABASE.lock().await;
     let Some(pool) = pool().await else { return };
     let pipeline = unique("self");
     let state = state(pool, &pipeline, true).await;
@@ -576,6 +584,7 @@ async fn the_requester_does_not_approve_their_own_request() {
 /// unknown endpoint is refused before anything is stored.
 #[tokio::test]
 async fn a_request_is_refused_before_it_is_stored() {
+    let _held = DATABASE.lock().await;
     let Some(pool) = pool().await else { return };
     let pipeline = unique("bad");
     let state = state(pool.clone(), &pipeline, true).await;
@@ -853,6 +862,7 @@ const MINE: &str = "/api/v1/projects/helsinki/endpoints/air-quality/access-reque
 /// one of its types; an owner approves it as a Change; the grant is one Policy for that reader.
 #[tokio::test]
 async fn a_person_asks_on_the_endpoint_and_an_owner_approves() {
+    let _held = DATABASE.lock().await;
     let Some(pool) = pool().await else { return };
     let state = state(pool, &unique("air"), true).await;
     modelled(&state);
@@ -1088,6 +1098,7 @@ async fn a_persons_request_is_refused_field_by_field() {
 /// the same owner after a step-up login decides it.
 #[tokio::test]
 async fn an_owner_decides_a_request_only_after_a_second_factor() {
+    let _held = DATABASE.lock().await;
     let Some(pool) = pool().await else { return };
     let pipeline = unique("mfa");
     let mut state = state(pool, &pipeline, true).await;
