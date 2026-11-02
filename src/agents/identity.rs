@@ -30,12 +30,27 @@ pub fn persons_token(headers: &HeaderMap, trust_edge_token: bool) -> Option<&str
     .filter(|token| !token.is_empty())
 }
 
+/// How long one hand-over waits for the proxy, which asks the Portal and the realm in turn.
+const HAND_OVER_TIMEOUT: Duration = Duration::from_secs(10);
+/// The waits before a hand-over is tried again. Without a grant a run reads nothing for as long
+/// as it lives, so a realm or a proxy that is back seconds later must not cost it that.
+const HAND_OVER_RETRIES: [Duration; 2] = [Duration::from_millis(500), Duration::from_secs(2)];
+
+/// What one try of a hand-over came to.
+enum Handed {
+    /// The proxy holds the grant, or said why it never will: asking again changes nothing.
+    Settled,
+    /// The realm, the proxy or the way there failed: the reason, which carries no token.
+    Unreachable(String),
+}
+
 /// Hands `token` to the proxy for `run_id`, as the Portal's own service account.
 ///
 /// Best effort by design: a refused or failed hand-over leaves the run without a grant, and the
 /// proxy answers the run's data calls `401` with the reason (ADR-N-038 §3.3). The run itself may
-/// still build, so the start of the run is not failed over it. What went wrong is logged without
-/// either token.
+/// still build, so the start of the run is not failed over it. A failure the proxy or the realm
+/// can recover from is tried again; a person's next turn hands their token over once more. What
+/// went wrong is logged without either token.
 pub async fn hand_over(
     oidc: Option<&OidcClient>,
     proxy_base: &str,
@@ -50,17 +65,10 @@ pub async fn hand_over(
         tracing::warn!(run = %run_id, "no Keycloak client to hand the run its person's identity with");
         return;
     };
-    let service = match oidc.service_token().await {
-        Ok(service) => service,
-        Err(error) => {
-            tracing::warn!(run = %run_id, %error, "no service token to hand the run its person's identity with");
-            return;
-        }
-    };
     // The body carries a person's token: a redirect would carry it wherever the proxy named.
     let http = match reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
-        .timeout(Duration::from_secs(10))
+        .timeout(HAND_OVER_TIMEOUT)
         .build()
     {
         Ok(http) => http,
@@ -73,6 +81,28 @@ pub async fn hand_over(
         "{}/internal/runs/{run_id}/identity",
         proxy_base.trim_end_matches('/')
     );
+    let mut retries = HAND_OVER_RETRIES.iter();
+    while let Handed::Unreachable(reason) = hand_over_once(oidc, &http, &url, run_id, token).await {
+        let Some(wait) = retries.next() else {
+            tracing::warn!(run = %run_id, %reason, "the run's identity could not be handed over; the run reads no data until its person's next turn");
+            return;
+        };
+        tracing::info!(run = %run_id, %reason, "the run's identity is handed over again");
+        tokio::time::sleep(*wait).await;
+    }
+}
+
+async fn hand_over_once(
+    oidc: &OidcClient,
+    http: &reqwest::Client,
+    url: &str,
+    run_id: &str,
+    token: &str,
+) -> Handed {
+    let service = match oidc.service_token().await {
+        Ok(service) => service,
+        Err(error) => return Handed::Unreachable(format!("no service token: {error}")),
+    };
     let sent = http
         .post(url)
         .bearer_auth(service)
@@ -82,13 +112,19 @@ pub async fn hand_over(
     match sent {
         Ok(response) if response.status().is_success() => {
             tracing::info!(run = %run_id, "the run holds its person's identity");
+            Handed::Settled
+        }
+        Ok(response) if response.status().is_server_error() => {
+            Handed::Unreachable(format!("the proxy answered {}", response.status()))
         }
         Ok(response) => {
             tracing::warn!(run = %run_id, status = %response.status(), "the proxy refused the run's identity; the run reads no data");
+            Handed::Settled
         }
-        Err(error) => {
-            tracing::warn!(run = %run_id, error = %error.without_url(), "the proxy could not be reached with the run's identity; the run reads no data");
-        }
+        Err(error) => Handed::Unreachable(format!(
+            "the proxy could not be reached: {}",
+            error.without_url()
+        )),
     }
 }
 
@@ -306,8 +342,44 @@ mod tests {
             .is_empty());
     }
 
-    /// A refusal and an unreachable proxy end the hand-over quietly: the run starts, and reads
-    /// no data (ADR-N-038 §3.3).
+    /// A proxy or a realm that is restarting answers for seconds: the hand-over outlasts that,
+    /// or the run would read nothing for its whole life (T-6483, the walk's k3s restart).
+    #[tokio::test]
+    async fn a_hand_over_outlasts_a_proxy_that_is_coming_back() {
+        let (_realm, oidc) = realm().await;
+        let proxy = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(503))
+            .up_to_n_times(2)
+            .with_priority(1)
+            .expect(2)
+            .mount(&proxy)
+            .await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(204))
+            .expect(1)
+            .mount(&proxy)
+            .await;
+        hand_over(Some(&oidc), &proxy.uri(), "run-1", Some("persons-token")).await;
+        proxy.verify().await;
+    }
+
+    /// The retries are bounded: a proxy that stays down costs the start seconds, not the start.
+    #[tokio::test]
+    async fn a_hand_over_gives_up_after_its_retries() {
+        let (_realm, oidc) = realm().await;
+        let proxy = MockServer::start().await;
+        Mock::given(method("POST"))
+            .respond_with(ResponseTemplate::new(503))
+            .expect(1 + HAND_OVER_RETRIES.len() as u64)
+            .mount(&proxy)
+            .await;
+        hand_over(Some(&oidc), &proxy.uri(), "run-1", Some("persons-token")).await;
+        proxy.verify().await;
+    }
+
+    /// A refusal ends the hand-over at the first answer and an unreachable proxy after its
+    /// retries, quietly: the run starts, and reads no data (ADR-N-038 §3.3).
     #[tokio::test]
     async fn a_refused_or_unreachable_proxy_does_not_fail_the_start() {
         let (_realm, oidc) = realm().await;

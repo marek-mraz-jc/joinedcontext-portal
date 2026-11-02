@@ -985,6 +985,7 @@ pub async fn answer_question(
     user: CurrentUser,
     State(state): State<AppState>,
     Path((project, id)): Path<(String, String)>,
+    headers: HeaderMap,
     Json(request): Json<AnswerRequest>,
 ) -> Result<StatusCode, ApiError> {
     let run = own_run_to_write(&state, &user, &project, &id).await?;
@@ -1015,6 +1016,7 @@ pub async fn answer_question(
         ))
     })?;
     offered_answer(&asked.payload, &request.answers).map_err(ApiError::BadRequest)?;
+    hand_over_on_turn(&state, &headers, &id).await;
     publish_event(
         &state,
         &id,
@@ -1028,6 +1030,28 @@ pub async fn answer_question(
     .await?;
     record_answer(&state, &project, &id, &user, &request.question_id).await;
     Ok(StatusCode::NO_CONTENT)
+}
+
+/// The person's turn on a run they own: their token goes to the proxy again before the run acts
+/// on the turn, so a grant the start could not leave, or a proxy restart took, is back
+/// (ADR-N-038 §3.1, T-6483). No token, no agent runner: nothing to hand over, and the run keeps
+/// the grant it holds.
+async fn hand_over_on_turn(state: &AppState, headers: &HeaderMap, id: &str) {
+    let Some(token) =
+        crate::agents::identity::persons_token(headers, state.config.trust_edge_token)
+    else {
+        return;
+    };
+    let Ok(settings) = agent_settings(state) else {
+        return;
+    };
+    crate::agents::identity::hand_over(
+        state.oidc.as_deref(),
+        &settings.proxy_base,
+        id,
+        Some(token),
+    )
+    .await;
 }
 
 /// An answer is what the question offered, never what a browser made up (AG-83, UI-73, T-2694):
@@ -1259,6 +1283,7 @@ pub async fn post_message(
     user: CurrentUser,
     State(state): State<AppState>,
     Path((project, id)): Path<(String, String)>,
+    headers: HeaderMap,
     Json(request): Json<MessageRequest>,
 ) -> Result<StatusCode, ApiError> {
     let run = own_run_to_write(&state, &user, &project, &id).await?;
@@ -1345,6 +1370,7 @@ pub async fn post_message(
             .await?;
         }
     }
+    hand_over_on_turn(&state, &headers, &id).await;
     publish_event(
         &state,
         &id,
