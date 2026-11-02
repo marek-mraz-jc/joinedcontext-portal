@@ -4,6 +4,8 @@
 //! writes `ui` for `static` and `ui-rust` for `fullstack` in every App still carrying an old
 //! name, and changes nothing else in those files: no provenance stamp, no status, no other App.
 
+mod common;
+
 use std::sync::Arc;
 
 use axum::body::Body;
@@ -21,7 +23,7 @@ use joinedcontext_portal::state::AppState;
 use joinedcontext_portal::store::Mirror;
 use serde_json::{json, Value};
 use tower::ServiceExt;
-use wiremock::matchers::{method, path, path_regex};
+use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 const PROJECT: &str = "banskabystrica";
@@ -62,13 +64,8 @@ async fn forge() -> MockServer {
         .respond_with(ResponseTemplate::new(201).set_body_json(json!({ "name": "portal/rename" })))
         .mount(&server)
         .await;
-    Mock::given(method("GET"))
-        .and(path_regex(r"^/api/v1/repos/bb/org/contents/.*$"))
-        .respond_with(ResponseTemplate::new(404))
-        .mount(&server)
-        .await;
-    Mock::given(method("PUT"))
-        .and(path_regex(r"^/api/v1/repos/bb/org/contents/.*$"))
+    Mock::given(method("POST"))
+        .and(path("/api/v1/repos/bb/org/contents"))
         .respond_with(ResponseTemplate::new(201).set_body_json(json!({
             "content": { "sha": "b1ob" },
             "commit": { "sha": "c0mm1t" }
@@ -191,24 +188,7 @@ async fn rename(state: AppState, cookie: &str, project: &str) -> (StatusCode, Va
 
 /// The files the forge was asked to write, as `(path, decoded YAML)`.
 async fn written(server: &MockServer) -> Vec<(String, String)> {
-    use base64::Engine;
-    server
-        .received_requests()
-        .await
-        .unwrap_or_default()
-        .into_iter()
-        .filter(|r| r.method.as_str() == "PUT")
-        .map(|r| {
-            let body: Value = serde_json::from_slice(&r.body).expect("json");
-            let content = base64::engine::general_purpose::STANDARD
-                .decode(body["content"].as_str().unwrap_or_default())
-                .expect("base64");
-            (
-                r.url.path().to_owned(),
-                String::from_utf8(content).expect("utf-8"),
-            )
-        })
-        .collect()
+    common::committed_files(server, "/api/v1/repos/bb/org").await
 }
 
 #[tokio::test]
