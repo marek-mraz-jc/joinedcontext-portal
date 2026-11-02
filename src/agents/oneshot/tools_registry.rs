@@ -285,6 +285,74 @@ pub(super) fn describes(answer: &str) -> Vec<String> {
         .collect()
 }
 
+/// A block that opens like a call, closed or cut off. Wider than [`share::TOOL_FENCE`], which
+/// needs a closing brace and sees no list.
+static CALL_BLOCK: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r"(?s)```(?:json)?\s*([\[{].*?)(?:```|\z)").expect("a literal pattern")
+});
+
+/// The tool a block that does not parse names.
+static NAMED_TOOL: LazyLock<regex::Regex> = LazyLock::new(|| {
+    regex::Regex::new(r#"["']tool["']\s*:\s*["']([^"']*)"#).expect("a literal pattern")
+});
+
+/// The tools that run after the turn's loop: every other call has run by the time it ends.
+const RUN_AFTER_THE_LOOP: [&str; 4] = [
+    "propose_endpoint",
+    "edit_endpoint",
+    "space_complete",
+    "navigate",
+];
+
+/// The tool one block calls and why nothing runs it; none for a block no parser leaves behind.
+fn unrun_block(block: &str) -> Option<(String, String)> {
+    let parsed = serde_json::from_str::<Value>(block.trim());
+    if let Some(call) = parsed.as_ref().ok().and_then(Value::as_object) {
+        let tool = call.get("tool").and_then(Value::as_str)?;
+        let reason = if tool == "describe_tool" {
+            "describe_tool takes `name`, the operation to describe, and this call has none, so \
+             it did not run; send it again, or answer in plain prose"
+                .to_owned()
+        } else {
+            format!(
+                "{tool} lacks a field it needs or is no tool of this turn, so it did not run; \
+                 call a tool you were given, or answer in plain prose"
+            )
+        };
+        return (!RUN_AFTER_THE_LOOP.contains(&tool)).then(|| (tool.to_owned(), reason));
+    }
+    let tool = NAMED_TOOL.captures(block)?[1].to_owned();
+    let why = parsed
+        .err()
+        .map_or("a list".to_owned(), |err| err.to_string());
+    let reason = format!(
+        "the {tool} call is not one JSON object ({why}), so it did not run; send it again as \
+         one object in one fence, or answer in plain prose"
+    );
+    Some((tool, reason))
+}
+
+/// The first call of a finished answer that nothing will run (T-6479): a block naming `tool` that
+/// does not parse, or that no parser takes. It goes back to the model; it is never the answer.
+pub(super) fn unrun_call(answer: &str) -> Option<(String, String)> {
+    CALL_BLOCK
+        .captures_iter(answer)
+        .find_map(|block| unrun_block(&block[1]))
+}
+
+/// The answer without the blocks [`unrun_call`] finds.
+pub(super) fn without_unrun_calls(answer: &str) -> String {
+    CALL_BLOCK
+        .replace_all(answer, |block: &regex::Captures<'_>| {
+            match unrun_block(&block[1]) {
+                Some(_) => String::new(),
+                None => block[0].to_owned(),
+            }
+        })
+        .trim()
+        .to_owned()
+}
+
 pub(super) fn blocks(answer: &str) -> impl Iterator<Item = Value> + '_ {
     share::TOOL_FENCE
         .captures_iter(answer)
@@ -1391,6 +1459,67 @@ mod tests {
     fn a_call_without_arguments_is_an_empty_object() {
         let answer = "```json\n{ \"tool\": \"jc_draft_list\" }\n```";
         assert_eq!(calls(answer)[0].arguments, json!({}));
+    }
+
+    /// T-6479: the two answers the live walk T-5962 showed as prose (evidence/T-5962,
+    /// first-pass/assistant/S-27.json and assistant/S-43.json).
+    const STRAY_BRACE: &str =
+        "```json\n{ \"tool\": \"describe_tool\", \"name\": \"grant_role\" }\n}\n```";
+    const NO_NAME: &str = "```json\n{\"additionalPropertiesSchema\":{\"name\":\"change-resource\"},\"tool\":\"describe_tool\"}\n```";
+
+    #[test]
+    fn a_recorded_call_nothing_runs_goes_back_with_the_reason() {
+        assert!(describes(STRAY_BRACE).is_empty() && calls(STRAY_BRACE).is_empty());
+        let (tool, reason) = unrun_call(STRAY_BRACE).expect("the stray brace");
+        assert_eq!(tool, "describe_tool");
+        assert!(reason.contains("not one JSON object"), "{reason}");
+        assert!(describes(NO_NAME).is_empty() && calls(NO_NAME).is_empty());
+        let (tool, reason) = unrun_call(NO_NAME).expect("the missing name");
+        assert_eq!(tool, "describe_tool");
+        assert!(reason.contains("takes `name`"), "{reason}");
+    }
+
+    #[test]
+    fn a_broken_call_is_found_however_it_is_broken() {
+        for answer in [
+            "Looking.\n```json\n{ \"tool\": \"jc_draft_list\", \"arguments\": {\n```",
+            "```json\n{ \"tool\": \"jc_draft_list\"",
+            "```json\n[{ \"tool\": \"jc_draft_list\" }]\n```",
+            "```\n{ 'tool': 'jc_draft_list' }\n```",
+        ] {
+            assert_eq!(
+                unrun_call(answer).map(|(tool, _)| tool).as_deref(),
+                Some("jc_draft_list"),
+                "{answer}"
+            );
+        }
+        let unknown = "```json\n{ \"tool\": \"made_up\" }\n```";
+        assert_eq!(unrun_call(unknown).expect("unknown").0, "made_up");
+    }
+
+    #[test]
+    fn prose_and_calls_that_run_are_no_unrun_call() {
+        for answer in [
+            "Twelve stations.",
+            "The body:\n```json\n{ \"title\": \"a\" }\n```",
+            "```bash\ncurl -d '{\"tool\": \"x\"}'\n```",
+            "```json\n{ \"tool\": \"edit_endpoint\", \"name\": \"a\" }\n```",
+            "```json\n{ \"tool\": \"navigate\", \"route\": \"/\" }\n```",
+            "```json\n{ \"tool\": \"propose_endpoint\" }\n```",
+            "```json\n{ \"tool\": \"space_complete\" }\n```",
+        ] {
+            assert_eq!(unrun_call(answer), None, "{answer}");
+        }
+    }
+
+    #[test]
+    fn only_the_broken_block_leaves_the_answer() {
+        let kept = "```json\n{ \"title\": \"a\" }\n```";
+        assert_eq!(
+            without_unrun_calls(&format!("The body:\n{kept}\n{STRAY_BRACE}")),
+            format!("The body:\n{kept}")
+        );
+        assert_eq!(without_unrun_calls(NO_NAME), "");
     }
 
     #[test]

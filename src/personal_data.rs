@@ -102,6 +102,16 @@ pub fn carries_entities(value: &Value) -> bool {
     }
 }
 
+/// The first attribute `marks` names that `texts` mention, whatever class holds it: a computed
+/// value built on one tells it as an answer would, and a `type` or `q` can spell a class many ways.
+pub fn mentioned<'a>(marks: &'a Marks, texts: &[&str]) -> Option<&'a str> {
+    marks
+        .values()
+        .flatten()
+        .find(|name| texts.iter().any(|text| text.contains(name.as_str())))
+        .map(String::as_str)
+}
+
 /// Removes from every entity in `value` the attributes `marks` names for its types, and
 /// returns each one removed as `Type.attribute`, sorted, once each. Values are never returned.
 pub fn withhold(value: &mut Value, marks: &Marks) -> Vec<String> {
@@ -223,6 +233,15 @@ pub fn withhold_source(answer: &mut Value, source: &str, fields: &BTreeSet<Strin
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_mention_finds_a_marked_attribute_in_any_spelling_of_any_class() {
+        let marks = Marks::from([("Report".to_owned(), BTreeSet::from(["email".to_owned()]))]);
+        assert_eq!(mentioned(&marks, &["email"]), Some("email"));
+        assert_eq!(mentioned(&marks, &["https://x.org/email"]), Some("email"));
+        assert_eq!(mentioned(&marks, &["", "n>1;email~=\"a\""]), Some("email"));
+        assert_eq!(mentioned(&marks, &["count", ""]), None);
+    }
     use serde_json::json;
 
     const MODEL: &str = r#"

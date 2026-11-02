@@ -70,6 +70,19 @@ export function measuredAttr(row: RichRow, attrs: string[]): string {
   return measured ?? attrs[0] ?? "";
 }
 
+/** One attribute on its own: its value, then its metadata and its readings over time where the host has them. */
+export function AttributeView({ label, value, metadata, history }: { label: string; value: React.ReactNode; metadata?: React.ReactNode; history?: React.ReactNode }): React.JSX.Element {
+  return (
+    <div className="jc-grid-attr-view">
+      <p className="jc-grid-attr-value" aria-label={label}>
+        {value}
+      </p>
+      {metadata ? <section className="jc-grid-detail-section">{metadata}</section> : null}
+      {history ? <section className="jc-grid-detail-section">{history}</section> : null}
+    </div>
+  );
+}
+
 /**
  * One row whole, as a modal dialog (T-3097, T-4828): every attribute the entity carries in the
  * Fields tab, the grid's columns first and then the rest, each drawn by the grid's own cell
@@ -256,13 +269,13 @@ export function RowDetail({ row, name, columns, renderValue, labels, onClose, hi
                 ))}
               </select>
             </label>
-            <div className="jc-grid-attr-view" key={attr}>
-              <p className="jc-grid-attr-value" aria-label={label}>
-                {renderValue(row, all.find((column) => column.attr === attr) ?? all[0])}
-              </p>
-              {metadata ? <section className="jc-grid-detail-section">{metadata(attr)}</section> : null}
-              {history ? <section className="jc-grid-detail-section">{history(attr, label)}</section> : null}
-            </div>
+            <AttributeView
+              key={attr}
+              label={label}
+              value={renderValue(row, all.find((column) => column.attr === attr) ?? all[0])}
+              metadata={metadata?.(attr)}
+              history={history?.(attr, label)}
+            />
           </>
         ) : null}
         {current === "changes" ? rowChanges.panel : null}
