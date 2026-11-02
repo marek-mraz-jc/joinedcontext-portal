@@ -274,7 +274,10 @@ pub fn audience_mapper(audience: &str) -> Value {
 }
 
 /// The `groups` mapper every platform client carries (deployment components/keycloak, "Identity,
-/// never permission"): the person's group names, short, in the access, ID and userinfo tokens.
+/// never permission"): the person's group paths in the access, ID and userinfo tokens. Full paths
+/// (ADR-N-067 2.2): every reader trims the one leading `/`, so a root group reads as its name and
+/// an Organization's subgroup as `helsinki/members`, which no project, Group or grant name can
+/// equal; a bare `members` would match every Organization's.
 /// An App's client carries the same one, so the gateway can check a person's projects on a
 /// project-bound Endpoint the App reads (AP-113, T-3033). It grants nothing by itself.
 pub fn groups_mapper() -> Value {
@@ -285,7 +288,7 @@ pub fn groups_mapper() -> Value {
         "consentRequired": false,
         "config": {
             "claim.name": "groups",
-            "full.path": "false",
+            "full.path": "true",
             "access.token.claim": "true",
             "id.token.claim": "true",
             "userinfo.token.claim": "true",
@@ -293,13 +296,39 @@ pub fn groups_mapper() -> Value {
     })
 }
 
+/// The `jc_org` and `jc_groups` mappers every platform client carries (deployment
+/// components/keycloak, ADR-N-067 2.2): the person's Organizations and their groups in them, read
+/// from the attributes of each `/{org}/{group}` group. The realm's user profile holds no unmanaged
+/// attribute, so a person's own attribute of that name never reaches the token.
+pub fn organization_mappers() -> [Value; 2] {
+    ["jc_org", "jc_groups"].map(|claim| {
+        json!({
+            "name": claim,
+            "protocol": "openid-connect",
+            "protocolMapper": "oidc-usermodel-attribute-mapper",
+            "consentRequired": false,
+            "config": {
+                "user.attribute": claim,
+                "claim.name": claim,
+                "jsonType.label": "String",
+                "multivalued": "true",
+                "aggregate.attrs": "true",
+                "access.token.claim": "true",
+                "id.token.claim": "true",
+                "userinfo.token.claim": "true",
+            },
+        })
+    })
+}
+
 /// The mappers an App's client carries: the audience of `app-{name}` and of every Endpoint it
-/// reads, and the `groups` mapper (AP-113).
+/// reads, the `groups` mapper (AP-113) and the Organization mappers.
 pub fn app_mappers(audiences: &[String]) -> Vec<Value> {
     audiences
         .iter()
         .map(|audience| audience_mapper(audience))
         .chain(std::iter::once(groups_mapper()))
+        .chain(organization_mappers())
         .collect()
 }
 

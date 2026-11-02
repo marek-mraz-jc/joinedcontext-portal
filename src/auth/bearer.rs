@@ -360,6 +360,20 @@ pub struct TokenClient(pub String);
 
 #[cfg(test)]
 mod tests {
+    /// ADR-N-067 2.2 (T-6408): the `groups` claim holds full paths; the session names a root
+    /// group by its name and keeps an Organization's subgroup as `helsinki/members`, which no
+    /// RoleBinding subject, project or Group name can equal.
+    #[test]
+    fn a_full_path_group_loses_its_leading_slash_and_a_subgroup_keeps_its_parent() {
+        let claims = serde_json::json!({
+            "sub": "ana", "exp": 400, "iat": 300,
+            "groups": ["/helsinki", "/helsinki/members"],
+        });
+        let (session, _) =
+            super::session_of(serde_json::from_value::<super::Claims>(claims).expect("claims"));
+        assert_eq!(session.identity.groups, ["helsinki", "helsinki/members"]);
+    }
+
     /// JC2-19: a bearer session carries its sign-in (`auth_time`), the same on every refreshed
     /// token, beside the token's own `iat`.
     #[test]
