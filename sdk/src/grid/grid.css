@@ -812,7 +812,7 @@
   border: none;
   padding: 0;
   font: inherit;
-  color: var(--jc-color-accent, #0066cc);
+  color: var(--jc-color-link, var(--jc-color-accent, #0066cc));
   text-decoration: underline;
   cursor: pointer;
   text-align: start;

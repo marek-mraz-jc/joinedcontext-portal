@@ -802,6 +802,8 @@
     "api": {
       "lead": "Jak program čte {type}: přes endpoint tohoto prostoru, s vlastním tokenem, a webhooky, které mu řeknou, když se něco změní.",
       "noEndpoint": "Tento prostor zatím neobsluhuje žádný endpoint, takže ho žádný program nemůže číst. Vytvořte ho v endpointech prostoru.",
+      "pick": "Endpoint",
+      "pickHint": "{count} Endpointů tohoto prostoru. Každý má vlastní adresu a token a jeho Policy určuje, které řádky vrátí, například air-quality.",
       "endpoint": "Přes {name}",
       "call": {
         "list": "Seznam",
@@ -945,6 +947,7 @@
       },
       "fix": "Před odesláním je třeba opravit odpovědi: {count}.",
       "refused": "Nevytvořeno: {reason}",
+      "forbidden": "Požádejte vlastníka projektu o Policy, která vám v tomto prostoru dovolí vytvářet {type}.",
       "created": "Vytvořeno {id}.",
       "noFields": "Model typu {type} nemá pole, na které by se formulář mohl ptát.",
       "problem": {
@@ -956,6 +959,7 @@
         "date": "Zadejte platné datum."
       },
       "notPublished": "Tento formulář není zveřejněn nebo už není.",
+      "publicTitle": "Formulář",
       "publicLead": "Vaše odpovědi vytvoří jeden záznam. Nic z toho, co pošlete, se vám nezobrazí zpět.",
       "publicData": "Vaše odpovědi se stanou veřejnými daty tohoto prostoru: přečte je každý, komu prostor data zveřejňuje. Neposílejte osobní údaje.",
       "trap": "Toto pole nechte prázdné",
@@ -3513,6 +3517,7 @@
       },
       "choice": "Co spočítat",
       "choices": {
+        "rest": "Využitý podíl: jedna minus první součet dělený druhým součtem",
         "count": "Počet řádků prvního zdroje",
         "sum": "Součet čísla prvního zdroje",
         "average": "Průměr čísla prvního zdroje",
@@ -3535,6 +3540,7 @@
       "runPreview": "Spočítat teď",
       "previewing": "Počítá se…",
       "previewHint": "Přečte nejvýše 100 řádků každého zdroje tak, jak je vidíte vy, a spočítá {formula}.",
+      "partial": "Náhled se zastavil u {rows} řádků zdroje, proto tato hodnota není konečná: běh přečte všechny řádky.",
       "noKeys": "Žádný klíč není ve všech zdrojích, teď by se tedy nezapsal žádný ukazatel.",
       "indicator": "Ukazatel",
       "value": "Hodnota",
@@ -3547,6 +3553,7 @@
         "target": "Nejprve vyberte koncový bod, přes který se ukazatel zapíše."
       },
       "hint": {
+        "typeFirst": "Nejprve vyberte typ entity; jeho čísla se zobrazí zde.",
         "name": "Malá písmena, číslice a pomlčky, nejvýše 48, například parking-per-stop.",
         "title": "Co lidé čtou v seznamech, například Obsazená parkovací místa na zastávku.",
         "sources": "Každý zdroj čte jeden typ entity přes jeden koncový bod, například parkoviště přes helsinki-parking.",

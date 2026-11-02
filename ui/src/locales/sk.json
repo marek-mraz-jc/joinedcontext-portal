@@ -802,6 +802,8 @@
     "api": {
       "lead": "Ako program číta {type}: cez endpoint tohto priestoru, s vlastným tokenom, a webhooky, ktoré mu povedia, keď sa niečo zmení.",
       "noEndpoint": "Tento priestor zatiaľ neobsluhuje žiadny endpoint, takže ho žiadny program nemôže čítať. Vytvorte ho v endpointoch priestoru.",
+      "pick": "Endpoint",
+      "pickHint": "{count} Endpointov tohto priestoru. Každý má vlastnú adresu a token a jeho Policy určuje, ktoré riadky vráti, napríklad air-quality.",
       "endpoint": "Cez {name}",
       "call": {
         "list": "Zoznam",
@@ -945,6 +947,7 @@
       },
       "fix": "Pred odoslaním treba opraviť odpovede: {count}.",
       "refused": "Nevytvorené: {reason}",
+      "forbidden": "Požiadajte vlastníka projektu o Policy, ktorá vám v tomto priestore dovolí vytvárať {type}.",
       "created": "Vytvorené {id}.",
       "noFields": "Model typu {type} nemá pole, na ktoré by sa formulár mohol pýtať.",
       "problem": {
@@ -956,6 +959,7 @@
         "date": "Zadajte platný dátum."
       },
       "notPublished": "Tento formulár nie je zverejnený alebo už nie je.",
+      "publicTitle": "Formulár",
       "publicLead": "Vaše odpovede vytvoria jeden záznam. Nič z toho, čo pošlete, sa vám nezobrazí späť.",
       "publicData": "Vaše odpovede sa stanú verejnými údajmi tohto priestoru: prečíta ich každý, komu priestor údaje zverejňuje. Neposielajte osobné údaje.",
       "trap": "Toto pole nechajte prázdne",
@@ -3513,6 +3517,7 @@
       },
       "choice": "Čo vypočítať",
       "choices": {
+        "rest": "Využitý podiel: jedna mínus prvý súčet delený druhým súčtom",
         "count": "Počet riadkov prvého zdroja",
         "sum": "Súčet čísla prvého zdroja",
         "average": "Priemer čísla prvého zdroja",
@@ -3535,6 +3540,7 @@
       "runPreview": "Vypočítať teraz",
       "previewing": "Počíta sa…",
       "previewHint": "Prečíta najviac 100 riadkov každého zdroja tak, ako ich vidíte vy, a vypočíta {formula}.",
+      "partial": "Náhľad sa zastavil pri {rows} riadkoch zdroja, preto táto hodnota nie je konečná: beh prečíta všetky riadky.",
       "noKeys": "Žiadny kľúč sa nenachádza vo všetkých zdrojoch, teraz by sa teda nezapísal žiadny ukazovateľ.",
       "indicator": "Ukazovateľ",
       "value": "Hodnota",
@@ -3547,6 +3553,7 @@
         "target": "Najprv vyberte endpoint, cez ktorý sa ukazovateľ zapíše."
       },
       "hint": {
+        "typeFirst": "Najprv vyberte typ entity; jeho čísla sa zobrazia tu.",
         "name": "Malé písmená, číslice a pomlčky, najviac 48, napríklad parking-per-stop.",
         "title": "Čo ľudia čítajú v zoznamoch, napríklad Obsadené parkovacie miesta na zastávku.",
         "sources": "Každý zdroj číta jeden typ entity cez jeden endpoint, napríklad parkoviská cez helsinki-parking.",

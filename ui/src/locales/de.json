@@ -802,6 +802,8 @@
     "api": {
       "lead": "Wie ein Programm {type} liest: über einen Endpoint dieses Raums, mit eigenem Token, und die Webhooks, die ihm sagen, wenn sich etwas ändert.",
       "noEndpoint": "Noch kein Endpoint bedient diesen Raum, daher kann ihn kein Programm lesen. Legen Sie einen bei den Endpoints des Raums an.",
+      "pick": "Endpoint",
+      "pickHint": "{count} Endpoints dieses Bereichs. Jeder hat eigene Adresse und eigenes Token, seine Policy bestimmt die Zeilen, zum Beispiel air-quality.",
       "endpoint": "Über {name}",
       "call": {
         "list": "Liste",
@@ -945,6 +947,7 @@
       },
       "fix": "Vor dem Senden müssen Antworten korrigiert werden: {count}.",
       "refused": "Nicht angelegt: {reason}",
+      "forbidden": "Bitten Sie eine Projektverantwortliche Person um eine Policy, mit der Sie {type} in diesem Bereich anlegen dürfen.",
       "created": "Angelegt: {id}.",
       "noFields": "Das Modell von {type} hat kein Feld, das ein Formular abfragen kann.",
       "problem": {
@@ -956,6 +959,7 @@
         "date": "Geben Sie ein gültiges Datum ein, etwa 2026-10-11."
       },
       "notPublished": "Dieses Formular ist nicht oder nicht mehr veröffentlicht.",
+      "publicTitle": "Formular",
       "publicLead": "Ihre Antworten legen einen Datensatz an. Nichts davon wird Ihnen wieder angezeigt.",
       "publicData": "Ihre Antworten werden öffentliche Daten dieses Bereichs: Jeder, dem der Bereich Daten veröffentlicht, kann sie lesen. Senden Sie keine persönlichen Angaben.",
       "trap": "Lassen Sie dieses Feld leer",
@@ -3513,6 +3517,7 @@
       },
       "choice": "Was berechnet wird",
       "choices": {
+        "rest": "Genutzter Anteil: eins minus erste Summe geteilt durch zweite Summe",
         "count": "Zeilen der ersten Quelle zählen",
         "sum": "Summe der Zahl der ersten Quelle",
         "average": "Durchschnitt der Zahl der ersten Quelle",
@@ -3535,6 +3540,7 @@
       "runPreview": "Jetzt berechnen",
       "previewing": "Wird berechnet…",
       "previewHint": "Liest bis zu 100 Zeilen jeder Quelle so, wie Sie sie sehen, und berechnet {formula}.",
+      "partial": "Die Vorschau endete bei {rows} Zeilen einer Quelle, dieser Wert ist also nicht endgültig: Ein Lauf liest alle Zeilen.",
       "noKeys": "Kein Schlüssel kommt in jeder Quelle vor, daher würde jetzt keine Kennzahl geschrieben.",
       "indicator": "Kennzahl",
       "value": "Wert",
@@ -3547,6 +3553,7 @@
         "target": "Wählen Sie zuerst den Endpunkt, über den die Kennzahl geschrieben wird."
       },
       "hint": {
+        "typeFirst": "Wählen Sie zuerst den Entitätstyp; seine Zahlen erscheinen hier.",
         "name": "Kleinbuchstaben, Ziffern und Bindestriche, höchstens 48, zum Beispiel parking-per-stop.",
         "title": "Was in Listen zu lesen ist, zum Beispiel Belegte Parkplätze je Haltestelle.",
         "sources": "Jede Quelle liest einen Entitätstyp über einen Endpunkt, zum Beispiel Parkplätze über helsinki-parking.",

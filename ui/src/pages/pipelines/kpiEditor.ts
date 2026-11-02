@@ -8,12 +8,17 @@ import type { Manifest } from "../../api/manifest";
 
 export const MIN_SOURCES = 2;
 export const MAX_SOURCES = 5;
+/** The rows of each source the preview reads; the run reads them all (PL-31). */
+export const PREVIEW_PAGE = 100;
 
 export type JoinBy = "time" | "area" | "entity";
 
-/** The formula choices (PL-105). `per` is the first source's sum per row of the second. */
-export type FormulaChoice = "count" | "sum" | "average" | "share" | "per";
-export const FORMULA_CHOICES: FormulaChoice[] = ["count", "sum", "average", "share", "per"];
+/**
+ * The formula choices (PL-105). `per` is the first source's sum per row of the second, `rest` the
+ * share left: spaces in use from free spaces and all spaces.
+ */
+export type FormulaChoice = "count" | "sum" | "average" | "share" | "rest" | "per";
+export const FORMULA_CHOICES: FormulaChoice[] = ["count", "sum", "average", "share", "rest", "per"];
 
 /** How often the indicator is computed, as the cron the schedule takes. */
 export const SCHEDULES = { quarter: "*/15 * * * *", hourly: "0 * * * *", daily: "0 3 * * *" } as const;
@@ -78,6 +83,8 @@ export function choiceFormula(choice: FormulaChoice, sources: KpiSourceDraft[]):
       return `avg(${of(a)})`;
     case "share":
       return `sum(${of(a)}) / sum(${of(b)})`;
+    case "rest":
+      return `1 - sum(${of(a)}) / sum(${of(b)})`;
     case "per":
       return `sum(${of(a)}) / count(${b?.name ?? ""})`;
   }
@@ -106,7 +113,6 @@ export function kpiManifest(project: string, draft: KpiDraft): Manifest {
     kind: "Pipeline",
     metadata: { name: draft.name, namespace: project },
     spec: {
-      ...(draft.title.trim() ? { title: draft.title.trim() } : {}),
       class: "scheduled",
       schedule: SCHEDULES[draft.schedule],
       sources: draft.sources.map((source) => ({
