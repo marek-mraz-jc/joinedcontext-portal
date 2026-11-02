@@ -11397,6 +11397,16 @@
     },
     "personPublic": "Veřejné datové sady, které může číst kdokoli, zde neuvedené: {count}.",
     "throughEveryone": "Přes všechny",
-    "groupEveryone": "Zpřístupněné všem v organizaci, takže je čtou i její členové: {count}."
+    "groupEveryone": "Sdíleno se všemi v organizaci, proto je čtou i členové této skupiny:",
+    "legend": {
+      "throughEveryone": "skupina je čte, protože je čtou všichni v organizaci; pravidlo je v prvním sloupci.",
+      "notGranted": "tomuto sloupci nepřiděleno."
+    },
+    "personAccess": {
+      "public": "Veřejné",
+      "organization": "Všichni v organizaci",
+      "group": "Skupina {group}",
+      "granted": "Přiděleno jmenovitě"
+    }
   }
 }

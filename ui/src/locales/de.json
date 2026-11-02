@@ -11397,6 +11397,16 @@
     },
     "personPublic": "Öffentliche Datensätze, die jeder lesen kann, hier nicht aufgeführt: {count}.",
     "throughEveryone": "Über alle",
-    "groupEveryone": "Allen in der Organisation freigegeben, also lesen ihre Mitglieder sie auch: {count}."
+    "groupEveryone": "Mit allen in der Organisation geteilt, daher lesen die Mitglieder dieser Gruppe sie auch:",
+    "legend": {
+      "throughEveryone": "die Gruppe liest es, weil alle in der Organisation es lesen; die Regel steht in der ersten Spalte.",
+      "notGranted": "dieser Spalte nicht gewährt."
+    },
+    "personAccess": {
+      "public": "Öffentlich",
+      "organization": "Alle in der Organisation",
+      "group": "Gruppe {group}",
+      "granted": "Namentlich gewährt"
+    }
   }
 }

@@ -100,6 +100,9 @@ describe("Organization → Data access", () => {
     expect(within(counts).getByText(en.dataAccess.throughEveryone)).toBeInTheDocument();
     const vehicles = within(table).getByText("vehicles").closest("tr") as HTMLElement;
     expect(within(vehicles).getAllByText(en.dataAccess.notGranted)).toHaveLength(1);
+    // The legend under the table says what the pill and the dash mean.
+    expect(screen.getByText(en.dataAccess.legend.throughEveryone)).toBeInTheDocument();
+    expect(screen.getByText(en.dataAccess.legend.notGranted)).toBeInTheDocument();
     await expectNoAxeViolations(container);
   });
 
@@ -134,9 +137,10 @@ describe("Group page: datasets this group reads", () => {
   it("asks for the group's column and lists what it reads", async () => {
     const { requests } = render(<GroupDatasets group="traffic-analysts" />, () => json(MATRIX));
     expect(await screen.findByText("vehicles")).toBeInTheDocument();
-    // counts reaches the group through everyone: counted below, not listed as the group's.
-    expect(screen.queryByText("Traffic counts")).toBeNull();
-    expect(screen.getByText(/so its members read them too: 1\./)).toBeInTheDocument();
+    // counts reaches the group through everyone: named below the group's own list, by title.
+    const shared = screen.getByText(en.dataAccess.groupEveryone).nextElementSibling as HTMLElement;
+    expect(within(shared).getByRole("link", { name: "Traffic counts" })).toBeInTheDocument();
+    expect(within(shared).queryByText("vehicles")).toBeNull();
     expect(requests).toContain("/api/v1/organization/data-access?group=traffic-analysts");
   });
 
@@ -189,10 +193,13 @@ describe("Person page: what this person can read", () => {
   });
 
   it("lists the internal datasets by name with what grants each, and counts the public ones", async () => {
-    const answer = { datasets: [dataset("bikes", "public"), dataset("vehicles", "group", "traffic-analysts")], unanswered: 0 };
+    const answer = { datasets: [dataset("bikes", "public"), dataset("vehicles", "group", "traffic-analysts"), dataset("counts", "organization")], unanswered: 0 };
     const { container, requests } = render(<PersonReadable id="jana-id" name="Jana" />, () => json(answer));
     expect(await screen.findByText("vehicles")).toBeInTheDocument();
     expect(screen.queryByText("bikes")).toBeNull();
+    // Worded about Jana, not the administrator reading the panel.
+    expect(screen.getByText(en.dataAccess.personAccess.organization)).toBeInTheDocument();
+    expect(screen.queryByText(en.catalogue.readable.access.organization)).toBeNull();
     expect(screen.getByText("Public datasets anyone can read, not listed here: 1.")).toBeInTheDocument();
     expect(requests).toContain("/api/v1/organization/people/jana-id/readable");
     // Names only: nothing on the panel opens the dataset as the administrator.

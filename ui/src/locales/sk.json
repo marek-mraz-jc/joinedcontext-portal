@@ -11397,6 +11397,16 @@
     },
     "personPublic": "Verejné množiny údajov, ktoré môže čítať ktokoľvek, tu neuvedené: {count}.",
     "throughEveryone": "Cez všetkých",
-    "groupEveryone": "Sprístupnené všetkým v organizácii, takže ich čítajú aj jej členovia: {count}."
+    "groupEveryone": "Zdieľané so všetkými v organizácii, preto ich čítajú aj členovia tejto skupiny:",
+    "legend": {
+      "throughEveryone": "skupina ich číta, lebo ich čítajú všetci v organizácii; pravidlo je v prvom stĺpci.",
+      "notGranted": "tomuto stĺpcu nepridelené."
+    },
+    "personAccess": {
+      "public": "Verejné",
+      "organization": "Všetci v organizácii",
+      "group": "Skupina {group}",
+      "granted": "Pridelené menovite"
+    }
   }
 }

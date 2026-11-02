@@ -223,6 +223,23 @@ export function MatrixTable({ data }: { data: DataAccess }): JSX.Element {
           ))}
         </TableBody>
       </Table>
+      <dl className="flex flex-col gap-1 text-caption text-fg-muted">
+        <div className="flex flex-wrap items-center gap-2">
+          <dt>
+            <Badge tone="neutral" className="w-fit">
+              {t("dataAccess.throughEveryone")}
+            </Badge>
+          </dt>
+          <dd>{t("dataAccess.legend.throughEveryone")}</dd>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <dt>
+            <span aria-hidden="true">—</span>
+            <span className="sr-only">{t("dataAccess.notGranted")}</span>
+          </dt>
+          <dd>{t("dataAccess.legend.notGranted")}</dd>
+        </div>
+      </dl>
       <p className="text-caption text-fg-muted">{t("dataAccess.howToChange")}</p>
     </>
   );
@@ -245,7 +262,7 @@ export function GroupDatasets({ group }: { group: string }): JSX.Element {
           const data = column.data as DataAccess;
           // Column 0 is everyone; the group's own grants are those it holds beyond them.
           const read = data.rows.filter((row) => row.cells[1]?.granted && !row.cells[1].throughOrganization);
-          const everyone = data.rows.filter((row) => row.cells[0]?.granted).length;
+          const everyone = data.rows.filter((row) => row.cells[0]?.granted);
           return (
             <>
               <Unanswered count={data.unanswered} />
@@ -261,7 +278,18 @@ export function GroupDatasets({ group }: { group: string }): JSX.Element {
                   ))}
                 </ul>
               )}
-              {everyone > 0 ? <p className="text-caption text-fg-muted">{t("dataAccess.groupEveryone", { count: everyone })}</p> : null}
+              {everyone.length > 0 ? (
+                <div className="flex flex-col gap-1">
+                  <p className="text-caption text-fg-muted">{t("dataAccess.groupEveryone")}</p>
+                  <ul className="flex flex-col gap-1">
+                    {everyone.map((row) => (
+                      <li key={`${row.project}/${row.name}`}>
+                        <EndpointName row={row} />
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
             </>
           );
         }}
@@ -347,7 +375,7 @@ export function PersonReadable({ id, name }: { id: string; name: string }): JSX.
                   {internal.map((dataset) => (
                     <li key={dataset.slug} className="flex min-w-0 flex-wrap items-center gap-2">
                       <span className="text-body font-medium text-fg [overflow-wrap:anywhere]">{dataset.title ?? dataset.name}</span>
-                      <AccessBadge dataset={dataset} />
+                      <AccessBadge dataset={dataset} words="dataAccess.personAccess" />
                       <span className="text-caption text-fg-subtle">{dataset.project}</span>
                     </li>
                   ))}

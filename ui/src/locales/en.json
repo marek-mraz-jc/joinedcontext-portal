@@ -11397,6 +11397,16 @@
     },
     "personPublic": "Public datasets anyone can read, not listed here: {count}.",
     "throughEveryone": "Through everyone",
-    "groupEveryone": "Shared with everyone in the organization, so its members read them too: {count}."
+    "groupEveryone": "Shared with everyone in the organization, so the members of this group read these too:",
+    "legend": {
+      "throughEveryone": "the group reads it because everyone in the organization does; the rule is in the first column.",
+      "notGranted": "not granted to this column."
+    },
+    "personAccess": {
+      "public": "Public",
+      "organization": "Everyone in the organization",
+      "group": "Group {group}",
+      "granted": "Granted to them by name"
+    }
   }
 }
