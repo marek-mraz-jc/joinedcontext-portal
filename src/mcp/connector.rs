@@ -664,8 +664,8 @@ fn optional_project(tools: &mut [Value]) {
 }
 
 /// The `initialize` answer with a sentence naming the projects the connector reaches, so a
-/// client never has to guess or ask the person (T-6064), and the address that draws a map, since
-/// nothing on a connector draws one (T-6442).
+/// client never has to guess or ask the person (T-6064), the address that draws a map, since
+/// nothing on a connector draws one (T-6442), and where an App's code comes from (T-6487).
 async fn with_projects_named(response: Response, projects: &[&str], portal: &url::Url) -> Response {
     let (parts, body) = response.into_parts();
     let Ok(bytes) = axum::body::to_bytes(body, MAX_RESPONSE_BYTES).await else {
@@ -689,7 +689,11 @@ async fn with_projects_named(response: Response, projects: &[&str], portal: &url
          explore?endpoint=<endpoint>&type=<type>&colorBy=<number attribute>&view=map; it draws \
          what they may read, and a Layer alone draws nothing."
     );
-    answer["result"]["instructions"] = json!(format!("{instructions} {reach} {map}"));
+    let build = format!(
+        "An App manifest holds no code: jc_run_create starts the builder, where this connector \
+         lists it; otherwise give the person {portal}projects/<project>/apps and name the App."
+    );
+    answer["result"]["instructions"] = json!(format!("{instructions} {reach} {map} {build}"));
     // Only what [`METHODS`] and the plan view serve: the Portal MCP's prompts and tasks are
     // refused here, so a client is never told it may call them (JC2-21).
     answer["result"]["capabilities"] = json!({ "tools": {}, "resources": {} });
@@ -1011,7 +1015,9 @@ mod tests {
              `project` defaults to it. To show entities on a map, give the person the Portal \
              address https://portal.example/projects/<project>/explore?endpoint=<endpoint>\
              &type=<type>&colorBy=<number attribute>&view=map; it draws what they may read, and a \
-             Layer alone draws nothing."
+             Layer alone draws nothing. An App manifest holds no code: jc_run_create starts the \
+             builder, where this connector lists it; otherwise give the person \
+             https://portal.example/projects/<project>/apps and name the App."
         );
     }
 

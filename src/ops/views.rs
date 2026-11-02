@@ -225,7 +225,9 @@ fn run_output_schema() -> Value {
             "kind": { "type": "string" },
             "status": { "type": "string" },
             "createdBy": { "type": "string" },
-            "createdAt": { "type": "string", "format": "date-time" }
+            "createdAt": { "type": "string", "format": "date-time" },
+            "url": { "type": "string", "description": "The Portal page following this run" },
+            "previewUrl": { "type": "string", "description": "The preview once a version is built" }
         },
         "required": ["id", "status"]
     })
@@ -592,7 +594,7 @@ pub fn operations() -> Vec<Operation> {
                         axum::extract::Path((project.to_owned(), input.id)),
                     )
                     .await?;
-                    Ok(serde_json::to_value(run)?)
+                    Ok(super::runs::with_pages(state, serde_json::to_value(run)?))
                 })
             },
         },

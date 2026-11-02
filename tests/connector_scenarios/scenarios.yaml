@@ -1223,8 +1223,38 @@
   segment: apps
   as: steward
   says: "Create an App that lists today's events from Endpoint Y."
-  expect: 'app run created, built, preview URL answers'
-  deny: 'none'
+  expect: 'app run created under the person, its answer names the builder page that shows the preview'
+  deny: 'writes off -> no build; a connector narrowed to one Endpoint -> refused'
+  script:
+    - proves: expect
+      manifest: { kind: Group, name: builders, spec: { members: [{ user: scn.steward@hel.fi }] } }
+    - proves: expect
+      manifest: { kind: DelegationPolicy, name: builders-apps, spec: { subjects: [{ kind: Group, name: builders }], projects: ['{project}'], segments: [apps], writes: true, maxExpiry: P90D } }
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s39-build, segments: [apps], scope: [{ project: '{project}', access: write }], writes: true, expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      via: connector
+      contains: ['jc_run_create']
+    - proves: expect
+      via: connector
+      call: jc_run_create
+      args: { appName: todays-counters, endpointName: '{project}-counters', prompt: "Lists today's counters." }
+      contains: ['"appName":"todays-counters"', '"status":"queued"', '/apps?run=']
+    - proves: deny
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s39-narrow, segments: [apps], scope: [{ project: '{project}', endpoint: '{project}-counters', access: write }], writes: true, expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: deny
+      via: connector
+      call: jc_run_create
+      args: { appName: todays-counters-2, endpointName: '{project}-counters', prompt: "Lists today's counters." }
+      refused: true
 - id: S-40
   segment: apps
   as: steward
