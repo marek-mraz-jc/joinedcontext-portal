@@ -29,7 +29,7 @@ pub const MAX_BYTES: usize = 800_000;
 
 /// What a refused block is told (SDK-11).
 pub const REFUSAL: &str = "not a path the application may write: src/**/*.tsx, src/**/*.ts, \
-     src/**/*.css, src/design-tokens.json, functions/**/*.ts and, in a wasm App, \
+     src/**/*.css, src/design-tokens.json, src/dashboard.json, functions/**/*.ts and, in a wasm App, \
      server/src/**/*.rs and migrations/*.sql; never src/main.tsx or src/jc-types.ts";
 
 /// The server crate's manifest, which only the `wasm` template carries (T-3575).
@@ -162,6 +162,7 @@ pub fn writable(path: &str) -> bool {
     };
     under("src/", &[".tsx", ".ts", ".css"])
         || path == "src/design-tokens.json"
+        || path == "src/dashboard.json"
         || under("functions/", &[".ts"])
         || under("server/src/", &[".rs"])
         || (under("migrations/", &[".sql"]) && path.matches('/').count() == 1)
@@ -273,9 +274,9 @@ application, then repairs; the section THIS CALL of the user message says what t
   value with its legend (`EntityMap` with `color`). Never a screen of number tiles only, a plain
   list or unstyled text; replace a chart or the map with a better one, never remove the last.
 - Entities are listed in the SDK's `EntityGrid` (`@joinedcontext/sdk/grid`), through the template's
-  `TypeGrid`, never a hand-made table; a worked-out value is a column
+  `TypeGrid`, never a hand-made table; a ratio is a column
   `{{ attr, formula: "a / b * 100" }}` (names, numbers, + - * / %). A
-  dashboard keeps its settings in `src/dashboard.json`, drawn by `Dashboard`.
+  dashboard: `src/dashboard.json`, drawn by `Dashboard`.
 - Unless THIS CALL asks for a first version without tests: a test beside every page, component
   and function you add or change (`*.test.tsx`,
   `*.test.ts`), written like the template's tests: vitest, @testing-library/react,
@@ -299,7 +300,7 @@ application, then repairs; the section THIS CALL of the user message says what t
 
 ## WHAT YOU MAY WRITE
 
-`src/**/*.tsx`, `src/**/*.ts`, `src/**/*.css`, `src/design-tokens.json` and `functions/**/*.ts`,
+`src/**/*.{{tsx,ts,css}}`, `src/design-tokens.json`, `src/dashboard.json` and `functions/**/*.ts`,
 at most {MAX_FILES} files and {MAX_BYTES} bytes together. Never `src/main.tsx` (the Portal owns
 the entry), never `src/jc-types.ts` (rendered from the endpoint's model), never `package.json`
 or any configuration: a block for another path is refused.
@@ -511,6 +512,7 @@ mod tests {
             "src/lib/rows.ts",
             "src/app.css",
             "src/design-tokens.json",
+            "src/dashboard.json",
             "functions/summary.ts",
             "functions/lib/stats.ts",
         ] {

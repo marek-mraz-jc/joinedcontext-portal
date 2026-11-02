@@ -1881,6 +1881,15 @@ impl Harness {
         let what = step.call.as_deref().unwrap_or("tools/list");
         // A tools/list step judges tool names, a call the whole answer.
         let text = if step.call.is_none() && !refused {
+            // A model API refuses the whole list over one invalid schema (T-6428).
+            for tool in answer["result"]["tools"].as_array().into_iter().flatten() {
+                assert!(
+                    jsonschema::meta::is_valid(&tool["inputSchema"]),
+                    "{what}: {} lists an invalid inputSchema: {}",
+                    tool["name"],
+                    tool["inputSchema"]
+                );
+            }
             answer["result"]["tools"]
                 .as_array()
                 .map(|tools| {

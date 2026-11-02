@@ -271,8 +271,8 @@ geometry is edited in `GeoEditor`, reviewed ("Point moved 38 m") and applied by 
 **GeoProperty**. `areaQuery` turns the drawn rectangle into `georel=within` + `geometry` +
 `coordinates` + `geoproperty`.
 
-### Dashboard (T-6402)
-`Dashboard` draws `src/dashboard.json` read by `parseDashboardConfig(raw)`: `{ grid, filters?: [{ attr, op, value }], colour?: { attr, bands: [{ below?, tone, label }] }, chart?: { x, y, agg }, kpis?: [{ label, agg, attr?, where? }] }`.
+### Dashboard
+`<Dashboard config={parseDashboardConfig(raw).config!} source={source} />`, `raw` = `src/dashboard.json`: `{ grid, filters?: [{ attr, op, value }], colour?: { attr, bands: [{ below?, tone, label }] }, chart?: { x, y, agg }, kpis?: [{ label, agg, attr?, where? }] }`.
 
 ### Geometry: view and edit (UI-72, SDK-29)
 ```ts
