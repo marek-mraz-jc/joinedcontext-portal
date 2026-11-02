@@ -229,11 +229,15 @@ body {
 /* Two ends of a range sit side by side, under their one label. */
 .jc-filter:has(input + input) {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .jc-filter:has(input + input) span {
   grid-column: 1 / -1;
+}
+
+.jc-filter:has(input + input) input {
+  min-width: 0;
 }
 
 .jc-filter span {
