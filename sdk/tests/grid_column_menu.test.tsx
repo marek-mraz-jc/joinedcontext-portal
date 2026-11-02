@@ -251,6 +251,35 @@ describe("the column header menu (T-4827)", () => {
     }
   });
 
+  // A popup opening upward stayed under the Portal's sticky header, its title covered (T-5181).
+  it("keeps the menu below the host's sticky header, up or down", async () => {
+    const sticky = document.head.appendChild(document.createElement("style"));
+    sticky.textContent = ".jc-grid-col-menu { scroll-margin-top: 56px; }";
+    render(<EntityGrid config={config} source={fixtureSource(entities)} />);
+    await screen.findByText("Alpha");
+    const height = vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(900);
+    const rect = (top: number) => ({ top, bottom: top + 30, left: 0, right: 300, width: 300, height: 30, x: 0, y: top, toJSON: () => ({}) });
+    const cell = vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue(rect(window.innerHeight - 100) as DOMRect);
+    try {
+      openMenu("Count");
+      const above = screen.getByRole("dialog", { name: "Column options: Count" });
+      expect(above.style.top).toBe("56px");
+      expect(above.style.maxHeight).toBe(`${window.innerHeight - 100 - 56}px`);
+      fireEvent.keyDown(above, { key: "Escape" });
+
+      // The header cell scrolled under the sticky header: the menu still starts below it.
+      cell.mockReturnValue(rect(-10) as DOMRect);
+      openMenu("Count");
+      const below = screen.getByRole("dialog", { name: "Column options: Count" });
+      expect(below.style.top).toBe("56px");
+      expect(below.style.maxHeight).toBe(`${window.innerHeight - 56}px`);
+    } finally {
+      height.mockRestore();
+      cell.mockRestore();
+      sticky.remove();
+    }
+  });
+
   it("a layout the host kept comes back applied after a remount", async () => {
     const { unmount } = render(<Kept initial={{ order: ["name", "ngsi-ld:status"], labels: { count: "Riders" }, width: { count: 120 } }} />);
     await screen.findByText("Alpha");
