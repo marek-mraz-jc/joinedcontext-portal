@@ -107,7 +107,7 @@ for (const [label, width, height] of [["1440", 1440, 900], ["400", 400, 860]] as
       await expect(page).not.toHaveURL(/spaces\/complete/);
       await shot(page, `dock-attached-${label}`);
 
-      await dock.getByRole("button", { name: "Complete", exact: true }).click();
+      await dock.getByRole("button", { name: "Check my file", exact: true }).click();
       const review = dock.getByTestId("model-review");
       await expect(review).toContainText("Kamppi");
       await review.getByLabel("zip").selectOption("string");
