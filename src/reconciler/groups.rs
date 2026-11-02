@@ -76,7 +76,7 @@ pub fn derived_groups(
             let jc_groups = organization.as_ref().map(|org| format!("/{org}/{name}"));
             DerivedGroup {
                 name,
-                members,
+                members: people_only(members),
                 jc_org: None,
                 jc_groups,
             }
@@ -88,11 +88,21 @@ pub fn derived_groups(
         .collect();
     let of_organizations = organizations.into_iter().map(|organization| DerivedGroup {
         name: organization_group(&organization),
-        members: organization_scoped_people(mirror, &organization, now),
+        members: people_only(organization_scoped_people(mirror, &organization, now)),
         jc_org: Some(organization),
         jc_groups: None,
     });
     of_projects.chain(of_organizations).collect()
+}
+
+/// The people of a binding's subjects: a `service-account-<client>` subject reads with its own
+/// client and joins no group, and left in it would hold every group of its Organization at
+/// "not named by their Keycloak user id" (T-6514).
+fn people_only(members: BTreeSet<String>) -> BTreeSet<String> {
+    members
+        .into_iter()
+        .filter(|member| !member.starts_with("service-account-"))
+        .collect()
 }
 
 /// What one run did with one group, in the shape the mirror and the feed both carry.

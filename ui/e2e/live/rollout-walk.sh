@@ -28,9 +28,11 @@ cap=${WALK_CAP:-900}
 keep=${WALK_KEEP:-20}
 # The host cron's outer timeout (supervisor/tools/walker-cron.sh) only catches a hung script: every
 # step below has its own cap. --budget prints the sum, so the cron's limit follows this file: the
-# steward walk, then the viewer walk (WALK_CAP + 30 s kill grace each), the journeys (SWEEP_CAP +
-# 30 s) and 600 s for install, worktree and summary (T-5161: a flat 1200 s killed the viewer walk).
-if [ "${1:-}" = --budget ]; then echo $(( 2 * (cap + 30) + ${SWEEP_CAP:-3600} + 30 + 600 )); exit 0; fi
+# steward walk, then the viewer walk (two tries each, WALK_CAP + 30 s kill grace per try, and the
+# wait between), the journeys (SWEEP_CAP + 30 s) and 600 s for install, worktree and summary
+# (T-5161: a flat 1200 s killed the viewer walk).
+retry_wait=${WALK_RETRY_WAIT:-90}
+if [ "${1:-}" = --budget ]; then echo $(( 4 * (cap + 30) + 2 * retry_wait + ${SWEEP_CAP:-3600} + 30 + 600 )); exit 0; fi
 mkdir -p "$evidence"
 
 exec 9>"$evidence/.lock"
@@ -126,18 +128,33 @@ echo "rollout-walk: walking portal $sha on $PORTAL_URL ($run)"
 # The steward walks, then the viewer, each with the whole cap. Side by side they shared one address
 # at the edge (300 requests a minute, portal-ui limit-count): the steward's walk used the minute up
 # and every load of the viewer's shell met 429 on its chunks, so the viewer wrote no report (T-5068).
+# T-6510: --no-deps keeps the sweep's exclusive teardown project out of the walk. Playwright runs a
+# teardown whatever --grep says, so a read-only walk ran organization, project-settings and residue
+# after each person: they grant demo.viewer a role for a while, and the cap killed them halfway.
 walk() {
   WALK_WIDTHS=1440,400 WALK_LANGS=en WALK_REPORT_DIR="$dir" timeout --kill-after=30 "$cap" \
     npx playwright test --config playwright.live.config.ts e2e/live/walker.spec.ts --grep "for the $1\$" \
-    --reporter=list --trace off --output "$dir/pages-$1" >"$dir/walk-$1.log" 2>&1
+    --no-deps --reporter=list --trace off --output "$dir/pages-$1" >"$dir/walk-$1.log" 2>&1
+}
+# T-6510: the 22:30Z sign-in as the viewer met a Portal that showed neither the shell nor its boot
+# notice for 120 s, and 3 min later dev answered; a person's walk that wrote nothing walks once more
+# after the wait. A Portal still down fails the second try the same way, and the task is filed.
+reported() { jq -e 'length > 0' "$dir/walker-$1.json" >/dev/null 2>&1; }
+walk_person() {
+  walk "$1"
+  reported "$1" && return
+  echo "rollout-walk: the $1's walk wrote no report, once more in $retry_wait s" >&2
+  mv "$dir/walk-$1.log" "$dir/walk-$1.first.log"
+  sleep "$retry_wait"
+  walk "$1"
 }
 (
   cd "$work/portal/ui" || exit 2
   pnpm install --frozen-lockfile --prefer-offline >"$dir/install.log" 2>&1 || exit 2
   # A walker older than T-4950 writes its report only beside the UX shots.
   grep -q WALK_REPORT_DIR e2e/live/walker.spec.ts || export SHOTS_DIR="$dir"
-  walk steward
-  walk viewer
+  walk_person steward
+  walk_person viewer
 )
 echo "rollout-walk: walks done (logs $dir/walk-steward.log, $dir/walk-viewer.log)"
 

@@ -204,6 +204,10 @@ impl Driver {
         if let Some(segment) = self.capabilities().and_then(|chosen| chosen.segment) {
             return Box::pin(self.connector_turn(conversation, text, &segment)).await;
         }
+        self.schema_read
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clear();
         // No search runs before the model: it calls search_catalog itself when the question
         // needs one, in the person's own words and language (JC1-10).
         let base = self.conversation_pack(conversation, text, None);
@@ -231,6 +235,7 @@ impl Driver {
             tools_registry::offered(&self.access, &self.identity, &self.state, &self.project);
         let mut results: Vec<(data_query::QueryCall, String)> = Vec::new();
         let mut drafts = 0;
+        let mut sent_back = false;
         let answer = loop {
             // The path narrows what is offered (AG-89); a hand-over changes it mid-turn.
             let path = self.current_path();
@@ -618,6 +623,25 @@ impl Driver {
                     results.push((drafted(&call.name, Some(call.arguments)), text));
                 }
                 continue;
+            }
+
+            // A call nothing runs goes back to the model once and is never the answer (T-6479).
+            if let Some((tool, reason)) = tools_registry::unrun_call(&answer) {
+                let at = std::time::Instant::now();
+                self.event("tool", failed_step(&tool, at, &Value::Null, &reason))
+                    .await?;
+                if !sent_back {
+                    sent_back = true;
+                    results.push((drafted(&tool, None), format!("error: {reason}")));
+                    continue;
+                }
+                let prose = tools_registry::without_unrun_calls(&answer);
+                if prose.is_empty() {
+                    return Err("the model sent a broken tool call twice; send the message \
+                                again"
+                        .to_owned());
+                }
+                break prose;
             }
 
             break answer;
@@ -1010,8 +1034,9 @@ a removal of its binding with change_resource.
                 "- **DataSource**: `{\"type\": \"http\", \"http\": {\"url\": \"<the address>\", \
                  \"verb\": \"GET\"}}` for a feed read over HTTP. The platform fetches that URL \
                  once before the form opens, so a URL that answers nothing comes back to you. A \
-                 credential is never written here: a source that needs one carries a `secretRef` \
-                 and the person fills it in the form.\n",
+                 credential is never written here: a source that needs one carries \
+                 `\"authorization\": {\"header\": \"X-Api-Key\", \"headerRef\": {\"name\": \
+                 \"<secret name>\"}}` in `http`, and the person stores the value in the form.\n",
             );
         }
         let sources = self.names_of("DataSource");
@@ -1136,14 +1161,6 @@ impl Driver {
 
     pub(super) fn elapsed_ms(&self) -> u64 {
         u64::try_from(self.started.elapsed().as_millis()).unwrap_or(u64::MAX)
-    }
-
-    /// The capabilities the person chose, as the newest message left them (AG-92).
-    pub(super) fn capabilities(&self) -> Option<crate::agents::capabilities::Capabilities> {
-        self.capabilities
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .clone()
     }
 
     /// The first call of an answer the chosen capabilities leave out, and why (AG-92): a tool
@@ -2478,6 +2495,73 @@ mod tests {
         assert_eq!(conversation[0].1, "12 stations have free bikes.");
         assert_eq!(model.received_requests().await.unwrap_or_default().len(), 2);
         assert!(said(&state).await.iter().all(|(_, failed)| !failed));
+    }
+
+    /// The answers `turn` reads from the stub, in order, the last one for ever after.
+    async fn answering_in_turn(model: &wiremock::MockServer, first: &str, then: &str) {
+        use wiremock::matchers::method;
+        use wiremock::Mock;
+        Mock::given(method("POST"))
+            .respond_with(completion(first))
+            .up_to_n_times(1)
+            .with_priority(1)
+            .mount(model)
+            .await;
+        Mock::given(method("POST"))
+            .respond_with(completion(then))
+            .mount(model)
+            .await;
+    }
+
+    /// The call of T-5962's S-27, as the model wrote it.
+    const STRAY_BRACE: &str =
+        "```json\n{ \"tool\": \"describe_tool\", \"name\": \"grant_role\" }\n}\n```";
+
+    /// T-6479: a broken call goes back with the reason, and the person reads the next answer.
+    #[tokio::test]
+    async fn a_broken_tool_call_goes_back_and_the_person_reads_the_next_answer() {
+        let model = wiremock::MockServer::start().await;
+        answering_in_turn(&model, STRAY_BRACE, "Jana can read it.").await;
+        let (driver, state) = chatting_with(&model.uri(), std::time::Duration::from_secs(10));
+        let mut conversation = Vec::new();
+        driver.turn(&mut conversation, "share it".into()).await;
+        assert_eq!(conversation[0].1, "Jana can read it.");
+        let sent = model.received_requests().await.unwrap_or_default();
+        assert_eq!(sent.len(), 2);
+        let again = String::from_utf8_lossy(&sent[1].body).into_owned();
+        assert!(again.contains("not one JSON object"), "{again}");
+        assert_eq!(
+            said(&state).await,
+            vec![("Jana can read it.".to_owned(), false)]
+        );
+    }
+
+    /// T-6479: a second broken call ends the turn as a failed answer, without a third model call.
+    #[tokio::test]
+    async fn a_call_broken_twice_is_a_failed_answer_and_no_fence_is_shown() {
+        let model = wiremock::MockServer::start().await;
+        answering_in_turn(&model, STRAY_BRACE, STRAY_BRACE).await;
+        let (driver, state) = chatting_with(&model.uri(), std::time::Duration::from_secs(10));
+        let mut conversation = Vec::new();
+        driver.turn(&mut conversation, "share it".into()).await;
+        assert!(conversation.is_empty());
+        assert_eq!(model.received_requests().await.unwrap_or_default().len(), 2);
+        let shown = said(&state).await;
+        assert_eq!(shown.len(), 1, "{shown:?}");
+        assert!(shown[0].1 && shown[0].0.contains("send the message again"));
+        assert!(!shown[0].0.contains("```"), "{shown:?}");
+    }
+
+    /// T-6479: the prose around a call broken twice is still an answer.
+    #[tokio::test]
+    async fn the_prose_around_a_call_broken_twice_is_the_answer() {
+        let model = wiremock::MockServer::start().await;
+        let answer = format!("Jana needs a grant.\n{STRAY_BRACE}");
+        answering_in_turn(&model, &answer, &answer).await;
+        let (driver, _) = chatting_with(&model.uri(), std::time::Duration::from_secs(10));
+        let mut conversation = Vec::new();
+        driver.turn(&mut conversation, "share it".into()).await;
+        assert_eq!(conversation[0].1, "Jana needs a grant.");
     }
 
     /// T-2997, AG-51: the proxy's 429 for a spent profile limit is not asked again, and the

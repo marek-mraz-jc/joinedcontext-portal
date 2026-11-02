@@ -5,6 +5,7 @@
  */
 import { useEffect, useState, useSyncExternalStore } from "react";
 import type { JSX } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { Button, InlineError } from "../components/ui";
@@ -50,7 +51,8 @@ export function PairedTabBar(): JSX.Element | null {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState<string | null>(null);
-  useEffect(() => attach((href) => void navigate({ href })), [navigate]);
+  const client = useQueryClient();
+  useEffect(() => attach((href) => void navigate({ href }), () => void client.invalidateQueries()), [navigate, client]);
 
   if (!key && !ended) {
     return null;
