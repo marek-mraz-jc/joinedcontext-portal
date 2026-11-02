@@ -2,7 +2,7 @@ import { Fragment } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { parse as parseYaml } from "yaml";
-import { CodeBlock, Card, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
+import { CodeBlock, Card, EmptyState, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
 import { ModelLink, TypeLink } from "../models/ModelLinks";
 
 /**
@@ -189,6 +189,12 @@ function answerOf(output: unknown): unknown {
   }
 }
 
+function fieldsOf(answer: Record<string, unknown>, language?: string): [string, string][] {
+  return Object.entries(answer)
+    .filter(([key]) => key !== "@context")
+    .map(([key, value]) => [key, textOf(value, language)]);
+}
+
 /** `language` picks a `languageMap`'s value in the reader's language (T-2769). */
 export function viewOf(output: unknown, language?: string): QueryView {
   const answer = answerOf(output);
@@ -220,13 +226,13 @@ export function viewOf(output: unknown, language?: string): QueryView {
   if (schema !== null) {
     return schema;
   }
+  // One entity reads as its own fields, not as one field named `entity`.
+  if (isRecord(answer) && isRecord(answer.entity) && typeof answer.entity.id === "string") {
+    const { id, ...rest } = answer.entity;
+    return { kind: "fields", fields: [["id", localId(id as string)], ...fieldsOf(rest, language)] };
+  }
   if (isRecord(answer)) {
-    return {
-      kind: "fields",
-      fields: Object.entries(answer)
-        .filter(([key]) => key !== "@context")
-        .map(([key, value]) => [key, textOf(value, language)]),
-    };
+    return { kind: "fields", fields: fieldsOf(answer, language) };
   }
   const text = typeof answer === "string" ? answer : JSON.stringify(answer ?? "");
   return { kind: "text", text: text.slice(0, MAX_TEXT) };
@@ -308,7 +314,7 @@ export function queryResultOf(payload: Record<string, unknown>, language?: strin
   return {
     endpoint,
     tool,
-    argument: key === undefined ? undefined : `${key}: ${String(args[key])}`,
+    argument: key === undefined ? undefined : `${key}: ${key === "id" ? localId(String(args[key])) : String(args[key])}`,
     view: viewOf(payload.output, language),
   };
 }
@@ -317,9 +323,7 @@ export function QueryResultCard({ result, project }: { result: QueryResult; proj
   return (
     <Card padding="xs" data-testid="query-result" className="text-xs">
       <p className="flex flex-wrap items-baseline gap-x-2 font-medium">
-        <span>
-          {result.endpoint} · {result.tool}
-        </span>
+        <span>{result.endpoint}</span>
         {result.argument !== undefined ? (
           <span className="font-mono text-fg-muted">{result.argument}</span>
         ) : null}
@@ -336,17 +340,20 @@ export function QueryResultCard({ result, project }: { result: QueryResult; proj
  */
 export function QueryAnswer({ view, project }: { view: QueryView; project?: string }): JSX.Element {
   const { t } = useTranslation();
-  return view.kind === "table" ? (
-    <>
+  return view.kind === "table" && view.total === 0 ? (
+    <EmptyState bare icon="search" title={t("assistant.query.nothing")} description={t("assistant.query.nothingHint")} />
+  ) : view.kind === "table" ? (
+    <div className="@container">
       {/* The shared Table, not a hand-made one: the header scope, the caption a screen reader
           reads, and the sideways scroll a keyboard can drive all come from one place (UI-01,
-          UI-27). `max-h-48` keeps a ten-row answer inside the conversation instead of pushing
-          the thread down. */}
+          UI-27). `max-h-80` keeps a ten-row answer inside the conversation instead of pushing
+          the thread down. The dock is narrow at every screen width, so the table stacks by its
+          own width: each row a card, every column in reach without a sideways scroll. */}
       <Table
         caption={t("assistant.query.caption")}
         zebra={false}
-        maxHeight="max-h-48"
-        className="mt-1 text-caption"
+        maxHeight="max-h-80"
+        className="table-stack-narrow mt-1 text-caption"
       >
         <TableHead>
           <TableHeaderCell className="px-2 py-1">{t("assistant.query.id")}</TableHeaderCell>
@@ -361,7 +368,7 @@ export function QueryAnswer({ view, project }: { view: QueryView; project?: stri
             <TableRow key={`${row.id}-${index}`}>
               <TableCell className="px-2 py-1 font-mono">{row.id}</TableCell>
               {row.cells.map((cell, cellIndex) => (
-                <TableCell key={view.columns[cellIndex]} className="px-2 py-1" title={cell}>
+                <TableCell key={view.columns[cellIndex]} className="px-2 py-1" title={cell} data-label={view.columns[cellIndex]}>
                   {/* A table cell takes no max-width, so the fold is on a block inside it: a
                       4 000-character value used to widen its column to 4 000 characters and
                       push every other column off the card (T-2460). */}
@@ -377,7 +384,7 @@ export function QueryAnswer({ view, project }: { view: QueryView; project?: stri
           ? t("assistant.query.someRows", { shown: view.rows.length, total: view.total })
           : t("assistant.query.rows", { count: view.total })}
       </p>
-    </>
+    </div>
   ) : view.kind === "schema" ? (
     <SchemaAnswer view={view} project={project} />
   ) : view.kind === "schemaIndex" ? (

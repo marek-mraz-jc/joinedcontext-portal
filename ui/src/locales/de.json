@@ -6118,7 +6118,6 @@
       "tool": "{tool}: {command} (Exit-Code {exit})",
       "commit": "Commit {sha}: {message}",
       "preview": "Vorschau unter {url}",
-      "usage": "{tokens} Tokens in diesem Schritt.",
       "question": "Gefragt: {question}",
       "asked": "Hat eine Frage gestellt.",
       "withdrawn": "Frage zurückgezogen: Sie haben stattdessen geschrieben. Der Assistent fragt erneut, falls er die Antwort noch braucht.",
@@ -6163,6 +6162,26 @@
       "done": "Fertig",
       "stopped": "Angehalten"
     },
+    "failure": {
+      "argument": "Die Anfrage des Assistenten passte nicht zu diesem Schritt, nichts wurde geändert.",
+      "refused": "Das dürfen Sie hier nicht, nichts wurde geändert.",
+      "guarded": "Gestoppt: Dieser Schritt kam aus den Daten, nicht von Ihnen. Nichts wurde geändert.",
+      "page": "Diese Seite ließ sich nicht öffnen.",
+      "missing": "Das wurde in diesem Projekt nicht gefunden.",
+      "test": "Der Entwurf hat seinen Test noch nicht bestanden.",
+      "other": "Dieser Schritt wurde nicht beendet.",
+      "next": {
+        "refused": "Bitten Sie eine Projektleitung oder die Organisationsverwaltung um die nötige Rolle.",
+        "guarded": "Wenn Sie das möchten, fragen Sie erneut, und der Assistent nimmt es aus Ihren Worten.",
+        "page": "Sagen Sie, welche Seite Sie möchten, oder wählen Sie hier eine.",
+        "missing": "Prüfen Sie den Namen oder fragen Sie, was dieses Projekt enthält."
+      },
+      "askAgain": "Erneut fragen",
+      "page_spaces": "Kontexträume",
+      "page_models": "Datenmodelle",
+      "page_endpoints": "Endpoints",
+      "page_explore": "Daten erkunden"
+    },
     "step": {
       "label": {
         "search_catalog": "Katalog durchsucht",
@@ -6177,6 +6196,10 @@
         "profile_sample": "Zeilen und Spalten der Datei gelesen",
         "compute_kpi": "Kennzahl berechnet",
         "draft_kpi_pipeline": "Pipeline entworfen",
+        "navigate": "Seite geöffnet",
+        "jc_ui_navigate": "Seite geöffnet",
+        "describe_tool": "Schritt nachgeschlagen",
+        "portal": "Arbeit im Portal",
         "entities": "Entitäten",
         "readSome": "{shown} von {total} ({type}) aus {endpoint} gelesen",
         "readAll": "{count} ({type}) aus {endpoint} gelesen"
@@ -6193,7 +6216,8 @@
       "copy": "Ablauf kopieren",
       "copied": "Ablauf kopiert",
       "fix": "Den Assistenten um eine Korrektur bitten",
-      "fixMessage": "Der Schritt {tool} ist fehlgeschlagen: {error}. Behebe das."
+      "fixMessage": "Der Schritt {tool} ist fehlgeschlagen: {error}. Behebe das.",
+      "fixPlain": "Der Schritt „{step}“ wurde nicht beendet. Versuche es anders."
     },
     "catalog": {
       "title": "Was der Assistent gefunden hat",
@@ -6429,6 +6453,8 @@
       "id": "Entität",
       "rows": "Zeilen: {count}",
       "someRows": "{shown} von {total} Zeilen",
+      "nothing": "Nichts passt zu dieser Abfrage.",
+      "nothingHint": "Versuchen Sie ein größeres Gebiet, einen längeren Zeitraum oder weniger Bedingungen.",
       "attributes": "Die Attribute von {name}",
       "attribute": "Attribut",
       "range": "Typ",

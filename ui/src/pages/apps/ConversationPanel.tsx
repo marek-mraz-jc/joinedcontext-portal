@@ -8,7 +8,7 @@ import { AppBuildCard, appBuildOf } from "./AppBuildCard";
 import type { JsonSchema } from "../../components/forms/types";
 import { Alert, Button, EmptyState, ExternalLink, Textarea } from "../../components/ui";
 import { openQuestions, TERMINAL_STATES, withdrawnQuestions } from "./useAgentRun";
-import { ActionStep } from "./ActionStep";
+import { ActionStep, noticesOf, StepNotice } from "./ActionStep";
 import { CatalogCards, catalogDatasetsOf, catalogItemsOf } from "./CatalogCards";
 import { ChangeFollowCard, followedChangeOf } from "./ChangeFollowCard";
 import { ChangeTestCard, changeTestOf } from "./ChangeTestCard";
@@ -36,10 +36,10 @@ export function speakerOf(kind: string): Speaker {
 }
 
 /** Lines about the machinery of a run rather than the conversation, kept behind Details. */
-const DETAIL_KINDS = new Set(["usage", "commit", "preview", "lag"]);
+const DETAIL_KINDS = new Set(["commit", "preview", "lag"]);
 
-/** Events that are not lines of the transcript at all. */
-const UNDRAWN_KINDS = new Set(["status", "navigate", "ui"]);
+/** Events that are not lines of the transcript at all; what a run cost is on its timeline. */
+const UNDRAWN_KINDS = new Set(["status", "navigate", "ui", "usage"]);
 
 /** Where a run stands, as the one line a person reads instead of every status change. */
 export type Progress = "working" | "waiting" | "done" | "stopped";
@@ -233,8 +233,6 @@ export function line(
           return t("agentRun.line.testsSkipped", { version, reason: text("reason") });
       }
     }
-    case "usage":
-      return t("agentRun.line.usage", { tokens: String(payload.tokensThisStep ?? "") });
     case "answer": {
       const answers = payload.answers as { answer?: unknown; file?: { name?: unknown }; url?: unknown } | undefined;
       // Data handed over is named, never shown: the file's text stays on the run (T-2694).
@@ -423,6 +421,7 @@ export function ConversationPanel({
   const [draft, setDraft] = useState("");
   const progress = progressOf(events);
   const answered = answeredSearches(events);
+  const notices = noticesOf(events);
   const questions = openQuestions(events);
   const withdrawn = withdrawnQuestions(events);
   const titles = new Map(
@@ -452,14 +451,13 @@ export function ConversationPanel({
   // A turn that ended without an answer (T-2772): its reason is the newest line, and the way on
   // is the same message sent again in this conversation, one press.
   const newest = events.length > 0 ? events[events.length - 1] : undefined;
+  const newestWords = [...events]
+    .reverse()
+    .find((event) => event.kind === "message" && event.payload.sentBy !== "agent" && typeof event.payload.text === "string")
+    ?.payload.text as string | undefined;
   const unanswered =
     newest?.kind === "thought" && newest.payload.failed === true
-      ? ([...events]
-          .reverse()
-          .find(
-            (event) =>
-              event.kind === "message" && event.payload.sentBy !== "agent" && typeof event.payload.text === "string",
-          )?.payload.text as string | undefined)
+      ? newestWords
       : undefined;
   const endedBecause = [...events]
     .reverse()
@@ -596,6 +594,7 @@ export function ConversationPanel({
               const write = entityWriteOf(event.payload);
               // A Change the assistant proposed is followed here to a result that works (T-2774).
               const followed = followedChangeOf(event.payload);
+              const notice = notices.get(event.seq);
               return (
                 <li key={event.seq} className="space-y-2">
                   {found !== null ? (
@@ -620,6 +619,14 @@ export function ConversationPanel({
                   ) : null}
                   {queried !== null ? <QueryResultCard result={queried} project={project} /> : null}
                   <ActionStep event={event} live={live} onSend={onSend} count={count} />
+                  {notice !== undefined ? (
+                    <StepNotice
+                      kind={notice}
+                      project={project}
+                      onAskAgain={live && newestWords !== undefined ? () => sendAgain(newestWords) : undefined}
+                      onOpenLink={onOpenLink}
+                    />
+                  ) : null}
                 </li>
               );
             }

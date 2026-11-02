@@ -6118,7 +6118,6 @@
       "tool": "{tool}: {command} (návratový kód {exit})",
       "commit": "Commit {sha}: {message}",
       "preview": "Náhled na {url}",
-      "usage": "{tokens} tokenů v tomto kroku.",
       "question": "Otázka: {question}",
       "asked": "Položil otázku.",
       "withdrawn": "Otázka stažena: napsali jste něco jiného. Asistent se zeptá znovu, pokud odpověď ještě potřebuje.",
@@ -6163,6 +6162,26 @@
       "done": "Hotovo",
       "stopped": "Zastaveno"
     },
+    "failure": {
+      "argument": "Požadavek asistenta neseděl na tento krok, nic se nezměnilo.",
+      "refused": "Tohle tady nemůžete udělat, nic se nezměnilo.",
+      "guarded": "Zastaveno: tento krok pochází z dat, ne od vás. Nic se nezměnilo.",
+      "page": "Tuto stránku se nepodařilo otevřít.",
+      "missing": "V tomto projektu se to nenašlo.",
+      "test": "Návrh zatím neprošel testem.",
+      "other": "Tento krok se nedokončil.",
+      "next": {
+        "refused": "Požádejte vlastníka projektu nebo správce organizace o potřebnou roli.",
+        "guarded": "Pokud to chcete, zeptejte se znovu a asistent to vezme z vašich slov.",
+        "page": "Řekněte, kterou stránku chcete, nebo si vyberte zde.",
+        "missing": "Zkontrolujte název nebo se zeptejte, co tento projekt obsahuje."
+      },
+      "askAgain": "Zeptat se znovu",
+      "page_spaces": "Kontextové prostory",
+      "page_models": "Datové modely",
+      "page_endpoints": "Endpointy",
+      "page_explore": "Prohlížet data"
+    },
     "step": {
       "label": {
         "search_catalog": "Prohledal katalog",
@@ -6177,6 +6196,10 @@
         "profile_sample": "Přečetl řádky a sloupce souboru",
         "compute_kpi": "Spočítal ukazatel",
         "draft_kpi_pipeline": "Připravil pipeline",
+        "navigate": "Otevření stránky",
+        "jc_ui_navigate": "Otevření stránky",
+        "describe_tool": "Ověření postupu kroku",
+        "portal": "Práce v Portálu",
         "entities": "entit",
         "readSome": "Přečteno {shown} z {total} ({type}) z {endpoint}",
         "readAll": "Přečteno {count} ({type}) z {endpoint}"
@@ -6193,7 +6216,8 @@
       "copy": "Kopírovat záznam",
       "copied": "Záznam zkopírován",
       "fix": "Požádat asistenta o opravu",
-      "fixMessage": "Krok {tool} selhal: {error}. Oprav to."
+      "fixMessage": "Krok {tool} selhal: {error}. Oprav to.",
+      "fixPlain": "Krok „{step}“ se nedokončil. Zkus to jinak."
     },
     "catalog": {
       "title": "Co asistent našel",
@@ -6429,6 +6453,8 @@
       "id": "Entita",
       "rows": "Řádky: {count}",
       "someRows": "{shown} z {total} řádků",
+      "nothing": "Tomuto čtení nic neodpovídá.",
+      "nothingHint": "Zkuste širší území, delší období nebo méně podmínek.",
       "attributes": "Atributy třídy {name}",
       "attribute": "Atribut",
       "range": "Typ",

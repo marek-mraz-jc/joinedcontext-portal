@@ -1,9 +1,128 @@
 import { useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
-import { RecordView, Button } from "../../components/ui";
+import { Alert, RecordView, Button } from "../../components/ui";
+import { PortalLink } from "./Prose";
+import type { OpenLink } from "./Prose";
 import type { RunEvent } from "./useAgentRun";
 import { viewOf } from "./QueryResultCard";
+
+/**
+ * What a person reads about a failed assistant step. The wording is the Portal's own, picked by
+ * the kind of failure: the tool's error is written for the model, and it quotes arguments, field
+ * names and whole answers of the systems behind the step.
+ */
+export type FailureKind = "argument" | "refused" | "guarded" | "page" | "missing" | "test" | "other";
+
+/** First match wins: a refusal may also quote a status or a missing name. */
+const FAILURES: [FailureKind, RegExp][] = [
+  ["guarded", /never an instruction/i],
+  ["refused", /forbidden|access denied|not permitted|you may read no|unauthori[sz]ed|"status":\s*40[13]/i],
+  ["test", /test is not green/i],
+  ["missing", /not found|does not exist|is not in this project|is not an entity type|"status":\s*404/i],
+  [
+    "argument",
+    /argument|names no |does not parse|not a valid|invalid input|bad request|is not one of|changes nothing|stays as it is|does not use|"status":\s*400/i,
+  ],
+];
+
+/** Tools that open a page: their failure is about the page, whatever the words. */
+const NAVIGATING = new Set(["navigate", "jc_ui_navigate"]);
+
+/** The kind of a failed assistant step; `null` for a step that did not fail or is a builder's. */
+export function failureOf(payload: Record<string, unknown>): FailureKind | null {
+  const tool = typeof payload.tool === "string" ? payload.tool : "";
+  if (!isAssistantTool(tool) || !didFail(payload)) {
+    return null;
+  }
+  if (NAVIGATING.has(tool)) {
+    return "page";
+  }
+  const error = typeof payload.error === "string" ? payload.error : JSON.stringify(payload.error ?? "");
+  return FAILURES.find(([, words]) => words.test(error))?.[0] ?? "other";
+}
+
+/** Whatever could hold a credential or a caller's query in a text a person sees or copies. */
+export function scrubbed(text: string): string {
+  return text
+    .replace(/\b(bearer|basic|token)[ =:]+[\w.~+/=-]{8,}/gi, "$1 …")
+    .replace(/\beyJ[\w-]+\.[\w-]+(\.[\w-]+)?/g, "…")
+    .replace(/:\/\/[^/\s@"'`]+@/g, "://")
+    .replace(/(https?:\/\/[^\s?#"'`]+)[?#][^\s"'`]*/g, "$1");
+}
+
+/** The failures a transcript answers with a state of its own instead of its small step line. */
+const NOTICED = new Set<FailureKind>(["refused", "guarded", "page", "missing"]);
+
+/**
+ * The steps that end in a notice, by `seq`. A step the assistant then got right was only its way
+ * to the answer, and each kind says its next step once, on the newest failure.
+ */
+export function noticesOf(events: RunEvent[]): Map<number, FailureKind> {
+  const standing = new Map<FailureKind, { seq: number; tool: unknown }>();
+  for (const event of events) {
+    if (event.kind !== "tool") {
+      continue;
+    }
+    const kind = failureOf(event.payload);
+    if (kind === null) {
+      for (const [failed, step] of standing) {
+        if (step.tool === event.payload.tool) {
+          standing.delete(failed);
+        }
+      }
+    } else if (NOTICED.has(kind)) {
+      standing.set(kind, { seq: event.seq, tool: event.payload.tool });
+    }
+  }
+  return new Map([...standing].map(([kind, { seq }]) => [seq, kind]));
+}
+
+/** The pages a person is offered when the one asked for would not open. */
+const PAGES = ["spaces", "models", "endpoints", "explore"];
+
+/** A failure drawn as a state: what happened and what the person can do next. */
+export function StepNotice({
+  kind,
+  project,
+  onAskAgain,
+  onOpenLink,
+}: {
+  kind: FailureKind;
+  project: string;
+  /** Sends the person's own words again, offered where those words can carry the step. */
+  onAskAgain?: () => void;
+  onOpenLink?: OpenLink;
+}): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <Alert
+      data-testid="step-notice"
+      tone={kind === "refused" || kind === "guarded" ? "warning" : "info"}
+      title={t(`agentRun.failure.${kind}`)}
+      actions={
+        kind === "guarded" && onAskAgain ? (
+          <Button size="xs" variant="secondary" onClick={onAskAgain}>
+            {t("agentRun.failure.askAgain")}
+          </Button>
+        ) : undefined
+      }
+    >
+      <p>{t(`agentRun.failure.next.${kind}`)}</p>
+      {kind === "page" ? (
+        <ul className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+          {PAGES.map((page) => (
+            <li key={page}>
+              <PortalLink href={`/projects/${encodeURIComponent(project)}/${page}`} onOpenLink={onOpenLink}>
+                {t(`agentRun.failure.page_${page}`)}
+              </PortalLink>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </Alert>
+  );
+}
 
 /**
  * Why a step failed, on one line, or "" when the step says nothing: a plain error, a runtime
@@ -16,14 +135,16 @@ export function errorText(
 ): string {
   const { error, refused } = payload;
   if (typeof error === "string") {
-    return error;
+    return scrubbed(error);
   }
   if (typeof error === "object" && error !== null) {
     const { message, file, line } = error as Record<string, unknown>;
     if (typeof message === "string" && message !== "") {
-      return typeof file === "string" && file !== "" && line !== undefined && line !== null
-        ? `${message} (${file}:${String(line)})`
-        : message;
+      return scrubbed(
+        typeof file === "string" && file !== "" && line !== undefined && line !== null
+          ? `${message} (${file}:${String(line)})`
+          : message,
+      );
     }
   }
   if (Array.isArray(refused) && refused.length > 0) {
@@ -32,7 +153,7 @@ export function errorText(
     const path = typeof first?.path === "string" && first.path !== "" ? first.path : "";
     return t("agentRun.step.refusedLine", {
       count: refused.length,
-      reason: path !== "" && reason !== "" ? `${path}: ${reason}` : reason || path,
+      reason: scrubbed(path !== "" && reason !== "" ? `${path}: ${reason}` : reason || path),
     });
   }
   return "";
@@ -51,15 +172,31 @@ const LABELLED = new Set([
   "profile_sample",
   "compute_kpi",
   "draft_kpi_pipeline",
+  "navigate",
+  "jc_ui_navigate",
+  "describe_tool",
 ]);
+
+/** A step of the assistant's own, as opposed to the builder's shell and file steps. */
+function isAssistantTool(tool: string): boolean {
+  return LABELLED.has(tool) || tool.startsWith("jc_");
+}
+
+function didFail(payload: Record<string, unknown>): boolean {
+  const { status, error, exitCode } = payload;
+  return status === "failed" || error !== undefined || (typeof exitCode === "number" && exitCode !== 0);
+}
 
 function labelOf(
   tool: string,
   payload: Record<string, unknown>,
   t: (key: string, options?: Record<string, unknown>) => string,
 ): string | null {
-  if (!LABELLED.has(tool)) {
+  if (!isAssistantTool(tool)) {
     return null;
+  }
+  if (!LABELLED.has(tool)) {
+    return t("agentRun.step.label.portal");
   }
   const input = payload.input as { endpoint?: unknown; arguments?: { type?: unknown } } | null | undefined;
   const endpoint = input?.endpoint;
@@ -104,18 +241,19 @@ export function ActionStep({
   const payload = event.payload;
   const tool = typeof payload.tool === "string" && payload.tool !== "" ? payload.tool : "tool";
   const exitCode = typeof payload.exitCode === "number" ? payload.exitCode : undefined;
-  const failed =
-    payload.status === "failed" ||
-    payload.error !== undefined ||
-    (exitCode !== undefined && exitCode !== 0);
+  const failed = didFail(payload);
   const duration = typeof payload.durationMs === "number" ? payload.durationMs : undefined;
   const label = labelOf(tool, payload, t);
+  const failure = failureOf(payload);
   const reason = failed ? errorText(payload, t) : "";
+  const said = failure !== null ? t(`agentRun.failure.${failure}`) : reason;
+  const error = typeof payload.error === "object" ? reason : payload.error === undefined ? undefined : reason;
   const refused = Array.isArray(payload.refused) && payload.refused.length > 0 ? payload.refused : undefined;
   const sections: Array<[string, unknown]> = [
     [t("agentRun.step.input"), payload.input ?? payload.command],
-    [t("agentRun.step.output"), payload.output],
-    [t("agentRun.step.error"), payload.error],
+    // A failed assistant step's output is its error again, with no scrubbing.
+    [t("agentRun.step.output"), failure !== null ? undefined : payload.output],
+    [t("agentRun.step.error"), error],
     [t("agentRun.step.refused"), refused],
     [t("agentRun.step.diff"), payload.diff],
   ];
@@ -127,8 +265,8 @@ export function ActionStep({
       status: failed ? "failed" : "ok",
       durationMs: duration,
       input: payload.input ?? payload.command,
-      output: payload.output,
-      error: payload.error,
+      output: failure !== null ? undefined : payload.output,
+      error,
       diff: payload.diff,
     };
     try {
@@ -141,7 +279,7 @@ export function ActionStep({
 
   return (
     <details className="rounded border border-border bg-surface-subtle text-xs">
-      <summary className="flex cursor-pointer items-center gap-2 px-2 py-1 font-mono">
+      <summary className="flex cursor-pointer flex-wrap items-center gap-x-2 px-2 py-1 font-mono">
         <span
           role="img"
           aria-label={failed ? t("agentRun.step.failed") : t("agentRun.step.ok")}
@@ -149,8 +287,9 @@ export function ActionStep({
         >
           {failed ? "✗" : "✓"}
         </span>
-        {/* One line each, the label and the reason sharing the row: a flex item that may break
-            words shrinks to one letter per line in the dock's narrow column (T-0892). */}
+        {/* The label keeps one line; a flex item that may break words shrinks to one letter per
+            line in the dock's narrow column (T-0892). The reason takes a row of its own, because
+            a cut sentence tells a person nothing. */}
         {label !== null ? (
           <span className="min-w-0 flex-1 truncate font-sans" title={label}>
             {label}
@@ -169,9 +308,9 @@ export function ActionStep({
         {duration !== undefined && duration > 0 ? (
           <span className="shrink-0 text-fg-muted">{t("agentRun.step.duration", { ms: duration })}</span>
         ) : null}
-        {reason !== "" ? (
-          <span data-testid="step-reason" title={reason} className="min-w-0 flex-1 truncate text-danger">
-            {reason}
+        {said !== "" ? (
+          <span data-testid="step-reason" title={said} className="line-clamp-3 min-w-0 basis-full font-sans text-danger">
+            {said}
           </span>
         ) : null}
       </summary>
@@ -197,11 +336,14 @@ export function ActionStep({
             <Button
               size="sm"
               onClick={() => {
+                // The assistant holds its own step's error: the person's bubble needs none of it.
                 onSend(
-                  t("agentRun.step.fixMessage", {
-                    tool,
-                    error: reason !== "" ? reason : String(exitCode ?? ""),
-                  }),
+                  failure !== null
+                    ? t("agentRun.step.fixPlain", { step: label ?? "" })
+                    : t("agentRun.step.fixMessage", {
+                        tool,
+                        error: reason !== "" ? reason : String(exitCode ?? ""),
+                      }),
                 );
               }}
             >

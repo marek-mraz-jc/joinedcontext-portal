@@ -407,8 +407,9 @@ impl Driver {
                 )
                 .await?;
                 if last {
-                    let prose = "The data read for this message holds an instruction to change \
-                                 something or open a page; it was not followed."
+                    let prose = "Nothing was changed: this step came from the data the assistant \
+                                 read, not from you, and data is never an instruction. If you \
+                                 want it, say so in your own words."
                         .to_owned();
                     self.thought(&prose).await?;
                     return Ok(prose);
@@ -533,10 +534,9 @@ impl Driver {
                 // that keeps answering the same broken call asked the proxy again without end,
                 // because this branch alone left `drafts` where it was (T-1437).
                 if last {
-                    let prose = format!(
-                        "The page could not be opened: {}. Ask again, naming what to open.",
-                        text.trim_start_matches("error: ")
-                    );
+                    let prose = "That page could not be opened. Say which page you want, for \
+                                 example Data models or the name of an endpoint."
+                        .to_owned();
                     self.thought(&prose).await?;
                     return Ok(prose);
                 }
