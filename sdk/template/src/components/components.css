@@ -219,6 +219,11 @@ body {
   border-radius: var(--jc-radius-md, 6px);
 }
 
+/* Beside the filters on a wide screen there is room for all of them. */
+.jc-filter-toggle {
+  display: none;
+}
+
 .jc-filter {
   display: flex;
   flex-direction: column;
@@ -546,6 +551,12 @@ body {
   .jc-filterbar {
     flex-direction: column;
     align-items: stretch;
+  }
+  .jc-filter-toggle {
+    display: block;
+  }
+  .jc-filterbar[data-open="false"] > :not(.jc-filter-toggle) {
+    display: none;
   }
   .jc-count {
     margin-left: 0;
