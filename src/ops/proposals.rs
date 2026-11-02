@@ -77,7 +77,7 @@ fn endpoint_propose_input_schema() -> Value {
             "representations": {
                 "type": "array",
                 "description": "Formats served; ngsi-ld and csv when absent",
-                "items": { "type": "string", "enum": crate::agents::share::REPRESENTATIONS }
+                "items": { "type": "string", "enum": &*crate::agents::share::REPRESENTATIONS }
             },
             "hiddenAttributes": texts("Attributes the endpoint never returns", TERM),
             "entityTypes": texts("The entity types it serves", TERM),
