@@ -167,6 +167,7 @@ function EntityFormBody({
   test = false,
   space,
   reasonDefault,
+  forbiddenHint,
 }: {
   idPrefix: string;
   type: string;
@@ -187,6 +188,8 @@ function EntityFormBody({
    * form is anonymous and asks nothing.
    */
   reasonDefault?: string;
+  /** What the person can do about a 403: only the signed-in form has a project owner to ask. */
+  forbiddenHint?: string;
 }): JSX.Element {
   const { t } = useTranslation();
   const { answers, set, reset } = useAnswers(initial);
@@ -198,6 +201,12 @@ function EntityFormBody({
   const problems = problemsOf(shown, answers);
   const reasonError = reasonDefault === undefined ? null : reasonProblem(reason);
   const count = Object.keys(problems).length + (reasonError ? 1 : 0);
+
+  // A long form puts the refusal under the fold: the person pressed Create and saw nothing.
+  const refusal = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (sent.status === "refused") refusal.current?.scrollIntoView?.({ block: "nearest" });
+  }, [sent]);
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -213,7 +222,8 @@ function EntityFormBody({
         setTried(false);
         reset();
       } else {
-        setSent({ status: "refused", reason: reasonOf(answer.status, answer.body) });
+        const said = reasonOf(answer.status, answer.body);
+        setSent({ status: "refused", reason: answer.status === 403 && forbiddenHint ? `${said}. ${forbiddenHint}` : said });
       }
     } catch (error) {
       setSent({ status: "refused", reason: error instanceof Error ? error.message : String(error) });
@@ -252,9 +262,11 @@ function EntityFormBody({
         </Alert>
       ) : null}
       {sent.status === "refused" ? (
-        <Alert role="alert" tone="danger">
-          {t(test ? "spaces.form.testRefused" : "spaces.form.refused", { reason: sent.reason })}
-        </Alert>
+        <div ref={refusal}>
+          <Alert role="alert" tone="danger">
+            {t(test ? "spaces.form.testRefused" : "spaces.form.refused", { reason: sent.reason })}
+          </Alert>
+        </div>
       ) : null}
       {sent.status === "created" ? (
         <p role="status" className="text-body text-fg [overflow-wrap:anywhere]">
@@ -305,6 +317,7 @@ export function FormView({
       initial={initial}
       locale={i18n.language}
       reasonDefault={t("spaces.form.reasonDefault")}
+      forbiddenHint={t("spaces.form.forbidden", { type })}
       send={async (entity, reason) => {
         const answer = await originTransport()({ method: "POST", path: `/cs/${encodeURIComponent(space)}/ngsi-ld/v1/entities`, body: entity, reason });
         if (answer.status >= 200 && answer.status < 300) onCreated?.();

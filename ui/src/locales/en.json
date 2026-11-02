@@ -802,6 +802,8 @@
     "api": {
       "lead": "How a program reads {type}: through an Endpoint of this space, with its own token, and the webhooks that tell it when something changes.",
       "noEndpoint": "No Endpoint serves this space yet, so no program can read it. Create one on the space's Endpoints.",
+      "pick": "Endpoint",
+      "pickHint": "{count} Endpoints of this space. Each has its own address and token, and its Policy decides which rows it answers, for example air-quality.",
       "endpoint": "Through {name}",
       "call": {
         "list": "List",
@@ -945,6 +947,7 @@
       },
       "fix": "{count, plural, one {# answer needs} other {# answers need}} fixing before the form can be sent.",
       "refused": "Not created: {reason}",
+      "forbidden": "Ask a project owner for a Policy that lets you create {type} in this space.",
       "created": "Created {id}.",
       "noFields": "The model of {type} has no field a form can ask for.",
       "problem": {

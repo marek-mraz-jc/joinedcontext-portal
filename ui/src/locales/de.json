@@ -802,6 +802,8 @@
     "api": {
       "lead": "Wie ein Programm {type} liest: über einen Endpoint dieses Raums, mit eigenem Token, und die Webhooks, die ihm sagen, wenn sich etwas ändert.",
       "noEndpoint": "Noch kein Endpoint bedient diesen Raum, daher kann ihn kein Programm lesen. Legen Sie einen bei den Endpoints des Raums an.",
+      "pick": "Endpoint",
+      "pickHint": "{count} Endpoints dieses Bereichs. Jeder hat eigene Adresse und eigenes Token, seine Policy bestimmt die Zeilen, zum Beispiel air-quality.",
       "endpoint": "Über {name}",
       "call": {
         "list": "Liste",
@@ -945,6 +947,7 @@
       },
       "fix": "Vor dem Senden müssen Antworten korrigiert werden: {count}.",
       "refused": "Nicht angelegt: {reason}",
+      "forbidden": "Bitten Sie eine Projektverantwortliche Person um eine Policy, mit der Sie {type} in diesem Bereich anlegen dürfen.",
       "created": "Angelegt: {id}.",
       "noFields": "Das Modell von {type} hat kein Feld, das ein Formular abfragen kann.",
       "problem": {

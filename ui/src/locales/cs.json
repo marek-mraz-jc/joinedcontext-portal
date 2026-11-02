@@ -802,6 +802,8 @@
     "api": {
       "lead": "Jak program čte {type}: přes endpoint tohoto prostoru, s vlastním tokenem, a webhooky, které mu řeknou, když se něco změní.",
       "noEndpoint": "Tento prostor zatím neobsluhuje žádný endpoint, takže ho žádný program nemůže číst. Vytvořte ho v endpointech prostoru.",
+      "pick": "Endpoint",
+      "pickHint": "{count} Endpointů tohoto prostoru. Každý má vlastní adresu a token a jeho Policy určuje, které řádky vrátí, například air-quality.",
       "endpoint": "Přes {name}",
       "call": {
         "list": "Seznam",
@@ -945,6 +947,7 @@
       },
       "fix": "Před odesláním je třeba opravit odpovědi: {count}.",
       "refused": "Nevytvořeno: {reason}",
+      "forbidden": "Požádejte vlastníka projektu o Policy, která vám v tomto prostoru dovolí vytvářet {type}.",
       "created": "Vytvořeno {id}.",
       "noFields": "Model typu {type} nemá pole, na které by se formulář mohl ptát.",
       "problem": {
