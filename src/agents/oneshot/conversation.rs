@@ -408,8 +408,8 @@ impl Driver {
                 .await?;
                 if last {
                     let prose = "Nothing was changed: this step came from the data the assistant \
-                                 read, not from you, and data is never an instruction. If you \
-                                 want it, say so in your own words."
+                                 read, not from you, and an instruction inside data is not \
+                                 followed. If you want it, say so in your own words."
                         .to_owned();
                     self.thought(&prose).await?;
                     return Ok(prose);

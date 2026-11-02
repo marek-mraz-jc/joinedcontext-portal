@@ -91,25 +91,29 @@ const PAGES = ["spaces", "models", "endpoints", "explore"];
 export function StepNotice({
   kind,
   project,
-  onAskAgain,
+  words,
+  onAsk,
   onOpenLink,
 }: {
   kind: FailureKind;
   project: string;
-  /** Sends the person's own words again, offered where those words can carry the step. */
-  onAskAgain?: () => void;
+  /** The person's own newest words, which can carry a stopped step when sent again. */
+  words?: string;
+  /** Sends a message for the person: the one press a notice offers. */
+  onAsk?: (text: string) => void;
   onOpenLink?: OpenLink;
 }): JSX.Element {
   const { t } = useTranslation();
+  const ask = kind === "guarded" ? words : kind === "missing" ? t("agentRun.failure.holds") : undefined;
   return (
     <Alert
       data-testid="step-notice"
       tone={kind === "refused" ? "warning" : "info"}
       title={t(`agentRun.failure.${kind}`)}
       actions={
-        kind === "guarded" && onAskAgain ? (
-          <Button size="xs" variant="secondary" onClick={onAskAgain}>
-            {t("agentRun.failure.askAgain")}
+        ask !== undefined && onAsk ? (
+          <Button size="sm" variant="secondary" onClick={() => onAsk(ask)}>
+            {t(kind === "guarded" ? "agentRun.failure.askAgain" : "agentRun.failure.askHolds")}
           </Button>
         ) : undefined
       }

@@ -434,7 +434,7 @@ export function QueryAnswer({ view, project }: { view: QueryView; project?: stri
     <dl className="mt-1 grid grid-cols-[auto_1fr] gap-x-2 gap-y-0.5">
       {view.fields.map(([key, value]) => (
         <div key={key} className="contents">
-          <dt className="font-mono text-fg-muted">{key}</dt>
+          <dt className="text-fg-muted">{wordsOf(key)}</dt>
           <dd className="min-w-0 break-words">{whenOf(value, i18n.resolvedLanguage)}</dd>
         </div>
       ))}

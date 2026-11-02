@@ -6163,7 +6163,7 @@
       "stopped": "Zastavené"
     },
     "failure": {
-      "argument": "Tento pokus na krok nesedel, nič sa nezmenilo. Asistent pokračuje inak.",
+      "argument": "Asistent žiadal v tvare, ktorý tento krok neberie, nič sa nezmenilo. Pokračuje inak.",
       "refused": "Toto tu nemôžete urobiť, nič sa nezmenilo.",
       "guarded": "Zastavené: tento krok pochádza z údajov, nie od vás. Nič sa nezmenilo.",
       "page": "Túto stránku sa nepodarilo otvoriť.",
@@ -6177,6 +6177,8 @@
         "missing": "Skontrolujte názov alebo sa opýtajte, čo tento projekt obsahuje."
       },
       "askAgain": "Opýtať sa znova",
+      "askHolds": "Opýtať sa, čo obsahuje",
+      "holds": "Čo tento projekt obsahuje?",
       "page_spaces": "Kontextové priestory",
       "page_models": "Dátové modely",
       "page_endpoints": "Endpointy",

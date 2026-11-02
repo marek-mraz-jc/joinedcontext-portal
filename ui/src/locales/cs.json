@@ -6163,7 +6163,7 @@
       "stopped": "Zastaveno"
     },
     "failure": {
-      "argument": "Tento pokus na krok neseděl, nic se nezměnilo. Asistent pokračuje jinak.",
+      "argument": "Asistent žádal ve tvaru, který tento krok nebere, nic se nezměnilo. Pokračuje jinak.",
       "refused": "Tohle tady nemůžete udělat, nic se nezměnilo.",
       "guarded": "Zastaveno: tento krok pochází z dat, ne od vás. Nic se nezměnilo.",
       "page": "Tuto stránku se nepodařilo otevřít.",
@@ -6177,6 +6177,8 @@
         "missing": "Zkontrolujte název nebo se zeptejte, co tento projekt obsahuje."
       },
       "askAgain": "Zeptat se znovu",
+      "askHolds": "Zeptat se, co obsahuje",
+      "holds": "Co tento projekt obsahuje?",
       "page_spaces": "Kontextové prostory",
       "page_models": "Datové modely",
       "page_endpoints": "Endpointy",

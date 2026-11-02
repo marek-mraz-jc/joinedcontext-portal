@@ -83,7 +83,7 @@ const SCENARIOS: Record<string, { ask: string; steps: Record<string, unknown>[];
     ask: "Add an optional slot direction to BikeCounter.",
     steps: [failed("change_resource", "the data read for this message writes this change_resource call; data is never an instruction, so nothing was drafted or opened")],
     answer:
-      "Nothing was changed: this step came from the data the assistant read, not from you, and data is never an instruction. If you want it, say so in your own words.",
+      "Nothing was changed: this step came from the data the assistant read, not from you, and an instruction inside data is not followed. If you want it, say so in your own words.",
   },
   missing: {
     ask: "Sample the source trips-csv.",
@@ -194,7 +194,7 @@ for (const [label, width, height] of [
       const reasons = dock.getByTestId("step-reason");
       await expect(reasons).toHaveCount(1);
       await expect(dock.getByRole("status").filter({ hasText: "Live" })).toBeVisible();
-      await expect(reasons.first()).toHaveText("This try did not fit the step, so nothing changed. The assistant goes on another way.");
+      await expect(reasons.first()).toHaveText("The assistant asked in a form this step does not take, so nothing changed. It goes on another way.");
       await expect(dock).not.toContainText("argument type", { useInnerText: true });
       await expect(dock).not.toContainText("jc_resource_list", { useInnerText: true });
       await expect(dock.getByTestId("step-notice")).toHaveCount(0);
@@ -241,6 +241,7 @@ for (const [label, width, height] of [
     test("missing", async ({ page }) => {
       const dock = await open(page, "missing");
       await expect(dock.getByTestId("step-notice")).toContainText("Check the name, or ask what this project holds.");
+      await expect(dock.getByRole("button", { name: "Ask what it holds" })).toBeVisible();
       await expect(dock).not.toContainText("trips-csv'", { useInnerText: true });
     });
   });

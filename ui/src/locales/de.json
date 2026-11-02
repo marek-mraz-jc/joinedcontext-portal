@@ -6163,7 +6163,7 @@
       "stopped": "Angehalten"
     },
     "failure": {
-      "argument": "Dieser Versuch passte nicht zum Schritt, nichts wurde geändert. Der Assistent macht anders weiter.",
+      "argument": "Der Assistent fragte in einer Form, die dieser Schritt nicht annimmt, nichts wurde geändert. Er macht anders weiter.",
       "refused": "Das dürfen Sie hier nicht, nichts wurde geändert.",
       "guarded": "Gestoppt: Dieser Schritt kam aus den Daten, nicht von Ihnen. Nichts wurde geändert.",
       "page": "Diese Seite ließ sich nicht öffnen.",
@@ -6177,6 +6177,8 @@
         "missing": "Prüfen Sie den Namen oder fragen Sie, was dieses Projekt enthält."
       },
       "askAgain": "Erneut fragen",
+      "askHolds": "Fragen, was es enthält",
+      "holds": "Was enthält dieses Projekt?",
       "page_spaces": "Kontexträume",
       "page_models": "Datenmodelle",
       "page_endpoints": "Endpoints",

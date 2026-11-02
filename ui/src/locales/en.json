@@ -6163,7 +6163,7 @@
       "stopped": "Stopped"
     },
     "failure": {
-      "argument": "This try did not fit the step, so nothing changed. The assistant goes on another way.",
+      "argument": "The assistant asked in a form this step does not take, so nothing changed. It goes on another way.",
       "refused": "You may not do this here, so nothing changed.",
       "guarded": "Stopped: this step came from data, not from you. Nothing changed.",
       "page": "That page could not be opened.",
@@ -6177,6 +6177,8 @@
         "missing": "Check the name, or ask what this project holds."
       },
       "askAgain": "Ask again",
+      "askHolds": "Ask what it holds",
+      "holds": "What does this project hold?",
       "page_spaces": "Context spaces",
       "page_models": "Data models",
       "page_endpoints": "Endpoints",

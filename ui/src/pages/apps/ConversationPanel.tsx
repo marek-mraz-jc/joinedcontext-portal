@@ -624,7 +624,8 @@ export function ConversationPanel({
                     <StepNotice
                       kind={notice}
                       project={project}
-                      onAskAgain={live && newestWords !== undefined ? () => sendAgain(newestWords) : undefined}
+                      words={newestWords}
+                      onAsk={live ? sendAgain : undefined}
                       onOpenLink={onOpenLink}
                     />
                   ) : null}
@@ -782,7 +783,7 @@ export function ConversationPanel({
             </label>
             <Textarea
               id="run-message"
-              rows={2}
+              rows={3}
               value={draft}
               placeholder={t("agentRun.conversation.placeholder")}
               onChange={(event) => {

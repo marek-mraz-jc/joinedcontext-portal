@@ -174,6 +174,19 @@ describe("the state of a failure", () => {
   });
 });
 
+describe("the press a notice offers", () => {
+  it("asks what the project holds when something was not found", async () => {
+    const onSend = panel([tool(1, "jc_resource_get", "not found: Pipeline 'x'")]);
+    await userEvent.click(screen.getByRole("button", { name: en.agentRun.failure.askHolds }));
+    expect(onSend).toHaveBeenCalledWith(en.agentRun.failure.holds);
+  });
+
+  it("offers nothing to press on a refusal", () => {
+    panel([tool(1, "change_resource", 'error: {"status":403}')]);
+    expect(within(screen.getByTestId("step-notice")).queryByRole("button")).toBeNull();
+  });
+});
+
 describe("an empty read and one entity", () => {
   it("says nothing matched and what to try, instead of a table with one header", () => {
     const view = viewOf({ structuredContent: { entities: [] } });
