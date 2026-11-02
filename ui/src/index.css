@@ -124,6 +124,11 @@
 /* A link that is a control on a touch screen (a crumb, the brand, a back or export link, a table's
    name link, the footer's address) grows to the finger's 44 px like a button (WCAG 2.5.8, T-5596).
    A link inside a sentence stays on its line: it never wears this. */
+/* A phone's sheet that may hold a lot: the page stays in sight above it. */
+@utility max-h-sheet {
+  max-height: 80dvh;
+}
+
 @utility touch-target {
   @media (pointer: coarse) {
     display: inline-flex;

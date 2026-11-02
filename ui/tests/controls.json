@@ -364,7 +364,7 @@
     },
     "src/components/entities/GridToolbar.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 3
       },
       "tests": [
         "count_scope.test.tsx",

@@ -808,7 +808,7 @@
       "lead": "Wie ein Programm {type} liest: über einen Endpoint dieses Raums, mit eigenem Token, und die Webhooks, die ihm sagen, wenn sich etwas ändert.",
       "noEndpoint": "Noch kein Endpoint bedient diesen Raum, daher kann ihn kein Programm lesen. Legen Sie einen bei den Endpoints des Raums an.",
       "pick": "Endpoint",
-      "pickHint": "{count} Endpoints dieses Bereichs. Jeder hat eigene Adresse und eigenes Token, seine Policy bestimmt die Zeilen, zum Beispiel air-quality.",
+      "pickHint": "{count, plural, one {# Endpoint} other {# Endpoints}} dieses Bereichs. Jeder hat eigene Adresse und eigenes Token, seine Policy bestimmt die Zeilen, zum Beispiel air-quality.",
       "endpoint": "Über {name}",
       "call": {
         "list": "Liste",
@@ -847,7 +847,9 @@
         "websocket": "WebSocket",
         "ical": "iCal"
       },
-      "copySurface": "{surface}-URL kopieren"
+      "copy": "Kopieren",
+      "copySurface": "{surface}-URL kopieren",
+      "calls": "Aufrufe für ein Programm"
     },
     "share": {
       "title": "Diesen Typ als öffentlichen Link veröffentlichen",
@@ -863,7 +865,8 @@
       "closed": "Diese Ansicht ist nicht öffentlich zugänglich.",
       "busy": "Gerade gibt es zu viele Besuche. Versuchen Sie es in {seconds} s erneut.",
       "busyLater": "Gerade gibt es zu viele Besuche. Versuchen Sie es in einer Minute erneut.",
-      "down": "Der Datendienst hat nicht geantwortet. Versuchen Sie es erneut.",
+      "down": "„{name}“ kann gerade nicht angezeigt werden: Der Datendienst hat nicht geantwortet. Versuchen Sie es in einer Minute erneut, der Link bleibt gleich.",
+      "downUnnamed": "Diese Ansicht kann gerade nicht angezeigt werden: Der Datendienst hat nicht geantwortet. Versuchen Sie es in einer Minute erneut, der Link bleibt gleich.",
       "types": "Typen",
       "first": "Die ersten {count} Entitäten.",
       "count": "{count, plural, one {# Entität} other {# Entitäten}}.",
@@ -1169,6 +1172,7 @@
     },
     "toolbar": {
       "filter": "Filter",
+      "tools": "Werkzeuge",
       "hide": "Felder ausblenden",
       "group": "Gruppieren",
       "colour": "Zeilenfarbe",
@@ -11111,6 +11115,10 @@
     "noProjects": "Sie lesen noch kein Projekt und nichts ist mit Ihnen geteilt, ein Konnektor hätte also nichts zu erreichen. Bitten Sie einen Projektverantwortlichen oder die Administration Ihrer Organisation um Zugriff.",
     "accessOf": "Zugriff für {what}",
     "inWholeProject": "Schon enthalten: das ganze Projekt ist angekreuzt.",
+    "revokedList": "Widerrufen ({count})",
+    "find": "Projekt, Space oder Endpoint finden",
+    "findHint": "Tippen Sie einen Teil des Namens, z. B. air-quality.",
+    "narrow": "Oder nur einen Teil wählen ({count} Einträge)",
     "wholeProject": "{project}: das ganze Projekt",
     "newTitle": "Neuer KI-Konnektor",
     "formLead": "Kreuzen Sie an, was der Konnektor erreichen darf. Die Liste enthält nur, was Sie lesen dürfen, und das Portal prüft jeden Eintrag beim Anlegen erneut.",

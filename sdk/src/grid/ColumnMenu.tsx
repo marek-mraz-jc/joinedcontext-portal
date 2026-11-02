@@ -54,9 +54,11 @@ export function usePlaceAtCell(): React.MutableRefObject<HTMLDivElement | null> 
       const room = up ? above : below;
       menu.style.maxHeight = `${room}px`;
       menu.style.top = `${up ? at.top - Math.min(menu.scrollHeight, room) : under}px`;
-      // An 8 px gutter from both screen edges, as the page keeps (UI judge, T-6344).
+      // An 8 px gutter from both screen edges, as the page keeps (UI judge, T-6344). Never left of
+      // the grid: a host's sidebar stands above the menu and would hide its first column's (T-6454).
       const gutter = 8;
-      menu.style.left = `${Math.max(gutter, Math.min(at.right - width, window.innerWidth - width - gutter))}px`;
+      const edge = Math.max(gutter, cell.closest(".jc-grid")?.getBoundingClientRect().left ?? 0);
+      menu.style.left = `${Math.max(edge, Math.min(at.right - width, window.innerWidth - width - gutter))}px`;
     };
     place();
     window.addEventListener("scroll", place, true);

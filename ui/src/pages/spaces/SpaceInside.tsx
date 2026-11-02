@@ -42,6 +42,7 @@ import { readLayout, writeLayout } from "../../components/entities/viewLayout";
 import { dataViewsKey, listViews } from "../../api/dataViews";
 import { GroupCounts, groupTerm } from "../../components/entities/ViewOptions";
 import { EMPTY_GROUP, FilterChips, readGroup } from "../../components/entities/FilterPanel";
+import { useIsPhone } from "../../phone";
 import { DataToolbar } from "../../components/entities/DataToolbar";
 import { AGGREGATIONS, FooterAggregate, GroupCount, MAX_GROUP_FIELDS, MAX_SORT_KEYS, ROW_SIZES, ToolbarPopover } from "../../components/entities/GridToolbar";
 import type { SortKey } from "../../components/entities/GridToolbar";
@@ -554,6 +555,7 @@ function SpaceData({
   const [saved, setSaved] = useState<SavedView | null>(null);
   const [gridView, setGridView] = useState<Pick<GridState, "filterText" | "sort">>({ filterText: null, sort: null });
   const [asked, setAsked] = useState<{ q?: string; idPattern?: string }>({});
+  const phone = useIsPhone();
   // What the view hides, colours and groups by (T-3099), and the group the grid is narrowed to.
   const [extras, setExtras] = useState<ViewExtras>(() => readLayout(project, space, type) ?? {});
   const [group, setGroup] = useState<string | null>(null);
@@ -1091,7 +1093,7 @@ function SpaceData({
             ) : null}
             {addRow}
             <PermissionGuard project={project} kind="Endpoint" verb="propose">
-              <ToolbarPopover label={t("spaces.toolbar.share")} wide end>
+              <ToolbarPopover label={t("spaces.toolbar.share")} wide end outlined={phone}>
                 <SharePanel
                   key={type}
                   project={project}
@@ -1103,7 +1105,7 @@ function SpaceData({
                 />
               </ToolbarPopover>
             </PermissionGuard>
-            <ToolbarPopover label={t("spaces.toolbar.more")} wide end>
+            <ToolbarPopover label={t("spaces.toolbar.more")} wide end outlined={phone}>
               <div className="flex flex-col gap-3">
                 {config ? (
                   <ViewBar
@@ -1240,6 +1242,7 @@ function SpaceData({
           query={gridQuery}
          
           queryBox={showQuery}
+          filterRow={!phone}
           onFilterColumns={onFilterColumns}
           rowNumbers={rowNumberLabels}
           typeChoice={{
