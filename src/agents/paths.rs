@@ -321,9 +321,9 @@ impl Path {
 
     /// Whether a turn on `path` is offered `tool`: the path's own (AG-89), or on no path every
     /// tool but the steps only a path's workbench takes, so the free turn keeps its 4k tokens
-    /// (AG-72; jc_pipeline_validate, offered since JC1-04, is a step of IntegratePipeline).
+    /// (AG-72; [`WORKBENCH_STEPS`] belong to IntegratePipeline).
     pub fn offers(path: Option<Self>, tool: &str) -> bool {
-        path.map_or(tool != "jc_pipeline_validate", |path| path.allows(tool))
+        path.map_or(!WORKBENCH_STEPS.contains(&tool), |path| path.allows(tool))
     }
 
     /// Whether a tool is the path's to call (AG-89); every other one is refused.
@@ -336,6 +336,13 @@ impl Path {
         EVERY_PATH.iter().chain(self.own_tools()).copied().collect()
     }
 }
+
+/// The pipeline workbench's steps, offered on its path and on no free turn.
+const WORKBENCH_STEPS: [&str; 3] = [
+    "jc_pipeline_sample_source",
+    "jc_pipeline_try_mapping",
+    "jc_pipeline_validate",
+];
 
 /// The conversation's tools no path offers: an entity change is prepared on no path (AG-78).
 const OFF_PATH_TOOLS: &[&str] = &["write_entities", "navigate"];

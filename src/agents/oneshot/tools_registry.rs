@@ -121,7 +121,8 @@ pub(super) fn section(ops: &[OperationSummary]) -> String {
             format!(
                 "- `{}` — {}{}\n",
                 op.name,
-                op.description.trim(),
+                // The first sentence: describe_tool answers the rest (AG-72).
+                op.description.trim().split(". ").next().unwrap_or_default(),
                 if acts(&op.name) {
                     " (changes something: a draft, a Verdict or a Change)"
                 } else {

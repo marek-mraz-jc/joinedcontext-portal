@@ -815,7 +815,7 @@ async fn a_viewer_is_refused_every_conversation() {
         let (status, body) = start(&state, &config, "viewer", &conversation.refusal.says).await;
         assert_eq!(status, StatusCode::FORBIDDEN, "{name}: {body}");
         assert!(
-            body.to_string().contains("App"),
+            body.to_string().contains("propose"),
             "{name}: the refusal names what is missing: {body}"
         );
     }
