@@ -4,8 +4,8 @@
  *
  * `demo.steward` administers the organization (`org-admin`, `helsinki-rolebinding-admins.yaml`):
  * they open the page from the navigation, read the seeded taxonomy on Roles and the seed's
- * bindings on Members — the `platform-readers` group every signed-in person carries, the
- * approver — and grant `demo.viewer` the `model-editor` role at organization scope. The grant is
+ * bindings on Members — the `viewers` binding that names the demo people one by one (T-6415,
+ * ADR-N-067: no group every signed-in person carries is bound), the approver — and grant `demo.viewer` the `model-editor` role at organization scope. The grant is
  * a red-lane change the administrator approves as the administrator exception (PF-58), and the
  * proof it did something is the viewer's own `permissions/me`, which gains the role.
  *
@@ -82,10 +82,13 @@ test("an administrator reads the organization and grants a role that reaches the
       ).toBeVisible({ timeout: 60_000 });
     }
 
-    // The seed's organization bindings: every signed-in person through platform-readers.
+    // The seed's organization bindings: the named viewers (T-6415), and the approver's own row
+    // (the viewers row names the approver too).
     await page.getByRole("tab", { name: "Members" }).click();
-    await expect(page.getByRole("row", { name: /platform-readers/ })).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByRole("row", { name: /demo\.approver@hel\.fi/ })).toBeVisible();
+    await expect(page.getByRole("row", { name: /demo\.probe@hel\.fi/ })).toBeVisible({ timeout: 60_000 });
+    await expect(
+      page.getByRole("row", { name: /demo\.approver@hel\.fi/ }).filter({ hasNotText: "demo.probe@hel.fi" }),
+    ).toBeVisible();
 
     // Groups has its own tab, outside any project.
     await page.getByRole("tab", { name: "Groups" }).click();
