@@ -612,9 +612,8 @@ impl Driver {
                 .refused("propose_endpoint", started, input, reason)
                 .await;
         }
-        let domain = crate::api::assistant::org_domain(&self.state, &self.project);
         let known = crate::api::assistant::declared_groups(&self.state, &self.project);
-        match share::render(&self.project, &domain, &params, &known) {
+        match share::render(&self.project, &params, &known) {
             Ok(proposal) => {
                 let output = serde_json::to_value(&proposal).unwrap_or(Value::Null);
                 self.event(

@@ -5,7 +5,10 @@ mod common;
 use axum::body::Body;
 use axum::http::{header, Request, StatusCode};
 use axum_extra::extract::cookie::PrivateCookieJar;
+use context_gateway::auth::subject::Subject;
+use context_gateway::pdp::evaluator;
 use http_body_util::BodyExt;
+use jc_core::kinds::{Operation, PolicySpec};
 use serde_json::{json, Value};
 use tower::ServiceExt;
 use wiremock::matchers::{method, path};
@@ -871,7 +874,7 @@ async fn a_drafted_space_carries_the_write_and_the_read_its_endpoint_needs() {
         .iter()
         .filter(|d| d["kind"] == "Policy")
         .collect();
-    assert_eq!(policies.len(), 2, "one write, one read: {body}");
+    assert_eq!(policies.len(), 3, "one write, the two reads: {body}");
 
     let write = policies
         .iter()
@@ -890,9 +893,12 @@ async fn a_drafted_space_carries_the_write_and_the_read_its_endpoint_needs() {
         .iter()
         .find(|p| p["manifest"]["spec"]["operations"][0] == "retrieveOps")
         .expect("a read grant");
-    // The endpoint is organization-wide, so the audience is the organization's group, and the
-    // grant names the type: one that names none matches nothing on a read (PL-45, EP-72).
-    assert_eq!(read["manifest"]["spec"]["assignee"]["kind"], "group");
+    // The endpoint is organization-wide, so the audience is the Organization, and the grant
+    // names the type: one that names none matches nothing on a read (PL-45, EP-72).
+    assert_eq!(
+        read["manifest"]["spec"]["assignee"],
+        json!({ "kind": "organization" })
+    );
     assert_eq!(
         read["manifest"]["spec"]["information"][0]["entities"][0]["type"],
         "CityBike"
@@ -1201,6 +1207,52 @@ async fn an_uploaded_csv_drafts_the_endpoint_and_the_persons_write_grant() {
     assert_eq!(
         named("room-bookings-all-read")["manifest"]["spec"]["information"],
         json!([{ "entities": [{ "type": "Booking" }] }])
+    );
+    // T-6464: the gateway's own decision on the drafted grants. Deny by default: a person of
+    // the project's group and a member of its Organization count the records, a reader of another
+    // project stays refused; the `information` above holds the grants to the one type.
+    let reads = |subject: &Subject| {
+        let policies: Vec<PolicySpec> =
+            ["room-bookings-all-read", "room-bookings-all-project-read"]
+                .iter()
+                .map(|name| {
+                    serde_json::from_value(named(name)["manifest"]["spec"].clone())
+                        .expect("a Policy")
+                })
+                .collect();
+        let request = evaluator::Request {
+            types: ["Booking".to_owned()].into(),
+            ..Default::default()
+        };
+        !evaluator::evaluate(
+            subject,
+            Operation::QueryEntity,
+            &request,
+            "room-bookings",
+            &policies,
+            chrono::Utc::now(),
+        )
+        .is_deny()
+    };
+    let of_group = |group: &str| Subject {
+        id: Some("someone".to_owned()),
+        groups: [group.to_owned()].into(),
+        ..Subject::default()
+    };
+    let member = Subject {
+        id: Some("someone".to_owned()),
+        member_of_organization: true,
+        ..Subject::default()
+    };
+    assert!(reads(&of_group("helsinki")), "the project's person");
+    assert!(reads(&member), "a member of its Organization");
+    assert!(!reads(&of_group("espoo")), "another project");
+    assert!(!reads(&Subject::default()), "nobody at all");
+    assert!(
+        !named("room-bookings-all-read")
+            .to_string()
+            .contains("hel.fi"),
+        "a grant to the domain names nobody"
     );
     // Proposable as one Change: every draft passes its check, a reference to a sibling of the
     // bundle (the space naming its new model, the Endpoint its new space) included (T-5109).
