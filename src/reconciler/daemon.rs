@@ -765,6 +765,28 @@ impl Syncer {
         Ok(())
     }
 
+    /// The mirror takes the run's result, unless a merge went live since `seen`.
+    async fn swap(
+        &self,
+        fresh_mirror: &Mirror,
+        transitions: &super::transitions::Transitions,
+        seen: u64,
+        repository: &Arc<Repository>,
+        scratch: &Render,
+    ) -> Result<(), SyncError> {
+        let no_merge = self.no_merge_since(seen).await?;
+        let catalogue = self.claim_catalogue_wave();
+        transitions.keep_all(fresh_mirror);
+        self.mirror.replace_all(fresh_mirror);
+        drop(no_merge);
+        // They run after the swap and beside the rest of the run (T-5519): a catalogue that
+        // answers in minutes held every merged change out of the mirror for as long.
+        if let Some(previous) = catalogue {
+            self.start_catalogue_wave(previous, repository, scratch);
+        }
+        Ok(())
+    }
+
     /// How many objects of the broker the merge moved.
     async fn converge_merged_views(&self, fresh_mirror: &Mirror, repository: &Repository) -> usize {
         let Some(views) = self.views.as_ref() else {
@@ -1231,16 +1253,8 @@ impl Syncer {
         // 5f, 5f', 5g. The catalogues, taken before the swap: a wave withdraws a dataset whose
         //     Endpoint the mirror it last published from had, and before its first wave that is
         //     the mirror this run replaces.
-        let no_merge = self.no_merge_since(seen).await?;
-        let catalogue = self.claim_catalogue_wave();
-        transitions.keep_all(&fresh_mirror);
-        self.mirror.replace_all(&fresh_mirror);
-        drop(no_merge);
-        // They run after the swap and beside the rest of the run (T-5519): a catalogue that
-        // answers in minutes held every merged change out of the mirror for as long.
-        if let Some(previous) = catalogue {
-            self.start_catalogue_wave(previous, &repository, &scratch);
-        }
+        self.swap(&fresh_mirror, &transitions, seen, &repository, &scratch)
+            .await?;
         steps.mark("swap");
 
         // 5b. Deploy resident streams for eligible DataSource pipelines (PL-47), each with the
