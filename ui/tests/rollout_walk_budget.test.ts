@@ -130,7 +130,7 @@ describe("rollout-walk apply during the walk", () => {
     writeFileSync(join(root, "users"), "demo.steward@hel.fi s-pass 123456\ndemo.viewer@hel.fi v-pass\n");
     tool(bin, "git", `[ "$3" = worktree ] && [ "$4" = add ] && mkdir -p "$7/ui/e2e/live" && echo WALK_REPORT_DIR >"$7/ui/e2e/live/walker.spec.ts"; exit 0`);
     tool(bin, "pnpm", "exit 0");
-    tool(bin, "kubectl", 'cat "$RELEASE_FILE"');
+    tool(bin, "kubectl", 'case "$*" in *applyStartedAt*) cat "$RELEASE_FILE" ;; *) cut -d" " -f1,2 "$RELEASE_FILE" ;; esac');
     tool(bin, "npx", [
       'person=$(printf "%s\\n" "$@" | sed -n "s/^for the \\(.*\\)\\$$/\\1/p")',
       '[ -n "${NO_REPORT:-}" ] && exit 1',
@@ -190,6 +190,50 @@ describe("rollout-walk apply during the walk", () => {
     const settled = walk(root, { WALK_SETTLE_S: "300" });
     expect(settled.stderr).not.toContain("deferred");
     expect(settled.stdout).toContain("journeys skipped");
+  });
+
+  // T-6425: the 07:15Z walk of e5b27f1 began inside the full sync of abcbe12f, which recorded only
+  // after the walk ended, and filed a 503 met on the node that sync had at 94-99 % memory.
+  describe("an apply still running", () => {
+    const now = Math.floor(Date.now() / 1000);
+    const iso = (s: number) => new Date(s * 1000).toISOString().replace(/\.\d+Z$/, "Z");
+    const record = (root: string, appliedAgo: number, startedAgo: number) => {
+      writeFileSync(join(root, "evidence/first-seen"), `${sha} ${now - 3600}\n`);
+      writeFileSync(join(root, "release"), `abcbe12f94d0c5b1e2f3a4b5c6d7e8f9a0b1c2d3 ${iso(now - appliedAgo)} ${iso(now - startedAgo)}`);
+    };
+
+    it("defers the walk while applyStartedAt is newer than appliedAt", () => {
+      const root = setup();
+      record(root, 3600, 600);
+      const running = walk(root, { WALK_SETTLE_S: "300" });
+      expect(running.status).toBe(1);
+      expect(running.stderr).toContain(`walk of ${sha} deferred until it ends`);
+      expect(existsSync(join(root, "evidence", sha))).toBe(false);
+    });
+
+    it("walks once the apply recorded its end", () => {
+      const root = setup();
+      record(root, 301, 2000);
+      const ended = walk(root, { WALK_SETTLE_S: "300" });
+      expect(ended.stderr).not.toContain("deferred");
+      expect(ended.stdout).toContain("journeys skipped");
+    });
+
+    it("stops waiting on the stamp of an apply that died", () => {
+      const root = setup();
+      record(root, 9000, 7201);
+      const dead = walk(root, { WALK_SETTLE_S: "300" });
+      expect(dead.stderr).not.toContain("deferred");
+      expect(dead.stdout).toContain("journeys skipped");
+    });
+
+    it("files nothing when an apply began during the walk and had not ended after it", () => {
+      const root = setup();
+      const began = walk(root, { APPLY_TO: `6215c73196995e4acd6fc1f32ba1d0409e7a62c0 2026-10-30T07:05:52Z ${iso(now)}` });
+      expect(began.stderr).toContain("dev was applied during the walk");
+      expect(began.status).toBe(1);
+      notFiled(root);
+    });
   });
 
   // T-6334: the 11:10Z walk of 6250cbc was set aside (dev applied during it), the 11:35Z retry met
