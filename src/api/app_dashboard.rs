@@ -1119,6 +1119,100 @@ mod tests {
         }
     }
 
+    /// Project ovzdusie with App `bikes`, which pia@hel.fi may read when `granted`; no forge.
+    fn world(granted: bool) -> AppState {
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let org = crate::permissions::ORG_NAMESPACE;
+        let mut manifests = vec![(
+            "App",
+            "bikes",
+            "ovzdusie",
+            serde_json::json!({ "source": { "git": { "ref": "main" } } }),
+        )];
+        if granted {
+            manifests.push((
+                "Role",
+                "reader",
+                org,
+                serde_json::json!({ "rules": [{ "kinds": ["App"], "verbs": ["read"] }] }),
+            ));
+            manifests.push((
+                "RoleBinding",
+                "reader",
+                org,
+                serde_json::json!({ "subjects": [{ "user": "pia@hel.fi" }], "role": "reader", "scope": { "project": "ovzdusie" } }),
+            ));
+        }
+        for (kind, name, namespace, spec) in manifests {
+            state.mirror.upsert(ResourceEnvelope {
+                api_version: API_VERSION.to_owned(),
+                kind: kind.to_owned(),
+                metadata: ObjectMeta::new(name, namespace),
+                spec,
+                status: None,
+            });
+        }
+        state
+    }
+
+    fn pia() -> CurrentUser {
+        use crate::auth::session::{Identity, Session};
+        CurrentUser(Session {
+            identity: Identity {
+                client: None,
+                subject: "sub-pia".into(),
+                username: "pia".into(),
+                email: Some("pia@hel.fi".into()),
+                name: None,
+                roles: Vec::new(),
+                groups: Vec::new(),
+                second_factor: false,
+            },
+            expires_at: 9_999_999_999,
+            issued_at: 1000,
+            signed_in_at: None,
+            id_token: "dummy".into(),
+            access_expires_at: 9_999_999_999,
+            refresh_token: None,
+        })
+    }
+
+    fn edit() -> DashboardEdit {
+        DashboardEdit {
+            config: serde_json::json!({ "grid": { "type": "BikeHireDockingStation" } }),
+            dry_run: true,
+        }
+    }
+
+    /// Both doors hide an App the person may not read (or that does not exist) behind 404, and
+    /// answer 503 for a readable App while no forge is configured, before any file is read.
+    #[tokio::test]
+    async fn the_dashboard_doors_hide_unreadable_apps_and_need_a_forge() {
+        let at = |app: &str| Path(("ovzdusie".to_owned(), app.to_owned()));
+        for (granted, app) in [(false, "bikes"), (true, "trams")] {
+            let read = dashboard(pia(), State(world(granted)), at(app)).await;
+            assert!(
+                matches!(read, Err(ApiError::NotFound(_))),
+                "{app}: {read:?}"
+            );
+            let proposed = propose(pia(), State(world(granted)), at(app), Json(edit())).await;
+            assert!(
+                matches!(proposed, Err(ApiError::NotFound(_))),
+                "{app}: {:?}",
+                proposed.err()
+            );
+        }
+        let read = dashboard(pia(), State(world(true)), at("bikes")).await;
+        assert!(matches!(read, Err(ApiError::Unavailable(_))), "{read:?}");
+        let proposed = propose(pia(), State(world(true)), at("bikes"), Json(edit())).await;
+        assert!(
+            matches!(proposed, Err(ApiError::Unavailable(_))),
+            "{:?}",
+            proposed.err()
+        );
+    }
+
     #[test]
     fn a_formula_reads_names_and_numbers_and_nothing_else() {
         let known = names(&["a", "b"]);
