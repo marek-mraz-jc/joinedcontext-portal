@@ -4274,6 +4274,8 @@
       "nameTaken": "A model with this name already exists. Choose another name."
     },
     "sdm": {
+      "failed": "Models that could not be converted: {count}",
+      "failedHint": "They stay out of the list above until the next nightly run converts them.",
       "browse": "Smart Data Models catalogue",
       "search": "Search models and attributes",
       "subject": "Subject",
@@ -4737,7 +4739,13 @@
       "renamed": "Renamed. The id {id} and its file stay as they are; Propose saves the new name."
     },
     "findType": "Find a type",
+    "className": "Type name",
+    "classNameHint": "Renaming updates every field and type that names it, for example OnStreetParking.",
     "enumValues": {
+      "name": "Name",
+      "nameHint": "Renaming updates every field that uses it, for example AirQualityLevel.",
+      "storedOf": "Stored value of {value}",
+      "storedHint": "What entities hold. Rename an import before you save it, for example moderate.",
       "caption": "Values of {name}",
       "stored": "Stored value",
       "label": "Label",
@@ -4757,7 +4765,7 @@
     "slotName": "Name",
     "slotNameHint": "Such as temperature or openingHours: letters and digits, no spaces.",
     "slotNameFirst": "Name the field and add it; its type, kind, unit and rules follow in this form.",
-    "slotNameFixed": "A field keeps its name: every stored value and partner payload uses it."
+    "slotNameFixed": "Renaming updates every type that lists the field, for example airQualityIndex."
   },
   "apps": {
     "title": "Applications",

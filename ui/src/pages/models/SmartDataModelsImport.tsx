@@ -32,6 +32,8 @@ export interface CatalogueSubject {
 }
 
 export interface Catalogue {
+  /** Models the mirror could not convert: listed with why, never offered (T-6353). */
+  failed?: { id: string; finding: string }[];
   subjects?: CatalogueSubject[];
   refreshedAt?: string;
   stale?: boolean;
@@ -378,6 +380,19 @@ export function SmartDataModelsImport({
           <Button size="sm" className="self-start" onClick={() => setShowAllModels(true)}>
             {t("models.sdm.showMore", { count: unlisted })}
           </Button>
+        ) : null}
+        {(catalogue.data?.failed ?? []).length > 0 ? (
+          <details className="text-caption text-fg-muted">
+            <summary className="cursor-pointer">{t("models.sdm.failed", { count: catalogue.data?.failed?.length ?? 0 })}</summary>
+            <p className="mt-1">{t("models.sdm.failedHint")}</p>
+            <ul className="mt-1 flex max-h-48 flex-col gap-1 overflow-auto">
+              {catalogue.data?.failed?.map((one) => (
+                <li key={one.id} className="break-words">
+                  <span className="font-mono">{one.id}</span>: {one.finding}
+                </li>
+              ))}
+            </ul>
+          </details>
         ) : null}
         {!catalogue.isLoading && !catalogue.isError && visible.length === 0 ? (
           subjects.length === 0 ? (

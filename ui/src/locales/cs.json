@@ -4255,6 +4255,8 @@
       "graph": "Graf"
     },
     "sdm": {
+      "failed": "Modely, které se nepodařilo převést: {count}",
+      "failedHint": "V seznamu výše nebudou, dokud je nepřevede další noční běh.",
       "browse": "Katalog Smart Data Models",
       "search": "Hledat modely a atributy",
       "subject": "Oblast",
@@ -4737,7 +4739,13 @@
       "renamed": "Přejmenováno. Identifikátor {id} a jeho soubor zůstávají; Navrhnout uloží nový název."
     },
     "findType": "Najít typ",
+    "className": "Název typu",
+    "classNameHint": "Přejmenování upraví každé pole a typ, který ho uvádí, například OnStreetParking.",
     "enumValues": {
+      "name": "Název",
+      "nameHint": "Přejmenování upraví každé pole, které ho používá, například AirQualityLevel.",
+      "storedOf": "Uložená hodnota {value}",
+      "storedHint": "To, co entity obsahují. Import přejmenujte před uložením, například moderate.",
       "caption": "Hodnoty {name}",
       "stored": "Uložená hodnota",
       "label": "Popisek",
@@ -4757,7 +4765,7 @@
     "slotName": "Název",
     "slotNameHint": "Jako temperature nebo openingHours: písmena a číslice, bez mezer.",
     "slotNameFirst": "Pojmenujte pole a přidejte ho; typ, druh, jednotka a pravidla následují v tomto formuláři.",
-    "slotNameFixed": "Pole si ponechá svůj název: používá ho každá uložená hodnota i data partnerů."
+    "slotNameFixed": "Přejmenování upraví každý typ, který pole uvádí, například airQualityIndex."
   },
   "apps": {
     "title": "Aplikace",

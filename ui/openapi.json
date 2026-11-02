@@ -41518,7 +41518,7 @@
       },
       "Catalogue": {
         "type": "object",
-        "description": "The catalogue index Model Tools caches and refreshes daily (DM-12).",
+        "description": "The catalogue index: the mirror's, or the one Model Tools caches and refreshes daily (DM-12).",
         "properties": {
           "refreshedAt": {
             "type": [
@@ -41536,6 +41536,13 @@
             "items": {
               "$ref": "#/components/schemas/CatalogueSubject"
             }
+          },
+          "failed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueFailure"
+            },
+            "description": "The models the mirror could not convert, each with its finding."
           }
         }
       },
@@ -42031,6 +42038,24 @@
           }
         }
       },
+      "CatalogueFailure": {
+        "type": "object",
+        "description": "A catalogue model the mirror could not convert, listed instead of offered half broken.",
+        "required": [
+          "id",
+          "finding"
+        ],
+        "properties": {
+          "finding": {
+            "type": "string",
+            "description": "Why it did not convert, in the converter's words."
+          },
+          "id": {
+            "type": "string",
+            "description": "The catalogue identifier."
+          }
+        }
+      },
       "CatalogueFeature": {
         "type": "object",
         "description": "One located entity: its id, its geometry and its key attributes as text.",
@@ -42218,6 +42243,13 @@
           "name": {
             "type": "string",
             "description": "The model name, `AirQualityObserved`."
+          },
+          "commit": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The upstream commit the model was converted from (DM-08), where the mirror answers."
           }
         }
       },

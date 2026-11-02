@@ -14,6 +14,7 @@ import {
   TableRow,
 } from "../../components/ui";
 import type { LinkmlEnum, LinkmlModel } from "./linkml";
+import { NameField } from "./NameField";
 import type { Operation } from "./operations";
 
 /** Where an enumeration is used: each field whose range it is, with the types that carry the field. */
@@ -28,20 +29,24 @@ export function enumUses(model: LinkmlModel, name: string): { field: string; typ
 
 /**
  * One enumeration as a table (T-6162, owner review of T-6101): the stored value is what entities
- * hold, so it is fixed once added; the label is what people read and is edited in place. Other
- * languages and the description sit under Translations, folded.
+ * hold, and the label is what people read, both edited in place: an import is renamed before it is
+ * saved (T-6353), and the breaking-change check speaks for a saved model. Other languages and the
+ * description sit under Translations, folded.
  */
 export function EnumValues({
   model,
   entry,
   locales,
   run,
+  onRenamed,
   readOnly,
 }: {
   model: LinkmlModel;
   entry: LinkmlEnum;
   locales: string[];
   run: (operation: Operation) => boolean;
+  /** The enumeration's new name, for the rail that has it open. */
+  onRenamed?: (to: string) => void;
   readOnly?: boolean;
 }): React.JSX.Element {
   const { t } = useTranslation();
@@ -62,6 +67,19 @@ export function EnumValues({
       <h2 id="models-enum-detail" className="text-title font-semibold">
         {entry.name}
       </h2>
+      {readOnly ? null : (
+        <NameField
+          id={`enum-${entry.name}-name`}
+          label={t("models.enumValues.name")}
+          help={t("models.enumValues.nameHint")}
+          name={entry.name}
+          onRename={(to) => {
+            const done = run({ op: "renameEnum", name: entry.name, to });
+            if (done) onRenamed?.(to);
+            return done;
+          }}
+        />
+      )}
       <p className="text-body text-fg-muted">
         {uses.length === 0
           ? t("models.enumValues.unused")
@@ -86,7 +104,17 @@ export function EnumValues({
             entry.permissible_values.map((value) => (
               <TableRow key={value.name}>
                 <TableCell primary>
-                  <span className="font-mono">{value.name}</span>
+                  {readOnly ? (
+                    <span className="font-mono">{value.name}</span>
+                  ) : (
+                    <NameField
+                      id={`enum-${entry.name}-${value.name}-stored`}
+                      label={t("models.enumValues.storedOf", { value: value.name })}
+                      help={t("models.enumValues.storedHint")}
+                      name={value.name}
+                      onRename={(to) => run({ op: "renameEnumValue", enum: entry.name, value: value.name, to })}
+                    />
+                  )}
                 </TableCell>
                 <TableCell>
                   {readOnly ? (

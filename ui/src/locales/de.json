@@ -4255,6 +4255,8 @@
       "graph": "Graph"
     },
     "sdm": {
+      "failed": "Nicht konvertierte Modelle: {count}",
+      "failedHint": "Sie fehlen in der Liste oben, bis der nächste nächtliche Lauf sie konvertiert.",
       "browse": "Smart-Data-Models-Katalog",
       "search": "Modelle und Attribute suchen",
       "subject": "Themenfeld",
@@ -4737,7 +4739,13 @@
       "renamed": "Umbenannt. Die Kennung {id} und ihre Datei bleiben; Vorschlagen speichert den neuen Namen."
     },
     "findType": "Typ finden",
+    "className": "Typname",
+    "classNameHint": "Beim Umbenennen werden alle Felder und Typen angepasst, die ihn nennen, zum Beispiel OnStreetParking.",
     "enumValues": {
+      "name": "Name",
+      "nameHint": "Beim Umbenennen wird jedes Feld angepasst, das sie nutzt, zum Beispiel AirQualityLevel.",
+      "storedOf": "Gespeicherter Wert von {value}",
+      "storedHint": "Das, was Entitäten enthalten. Benennen Sie einen Import vor dem Speichern um, zum Beispiel moderate.",
       "caption": "Werte von {name}",
       "stored": "Gespeicherter Wert",
       "label": "Bezeichnung",
@@ -4757,7 +4765,7 @@
     "slotName": "Name",
     "slotNameHint": "Wie temperature oder openingHours: Buchstaben und Ziffern, ohne Leerzeichen.",
     "slotNameFirst": "Benennen Sie das Feld und fügen Sie es hinzu; Typ, Art, Einheit und Regeln folgen in diesem Formular.",
-    "slotNameFixed": "Ein Feld behält seinen Namen: jeder gespeicherte Wert und jede Partnernachricht nutzt ihn."
+    "slotNameFixed": "Beim Umbenennen wird jeder Typ angepasst, der das Feld führt, zum Beispiel airQualityIndex."
   },
   "apps": {
     "title": "Anwendungen",

@@ -24,6 +24,8 @@ pub struct AppState {
     /// The apps database and bucket of the `wasm` Apps; `None` where none is configured, and a
     /// `wasm` App's publish then says so (AP-149).
     pub wasm_apps: Option<Arc<crate::apps::wasm_apps::WasmApps>>,
+    /// The Smart Data Models mirror in the image (T-6353), `None` where imports go to Model Tools.
+    pub sdm_mirror: Option<Arc<crate::tools::sdm_mirror::SdmMirror>>,
     pub config: Arc<Config>,
     /// The client every open-data catalogue search goes out through: the platform's outbound
     /// guard ([`crate::api::catalogue::ckan_client`]); a test serving CKAN on loopback sets its own.
@@ -188,6 +190,12 @@ impl AppState {
     }
 
     pub fn new(config: Config, oidc: Option<OidcClient>) -> Self {
+        let sdm_mirror = config.sdm_mirror_dir.as_deref().and_then(|dir| {
+            crate::tools::sdm_mirror::SdmMirror::open(std::path::Path::new(dir))
+                .inspect_err(|err| tracing::warn!(%err, "the Smart Data Models mirror did not read"))
+                .ok()
+                .map(Arc::new)
+        });
         let public_base = config.public_base_url.to_string();
         let bearer = config
             .oidc
@@ -266,6 +274,7 @@ impl AppState {
             mcp_tasks: crate::mcp::tasks::McpTasks::new(),
             mcp_elicitations: crate::mcp::elicitation::McpElicitations::new(),
             wasm_apps: None,
+            sdm_mirror,
         }
     }
 

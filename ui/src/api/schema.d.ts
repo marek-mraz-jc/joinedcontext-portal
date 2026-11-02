@@ -7848,7 +7848,7 @@ export interface components {
             receivedAt: string;
             topic: string;
         };
-        /** @description The catalogue index Model Tools caches and refreshes daily (DM-12). */
+        /** @description The catalogue index: the mirror's, or the one Model Tools caches and refreshes daily (DM-12). */
         Catalogue: {
             /** @description When the cache was last filled from the catalogue. */
             refreshedAt?: string | null;
@@ -7858,6 +7858,8 @@ export interface components {
              */
             stale?: boolean;
             subjects?: components["schemas"]["CatalogueSubject"][];
+            /** @description The models the mirror could not convert, each with its finding. */
+            failed?: components["schemas"]["CatalogueFailure"][];
         };
         /** @description One calendar output of an Endpoint: its name, its title per language and its `.ics` address. */
         CatalogueCalendar: {
@@ -7974,6 +7976,13 @@ export interface components {
             theme: components["schemas"]["CatalogueFacetValue"][];
             year: components["schemas"]["CatalogueFacetValue"][];
         };
+        /** @description A catalogue model the mirror could not convert, listed instead of offered half broken. */
+        CatalogueFailure: {
+            /** @description Why it did not convert, in the converter's words. */
+            finding: string;
+            /** @description The catalogue identifier. */
+            id: string;
+        };
         /** @description One located entity: its id, its geometry and its key attributes as text. */
         CatalogueFeature: {
             geometry: Record<string, never>;
@@ -8036,6 +8045,8 @@ export interface components {
             id: string;
             /** @description The model name, `AirQualityObserved`. */
             name: string;
+            /** @description The upstream commit the model was converted from (DM-08), where the mirror answers. */
+            commit?: string | null;
         };
         /** @description One page of the catalogue. */
         CataloguePage: {

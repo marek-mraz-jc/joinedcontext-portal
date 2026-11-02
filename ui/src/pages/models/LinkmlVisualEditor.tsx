@@ -42,6 +42,7 @@ import { dropsUnit, rangeForUnit, unitNotice } from "./unitRule";
 import type { UnitNotice } from "./unitRule";
 import type { Operation, SlotField } from "./operations";
 import { EnumValues } from "./EnumValues";
+import { NameField } from "./NameField";
 import { AddRelationshipForm, RelationshipEditor } from "./RelationshipEditor";
 import { fieldWord, FIELD_RANGE, useFieldWords } from "../../components/entities/fieldTypes";
 
@@ -409,7 +410,7 @@ export function LinkmlVisualEditor({
 
       <div className="flex flex-col gap-6">
         {enumOpen ? (
-          <EnumValues key={enumOpen.name} model={model} entry={enumOpen} locales={locales} run={run} />
+          <EnumValues key={enumOpen.name} model={model} entry={enumOpen} locales={locales} run={run} onRenamed={setSelectedEnum} />
         ) : (
         <>
         {model.classes.length > 1 ? (
@@ -437,6 +438,17 @@ export function LinkmlVisualEditor({
             <h2 id="models-class-detail" className="text-base font-semibold">
               {activeClass.name}
             </h2>
+            <NameField
+              id="class-name"
+              label={t("models.className")}
+              help={t("models.classNameHint")}
+              name={activeClass.name}
+              onRename={(to) => {
+                const done = run({ op: "renameClass", name: activeClass.name, to });
+                if (done) setSelectedClass(to);
+                return done;
+              }}
+            />
             <div className="grid gap-3 sm:grid-cols-2">
               {/* T-1088, DM-13: the hierarchy the model declares, editable where it is read.
                   A parent can only be another class of this model, so it is a choice, not a
@@ -708,9 +720,19 @@ export function LinkmlVisualEditor({
               )}
             </div>
           ) : activeSlot ? (
-            <Field id="slot-name" label={t("models.slotName")} help={t("models.slotNameFixed")}>
-              <Input id="slot-name" value={activeSlot.name} readOnly aria-readonly="true" className="mb-3 bg-surface-muted" />
-            </Field>
+            <div className="mb-3">
+              <NameField
+                id="slot-name"
+                label={t("models.slotName")}
+                help={t("models.slotNameFixed")}
+                name={activeSlot.name}
+                onRename={(to) => {
+                  const done = run({ op: "renameSlot", name: activeSlot.name, to });
+                  if (done) setSelectedSlot(to);
+                  return done;
+                }}
+              />
+            </div>
           ) : null}
           {activeSlot && activeSlotInheritedFrom ? (
             <div className="flex flex-col gap-2">
