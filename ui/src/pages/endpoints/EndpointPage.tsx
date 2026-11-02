@@ -41,6 +41,7 @@ import { CatalogSection } from "./CatalogSection";
 import { VisualizationsSection } from "./VisualizationsSection";
 import { EndpointUsageSection } from "../../components/endpoints/UsageSection";
 import { AccessMatrix } from "../../components/endpoints/AccessMatrix";
+import { EndpointReaders } from "../organization/DataAccess";
 import { FilterProof, classesWithSlots } from "./FilterProof";
 import { filterSlotsOf, useModelSource } from "../../components/entities/filters";
 import { parseModel } from "../models/linkml";
@@ -436,6 +437,11 @@ export function EndpointPage({
         >
           {t("endpoints.page.openPolicies")}
         </Link>
+      </Section>
+
+      {/* Who reads it in plain words, for the Organization's administrators (ADR-N-067 §2.5, T-6412). */}
+      <Section title={t("dataAccess.endpointTitle")} lead={t("dataAccess.endpointLead")}>
+        <EndpointReaders slug={slug} audience={spec.audience} />
       </Section>
 
       {/* A person's own ask for a read here, decided by the space's owners (EP-55, T-5615). */}

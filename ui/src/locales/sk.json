@@ -7325,7 +7325,8 @@
       "brokers": "Brokery",
       "agents": "Agenti",
       "costs": "Náklady",
-      "connectors": "Konektory"
+      "connectors": "Konektory",
+      "data-access": "Prístup k údajom"
     },
     "settings": {
       "title": "Nastavenia",
@@ -7577,7 +7578,8 @@
         "change": "Zmena {change}",
         "unresolvedTitle": "Adresy, ktoré v organizácii nikto nemá",
         "unresolved": "Tieto zostanú, ako sú, a skupina, ktorá niektorú uvádza, sa nesynchronizuje, kým sa neopraví: {addresses}. Osobu pozvite alebo adresu z manifestu odstráňte."
-      }
+      },
+      "invitedMember": "Realm poslal na {email} e-mail na overenie adresy a nastavenie hesla. Je členom {organization} bez projektu: prihlási sa do katalógu a číta, čo jej politiky sprístupňujú všetkým alebo jeho skupinám."
     },
     "setup": {
       "title": "Nastavenie",
@@ -11348,5 +11350,49 @@
     "connectors": "AI konektory",
     "settings": "Nastavenia",
     "signOut": "Odhlásiť sa"
+  },
+  "dataAccess": {
+    "title": "Prístup k údajom",
+    "lead": "Ktoré interné množiny údajov číta každý v organizácii a každá skupina, a pravidlo politiky, ktoré to povoľuje. Každú bunku rozhoduje brána; zmena je návrh tej politiky, schválený ako zvyčajne.",
+    "loading": "Pýtame sa brány, kto číta čo…",
+    "adminOnly": "Kto číta ktorú množinu údajov, vidia len správcovia organizácie a správcovia ľudí. Požiadajte niektorého z nich.",
+    "unanswered": "Brána neodpovedala pre {count} buniek; zostávajú prázdne. O minútu stránku obnovte.",
+    "everyone": "Každý v organizácii",
+    "group": "Skupina {group}",
+    "endpoint": "Množina údajov",
+    "reads": "Číta",
+    "notGranted": "Nečíta",
+    "cellUnanswered": "Bez odpovede",
+    "rule": "{policy}, pravidlo {rule}",
+    "proposeRule": "Navrhnúť zmenu {policy}, pravidlo {rule}",
+    "howToChange": "Ak chcete zmeniť, kto číta množinu údajov, otvorte politiku uvedenú v jej bunke (napríklad staff-traffic) a navrhnite zmenu; rozhodne o nej schvaľovateľ projektu.",
+    "empty": {
+      "title": "Zatiaľ žiadne interné množiny údajov",
+      "description": "Každý Endpoint organizácie je verejný. Nastavte Endpointu publikum organization a v politike ho sprístupnite všetkým alebo skupine."
+    },
+    "groupTitle": "Množiny údajov, ktoré táto skupina číta",
+    "groupLead": "Interné množiny údajov, ktoré politika sprístupňuje skupine {group}, ako ich brána rozhoduje pre jej členov.",
+    "groupEmpty": {
+      "title": "{group} nečíta žiadnu internú množinu údajov",
+      "description": "Sprístupnite jej niektorú v politike s príjemcom druhu group a názvom tejto skupiny, napríklad v politike Endpointu."
+    },
+    "endpointTitle": "Kto to môže čítať",
+    "endpointLead": "Publikum a každé sprístupnenie celej organizácii alebo skupine, jednoducho povedané.",
+    "endpointPublic": "Túto množinu údajov môže čítať ktokoľvek, prihlásený aj neprihlásený: jej publikum je verejné.",
+    "endpointAudience": "Dostanú sa k nej len prihlásení členovia {organization} a každý číta len to, čo mu politika povoľuje.",
+    "endpointProjects": "Dostanú sa k nej len projekty, ktoré uvádza, a každý číta len to, čo mu politika povoľuje.",
+    "theOrganization": "organizácie",
+    "endpointEveryone": "Číta ju každý v organizácii:",
+    "endpointGroup": "Číta ju skupina {group}:",
+    "endpointNobody": "Žiadne sprístupnenie celej organizácii ani skupine: čítajú ju len ľudia a roly, ktoré uvádzajú jej politiky.",
+    "personTitle": "Čo táto osoba môže čítať",
+    "personLead": "Katalóg, ako ho vidí {name} po prihlásení: len názvy množín údajov, nikdy ich údaje.",
+    "personEmpty": {
+      "title": "{name} nečíta žiadnu internú množinu údajov",
+      "description": "Pridajte ju do skupiny, ktorej politika niečo sprístupňuje, alebo ju pozvite ako člena organizácie, ktorá zdieľa údaje so všetkými."
+    },
+    "personPublic": "A ďalších {count} verejných množín údajov, ktoré môže čítať ktokoľvek.",
+    "throughEveryone": "Cez všetkých",
+    "groupEveryone": "Jej členovia čítajú aj {count} množín údajov sprístupnených všetkým v organizácii."
   }
 }

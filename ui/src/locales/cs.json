@@ -7325,7 +7325,8 @@
       "brokers": "Brokery",
       "agents": "Agenti",
       "costs": "Náklady",
-      "connectors": "Konektory"
+      "connectors": "Konektory",
+      "data-access": "Přístup k datům"
     },
     "settings": {
       "title": "Nastavení",
@@ -7577,7 +7578,8 @@
         "change": "Změna {change}",
         "unresolvedTitle": "Adresy, které v organizaci nikdo nemá",
         "unresolved": "Tyto zůstanou, jak jsou, a skupina, která některou uvádí, se nesynchronizuje, dokud se neopraví: {addresses}. Osobu pozvěte nebo adresu z manifestu odstraňte."
-      }
+      },
+      "invitedMember": "Realm poslal na {email} e-mail k ověření adresy a nastavení hesla. Je členem {organization} bez projektu: přihlásí se do katalogu a čte, co její politiky zpřístupňují všem nebo jeho skupinám."
     },
     "setup": {
       "title": "Nastavení",
@@ -11348,5 +11350,49 @@
     "connectors": "AI konektory",
     "settings": "Nastavení",
     "signOut": "Odhlásit se"
+  },
+  "dataAccess": {
+    "title": "Přístup k datům",
+    "lead": "Které interní datové sady čte každý v organizaci a každá skupina, a pravidlo politiky, které to povoluje. Každou buňku rozhoduje brána; změna je návrh té politiky, schválený jako obvykle.",
+    "loading": "Ptáme se brány, kdo čte co…",
+    "adminOnly": "Kdo čte kterou datovou sadu, vidí jen správci organizace a správci lidí. Požádejte některého z nich.",
+    "unanswered": "Brána neodpověděla pro {count} buněk; zůstávají prázdné. Za minutu stránku obnovte.",
+    "everyone": "Každý v organizaci",
+    "group": "Skupina {group}",
+    "endpoint": "Datová sada",
+    "reads": "Čte",
+    "notGranted": "Nečte",
+    "cellUnanswered": "Bez odpovědi",
+    "rule": "{policy}, pravidlo {rule}",
+    "proposeRule": "Navrhnout změnu {policy}, pravidlo {rule}",
+    "howToChange": "Chcete-li změnit, kdo čte datovou sadu, otevřete politiku uvedenou v její buňce (například staff-traffic) a navrhněte změnu; rozhodne o ní schvalovatel projektu.",
+    "empty": {
+      "title": "Zatím žádné interní datové sady",
+      "description": "Každý Endpoint organizace je veřejný. Nastavte Endpointu publikum organization a v politice ho zpřístupněte všem nebo skupině."
+    },
+    "groupTitle": "Datové sady, které tato skupina čte",
+    "groupLead": "Interní datové sady, které politika zpřístupňuje skupině {group}, jak je brána rozhoduje pro její členy.",
+    "groupEmpty": {
+      "title": "{group} nečte žádnou interní datovou sadu",
+      "description": "Zpřístupněte jí některou v politice s příjemcem druhu group a názvem této skupiny, například v politice Endpointu."
+    },
+    "endpointTitle": "Kdo to může číst",
+    "endpointLead": "Publikum a každé zpřístupnění celé organizaci nebo skupině, jednoduše řečeno.",
+    "endpointPublic": "Tuto datovou sadu může číst kdokoli, přihlášený i nepřihlášený: její publikum je veřejné.",
+    "endpointAudience": "Dostanou se k ní jen přihlášení členové {organization} a každý čte jen to, co mu politika povoluje.",
+    "endpointProjects": "Dostanou se k ní jen projekty, které uvádí, a každý čte jen to, co mu politika povoluje.",
+    "theOrganization": "organizace",
+    "endpointEveryone": "Čte ji každý v organizaci:",
+    "endpointGroup": "Čte ji skupina {group}:",
+    "endpointNobody": "Žádné zpřístupnění celé organizaci ani skupině: čtou ji jen lidé a role, které uvádějí její politiky.",
+    "personTitle": "Co tato osoba může číst",
+    "personLead": "Katalog, jak ho vidí {name} po přihlášení: jen názvy datových sad, nikdy jejich data.",
+    "personEmpty": {
+      "title": "{name} nečte žádnou interní datovou sadu",
+      "description": "Přidejte ji do skupiny, které politika něco zpřístupňuje, nebo ji pozvěte jako člena organizace, která sdílí data se všemi."
+    },
+    "personPublic": "A dalších {count} veřejných datových sad, které může číst kdokoli.",
+    "throughEveryone": "Přes všechny",
+    "groupEveryone": "Její členové čtou i {count} datových sad zpřístupněných všem v organizaci."
   }
 }

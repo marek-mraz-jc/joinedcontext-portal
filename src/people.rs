@@ -130,6 +130,29 @@ struct NamedGroup {
     path: String,
 }
 
+/// A group of a search answer with the matching subgroups under it.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct GroupNode {
+    #[serde(default)]
+    id: String,
+    #[serde(default)]
+    path: String,
+    #[serde(default)]
+    sub_groups: Vec<GroupNode>,
+}
+
+/// The id of the group at exactly `path` in a search answer's tree.
+fn find_group(nodes: &[GroupNode], path: &str) -> Option<String> {
+    nodes.iter().find_map(|node| {
+        if node.path == path {
+            Some(node.id.clone())
+        } else {
+            find_group(&node.sub_groups, path)
+        }
+    })
+}
+
 #[derive(Deserialize)]
 struct NamedRole {
     name: String,
@@ -474,6 +497,27 @@ impl Admin<'_> {
         let id = segment(id)?;
         let groups: Vec<NamedGroup> = self.json(&format!("/users/{id}/groups")).await?;
         Ok(groups.into_iter().map(|g| g.path).collect())
+    }
+
+    /// Adds the person to `/{organization}/members` (ADR-N-067 §2.2); `false` when the realm has
+    /// no such group. The group is found by an exact search, never by a path the caller typed.
+    pub async fn join_members(&self, id: &str, organization: &str) -> Result<bool, PeopleError> {
+        let id = segment(id)?;
+        let wanted = format!("/{organization}/members");
+        let found: Vec<GroupNode> = self
+            .json("/groups?search=members&exact=true&briefRepresentation=true&max=1000")
+            .await?;
+        let Some(group) = find_group(&found, &wanted) else {
+            return Ok(false);
+        };
+        let group = segment(&group)?;
+        self.send(
+            self.people
+                .http
+                .put(self.url(&format!("/users/{id}/groups/{group}"))),
+        )
+        .await
+        .map(|_| true)
     }
 
     pub async fn delete(&self, id: &str) -> Result<(), PeopleError> {

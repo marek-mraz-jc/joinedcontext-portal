@@ -50,6 +50,7 @@ const PAGES = [
   "/settings",
   "/organization/models",
   "/organization/groups/new",
+  "/organization/data-access",
   `/projects/${PROJECT}/settings`,
   `/projects/${PROJECT}/settings/general`,
   `/projects/${PROJECT}/settings/members`,

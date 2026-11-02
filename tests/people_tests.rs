@@ -107,6 +107,12 @@ async fn realm(smtp: bool) -> MockServer {
             .mount(&kc)
             .await;
     }
+    // No `/{organization}/members` group: a realm before ADR-N-067 (a test mounts its own first).
+    Mock::given(method("GET"))
+        .and(path(format!("{ADMIN}/groups")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .mount(&kc)
+        .await;
     Mock::given(method("GET"))
         .and(path(format!("{ADMIN}/users")))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!([
@@ -235,6 +241,49 @@ async fn creating_a_person_sends_the_realms_actions_email() {
     let actions = received(&kc, "PUT", "/new-id/execute-actions-email").await;
     let asked: Value = serde_json::from_slice(&actions[0].body).expect("actions");
     assert_eq!(asked, json!(["VERIFY_EMAIL", "UPDATE_PASSWORD"]));
+}
+
+/// ADR-N-067 §2.5 (T-6412): a person invited with no project joins `/{organization}/members` of
+/// the installation's Organization, found by its exact path, so they sign in as its member.
+#[tokio::test]
+async fn an_invited_person_joins_the_organizations_members_group() {
+    let (kc, gitea) = (realm(true).await, forge().await);
+    Mock::given(method("GET"))
+        .and(path(format!("{ADMIN}/groups")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            { "id": "espoo-id", "path": "/espoo", "subGroups": [{ "id": "espoo-members", "path": "/espoo/members" }] },
+            { "id": "hel-id", "path": "/hel", "subGroups": [{ "id": "hel-members", "path": "/hel/members" }] },
+        ])))
+        .with_priority(1)
+        .mount(&kc)
+        .await;
+    Mock::given(method("PUT"))
+        .and(path(format!("{ADMIN}/users/new-id/groups/hel-members")))
+        .respond_with(ResponseTemplate::new(204))
+        .mount(&kc)
+        .await;
+    let state = state_with(&kc, &gitea);
+    state.mirror.upsert(envelope(
+        "Organization",
+        "hel",
+        ORG_NAMESPACE,
+        json!({ "installation": true }),
+    ));
+    let body = json!({ "email": "new@example.org", "firstName": "Nora", "lastName": "Nová" });
+
+    let created = send(&state, person("pia"), "POST", PEOPLE, Some(body)).await;
+    assert_eq!(created.status, StatusCode::CREATED, "{}", created.text);
+    let answer: Value = serde_json::from_str(&created.text).expect("json");
+    assert_eq!(answer["memberOf"], "hel");
+    assert_eq!(
+        received(&kc, "PUT", "/users/new-id/groups/hel-members")
+            .await
+            .len(),
+        1
+    );
+    assert!(received(&kc, "PUT", "/groups/espoo-members")
+        .await
+        .is_empty());
 }
 
 /// PF-92: without SMTP the creator gets a temporary password once; it never reaches the log.

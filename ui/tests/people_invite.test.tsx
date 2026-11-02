@@ -66,7 +66,7 @@ const reply = (status: number, body?: unknown) =>
     headers: { "Content-Type": status < 300 ? "application/json" : "application/problem+json" },
   });
 
-function answer(sent: Sent[], { bindingRefused = false } = {}) {
+function answer(sent: Sent[], { bindingRefused = false, memberOf }: { bindingRefused?: boolean; memberOf?: string } = {}) {
   return async (url: URL, request: Request) => {
     const path = url.pathname;
     if (path.endsWith("/permissions/me")) {
@@ -88,7 +88,11 @@ function answer(sent: Sent[], { bindingRefused = false } = {}) {
     record();
     if (request.method === "GET") return reply(200, { items: [ACCEPTED, WAITING, LAPSED] });
     if (request.method === "POST" && path === "/api/v1/organization/people") {
-      return reply(201, { person: person("00000000-0000-4000-8000-0000000000aa", "Viera", { requiredActions: ["VERIFY_EMAIL"] }), emailSent: true });
+      return reply(201, {
+        person: person("00000000-0000-4000-8000-0000000000aa", "Viera", { requiredActions: ["VERIFY_EMAIL"] }),
+        emailSent: true,
+        ...(memberOf ? { memberOf } : {}),
+      });
     }
     if (path.endsWith("/resend-invitation")) return reply(202, { emailSent: true });
     if (request.method === "DELETE") return reply(204);
@@ -189,6 +193,17 @@ describe("inviting a person into a project (PF-108)", () => {
     await screen.findByText(/sent viera@example\.org an e-mail/);
     const created = sent.find((s) => s.method === "POST" && s.path === "/api/v1/organization/people");
     expect(created?.body).not.toHaveProperty("project");
+    expect(sent.filter((s) => s.path.includes("rolebindings"))).toEqual([]);
+  });
+
+  it("says a person invited with no project is a member of the organization (ADR-N-067 §2.5, T-6412)", async () => {
+    const user = userEvent.setup();
+    const sent: Sent[] = [];
+    renderPage(<People />, { path: "/organization/people", answer: answer(sent, { memberOf: "helsinki" }) });
+    const dialog = await invite(user);
+    await user.click(within(dialog).getByRole("button", { name: P.create }));
+
+    await screen.findByText(/They are a member of helsinki with no project/);
     expect(sent.filter((s) => s.path.includes("rolebindings"))).toEqual([]);
   });
 

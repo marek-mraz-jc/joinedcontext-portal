@@ -28,6 +28,7 @@ import {
 import type { Place, RoleChoice } from "./groupRoles";
 import { useOrganizationName } from "../../api/projects";
 import { instancesReachedBy } from "../ckan/ckanAccess";
+import { GroupDatasets } from "../organization/DataAccess";
 
 interface GroupSpec {
   description?: string;
@@ -240,6 +241,8 @@ export function GroupPage({ name }: { name: string }): JSX.Element {
         }}
         onRemove={(id) => proposeGroup(members.filter((member) => member.user !== id))}
       />
+
+      <GroupDatasets group={name} />
 
       <PlatformRoles
         group={name}

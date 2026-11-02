@@ -107,7 +107,9 @@ fn subject_of(session: &Session, headers: &HeaderMap, trust_edge_token: bool) ->
             .get(header::AUTHORIZATION)
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.strip_prefix("Bearer ")),
-        Front::Edge => headers.get(&EDGE_TOKEN_HEADER).and_then(|v| v.to_str().ok()),
+        Front::Edge => headers
+            .get(&EDGE_TOKEN_HEADER)
+            .and_then(|v| v.to_str().ok()),
         Front::Portal => Some(session.id_token.as_str()),
     };
     let claims: OrganizationClaims = token
@@ -134,7 +136,11 @@ fn subject_of(session: &Session, headers: &HeaderMap, trust_edge_token: bool) ->
 ///
 /// ponytail: one gateway question per non-public Endpoint per page load; a per-person cache
 /// keyed by the token's groups is the upgrade once an installation holds thousands.
-async fn readable<F, Fut>(state: &AppState, subject: Option<&Value>, ask: F) -> ReadableCatalogue
+pub(crate) async fn readable<F, Fut>(
+    state: &AppState,
+    subject: Option<&Value>,
+    ask: F,
+) -> ReadableCatalogue
 where
     F: Fn(String, Value) -> Fut,
     Fut: Future<Output = Result<Value, ApiError>>,
@@ -207,12 +213,17 @@ fn granted(answer: &Value) -> bool {
 fn mark(state: &AppState, project: &str, answer: &Value) -> (&'static str, Option<String>) {
     let mut assignees = Vec::new();
     for name in answer["policies"].as_array().into_iter().flatten() {
-        let Some(policy) = name.as_str().and_then(|n| state.mirror.get(project, "Policy", n))
+        let Some(policy) = name
+            .as_str()
+            .and_then(|n| state.mirror.get(project, "Policy", n))
         else {
             continue;
         };
         let spec = &policy.spec;
-        let rules = spec["rules"].as_array().map(Vec::as_slice).unwrap_or_default();
+        let rules = spec["rules"]
+            .as_array()
+            .map(Vec::as_slice)
+            .unwrap_or_default();
         for part in std::iter::once(spec).chain(rules) {
             let effect = part["effect"].as_str().or(spec["effect"].as_str());
             if effect != Some("prohibition") && part["assignee"].is_object() {
@@ -291,19 +302,46 @@ mod tests {
         endpoint(&state, "helsinki", "counts", "organization");
         endpoint(&state, "helsinki", "incidents", "organization");
         endpoint(&state, "espoo", "parking", "organization");
-        policy(&state, "helsinki", "counts-org", json!({ "kind": "organization" }));
-        policy(&state, "helsinki", "incidents-analysts", json!({ "kind": "group", "id": "traffic-analysts" }));
-        policy(&state, "espoo", "parking-org", json!({ "kind": "organization" }));
+        policy(
+            &state,
+            "helsinki",
+            "counts-org",
+            json!({ "kind": "organization" }),
+        );
+        policy(
+            &state,
+            "helsinki",
+            "incidents-analysts",
+            json!({ "kind": "group", "id": "traffic-analysts" }),
+        );
+        policy(
+            &state,
+            "espoo",
+            "parking-org",
+            json!({ "kind": "organization" }),
+        );
         state
     }
 
     /// A stub of the gateway's evaluation: the Policy granting each slug, and whom it grants.
     fn gateway(subject: &Value, slug: &str) -> Result<Value, ApiError> {
-        let orgs = subject["organizations"].as_array().cloned().unwrap_or_default();
-        let groups = subject["organizationGroups"].as_array().cloned().unwrap_or_default();
+        let orgs = subject["organizations"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
+        let groups = subject["organizationGroups"]
+            .as_array()
+            .cloned()
+            .unwrap_or_default();
         let grants: BTreeMap<&str, (&str, bool)> = [
             ("counts", ("counts-org", orgs.contains(&json!("helsinki")))),
-            ("incidents", ("incidents-analysts", groups.contains(&json!("/helsinki/traffic-analysts")))),
+            (
+                "incidents",
+                (
+                    "incidents-analysts",
+                    groups.contains(&json!("/helsinki/traffic-analysts")),
+                ),
+            ),
             ("parking", ("parking-org", orgs.contains(&json!("espoo")))),
         ]
         .into();
@@ -316,8 +354,12 @@ mod tests {
         })
     }
 
-    async fn catalogue_of(state: &AppState, subject: Option<Value>) -> Vec<(String, String, Option<String>)> {
-        let ask = |slug: String, question: Value| async move { gateway(&question["subject"], &slug) };
+    async fn catalogue_of(
+        state: &AppState,
+        subject: Option<Value>,
+    ) -> Vec<(String, String, Option<String>)> {
+        let ask =
+            |slug: String, question: Value| async move { gateway(&question["subject"], &slug) };
         readable(state, subject.as_ref(), ask)
             .await
             .datasets
@@ -340,15 +382,25 @@ mod tests {
         let member = person(&["helsinki"], &["/helsinki/members"]);
         assert_eq!(
             catalogue_of(&state, Some(member)).await,
-            [public("bikes"), ("counts".to_owned(), "organization".to_owned(), None)]
+            [
+                public("bikes"),
+                ("counts".to_owned(), "organization".to_owned(), None)
+            ]
         );
-        let analyst = person(&["helsinki"], &["/helsinki/members", "/helsinki/traffic-analysts"]);
+        let analyst = person(
+            &["helsinki"],
+            &["/helsinki/members", "/helsinki/traffic-analysts"],
+        );
         assert_eq!(
             catalogue_of(&state, Some(analyst)).await,
             [
                 public("bikes"),
                 ("counts".to_owned(), "organization".to_owned(), None),
-                ("incidents".to_owned(), "group".to_owned(), Some("traffic-analysts".to_owned())),
+                (
+                    "incidents".to_owned(),
+                    "group".to_owned(),
+                    Some("traffic-analysts".to_owned())
+                ),
             ]
         );
     }
@@ -429,9 +481,16 @@ mod tests {
 
         let mut headers = HeaderMap::new();
         let bearer = jwt(json!({ "jc_org": ["espoo"] }));
-        headers.insert(header::AUTHORIZATION, format!("Bearer {bearer}").parse().expect("a header"));
+        headers.insert(
+            header::AUTHORIZATION,
+            format!("Bearer {bearer}").parse().expect("a header"),
+        );
         let subject = subject_of(&session(&jwt(claims)), &headers, false);
-        assert_eq!(subject["organizations"], json!(["espoo"]), "the bearer, not the cookie");
+        assert_eq!(
+            subject["organizations"],
+            json!(["espoo"]),
+            "the bearer, not the cookie"
+        );
         assert!(subject.get("organizationGroups").is_none());
 
         let none = subject_of(&session(""), &HeaderMap::new(), false);
@@ -453,7 +512,10 @@ mod tests {
                 axum::extract::Query(crate::api::resources::KindListQuery::default()),
             )
             .await;
-            assert!(matches!(answer, Err(ApiError::NotFound(_))), "{plural}: {answer:?}");
+            assert!(
+                matches!(answer, Err(ApiError::NotFound(_))),
+                "{plural}: {answer:?}"
+            );
         }
     }
 }
