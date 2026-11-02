@@ -279,13 +279,15 @@ fn no_operation_with_the_wildcard_kind_carries_a_verb() {
 }
 
 /// AG-11: approving, deleting and updating are the person's. The widest profile an author could
-/// write must still not reach one of them.
+/// write must still not reach one of them. `read` is the profile's to give; `jc_data_write` carries
+/// it because the Endpoint's Policy decides the write, and a run reaches no write there: it holds no
+/// bearer to exchange (`Caller::for_run`) and the model is never offered the tool (`MCP_ONLY`).
 #[test]
 fn the_widest_profile_reaches_no_verb_other_than_propose() {
     let access = the_widest_profile();
     let reached: Vec<&str> = registry()
         .iter()
-        .filter(|op| !matches!(op.verb, None | Some(Verb::Propose)))
+        .filter(|op| !matches!(op.verb, None | Some(Verb::Propose | Verb::Read)))
         .filter(|op| access.names(op))
         .map(|op| op.name)
         .collect();
