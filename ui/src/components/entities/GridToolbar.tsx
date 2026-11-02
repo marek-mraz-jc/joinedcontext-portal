@@ -11,6 +11,7 @@ import { clsx } from "clsx";
 import { andQ, cellText } from "@joinedcontext/sdk";
 import type { EntitySource, RichCell } from "@joinedcontext/sdk";
 import { Button, buttonClass, Select } from "../ui";
+import { Icon } from "../ui/icons";
 
 export const ROW_SIZES = ["small", "medium", "large"] as const;
 export type RowSize = (typeof ROW_SIZES)[number];
@@ -95,7 +96,7 @@ export function ToolbarPopover({
     <details
       ref={ref}
       name={inPlace ? "toolbar-tool" : undefined}
-      className="relative"
+      className="group/tool relative"
       onKeyDown={(event) => {
         if (event.key === "Escape" && ref.current?.open) {
           event.stopPropagation();
@@ -111,12 +112,13 @@ export function ToolbarPopover({
           clsx(
             "cursor-pointer list-none [&::-webkit-details-marker]:hidden",
             count ? "border-primary text-primary-soft-fg" : undefined,
-            inPlace ? "h-control-lg w-full justify-start" : undefined,
+            inPlace ? "h-control-lg w-full justify-between" : undefined,
           ),
         )}
       >
         {label}
         {count ? <span className="ml-1 rounded-full bg-primary-soft px-1.5 text-caption">{count}</span> : null}
+        {inPlace ? <Icon name="chevronDown" className="ml-auto size-4 group-open/tool:rotate-180" /> : null}
       </summary>
       <div
         className={
