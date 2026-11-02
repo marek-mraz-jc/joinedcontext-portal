@@ -13,6 +13,7 @@ use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, State};
 use axum::routing::post;
 use axum::{Json, Router};
+use chrono::{SecondsFormat, Utc};
 use jc_core::kinds::{PipelineSource, PipelineSpec, Step, Verb};
 use jc_core::kpi_join::{Expr, Input, KpiStep};
 use serde::{Deserialize, Serialize};
@@ -203,6 +204,47 @@ fn admitted(
 }
 
 type Compiled = (KpiStep, Expr, Vec<Input>);
+
+/// The record check of a Pipeline with a kpi step (PL-85), `None` for any other. A kpi step has no
+/// harness (`jc_pipeline_test` runs one Bento mapping over one sample, a kpi run folds a batch of
+/// pages), so the indicator it writes is judged where a write is judged: model, target Endpoint
+/// and lifetime. The formula itself was checked as it was typed.
+/// ponytail: only a value's shape is judged, the REST door's check; a draft of the MCP door still
+/// meets `jc_pipeline_test`'s refusal, upgrade path a kpi harness in jcctl.
+pub fn records_verdict(
+    state: &AppState,
+    project: &str,
+    manifest: &Value,
+) -> Option<crate::ops::verdict::RecordsVerdict> {
+    let spec: PipelineSpec = serde_json::from_value(manifest["spec"].clone()).ok()?;
+    let target = spec.outputs().first()?.target_endpoint.to_string();
+    let pipeline = manifest["metadata"]["name"].as_str()?;
+    let record = indicator(kpi_step(&spec)?, &target, project, pipeline)?;
+    let records = [record];
+    let checked =
+        crate::record_check::check_records(state, project, manifest, &records, Utc::now()).ok()?;
+    Some(checked.verdict(manifest, &records))
+}
+
+/// The indicator a run writes, as jc-core's mapping writes it (`kpi_join::bloblang`), `value` 0.
+fn indicator(step: &KpiStep, target: &str, project: &str, pipeline: &str) -> Option<Value> {
+    let (scope, _) = target
+        .strip_prefix("urn:ngsi-ld:Endpoint:")?
+        .rsplit_once(':')?;
+    let (domain, _) = scope.split_once(':')?;
+    let now = Utc::now().to_rfc3339_opts(SecondsFormat::Secs, true);
+    Some(serde_json::json!({
+        "id": format!("urn:ngsi-ld:KeyPerformanceIndicator:{scope}:{}", step.name),
+        "type": "KeyPerformanceIndicator",
+        "name": { "type": "Property", "value": step.name },
+        "calculationFormula": { "type": "Property", "value": step.formula },
+        "currentValue": { "type": "Property", "value": 0, "unitCode": step.unit_code, "observedAt": now },
+        "calculationPeriod": { "type": "Property", "value": { "start": now, "end": now } },
+        "updatedAt": { "type": "Property", "value": { "@type": "DateTime", "@value": now } },
+        "derivedFrom": { "type": "Property", "value": [target] },
+        "computedBy": { "type": "Property", "value": format!("urn:ngsi-ld:Pipeline:{domain}:{project}:{pipeline}") },
+    }))
+}
 
 /// The problems and the sources of `pipeline`, and the step compiled when it has no problem.
 fn check(

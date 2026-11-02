@@ -3548,6 +3548,7 @@
         "target": "Nejprve vyberte koncový bod, přes který se ukazatel zapíše."
       },
       "hint": {
+        "typeFirst": "Nejprve vyberte typ entity; jeho čísla se zobrazí zde.",
         "name": "Malá písmena, číslice a pomlčky, nejvýše 48, například parking-per-stop.",
         "title": "Co lidé čtou v seznamech, například Obsazená parkovací místa na zastávku.",
         "sources": "Každý zdroj čte jeden typ entity přes jeden koncový bod, například parkoviště přes helsinki-parking.",

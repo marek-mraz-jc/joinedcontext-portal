@@ -6,7 +6,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
-import { EDITOR, JANITOR, approve, cleanUp, csrf, proposedChange, rejectOpen, signIn } from "./portal";
+import { EDITOR, JANITOR, approve, cleanUp, csrf, proposedChange, rejectOpen, signIn, sweepDrafts } from "./portal";
 
 const PROJECT = "helsinki";
 const SHOTS = process.env.KPI_SHOTS ?? "";
@@ -224,6 +224,7 @@ test("a person builds each indicator in the editor, previews its value and propo
     expect(preview.problem, `${kpi.name} previews a value`).toBeUndefined();
     expect(preview.values.length, kpi.name).toBeGreaterThan(0);
     await expect(editor.getByRole("table")).toBeVisible();
+    await editor.getByRole("table").scrollIntoViewIfNeeded();
     await shot(page, `${kpi.name}-2-previewed`);
     await page.getByRole("button", { name: "Propose change" }).click();
     const change = await proposedChange(page);
@@ -270,11 +271,13 @@ test("an approved indicator runs, its value sits in the KPI space, and the flow 
 });
 
 test.afterAll(async ({ browser }) => {
-  if (!changes.size) return;
   const owner = await signIn(browser, process.env.JANITOR_PASSWORD ? JANITOR : EDITOR, "/");
   for (const name of changes.keys()) {
     if (process.env.JANITOR_PASSWORD) await cleanUp(owner, PROJECT, "pipelines", name, "kpi-self-service");
     else await rejectOpen(owner, PROJECT, name, "kpi-self-service");
   }
   await owner.context.close();
+  const editor = await signIn(browser, EDITOR, "/");
+  await sweepDrafts(editor.context, editor.page, PROJECT, /^t4865-/);
+  await editor.context.close();
 });

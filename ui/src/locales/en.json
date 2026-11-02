@@ -3548,6 +3548,7 @@
         "target": "Pick the endpoint the indicator is written through first."
       },
       "hint": {
+        "typeFirst": "Pick the entity type first; its numbers appear here.",
         "name": "Lower-case letters, digits and hyphens, at most 48, for example parking-per-stop.",
         "title": "What people read in lists, for example Occupied parking places per transit stop.",
         "sources": "Each source reads one entity type through one endpoint, for example parking sites through helsinki-parking.",

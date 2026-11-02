@@ -270,12 +270,14 @@ function SourceRow({ project, index, source, join, endpoints, errors, readable, 
   const { t } = useTranslation();
   const id = `kpi-source-${index}`;
   const space = spaceOf(endpoints.find((e) => e.metadata.name === source.endpoint) ?? ({ metadata: { name: "" }, spec: {} } as unknown as Manifest));
+  // The first source carries the hints; a second copy of each only lengthens the form.
+  const hint = (key: string) => (index === 0 ? t(key) : undefined);
   return (
     <div className="grid gap-2 rounded-md bg-surface-subtle p-2 sm:grid-cols-2" data-testid={id}>
-      <Field id={`${id}-name`} label={t("pipelines.kpiEditor.sourceName")} help={t("pipelines.kpiEditor.hint.sourceName")} errors={errors} required>
+      <Field id={`${id}-name`} label={t("pipelines.kpiEditor.sourceName")} help={hint("pipelines.kpiEditor.hint.sourceName")} errors={errors} required>
         <Input id={`${id}-name`} value={source.name} onChange={(e) => onChange({ name: e.target.value.trim().toLowerCase() })} />
       </Field>
-      <Field id={`${id}-endpoint`} label={t("pipelines.kpiEditor.endpoint")} help={t("pipelines.kpiEditor.hint.endpoint")} required>
+      <Field id={`${id}-endpoint`} label={t("pipelines.kpiEditor.endpoint")} help={hint("pipelines.kpiEditor.hint.endpoint")} required>
         <Select id={`${id}-endpoint`} value={source.endpoint} onChange={(e) => onChange({ endpoint: e.target.value, type: "", attribute: "", key: "" })}>
           <option value="">{t("pipelines.recipe.choose")}</option>
           {endpoints.map((one) => (
@@ -285,7 +287,7 @@ function SourceRow({ project, index, source, join, endpoints, errors, readable, 
           ))}
         </Select>
       </Field>
-      <Field id={`${id}-type`} label={t("pipelines.kpiEditor.type")} help={t("pipelines.kpiEditor.hint.type")} required>
+      <Field id={`${id}-type`} label={t("pipelines.kpiEditor.type")} help={hint("pipelines.kpiEditor.hint.type")} required>
         <TypePicker
           id={`${id}-type`}
           label={t("pipelines.kpiEditor.type")}
@@ -296,7 +298,7 @@ function SourceRow({ project, index, source, join, endpoints, errors, readable, 
           onChange={(types) => onChange({ type: types[0] ?? "", attribute: "", key: "" })}
         />
       </Field>
-      <Field id={`${id}-attribute`} label={t("pipelines.kpiEditor.attribute")} help={t("pipelines.kpiEditor.hint.attribute")}>
+      <Field id={`${id}-attribute`} label={t("pipelines.kpiEditor.attribute")} help={source.type ? hint("pipelines.kpiEditor.hint.attribute") : t("pipelines.kpiEditor.hint.typeFirst")}>
         <AttributePicker
           id={`${id}-attribute`}
           label={t("pipelines.kpiEditor.attribute")}

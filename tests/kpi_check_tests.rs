@@ -14,15 +14,17 @@ use wiremock::matchers::{method, path, path_regex, query_param};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use common::{envelope, person, send};
+use joinedcontext_portal::api::kpi_check::records_verdict;
 use joinedcontext_portal::config::Config;
-use joinedcontext_portal::pipeline_validation::ModelSchema;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
+use joinedcontext_portal::pipeline_validation::ModelSchema;
 use joinedcontext_portal::reconciler::views::ViewSync;
 use joinedcontext_portal::state::AppState;
 
 const PARKING: &str = "p4y7pq2mzt6vhx3nbwrs5cjdaf";
 const STOPS: &str = "s3nq7pzk2mtv6hx5brj4gcdsfa";
 const SECRET: &str = "x7nq7pzk2mtv6hx5brj4gcdsfa";
+const WRITER: &str = "w3nq7pzk2mtv6hx5brj4gcdsfa";
 const TOKEN: &str = "an-admin-token-of-at-least-32-bytes!";
 const ROUTE: &str = "/api/v1/projects/city/kpis/check";
 
@@ -36,7 +38,7 @@ fn repository(dir: &Path) -> jcctl::loader::Repository {
     let head = |kind: &str, name: &str| {
         format!("apiVersion: joinedcontext.com/v1alpha1\nkind: {kind}\nmetadata:\n  name: {name}\n  namespace: city\nspec:\n")
     };
-    for space in ["mobility", "secret"] {
+    for space in ["mobility", "secret", "city-kpi"] {
         write(
             &format!("projects/city/spaces/{space}/space.yaml"),
             format!("{}  isSandbox: false\n", head("ContextSpace", space)),
@@ -46,6 +48,7 @@ fn repository(dir: &Path) -> jcctl::loader::Repository {
         ("mobility", "parking", PARKING),
         ("mobility", "stops", STOPS),
         ("secret", "hidden", SECRET),
+        ("city-kpi", "kpi-writer", WRITER),
     ] {
         write(
             &format!("projects/city/spaces/{space}/endpoints/{name}.yaml"),
@@ -55,6 +58,10 @@ fn repository(dir: &Path) -> jcctl::loader::Repository {
     write(
         "projects/city/spaces/mobility/policies/read.yaml",
         format!("{}  contextSpaceRef: mobility\n  assigner: did:web:city.example\n  assignee: {{ kind: role, id: public }}\n  operations: [retrieveOps]\n  information:\n    - entities: [{{ type: ParkingSite }}, {{ type: TransitStop }}]\n      propertyNames: [occupied, district]\n", head("Policy", "read")),
+    );
+    write(
+        "projects/city/spaces/city-kpi/policies/write.yaml",
+        format!("{}  contextSpaceRef: city-kpi\n  assigner: did:web:city.example\n  assignee: {{ kind: serviceAccount, id: pipelines }}\n  operations: [upsertBatch, createBatch, queryBatch]\n  information:\n    - entities:\n        - type: KeyPerformanceIndicator\n      propertyNames: [name, calculationFormula, currentValue, calculationPeriod, updatedAt, derivedFrom, computedBy]\n", head("Policy", "write")),
     );
     jcctl::loader::Repository::load(dir).expect("the repository loads")
 }
@@ -124,7 +131,7 @@ struct Rig {
 async fn rig() -> Rig {
     let broker = broker().await;
     let mut state = AppState::new(Config::for_tests(), None);
-    for space in ["mobility", "secret"] {
+    for space in ["mobility", "secret", "city-kpi"] {
         state
             .mirror
             .upsert(envelope("ContextSpace", space, "city", json!({})));
@@ -133,6 +140,7 @@ async fn rig() -> Rig {
         ("mobility", "parking", PARKING),
         ("mobility", "stops", STOPS),
         ("secret", "hidden", SECRET),
+        ("city-kpi", "kpi-writer", WRITER),
     ] {
         state.mirror.upsert(envelope(
             "Endpoint",
@@ -421,6 +429,34 @@ async fn a_unit_the_model_names_in_ucum_is_held_to_the_declared_code() {
     body["pipeline"]["spec"]["steps"][0]["kpi"]["unitCode"] = json!("MIN");
     let answer = checked(&rig, body).await;
     assert_eq!(answer["problems"], json!([]), "{answer}");
+}
+
+/// PL-85: the one record a kpi step writes is judged where a write is, so its proposal passes the
+/// gate; a target Endpoint the project lacks stays red.
+#[tokio::test]
+async fn a_kpi_draft_gets_its_record_check_from_the_target_it_writes() {
+    let rig = rig().await;
+    let mut body = draft("sum(parking.occupied) / count(stops)", "stops");
+    let manifest = &mut body["pipeline"];
+    manifest["spec"]["outputs"][0]["type"] = json!("KeyPerformanceIndicator");
+    let green = records_verdict(&rig.state, "city", manifest).expect("a verdict");
+    assert!(green.ok && green.checked == 1, "{green:?}");
+    manifest["spec"]["outputs"][0]["targetEndpoint"] =
+        json!("urn:ngsi-ld:Endpoint:hel.fi:city-kpi:gone");
+    let red = records_verdict(&rig.state, "city", manifest).expect("a verdict");
+    assert!(!red.ok, "no such Endpoint in the project: {red:?}");
+}
+
+/// Any other Pipeline keeps its test on a sample.
+#[tokio::test]
+async fn a_pipeline_without_a_kpi_step_gets_no_record_check_here() {
+    let rig = rig().await;
+    let manifest = json!({ "metadata": { "name": "plain" }, "spec": {
+        "class": "scheduled", "schedule": "0 * * * *",
+        "source": { "endpointRef": { "kind": "Endpoint", "name": "parking" } },
+        "compute": { "kind": "bloblang", "bloblang": "root = this" },
+        "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:mobility:parking" } });
+    assert!(records_verdict(&rig.state, "city", &manifest).is_none());
 }
 
 /// A source with no rows gives no value and says so; a sum over nothing must not read as 0.

@@ -3548,6 +3548,7 @@
         "target": "Najprv vyberte endpoint, cez ktorý sa ukazovateľ zapíše."
       },
       "hint": {
+        "typeFirst": "Najprv vyberte typ entity; jeho čísla sa zobrazia tu.",
         "name": "Malé písmená, číslice a pomlčky, najviac 48, napríklad parking-per-stop.",
         "title": "Čo ľudia čítajú v zoznamoch, napríklad Obsadené parkovacie miesta na zastávku.",
         "sources": "Každý zdroj číta jeden typ entity cez jeden endpoint, napríklad parkoviská cez helsinki-parking.",

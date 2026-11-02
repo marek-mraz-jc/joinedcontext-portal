@@ -3548,6 +3548,7 @@
         "target": "Wählen Sie zuerst den Endpunkt, über den die Kennzahl geschrieben wird."
       },
       "hint": {
+        "typeFirst": "Wählen Sie zuerst den Entitätstyp; seine Zahlen erscheinen hier.",
         "name": "Kleinbuchstaben, Ziffern und Bindestriche, höchstens 48, zum Beispiel parking-per-stop.",
         "title": "Was in Listen zu lesen ist, zum Beispiel Belegte Parkplätze je Haltestelle.",
         "sources": "Jede Quelle liest einen Entitätstyp über einen Endpunkt, zum Beispiel Parkplätze über helsinki-parking.",
