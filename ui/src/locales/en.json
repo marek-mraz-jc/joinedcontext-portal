@@ -1358,7 +1358,6 @@
       "confirmTitle": "Propose erasing this person's data from {space}?",
       "confirmLead": "Another owner of this space approves the erasure before anything goes; until then nothing is erased. Once approved it cannot be undone: it removes the values from current state, every history version and every copy, and a record without values stays.",
       "confirm": "Propose erasure",
-      "moreHint": "Ask for the next rows to see more",
       "nothing": "The space holds nothing about this person now. Proposing still records the request; the space is searched again when another owner approves it.",
       "wouldErase": {
         "attrs": "{count, plural, one {{type}: the personal attributes ({attrs}) of # entity} other {{type}: the personal attributes ({attrs}) of # entities}}",
@@ -6454,6 +6453,7 @@
       "id": "Entity",
       "rows": "{count, plural, one {# row} other {# rows}}",
       "someRows": "{shown} of {total} rows",
+      "moreHint": "Ask for the next rows to see more",
       "nothing": "Nothing matched this read.",
       "nothingHint": "Try a wider area, a longer period or fewer conditions.",
       "attributes": "The attributes of {name}",

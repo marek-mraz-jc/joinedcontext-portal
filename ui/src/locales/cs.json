@@ -1358,7 +1358,6 @@
       "confirmTitle": "Navrhnout vymazání údajů této osoby z {space}?",
       "confirmLead": "Vymazání nejprve schválí další vlastník tohoto prostoru; do té doby se nic nevymaže. Po schválení je nevratné: odstraní hodnoty z aktuálního stavu, ze všech verzí historie a ze všech kopií a zůstane záznam bez hodnot.",
       "confirm": "Navrhnout vymazání",
-      "moreHint": "Požádejte o další řádky a uvidíte víc",
       "nothing": "Prostor teď o této osobě nic neobsahuje. Návrh žádost přesto zaznamená; prostor se prohledá znovu, až ho schválí další vlastník.",
       "wouldErase": {
         "attrs": "{count, plural, one {{type}: osobní atributy ({attrs}) # entity} few {{type}: osobní atributy ({attrs}) # entit} many {{type}: osobní atributy ({attrs}) # entit} other {{type}: osobní atributy ({attrs}) # entit}}",
@@ -6454,6 +6453,7 @@
       "id": "Entita",
       "rows": "Řádky: {count}",
       "someRows": "{shown} z {total} řádků",
+      "moreHint": "Požádejte o další řádky a uvidíte víc",
       "nothing": "Tomuto čtení nic neodpovídá.",
       "nothingHint": "Zkuste širší území, delší období nebo méně podmínek.",
       "attributes": "Atributy třídy {name}",

@@ -173,7 +173,7 @@ for (const [label, width, height] of [
     test("table", async ({ page }) => {
       const dock = await open(page, "table");
       const card = dock.getByTestId("query-result");
-      for (const seen of ["count", "createdAt", "modifiedAt", "city", "name", "Railway station"]) {
+      for (const seen of ["count", "created at", "modified at", "city", "name", "Railway station"]) {
         await expect(card.getByText(seen, { exact: false }).first()).toBeAttached();
       }
       // Every column is in reach: the frame has nothing past its right edge.
@@ -186,6 +186,7 @@ for (const [label, width, height] of [
       expect(rows).toBeLessThanOrEqual(1);
       await expect(card.getByText("Railway station")).toBeVisible();
       await expect(card).not.toContainText("T18:07:50");
+      await expect(card).toContainText("Ask for the next rows to see more");
     });
 
     test("slip", async ({ page }) => {

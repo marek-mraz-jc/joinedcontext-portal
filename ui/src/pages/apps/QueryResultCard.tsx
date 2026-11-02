@@ -298,6 +298,11 @@ export function schemaOf(given: unknown): QueryView | null {
   return { kind: "schema", format: answer.format, classes, document };
 }
 
+/** An attribute's name as words: `createdAt` reads "created at". */
+function wordsOf(column: string): string {
+  return column.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase();
+}
+
 /** An ISO 8601 time as a person reads it, in their language; any other value as it is. */
 export function whenOf(value: string, language?: string): string {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(value)) {
@@ -365,7 +370,7 @@ export function QueryAnswer({ view, project }: { view: QueryView; project?: stri
           <TableHeaderCell className="px-2 py-1">{t("assistant.query.id")}</TableHeaderCell>
           {view.columns.map((column) => (
             <TableHeaderCell key={column} className="px-2 py-1">
-              {column}
+              {wordsOf(column)}
             </TableHeaderCell>
           ))}
         </TableHead>
@@ -374,7 +379,7 @@ export function QueryAnswer({ view, project }: { view: QueryView; project?: stri
             <TableRow key={`${row.id}-${index}`}>
               <TableCell className="px-2 py-1 font-mono">{row.id}</TableCell>
               {row.cells.map((cell, cellIndex) => (
-                <TableCell key={view.columns[cellIndex]} className="px-2 py-1" title={cell} data-label={view.columns[cellIndex]}>
+                <TableCell key={view.columns[cellIndex]} className="px-2 py-1" title={cell} data-label={wordsOf(view.columns[cellIndex])}>
                   {/* A table cell takes no max-width, so the fold is on a block inside it: a
                       4 000-character value used to widen its column to 4 000 characters and
                       push every other column off the card (T-2460). */}

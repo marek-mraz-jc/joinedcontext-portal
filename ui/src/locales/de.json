@@ -1358,7 +1358,6 @@
       "confirmTitle": "Löschung der Daten dieser Person aus {space} vorschlagen?",
       "confirmLead": "Ein weiterer Eigentümer dieses Bereichs genehmigt die Löschung, bevor etwas entfernt wird; bis dahin wird nichts gelöscht. Nach der Genehmigung ist sie endgültig: Sie entfernt die Werte aus dem aktuellen Stand, jeder Version der Historie und jeder Kopie, und ein Eintrag ohne Werte bleibt.",
       "confirm": "Löschung vorschlagen",
-      "moreHint": "Fragen Sie nach den nächsten Zeilen, um mehr zu sehen",
       "nothing": "Der Bereich enthält derzeit nichts über diese Person. Der Vorschlag hält die Anfrage trotzdem fest; der Bereich wird bei der Genehmigung erneut durchsucht.",
       "wouldErase": {
         "attrs": "{count, plural, one {{type}: die personenbezogenen Attribute ({attrs}) von # Entität} other {{type}: die personenbezogenen Attribute ({attrs}) von # Entitäten}}",
@@ -6454,6 +6453,7 @@
       "id": "Entität",
       "rows": "Zeilen: {count}",
       "someRows": "{shown} von {total} Zeilen",
+      "moreHint": "Fragen Sie nach den nächsten Zeilen, um mehr zu sehen",
       "nothing": "Nichts passt zu dieser Abfrage.",
       "nothingHint": "Versuchen Sie ein größeres Gebiet, einen längeren Zeitraum oder weniger Bedingungen.",
       "attributes": "Die Attribute von {name}",

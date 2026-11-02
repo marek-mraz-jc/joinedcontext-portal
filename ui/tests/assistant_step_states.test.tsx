@@ -199,6 +199,13 @@ describe("an empty read and one entity", () => {
     });
   });
 
+  it("says how to see the rest of a partial answer, and names a column in words", () => {
+    const entities = [{ id: "urn:a:b", createdAt: "2026-11-02T18:07:50.158Z" }];
+    withI18n(<QueryAnswer view={viewOf({ structuredContent: { entities, total: 221 } })} />);
+    expect(screen.getByText(new RegExp(en.assistant.query.moreHint))).toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "created at" })).toBeInTheDocument();
+  });
+
   it("reads a time as a date and leaves any other value alone", () => {
     expect(whenOf("2026-11-02T18:07:50.158Z", "en")).toContain("26");
     expect(whenOf("2026-11-02T18:07:50.158Z", "en")).not.toContain("T18");
