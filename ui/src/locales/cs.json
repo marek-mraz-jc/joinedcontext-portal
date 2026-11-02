@@ -11106,8 +11106,15 @@
       "run": "spustit",
       "propose": "vytvořit, upravit, smazat"
     },
+    "nothingToReach": "Zatím není k čemu přistupovat: nejprve požádejte o přístup.",
+    "otherPresets": "{count, plural, one {# další předvolba vyžaduje} few {# další předvolby vyžadují} other {# dalších předvoleb vyžaduje}} schválení organizací.",
+    "segmentHintShared": "čte Endpointy sdílené s vámi, např. pro odpovědi na otázky o datech",
+    "organizationRead": "data organizace, čtení",
+    "clientNotAllowed": "nepovolený",
+    "clientRefusedWhy": "Vaše organizace povoluje jen klienty, které uvádí její politika.",
+    "clientsAllowedOnly": "Vaše organizace povoluje jen tyto klienty: {clients}. Zrušte zaškrtnutí {client}.",
+    "noClientAllowed": "Vaše organizace zatím pro tento konektor nepovoluje žádného klienta. Zrušte zaškrtnutí {client} a obraťte se na správce.",
     "binds": "použít ho může jen tento klient",
-    "clientRefused": "politika vaší organizace ho nedovoluje",
     "intendedFor": "říká, pro koho je; uvést ho mohou i jiné lokální programy",
     "state": {
       "active": "Aktivní",
@@ -11184,11 +11191,13 @@
     "help": {
       "name": "Malá písmena, číslice a pomlčky, např. doprava-v-claude.",
       "segments": "Jaký druh práce konektor dělá, např. Čtení dat pro otázky o datech. Šedé předvolby vyžadují schválení organizací.",
+      "segmentsShared": "Jaký druh práce konektor dělá, např. Čtení dat pro otázky o datech.",
       "scope": "Zaškrtněte celý projekt nebo jednotlivé prostory, Endpointy či pipelines, např. helsinki / Endpoint bike-counters.",
       "scopeShared": "Zaškrtněte datové sady sdílené s vámi, např. helsinki / traffic-counts. Konektor je čte.",
       "expires": "Poslední den platnosti, nejvýše {days} dní ode dneška, např. konec tohoto měsíce.",
       "clients": "Nechte prázdné pro jakéhokoli klienta, nebo zaškrtněte např. Claude Code, pro koho je.",
-      "clientsListed": "Zaškrtněte klienta, kterého použijete, např. claude.ai: vaše organizace dovolí konektoru odpovídat jen klientům, které uvádí její politika.",
+      "clientsListed": "Zaškrtněte klienta, kterého použijete, např. claude.ai: vaše organizace dovolí konektoru odpovídat jen klientům, které uvádí její politika. Šedí klienti na něm nejsou.",
+      "clientsSayWhom": "Nechte prázdné pro libovolného klienta nebo zaškrtněte např. Claude Code, abyste řekli, pro koho je; uvést ho mohou i jiné lokální programy.",
       "nameStays": "Název zůstává; podle něj konektor zobrazuje váš AI klient.",
       "kinds": "Např. vytvářet nové Endpointy, ale žádné neupravovat. Řádky přidávají jen předvolby, které navrhují změny; každou změnu stejně schvaluje člověk."
     },

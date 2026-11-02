@@ -25,12 +25,14 @@ import { connectTab, disconnectTab, onPairingChange, pairing } from "../../conne
 import {
   ceilingAllows,
   clientLabel,
+  clientRefusal,
   emptyForm,
   formProblems,
   kindRows,
   lastDay,
-  namedClients,
   pickKey,
+  readsShared,
+  refusalHolding,
   refusedSection,
   scopeLines,
   setup,
@@ -113,6 +115,9 @@ export function AiConnectorCard({ connector, justCreated }: { connector: AiConne
   const when = (at: string | null | undefined) => (at ? new Date(at).toLocaleString(i18n.language) : t("aiConnectors.never"));
   const titleId = `ai-connector-${connector.id}`;
   const active = connector.state === "active";
+  // Shared datasets, read only (ADR-N-067): no project of the person's for a paired tab to work in.
+  const shared = readsShared(connector, useOptions().data);
+  const tabOffered = active && !shared;
   return (
     <Card>
       <section aria-labelledby={titleId} className="flex flex-col gap-4">
@@ -129,7 +134,7 @@ export function AiConnectorCard({ connector, justCreated }: { connector: AiConne
                 {t("aiConnectors.setup")}
               </Button>
             ) : null}
-            {active || pairedHere ? (
+            {tabOffered || pairedHere ? (
               <Button
                 variant="secondary"
                 size="sm"
@@ -156,7 +161,7 @@ export function AiConnectorCard({ connector, justCreated }: { connector: AiConne
             ) : null}
           </div>
         </div>
-        {active && !pairedHere ? <p className="text-caption text-fg-muted">{t("pairedTab.hint")}</p> : null}
+        {tabOffered && !pairedHere ? <p className="text-caption text-fg-muted">{t("pairedTab.hint")}</p> : null}
         {tab.isError ? (
           <Alert tone="danger" role="alert">
             {tab.error.message}
@@ -187,7 +192,7 @@ export function AiConnectorCard({ connector, justCreated }: { connector: AiConne
                     {line.name ? ` / ${t(`aiConnectors.kind.${line.kind}`)} ` : ` (${t("aiConnectors.kind.project")})`}
                     {line.name ? <span className="font-mono">{line.name === "*" ? t("aiConnectors.every") : line.name}</span> : null}
                     {" · "}
-                    {t(`aiConnectors.access.${line.access}`)}
+                    {shared ? t("aiConnectors.organizationRead") : t(`aiConnectors.access.${line.access}`)}
                   </li>
                 ))}
               </ul>
@@ -239,11 +244,11 @@ export function SetupPanel({ name, url }: { name: string; url: string }): JSX.El
       <CopyValue label={t("aiConnectors.client.claudeCode")} value={snippets.claudeCode} code />
       <div>
         <h4 className="text-caption font-semibold">{t("aiConnectors.client.claudeAi")}</h4>
-        <p className="text-caption text-fg-muted">{t("aiConnectors.steps.claudeAi")}</p>
+        <p className="text-body text-fg">{t("aiConnectors.steps.claudeAi")}</p>
       </div>
       <div>
         <h4 className="text-caption font-semibold">{t("aiConnectors.client.chatgpt")}</h4>
-        <p className="text-caption text-fg-muted">{t("aiConnectors.steps.chatgpt")}</p>
+        <p className="text-body text-fg">{t("aiConnectors.steps.chatgpt")}</p>
       </div>
       <CopyValue label={t("aiConnectors.client.vscode")} value={snippets.vscode} code />
     </div>
@@ -489,6 +494,147 @@ export function KindVerbsPicker({
   );
 }
 
+/** The presets: every one with its hint, or for a member the ones they hold and one line for the rest. */
+export function PresetsField({
+  options,
+  form,
+  readsOnly,
+  errors,
+  onChange,
+}: {
+  options: ConnectorOptions;
+  form: AiConnectorForm;
+  /** A member over shared datasets alone, who can do nothing about a greyed preset here. */
+  readsOnly: boolean;
+  errors?: string[];
+  onChange: (segments: string[]) => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  const { ceiling } = options;
+  const offered = options.segments.filter((segment) => !readsOnly || ceiling.segments.includes(segment) || form.segments.includes(segment));
+  const withheld = options.segments.length - offered.length;
+  const hintOf = (segment: string) => {
+    if (!ceiling.segments.includes(segment)) return t("aiConnectors.needsApproval");
+    return t(readsOnly && segment === "data-read" ? "aiConnectors.segmentHintShared" : `aiConnectors.segmentHint.${segment}`);
+  };
+  return (
+    <fieldset className="flex flex-col gap-1" aria-describedby="ai-connector-segments-help">
+      <legend className="text-body font-semibold">{t("aiConnectors.field.segments")}</legend>
+      <p id="ai-connector-segments-help" className="text-caption text-fg-muted">
+        {t(readsOnly ? "aiConnectors.help.segmentsShared" : "aiConnectors.help.segments")}
+      </p>
+      {offered.map((segment) => {
+        const allowed = ceiling.segments.includes(segment);
+        return (
+          <Checkbox
+            key={segment}
+            label={t(`aiConnectors.segment.${segment}`)}
+            className="flex-wrap gap-y-0 max-sm:[&>span+span]:basis-full"
+            hint={hintOf(segment)}
+            checked={form.segments.includes(segment)}
+            disabled={!allowed}
+            disabledReason={allowed ? undefined : t("aiConnectors.aboveCeiling")}
+            onChange={(event) => onChange(event.target.checked ? [...form.segments, segment] : form.segments.filter((one) => one !== segment))}
+          />
+        );
+      })}
+      {withheld > 0 ? <p className="text-caption text-fg">{t("aiConnectors.otherPresets", { count: withheld })}</p> : null}
+      {errors ? <Alert tone="danger">{errors[0]}</Alert> : null}
+    </fieldset>
+  );
+}
+
+/**
+ * The clients a connector answers. A refusal sits under the client it names, which is marked, and
+ * leaves when that client is unticked; a hint every row would repeat goes in the line above them.
+ */
+export function ClientsField({
+  options,
+  form,
+  refused,
+  onChange,
+}: {
+  options: ConnectorOptions;
+  form: AiConnectorForm;
+  /** The server's refusal of the list. */
+  refused?: string;
+  onChange: (clients: string[]) => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  // The refusal's place is below the fold: bring it into view once.
+  const shown = useCallback((alert: HTMLDivElement | null) => alert?.scrollIntoView?.({ block: "center" }), []);
+  const said = refused ? clientRefusal(refused, options.clients, t) : undefined;
+  const refusal = said?.id && !form.clients.includes(said.id) ? undefined : said;
+  const alert = refusal ? (
+    <div ref={shown}>
+      <Alert tone="danger">{refusal.text}</Alert>
+    </div>
+  ) : null;
+  const listed = options.clients.some((one) => one.refused);
+  const sameHint = options.clients.every((one) => !one.refused && !one.isBoundary);
+  const marked = (one: ConnectorOptions["clients"][number]) => one.id === refusal?.id || (Boolean(one.refused) && form.clients.includes(one.id));
+  const hintOf = (one: ConnectorOptions["clients"][number]) => {
+    if (marked(one)) return <Badge tone="danger">{t("aiConnectors.clientNotAllowed")}</Badge>;
+    // The line above says why a client is greyed; a hint every row would repeat stays there.
+    if (one.refused || sameHint) return undefined;
+    return one.isBoundary ? t("aiConnectors.binds") : t("aiConnectors.intendedFor");
+  };
+  return (
+    <fieldset className="flex flex-col gap-1" aria-describedby="ai-connector-clients-help">
+      <legend className="text-body font-semibold">{t("aiConnectors.field.clients")}</legend>
+      <p id="ai-connector-clients-help" className="text-caption text-fg-muted">
+        {t(listed ? "aiConnectors.help.clientsListed" : sameHint ? "aiConnectors.help.clientsSayWhom" : "aiConnectors.help.clients")}
+      </p>
+      {options.clients.map((one) => {
+        const ticked = form.clients.includes(one.id);
+        return (
+          <Fragment key={one.id}>
+            <Checkbox
+              label={clientLabel(one.id, t)}
+              hint={hintOf(one)}
+              // The badge stays beside its client on a phone; a hint takes the line under it.
+              className={clsx("flex-wrap gap-y-0", !marked(one) && "max-sm:[&>span+span]:basis-full")}
+              disabled={Boolean(one.refused) && !ticked}
+              disabledReason={one.refused ? t("aiConnectors.clientRefusedWhy") : undefined}
+              aria-invalid={marked(one) || undefined}
+              checked={ticked}
+              onChange={(event) => onChange(event.target.checked ? [...form.clients, one.id] : form.clients.filter((id) => id !== one.id))}
+            />
+            {one.id === refusal?.id ? alert : null}
+          </Fragment>
+        );
+      })}
+      {refusal && !refusal.id ? alert : null}
+    </fieldset>
+  );
+}
+
+/** Nobody can tick anything, so no form: what to do next, and Create off with its reason. */
+export function NothingToReach({ onClose }: { onClose: () => void }): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => (open ? undefined : onClose())}
+      size="lg"
+      title={t("aiConnectors.newTitle")}
+      closeLabel={t("app.close")}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            {t("form.cancel")}
+          </Button>
+          <Button disabled disabledReason={t("aiConnectors.nothingToReach")}>
+            {t("aiConnectors.create")}
+          </Button>
+        </>
+      }
+    >
+      <Alert tone="info">{t("aiConnectors.noProjects")}</Alert>
+    </Dialog>
+  );
+}
+
 export function CreateDialog({
   stored,
   onClose,
@@ -505,8 +651,6 @@ export function CreateDialog({
   const [form, setForm] = useState<AiConnectorForm | null>(null);
   const [tried, setTried] = useState(false);
   const [refused, setRefused] = useState<{ section?: string; field?: string; message: string } | null>(null);
-  // The clients' refusal sits at the dialog's foot, below the fold: bring it into view once.
-  const shown = useCallback((alert: HTMLDivElement | null) => alert?.scrollIntoView?.({ block: "nearest" }), []);
   const current = form ?? (stored ? toForm(stored, options.data) : emptyForm(options.data, now));
   const set = (patch: Partial<AiConnectorForm>) => setForm({ ...current, ...patch });
   const problems = options.data ? formProblems(current, options.data, now) : {};
@@ -544,6 +688,10 @@ export function CreateDialog({
   const ceiling = options.data?.ceiling;
   // A member reaches only datasets shared with them, read only: no change verbs to choose (T-6413).
   const readsOnly = Boolean(options.data?.projects.every((project) => project.organizationData));
+  const nothing = !stored && options.data?.projects.length === 0;
+  const clientRefused = refused?.section === "allowedClients" ? refused.message : undefined;
+  if (nothing) return <NothingToReach onClose={onClose} />;
+  const stop = options.data ? refusalHolding(clientRefused, current, options.data.clients, t) : t("aiConnectors.loadingOptions");
   return (
     <Dialog
       open
@@ -557,7 +705,7 @@ export function CreateDialog({
           <Button variant="secondary" onClick={onClose}>
             {t("form.cancel")}
           </Button>
-          <Button loading={create.isPending} disabled={!options.data} disabledReason={t("aiConnectors.loadingOptions")} onClick={submit}>
+          <Button loading={create.isPending} disabled={Boolean(stop)} disabledReason={stop} onClick={submit}>
             {stored ? t("aiConnectors.save") : t("aiConnectors.create")}
           </Button>
         </>
@@ -583,29 +731,7 @@ export function CreateDialog({
               onChange={(event) => set({ name: event.target.value.trim() })}
             />
           </Field>
-          <fieldset className="flex flex-col gap-1" aria-describedby="ai-connector-segments-help">
-            <legend className="text-body font-semibold">{t("aiConnectors.field.segments")}</legend>
-            <p id="ai-connector-segments-help" className="text-caption text-fg-muted">
-              {t("aiConnectors.help.segments")}
-            </p>
-            {options.data.segments.map((segment) => {
-              const allowed = ceiling.segments.includes(segment);
-              return (
-                <Checkbox
-                  key={segment}
-                  label={t(`aiConnectors.segment.${segment}`)}
-                  hint={allowed ? t(`aiConnectors.segmentHint.${segment}`) : t("aiConnectors.needsApproval")}
-                  checked={current.segments.includes(segment)}
-                  disabled={!allowed}
-                  disabledReason={allowed ? undefined : t("aiConnectors.aboveCeiling")}
-                  onChange={(event) =>
-                    set({ segments: event.target.checked ? [...current.segments, segment] : current.segments.filter((one) => one !== segment) })
-                  }
-                />
-              );
-            })}
-            {errorsOf("segments") ? <Alert tone="danger">{errorsOf("segments")?.[0]}</Alert> : null}
-          </fieldset>
+          <PresetsField options={options.data} form={current} readsOnly={readsOnly} errors={errorsOf("segments")} onChange={(segments) => set({ segments })} />
           {readsOnly ? null : (
             <fieldset className="flex flex-col gap-1" aria-describedby="ai-connector-kinds-help">
               <legend className="text-body font-semibold">{t("aiConnectors.field.kinds")}</legend>
@@ -644,31 +770,12 @@ export function CreateDialog({
               onChange={(event) => set({ expires: event.target.value })}
             />
           </Field>
-          <fieldset className="flex flex-col gap-1" aria-describedby="ai-connector-clients-help">
-            <legend className="text-body font-semibold">{t("aiConnectors.field.clients")}</legend>
-            <p id="ai-connector-clients-help" className="text-caption text-fg-muted">
-              {options.data.clients.some((one) => one.refused) ? t("aiConnectors.help.clientsListed") : t("aiConnectors.help.clients")}
-            </p>
-            {options.data.clients.map((one) => (
-              <Checkbox
-                key={one.id}
-                label={clientLabel(one.id, t)}
-                hint={one.refused ? t("aiConnectors.clientRefused") : one.isBoundary ? t("aiConnectors.binds") : t("aiConnectors.intendedFor")}
-                className="flex-wrap gap-y-0 max-sm:[&>span+span]:basis-full"
-                disabled={Boolean(one.refused) && !current.clients.includes(one.id)}
-                disabledReason={one.refused ?? undefined}
-                checked={current.clients.includes(one.id)}
-                onChange={(event) =>
-                  set({ clients: event.target.checked ? [...current.clients, one.id] : current.clients.filter((id) => id !== one.id) })
-                }
-              />
-            ))}
-            {errorsOf("allowedClients") ? (
-              <div ref={shown}>
-                <Alert tone="danger">{namedClients(errorsOf("allowedClients")?.[0] ?? "", options.data.clients, t)}</Alert>
-              </div>
-            ) : null}
-          </fieldset>
+          <ClientsField
+            options={options.data}
+            form={current}
+            refused={clientRefused}
+            onChange={(clients) => set({ clients })}
+          />
           {refused && !refused.section ? (
             <Alert tone="danger" role="alert">
               {refused.message}

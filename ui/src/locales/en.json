@@ -11106,8 +11106,15 @@
       "run": "run",
       "propose": "create, edit, delete"
     },
+    "nothingToReach": "Nothing to reach yet: ask for access first.",
+    "otherPresets": "{count, plural, one {# other preset needs} other {# other presets need}} your organization's approval.",
+    "segmentHintShared": "reads the Endpoints shared with you, e.g. to answer questions about data",
+    "organizationRead": "organization data, read",
+    "clientNotAllowed": "not allowed",
+    "clientRefusedWhy": "Your organization allows only the clients its policy lists.",
+    "clientsAllowedOnly": "Your organization allows only these clients: {clients}. Untick {client}.",
+    "noClientAllowed": "Your organization allows no client for this connector yet. Untick {client} and ask an administrator.",
     "binds": "only this client can use it",
-    "clientRefused": "your organization's policy does not allow it",
     "intendedFor": "says whom it is for; other local programs can name it too",
     "state": {
       "active": "Active",
@@ -11184,11 +11191,13 @@
     "help": {
       "name": "Lowercase letters, digits and dashes, e.g. doprava-in-claude.",
       "segments": "What kind of work the connector does, e.g. Data read for questions about data. Greyed presets need your organization's approval.",
+      "segmentsShared": "What kind of work the connector does, e.g. Data read for questions about data.",
       "scope": "Tick a whole project or single spaces, Endpoints or pipelines, e.g. helsinki / Endpoint bike-counters.",
       "scopeShared": "Tick the datasets shared with you, e.g. helsinki / traffic-counts. A connector reads them.",
       "expires": "The last day it works, at most {days} days from today, e.g. the end of this month.",
       "clients": "Leave empty for any client, or tick e.g. Claude Code to say whom it is for.",
-      "clientsListed": "Tick the client you will use, e.g. claude.ai: your organization lets a connector answer only the clients its policy lists.",
+      "clientsListed": "Tick the client you will use, e.g. claude.ai: your organization lets a connector answer only the clients its policy lists. Greyed clients are not on it.",
+      "clientsSayWhom": "Leave empty for any client, or tick e.g. Claude Code to say whom it is for; other local programs can name it too.",
       "nameStays": "The name stays; it is how your AI client lists the connector.",
       "kinds": "E.g. create new Endpoints but edit none. Only presets that propose changes add rows; every change still waits for a person's approval."
     },
