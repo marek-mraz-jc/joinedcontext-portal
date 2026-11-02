@@ -104,7 +104,8 @@ export function CommandPalette({ project }: { project: string }): JSX.Element {
   }, []);
 
   const rows = usePaletteRows(project, open, query);
-  const shown = useMemo(() => narrow(rows, query), [rows, query]);
+  // Closed, nothing reads the matches: a project's 10 000 Endpoints stay unfolded (T-5181).
+  const shown = useMemo(() => (open ? narrow(rows, query) : []), [open, rows, query]);
   const current = shown[Math.min(active, shown.length - 1)];
 
   const choose = (row: Row | undefined) => {
