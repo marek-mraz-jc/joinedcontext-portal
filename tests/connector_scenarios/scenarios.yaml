@@ -2073,3 +2073,36 @@
       project: other
       args: { changes: [{ op: create, kind: ContextSpace, name: vendor, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: ContextSpace, metadata: { name: vendor, namespace: t-scn-other }, spec: { isSandbox: true } } }] }
       refused: true
+- id: S-92
+  segment: data-read
+  # A vendor (T-6470, ADR-N-067 2.2): viewer of the project by RoleBinding, no person of the
+  # Organization. The project's groups hold them and no group names the Organization in `jc_org`,
+  # so the grant of the reports to the whole Organization matches nobody here.
+  as: vendor
+  says: "Show me the bike counters of the project I work on, and the citizen reports too."
+  expect: 'a data-read connector over the intake Endpoint their binding reads: the read answers its entities; no write tool'
+  deny: 'the Endpoint shared with the Organization -> 403 naming the field at creation, refused through the connector, nothing of it in the answer'
+  script:
+    - proves: deny
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s92-reports, segments: [data-read], scope: [{ project: '{project}', endpoint: '{project}-reports', access: read }], expiresAt: '{in7days}' }
+      refused: true
+      contains: ['scope[0]']
+    - proves: expect
+      rest: { method: GET, path: /connectors/options }
+      contains: ['{project}-intake']
+      absent: ['"name":"{project}-reports"']
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s92-intake, segments: [data-read], scope: [{ project: '{project}', endpoint: '{project}-intake', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: deny
+      via: connector
+      call: jc_data_query
+      args: { endpoint: '{project}-reports', type: PotholeReport }
+      refused: true
+      absent: ['urn:ngsi-ld:PotholeReport']

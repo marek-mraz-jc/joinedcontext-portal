@@ -110,6 +110,9 @@ const PERSONAS: &[&str] = &[
     // A member of the Organization with no RoleBinding (ADR-N-067, S-90): she reads only what a
     // Policy shares with her.
     "member",
+    // A viewer of the project and no person of the Organization (T-6470, S-92): no `jc_org`, so
+    // a grant to the whole Organization is not for them.
+    "vendor",
 ];
 /// The LinkML model of every scenario space (DataModel `bike-counter`): `name` is required
 /// (S-10), and Station is the target of a relationship (S-15).
@@ -530,8 +533,19 @@ fn bind_personas(mirror: &Mirror, projects: &[String]) {
             json!({ "rules": [{ "kinds": kinds, "verbs": verbs }] }),
         ));
     }
-    for persona in ["viewer", "steward", "project-admin", "approver", "jana"] {
-        let role = if persona == "jana" { "viewer" } else { persona };
+    for persona in [
+        "viewer",
+        "steward",
+        "project-admin",
+        "approver",
+        "jana",
+        "vendor",
+    ] {
+        let role = if matches!(persona, "jana" | "vendor") {
+            "viewer"
+        } else {
+            persona
+        };
         for project in projects {
             mirror.upsert(envelope(
                 "RoleBinding",
@@ -1275,6 +1289,30 @@ async fn catalogue_and_pdp(server: &MockServer) {
         .mount(server)
         .await;
     let simulate = "^/api/endpoint/[a-z2-7]+/access/simulate$";
+    // The vendor (S-92): the Policy of the Organization's reports is not for them, and their
+    // binding reads the project's intake.
+    Mock::given(method("POST"))
+        .and(path_regex(
+            "^/api/endpoint/[a-z2-7]+reportszz+/access/simulate$",
+        ))
+        .and(body_string_contains("sub-scn-vendor"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "admitted": false, "policies": [], "permissions": []
+        })))
+        .with_priority(1)
+        .mount(server)
+        .await;
+    Mock::given(method("POST"))
+        .and(path_regex(simulate))
+        .and(body_string_contains("sub-scn-vendor"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "admitted": true, "policies": ["intake-writers"],
+            "permissions": [{ "resource": { "type": "BikeCounter" },
+                              "actions": ["queryEntity", "retrieveEntity"] }]
+        })))
+        .with_priority(2)
+        .mount(server)
+        .await;
     // The member (S-90): the Organization shares the citizen reports with her, nothing else.
     Mock::given(method("POST"))
         .and(path_regex(

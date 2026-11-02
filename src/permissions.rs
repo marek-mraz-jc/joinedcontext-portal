@@ -1123,6 +1123,35 @@ pub struct ProjectMembers {
 }
 
 pub fn project_members(mirror: &Mirror, project: &str, now: DateTime<Utc>) -> ProjectMembers {
+    members_where(mirror, now, |reach| match reach {
+        Reach::Organization(organization) => organization_reaches(mirror, organization, project),
+        Reach::Project(held) => held == project,
+        Reach::Space(_) => false,
+    })
+}
+
+/// Whom a binding in force at `now` scoped to `organization` itself reads or writes for. Such a
+/// binding is the repository's word that the person is of the Organization (ADR-N-067 2.2); one
+/// on a project is not, and neither is the reach of another Organization's binding.
+pub fn organization_scoped_people(
+    mirror: &Mirror,
+    organization: &str,
+    now: DateTime<Utc>,
+) -> BTreeSet<String> {
+    let members = members_where(
+        mirror,
+        now,
+        |reach| matches!(reach, Reach::Organization(held) if held == organization),
+    );
+    members.readers.into_iter().chain(members.writers).collect()
+}
+
+/// [`ProjectMembers`] by every binding in force at `now` whose scope `counts`.
+fn members_where(
+    mirror: &Mirror,
+    now: DateTime<Utc>,
+    counts: impl Fn(&Reach) -> bool,
+) -> ProjectMembers {
     let organization = roles(mirror, ORG_NAMESPACE);
     let groups = group_members(mirror);
     let mut members = ProjectMembers::default();
@@ -1136,12 +1165,8 @@ pub fn project_members(mirror: &Mirror, project: &str, now: DateTime<Utc>) -> Pr
         if binding.validity.as_ref().is_some_and(|v| !v.contains(now)) {
             continue;
         }
-        let reach = match Reach::of(&binding.scope) {
-            Some(Reach::Organization(org)) if organization_reaches(mirror, &org, project) => {
-                Reach::Organization(org)
-            }
-            Some(Reach::Project(p)) if p == project => Reach::Project(p),
-            _ => continue,
+        let Some(reach) = Reach::of(&binding.scope).filter(&counts) else {
+            continue;
         };
         let Some((_, role)) = role_of(mirror, &organization, &reach, &binding.role) else {
             continue;
