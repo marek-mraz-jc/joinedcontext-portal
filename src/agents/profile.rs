@@ -92,9 +92,7 @@ impl Profile {
                 .map(str::to_owned),
             routing: spec
                 .pointer("/model/routing")
-                .and_then(|routing| {
-                    serde_json::from_value::<ProviderRouting>(routing.clone()).ok()
-                })
+                .and_then(|routing| serde_json::from_value::<ProviderRouting>(routing.clone()).ok())
                 .filter(|routing| {
                     routing
                         .validate("model.routing", "model.routing.order")
@@ -250,14 +248,17 @@ mod tests {
         let profile = Profile::load(&mirror_with(spec.clone()), "app-builder").expect("profile");
         assert_eq!(profile.routing, None);
 
-        spec["model"]["routing"] = json!({ "order": ["google-ai-studio/flex"], "allowFallbacks": true });
+        spec["model"]["routing"] =
+            serde_json::json!({ "order": ["google-ai-studio/flex"], "allowFallbacks": true });
         let profile = Profile::load(&mirror_with(spec.clone()), "app-builder").expect("profile");
         assert_eq!(
             profile.routing,
-            Some(json!({ "order": ["google-ai-studio/flex"], "allow_fallbacks": true }))
+            Some(
+                serde_json::json!({ "order": ["google-ai-studio/flex"], "allow_fallbacks": true })
+            )
         );
 
-        spec["model"]["routing"] = json!({ "order": [] });
+        spec["model"]["routing"] = serde_json::json!({ "order": [] });
         let profile = Profile::load(&mirror_with(spec), "app-builder").expect("profile");
         assert_eq!(profile.routing, None);
     }

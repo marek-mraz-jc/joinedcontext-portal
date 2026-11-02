@@ -1374,8 +1374,13 @@ mod effort_tests {
             assert_eq!(body["reasoning"], json!({ "effort": "medium" }), "{body}");
         }
         assert_eq!(
-            serde_json::to_value(with_effort("/v1/llm/chat/completions", &json!({}), None))
-                .expect("a JSON body"),
+            serde_json::to_value(with_effort(
+                "/v1/llm/chat/completions",
+                &json!({}),
+                None,
+                None
+            ))
+            .expect("a JSON body"),
             json!({}),
             "no effort named, none sent"
         );
