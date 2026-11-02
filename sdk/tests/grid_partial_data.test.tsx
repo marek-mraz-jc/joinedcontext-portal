@@ -55,13 +55,14 @@ describe("relationship targets (G-R2GRID2-017)", () => {
   it("reads 10 targets of 50 rows in one query and no get, then names each by its name", async () => {
     const { source, calls } = counted([...stations, ...companies]);
     render(<EntityGrid config={gridOf("Station", [{ attr: "name", label: "Name" }, { attr: "owner", label: "Owner" }])} source={source} />);
-    await screen.findAllByRole("button", { name: `${DEFAULT_LABELS.openTarget}: Company · Company 3` });
+    // 50 rows render before the one target read: a loaded CI runner passes the 1 s findBy default (ci 41368860961).
+    await screen.findAllByRole("button", { name: `${DEFAULT_LABELS.openTarget}: Company · Company 3` }, { timeout: 5000 });
     const resolves = calls.query.filter((call) => call.ids);
     expect(resolves).toHaveLength(1);
     expect(resolves[0].type).toBe("Company");
     expect(new Set(resolves[0].ids)).toEqual(new Set(companies.map((c) => c.id)));
     expect(calls.get).toBe(0);
-  });
+  }, 15000);
 
   it("opens a target in the same grid, and the breadcrumb brings back the first rows", async () => {
     const { source } = counted([...stations, ...companies]);
