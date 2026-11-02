@@ -1,3 +1,4 @@
+import { RowActions } from "../../components/ui/RowActions";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -141,7 +142,7 @@ export function UploadedFiles({ project, source }: { project: string; source: st
             { id: "passages", label: t("knowledge.column.passages"), numeric: true, align: "right", text: (file) => String(file.passages) },
           ]}
           actions={(file) => (
-            <PermissionGuard project={project} kind="KnowledgeSource" verb="propose">
+            <RowActions label={file.name} actions={[]} primary={<PermissionGuard project={project} kind="KnowledgeSource" verb="propose">
               <Button
                 variant="ghost"
                 size="sm"
@@ -152,7 +153,7 @@ export function UploadedFiles({ project, source }: { project: string; source: st
               >
                 {t("knowledge.files.remove")}
               </Button>
-            </PermissionGuard>
+            </PermissionGuard>} />
           )}
           empty={<EmptyState title={t("knowledge.files.none")} description={t("knowledge.files.noneHint")} icon="search" />}
         />

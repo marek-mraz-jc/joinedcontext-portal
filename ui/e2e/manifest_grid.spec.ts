@@ -94,10 +94,16 @@ async function stub(page: Page, opts: { empty?: boolean; refuse?: boolean; slow?
     if (opts.slow && /\/projects\/helsinki\/\w+$/.test(path)) await new Promise((resolve) => setTimeout(resolve, 60_000));
     const kind = /^\/api\/v1\/kinds\/(\w+)\/schema$/.exec(path)?.[1];
     if (kind) return json(schema(kind));
-    if (request.method() === "PUT" && opts.refuse) {
+    if (request.method() !== "GET" && opts.refuse) {
       return json({ type: "about:blank", title: "Forbidden", status: 403, detail: "Your role may not change the audience of Endpoint air-quality: ask a project steward." }, 403);
     }
     const lists: Record<string, unknown[]> = { endpoints, subscriptions, datamodels: models, pipelines, spaces, mqttbrokers: brokers };
+    // The cell panel reads the one row afresh before it writes (F-R2UI2-007).
+    const one = /^\/api\/v1\/projects\/helsinki\/(\w+)\/([\w-]+)$/.exec(path);
+    if (one && request.method() === "GET" && one[1] in lists) {
+      const found = (lists[one[1]] as { metadata: { name: string } }[]).find((item) => item.metadata.name === one[2]);
+      if (found) return json(found);
+    }
     const plural = /^\/api\/v1\/projects\/helsinki\/(\w+)$/.exec(path)?.[1];
     if (plural && plural in lists) return json(list(opts.empty && plural !== "spaces" ? [] : lists[plural]));
     if (path.endsWith("/events")) return route.fulfill({ status: 200, contentType: "text/event-stream", body: "" });
@@ -125,7 +131,7 @@ for (const width of [1440, 400]) {
         await stub(page);
         await page.goto(`/projects/helsinki/${route}?lang=en`);
         await expect(page.getByRole("link", { name: first }).first()).toBeVisible();
-        await expect(page.getByRole("toolbar")).toBeVisible();
+        await expect(page.getByRole("toolbar").first()).toBeVisible();
         await expect(page.getByRole("button", { name: /^More actions for / }).first()).toBeVisible();
         await page.screenshot({ path: info.outputPath(`${route}-filled-${width}.png`), fullPage: true });
         expect(await axeViolations(page)).toEqual([]);
@@ -191,9 +197,9 @@ for (const width of [1440, 400]) {
       await expect(zero.getByText("No answered calls in the last 7 days")).toBeVisible();
       await page.screenshot({ path: info.outputPath(`endpoints-panel-calls-zero-${width}.png`) });
       await page.keyboard.press("Escape");
-      await page.getByRole("button", { name: "More actions for City bikes in Espoo" }).click();
+      await page.getByRole("button", { name: "More actions for espoo/City bikes in Espoo" }).click();
       await page.getByRole("menuitem", { name: "Details" }).click();
-      const shared = page.getByRole("dialog", { name: "City bikes in Espoo" });
+      const shared = page.getByRole("dialog", { name: /City bikes in Espoo/ });
       const reason = shared.getByText("Usage is counted by the project that publishes this Endpoint.");
       await reason.scrollIntoViewIfNeeded();
       await expect(reason).toBeVisible();

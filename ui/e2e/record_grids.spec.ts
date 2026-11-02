@@ -55,7 +55,7 @@ async function stubApi(page: Page, state: State): Promise<void> {
     if (path === "/api/v1/projects") return json({ kind: "ProjectList", items: [{ name: "helsinki" }] });
     if (path.endsWith("/permissions/me")) {
       const verbs = ["read", "propose", "approve", "delete"];
-      const grants = [{ role: "admin", binding: "b", rule: { kinds: ["RoleBinding"], verbs } }, { role: "admin", binding: "b", rule: { kinds: ["*"], verbs } }];
+      const grants = [{ role: "admin", binding: "b", rule: { kinds: ["RoleBinding"], verbs } }, { role: "admin", binding: "b", rule: { kinds: ["*", "KnowledgeSource"], verbs } }];
       return json({ project: path.split("/")[4] ?? "org", bootstrap: false, grants });
     }
     if (path === "/api/v1/organization/brokers") return state === "error" ? failed() : json({ items: state === "empty" ? [] : BROKERS });
@@ -97,7 +97,9 @@ for (const each of LISTS) {
     await expect(table.getByText(each.kept, { exact: true })).toBeVisible();
     await expect(table.getByText(each.first, { exact: true })).toHaveCount(0);
     await grid.getByRole("searchbox").fill("");
-    await table.getByRole("button", { name: `Details of ${each.first}` }).click();
+    // The row's one control is its More actions menu since the grid rework; Details is its first item.
+    await table.getByRole("button", { name: `More actions for ${each.first}` }).click();
+    await page.getByRole("menuitem", { name: "Details" }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await shot(page, `${each.name}-details`);
   });

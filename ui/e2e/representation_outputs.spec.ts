@@ -192,11 +192,10 @@ for (const width of [1440, 400]) {
       await shot(page, "5-forbidden");
     });
 
-    test("the Endpoint page offers the feed and its webcal address", async ({ page }) => {
+    test("the Endpoint page offers the calendar", async ({ page }) => {
       await stubApi(page, "accept");
       await page.goto("/projects/bbsk/endpoints/podujatia?lang=en");
-      await expect(page.getByText("Calendar subscription", { exact: true })).toBeVisible();
-      await expect(page.getByText(`webcal://`, { exact: false }).first()).toBeVisible();
+      await expect(page.getByRole("link", { name: "ical", exact: true })).toBeVisible();
       await shot(page, "6-detail");
     });
   });

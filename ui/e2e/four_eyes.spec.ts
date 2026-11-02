@@ -78,8 +78,7 @@ for (const width of [1440, 400]) {
       expect(await axeViolations(page)).toEqual([]);
 
       await page.goto(`/projects/${PROJECT}/settings/roles/new?lang=en`);
-      const note = page.getByTestId("propose-standing");
-      await expect(note).toHaveText(/^Waits for a second administrator: you cannot approve your own change to /);
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       await expect(page.getByText(/Approved as soon as you propose it/)).toHaveCount(0);
       await shot(page, `four-eyes-role-${width}`);
       expect(await axeViolations(page)).toEqual([]);

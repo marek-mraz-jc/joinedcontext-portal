@@ -171,8 +171,8 @@ async function work(user: ReturnType<typeof userEvent.setup>, control: HTMLEleme
   }
   await user.click(control);
   // A row opened in the shell's panel is read, then closed, so the next control is on the page.
+  // A column's menu is a dialog too, with no close button: it closes on Escape.
   const dialog = screen.queryByRole("dialog");
-  if (dialog) {
-    await user.click(await within(dialog).findByRole("button", { name: s.grid.close }));
-  }
+  if (dialog?.classList.contains("jc-grid-col-menu")) fireEvent.keyDown(dialog, { key: "Escape" });
+  else if (dialog) await user.click(await within(dialog).findByRole("button", { name: s.grid.close }));
 }

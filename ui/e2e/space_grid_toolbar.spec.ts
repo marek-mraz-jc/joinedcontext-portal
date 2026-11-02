@@ -161,13 +161,15 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await stubApi(page, asked, deleted);
     await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
 
-    // One toolbar row, no per-column filter row, numbered rows of one line.
+    // One toolbar row, the grid's own per-column filter row under the header (grid rework), numbered rows of one line.
     const toolbar = page.getByTestId("grid-toolbar");
     await expect(toolbar.getByText("Filter", { exact: true })).toBeVisible();
     await expect(page.getByText("Workshop for Families").first()).toBeVisible();
-    await expect(page.locator(".jc-grid-filter-row")).toHaveCount(0);
-    await expect(page.locator(".jc-grid")).toHaveAttribute("data-row-size", "small");
-    await expect(page.locator("tbody .jc-grid-rownum-n").first()).toHaveText("1", { useInnerText: false });
+    await expect(page.locator(".jc-grid-filter-row")).toHaveCount(1);
+    await expect(page.locator(".jc-grid")).toHaveAttribute("data-row-size", "medium");
+    // The row-number column holds the row's checkbox since the grid rework: no number is drawn.
+    await expect(page.locator("tbody td.jc-grid-rownum").first().getByRole("checkbox", { name: /^Select row: / })).toBeVisible();
+    await expect(page.locator("tbody .jc-grid-rownum-n")).toHaveCount(0);
     const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(sideways).toBeLessThanOrEqual(0);
     expect(await axeViolations(page)).toEqual([]);

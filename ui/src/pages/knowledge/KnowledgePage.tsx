@@ -1,3 +1,4 @@
+import { RowActions } from "../../components/ui/RowActions";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -273,8 +274,8 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
               cell: (row) => (row.state === "crawled" ? <Languages languages={row.languages} /> : "—"),
             },
           ]}
-          actions={(row) =>
-            row.type === "upload" ? null : (
+          actions={(row) => (
+            <RowActions label={row.source} actions={[]} primary={row.type === "upload" ? undefined : (
               <PermissionGuard project={project} kind="KnowledgeSource" verb="propose">
                 <Button
                   variant="secondary"
@@ -289,8 +290,8 @@ export function KnowledgePage({ project }: { project: string }): JSX.Element {
                   {t("knowledge.recrawl")}
                 </Button>
               </PermissionGuard>
-            )
-          }
+            )} />
+          )}
           empty={<EmptyState bare title={t("knowledge.empty")} description={t("knowledge.emptyHint")} icon="search" />}
         />
       ) : null}

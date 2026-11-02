@@ -15,6 +15,12 @@ test("the Smart Data Models picker fits a 375 px screen without scrolling sidewa
     return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] });
   });
   await page.goto(`/projects/${PROJECT}/models?new=sdm&lang=en`);
+  // New data model is one window for the name, then Add type offers the import (T-6344).
+  const naming = page.getByRole("dialog", { name: "New data model" });
+  await naming.getByRole("textbox", { name: "Name", exact: true }).fill("Air");
+  await naming.getByRole("button", { name: "Create model" }).click();
+  await page.getByRole("button", { name: "Add type", exact: true }).click();
+  await page.getByRole("dialog", { name: "Add type" }).getByRole("button", { name: /Import from Smart Data Models/ }).click();
   await page.getByRole("button", { name: /AirQualityObserved/ }).first().click();
   await page.getByRole("radio", { name: /Adapt it/ }).click();
   await page.waitForTimeout(300);

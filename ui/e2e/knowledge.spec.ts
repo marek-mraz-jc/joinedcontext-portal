@@ -121,7 +121,7 @@ test.describe("the knowledge sources", () => {
     await p.goto("/projects/helsinki/knowledge?lang=en");
     await p.getByRole("link", { name: "Conversations" }).click();
     await expect(p).toHaveURL(/\/projects\/helsinki\/knowledge\/conversations/);
-    await p.getByRole("button", { name: "Are the roads icy?" }).click();
+    await p.getByRole("link", { name: "Are the roads icy?" }).click();
     await expect(p.getByText("The roads are icy at Kamppi.")).toBeVisible();
     await expect(p.getByText(/helsinki-weather/)).toBeVisible();
     expect(await axeViolations(p)).toEqual([]);

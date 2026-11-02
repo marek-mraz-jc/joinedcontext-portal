@@ -152,8 +152,9 @@ test("a write the gateway refuses opens no editor, and the keyboard opens and cl
   // The prohibited and the read-only values are values, never inputs.
   await expect(page.getByRole("textbox", { name: /status/ })).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: /availableBikeNumber/ })).toHaveCount(0);
+  // A click on the cell opens its row on that attribute (owner 2026-11-01); the "i" button opens the access panel.
   const status = page.getByRole("gridcell").filter({ hasText: "working" });
-  await status.click();
+  await status.getByRole("button", { name: "Your access: status" }).click();
   const panel = page.getByRole("dialog", { name: /Your access: status/ });
   await expect(panel).toBeVisible();
   await page.keyboard.press("Escape");

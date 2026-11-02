@@ -1603,9 +1603,9 @@ a.jc-cell--link:focus-visible {
     clip: rect(0, 0, 0, 0);
     white-space: nowrap;
   }
-  .jc-grid-pager .jc-grid-pager-step { min-width: 2.75rem; min-height: 2.75rem; font-size: 1.25rem; }
+  .jc-grid-pager .jc-grid-pager-step { min-width: 44px; min-height: 44px; font-size: 1.25rem; }
   .jc-grid-pages { flex-wrap: nowrap; }
-  .jc-grid-filter-toggle { display: inline-flex; align-items: center; align-self: flex-start; width: fit-content; margin: var(--jc-space-2, 8px); }
+  .jc-grid-filter-toggle { display: inline-flex; align-items: center; align-self: flex-start; width: fit-content; min-height: 44px; margin: var(--jc-space-2, 8px); }
   .jc-grid-filter-toggle::after { content: "\25BE"; margin-inline-start: var(--jc-space-2, 8px); }
   .jc-grid-filter-toggle[aria-expanded="true"]::after { content: "\25B4"; }
   .jc-grid-pages button { min-width: 2.75rem; min-height: 2.75rem; }

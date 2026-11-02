@@ -273,6 +273,7 @@ async function stubApi(page: Page, more: Record<string, unknown> = {}): Promise<
     if (listed && listed[1] in LISTS) return json(LISTS[listed[1]]);
     // Any other collection of the project is empty, so a page shows its designed empty state.
     if (listed) return json(list([]));
+    if (path === "/api/v1/catalogue/readable") return json({ datasets: [] });
     if (path.startsWith("/api/endpoint/")) return json([]);
     return json({ type: "about:blank", title: "Not in the baseline", status: 404 }, 404);
   });

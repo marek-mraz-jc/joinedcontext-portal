@@ -173,13 +173,13 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await expect(page.getByText("District 1", { exact: true })).toBeVisible();
     // The rows count through the grid's own answer; the whole space's scan is on the model tab (T-4885).
     await expect(page.getByTestId("space-total")).toHaveCount(0);
-    await expect(page.getByText("12 of 12 loaded")).toBeVisible();
+    await expect(page.locator(".jc-grid-total")).toHaveText("12 matching");
     // Nothing wider than the screen: the page body never scrolls sideways (UI-27).
     const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     expect(sideways).toBeLessThanOrEqual(0);
     expect(await axeViolations(page)).toEqual([]);
     await shot(page, `look-inside-${label}`);
-    await page.getByText("12 of 12 loaded").scrollIntoViewIfNeeded();
+    await page.locator(".jc-grid-total").scrollIntoViewIfNeeded();
     await shot(page, `look-inside-footer-${label}`);
 
     await tabs.getByRole("tab", { name: "Data model" }).click();
@@ -253,8 +253,10 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await page.setViewportSize({ width, height });
     await stubApi(page, false);
     await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
-    const footer = page.getByText("12 loaded · the endpoint gives no total for this answer");
+    // The paged footer states the endpoint's own count or nothing: no number it guessed (R22).
+    const footer = page.locator(".jc-grid-page-info");
     await expect(footer).toBeVisible();
+    await expect(page.locator(".jc-grid-total")).toHaveCount(0);
     await footer.scrollIntoViewIfNeeded();
     await expect(page.getByTestId("space-total")).toHaveCount(0);
     await shot(page, `grid-no-total-${label}`);

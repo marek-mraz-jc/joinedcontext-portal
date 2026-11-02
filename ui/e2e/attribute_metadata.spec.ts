@@ -145,8 +145,10 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     const dialog = page.getByRole("dialog", { name: "Details: District 3" });
     await dialog.getByRole("tab", { name: "Metadata" }).click();
     await dialog.getByRole("combobox", { name: "Attribute" }).selectOption("kpiValue");
-    for (const term of ["Changed by", "Organization", "Through", "Reason"]) {
-      await expect(field(dialog, term)).toHaveText("hidden: no access (history not granted)");
+    // One refusal covers who, where from, through what and why: said once, on "Changed by".
+    await expect(field(dialog, "Changed by")).toHaveText("hidden: no access (history not granted)");
+    for (const term of ["Organization", "Through", "Reason"]) {
+      await expect(field(dialog, term)).toHaveCount(0);
     }
     await expect(field(dialog, "Created").locator("time")).toHaveAttribute("datetime", "2026-10-01T07:30:00Z");
     // A 403 is shown, never asked again under another identity: one read per attribute picked.

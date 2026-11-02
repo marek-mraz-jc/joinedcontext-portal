@@ -51,7 +51,7 @@ async function stub(page: Page): Promise<string[]> {
     if (path.endsWith("/access")) return json({ permissions: [{ resource: { type: TYPE }, actions: ["queryEntity", "retrieveEntity"], attributes: "*" }] });
     if (path.endsWith("/entities")) {
       reads.push(url.search);
-      const rows = [1, 2, 3].map((n) => ({ id: `urn:ngsi-ld:${TYPE}:hel.fi:helsinki:fmi-${n}`, type: TYPE, name: `Station ${n}`, pm10: 10 + n }));
+      const rows = [1, 2, 3].map((n) => ({ id: `urn:ngsi-ld:${TYPE}:hel.fi:helsinki:fmi-${n}`, type: TYPE, name: { type: "Property", value: `Station ${n}` }, pm10: { type: "Property", value: 10 + n }, dateObserved: { type: "Property", value: { "@type": "DateTime", "@value": "2026-10-01T10:00:00Z" } } }));
       return json(rows, { "NGSILD-Results-Count": "3" });
     }
     if (path === "/api/v1/projects") return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "ProjectList", items: [{ name: "helsinki" }] });
@@ -80,10 +80,17 @@ for (const width of [1440, 400]) {
     await stub(page);
     await page.goto(`/projects/helsinki/explore?space=helsinki&type=${TYPE}&lang=en`);
     await expect(page.locator("tbody tr").first()).toBeVisible();
+    // The type, area and filters fold under one line once a type is chosen (T-6107).
+    await page.locator("summary", { hasText: "area and filters" }).click();
     await expect(page.locator("#explore-endpoint optgroup")).toHaveAttribute("label", "Applications");
     await expect(page.locator("#explore-type optgroup")).toHaveAttribute("label", "Not readable through this endpoint");
     await expect(page.locator("#explore-type optgroup option")).toHaveText([OTHER]);
-    await expect(page.getByRole("checkbox", { name: "Date observed dateObserved" })).toBeVisible();
+    // The model's label reads alone in the Columns menu; the name the data carries is its tooltip (T-6092).
+    await page.locator("summary", { hasText: "Columns" }).click();
+    const dateColumn = page.getByRole("checkbox", { name: "Date observed" });
+    await expect(dateColumn).toBeVisible();
+    await expect(dateColumn).toHaveAttribute("title", "dateObserved");
+    await page.keyboard.press("Escape");
     await expect(page.getByText("The area code the entities are filed under, e.g. /district/1; leave empty for every area.")).toBeVisible();
     // The query language is out of sight until asked for.
     await expect(page.getByLabel("Query as text (q)")).toBeHidden();
@@ -114,6 +121,9 @@ for (const width of [1440, 400]) {
     await page.setViewportSize({ width, height: 900 });
     await stub(page);
     await page.goto(`/projects/helsinki/explore?space=helsinki&type=${OTHER}&lang=en`);
+    // The type, area and filters fold under one line once a type is chosen (T-6107).
+    await page.locator("summary", { hasText: "area and filters" }).click();
+    await page.getByRole("tabpanel", { name: "Entities" }).locator("summary", { hasText: "Your access" }).click();
     await expect(page.getByText(`No grant names ${OTHER} for you through this endpoint.`)).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
     await page.screenshot({ path: `${SHOTS}/refused-type-${width}.png`, fullPage: true });

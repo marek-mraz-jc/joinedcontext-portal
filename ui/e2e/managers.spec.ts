@@ -131,12 +131,9 @@ test.describe("managers", () => {
     await page.goto("/projects/helsinki/spaces?lang=en");
     await expect(page).toHaveURL(/\/projects\/helsinki\/spaces/);
     await expect(page.getByText("Air quality")).toBeVisible();
-    // `exact`, because getByRole matches the accessible name as a case-insensitive SUBSTRING by
-    // default: the nav's "Data sources" link contains "source" and made this locator ambiguous
-    // the moment that page was added.
-    await expect(
-      page.getByRole("link", { name: "Source", exact: true }),
-    ).toHaveAttribute("href", SOURCE_URL);
+    // The manifest in the forge is an item of the row menu now (T-6095), not a column of icons.
+    await page.getByRole("button", { name: "More actions for Air quality" }).click();
+    await expect(page.getByRole("menuitem", { name: "View source (Git)", exact: true })).toHaveAttribute("href", SOURCE_URL);
   });
 
   test("adding a representation to an endpoint proposes a change", async ({ page }) => {

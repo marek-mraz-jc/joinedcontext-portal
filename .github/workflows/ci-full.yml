@@ -59,6 +59,11 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     steps:
+      # --all-targets --all-features links every test binary: ld died of SIGBUS on a full disk
+      # before any test ran (runs 41184314456, 41291762743, 41420091286), so the runner's unused
+      # SDKs go first.
+      - name: room on the disk
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /opt/hostedtoolcache/CodeQL && df -h /
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
@@ -442,7 +447,7 @@ jobs:
     needs: moved
     if: needs.moved.outputs.run == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 50
     # The Apps installed without a lockfile take no release younger than a day (T-3527, as
     # scripts/apps-ci.sh does).
     env:

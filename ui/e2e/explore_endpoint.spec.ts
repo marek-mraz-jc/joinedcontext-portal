@@ -184,7 +184,7 @@ for (const width of [1440, 400]) {
     await stub(page, false, { refuse: true });
     await page.goto("/projects/helsinki/explore?lang=en");
     await expect(page.getByText("does not let you read", { exact: false }).first()).toBeVisible();
-    await expect(page.getByText("You may not read this", { exact: false })).toBeVisible();
+    await expect(page.getByText("You have no access to this dataset")).toBeVisible();
     await expect(page.getByText("try again", { exact: false })).toHaveCount(0);
     await expect(page.locator("summary", { hasText: "Your access" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Use this data" })).toHaveCount(0);

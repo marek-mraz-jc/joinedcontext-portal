@@ -1,3 +1,4 @@
+import { RowActions } from "../../components/ui/RowActions";
 import { useEffect, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -293,10 +294,10 @@ function Instances({
             { id: "tokenRef", label: t("ckan.instances.tokenRef"), text: (instance) => instance.apiTokenRef, cell: (instance) => <span className="font-mono">{instance.apiTokenRef}</span> },
           ]}
           actions={(instance) => (
-            <span className="inline-flex items-center gap-1.5">
+            <RowActions label={instance.name} actions={[]} primary={<span className="inline-flex items-center gap-1.5">
               <EditResourceAction target={{ project, kind: "CkanInstance", plural: "ckaninstances", name: instance.name }} />
               <DeleteResourceAction target={{ project, kind: "CkanInstance", plural: "ckaninstances", name: instance.name }} />
-            </span>
+            </span>} />
           )}
           empty={<EmptyState bare title={t("ckan.instances.empty")} description={t("ckan.instances.emptyHint")} icon="ckan" />}
         />

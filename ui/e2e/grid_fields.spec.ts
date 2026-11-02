@@ -69,6 +69,12 @@ async function stubApi(page: Page): Promise<void> {
       return route.fulfill({ status: 200, contentType: "text/yaml", body: LINKML });
     }
     if (path.endsWith("/entities")) {
+      // The grid reads the targets of a page's relationships once per class; a target it cannot
+      // read stays an id, never a link (EP-59).
+      if (url.searchParams.get("type") === "Organization") {
+        const orgs = (url.searchParams.get("id") ?? "").split(",").filter(Boolean).map((id) => ({ id, type: "Organization", name: { type: "Property", value: id.split(":").pop() } }));
+        return json(orgs, 200, { "NGSILD-Results-Count": String(orgs.length) });
+      }
       const rows = Array.from({ length: 8 }, (_, i) => kpi(i + 1));
       // The grid asks the broker to order the whole answer (`orderBy`, CIM 009 4.23): answer as it does.
       const [attr, dir] = (url.searchParams.get("orderBy") ?? "").split(";");
@@ -105,9 +111,12 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     const grid = page.getByRole("grid");
     await expect(grid.getByText("District 1", { exact: true })).toBeVisible();
     const headers = grid.locator("thead tr").first().locator(".jc-grid-sort-btn");
-    await expect(headers.first()).toHaveText("Name");
-    await expect(headers.nth(1)).toHaveText(/^Value/);
-    await expect(headers.nth(2)).toHaveText("Calculation period");
+    // The ID and Type columns open the grid now; the model's fields follow.
+    await expect(headers.first()).toHaveText("ID");
+    await expect(headers.nth(1)).toHaveText("Type");
+    await expect(headers.nth(2)).toHaveText("Name");
+    await expect(headers.nth(3)).toHaveText(/^Value/);
+    await expect(headers.nth(4)).toHaveText("Calculation period");
     // No raw JSON, URN or compact IRI in a cell or a header.
     const text = await grid.innerText();
     expect(text).not.toMatch(/[{}]|urn:ngsi-ld|ngsi-ld:/);

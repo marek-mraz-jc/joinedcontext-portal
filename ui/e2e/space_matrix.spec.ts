@@ -205,7 +205,7 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     test("counts a 10 000-row type from the endpoint and loads it a page at a time", async ({ page }) => {
       await stubApi(page, { total: 10_000 });
       await open(page);
-      await expect(page.locator(".jc-grid-total")).toContainText("of 10000");
+      await expect(page.locator(".jc-grid-total")).toContainText("10000 matching");
       await noSideways(page);
       await shot(page, `ten-thousand-${label}`);
     });
@@ -250,7 +250,7 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     test("says what to do in a space with no rows and in one with no type", async ({ page }) => {
       await stubApi(page, { total: 0 });
       await open(page);
-      await expect(page.locator(".jc-grid-total")).toContainText("of 0");
+      await expect(page.locator(".jc-grid-total")).toContainText("0 matching");
       await shot(page, `empty-type-${label}`);
       await page.unrouteAll({ behavior: "ignoreErrors" });
       await stubApi(page, { noTypes: true });

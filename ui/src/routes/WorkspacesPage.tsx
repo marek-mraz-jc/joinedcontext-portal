@@ -1,3 +1,4 @@
+import { RowActions } from "../components/ui/RowActions";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -274,7 +275,7 @@ function WorkspaceTable({
         },
       ]}
       actions={(ws) => (
-        <div className="flex justify-end gap-2 whitespace-nowrap">
+        <RowActions label={ws.name} actions={[]} primary={<div className="flex justify-end gap-2 whitespace-nowrap">
           <Button size="sm" onClick={() => onOpen(ws.name)}>
             {t("workspaces.openAction")}
           </Button>
@@ -290,7 +291,7 @@ function WorkspaceTable({
               {t("workspaces.discard")}
             </Button>
           ) : null}
-        </div>
+        </div>} />
       )}
       empty={<EmptyState bare title={t("workspaces.empty")} description={t("workspaces.emptyHint")} />}
     />

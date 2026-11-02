@@ -109,10 +109,9 @@ test.describe("the health log (T-5067)", () => {
         await stubApi(page, filled);
         await page.goto(`/projects/bbsk/health?lang=${lang}`);
         const caption = lang === "en" ? "Health checks" : "Kontroly zdravia";
-        const rows = width > 600
-          ? page.getByRole("table", { name: caption }).getByRole("row").filter({ hasNot: page.getByRole("columnheader") })
-          : page.getByRole("list", { name: caption }).getByRole("listitem");
-        await expect(rows).toHaveCount(CHECKS.length);
+        const rows = page.getByRole("table", { name: caption }).getByRole("row").filter({ hasNot: page.getByRole("columnheader") });
+        // The log opens on what needs attention; the two healthy checks wait behind the filter.
+        await expect(rows).toHaveCount(CHECKS.filter((item) => item.status !== "ok").length);
         await expect(rows.nth(0)).toContainText("403 no policy grants this operation");
         await expect(rows.nth(0)).toContainText("pl-podujatia-brezno");
         await expect(rows.nth(0)).toContainText(lang === "en" ? "Endpoint's Policy must grant" : "Policy cieľového Endpointu");
@@ -121,14 +120,12 @@ test.describe("the health log (T-5067)", () => {
       });
     }
 
-    test(`the kind filter narrows to Endpoints at ${width} px`, async ({ page }) => {
+    test(`the status filter narrows the log at ${width} px`, async ({ page }) => {
       await page.setViewportSize({ width, height: width > 600 ? 900 : 860 });
       await stubApi(page, filled);
       await page.goto("/projects/bbsk/health?lang=en");
-      await page.getByLabel("Show").selectOption("endpoint");
-      const rows = width > 600
-        ? page.getByRole("table", { name: "Health checks" }).getByRole("row").filter({ hasNot: page.getByRole("columnheader") })
-        : page.getByRole("list", { name: "Health checks" }).getByRole("listitem");
+      await page.locator("#health-status").selectOption("warn");
+      const rows = page.getByRole("table", { name: "Health checks" }).getByRole("row").filter({ hasNot: page.getByRole("columnheader") });
       await expect(rows).toHaveCount(2);
       await shot(page, `health-filtered-${width}`);
     });
@@ -149,7 +146,7 @@ test.describe("the health log (T-5067)", () => {
           : undefined,
       );
       await page.goto("/projects/bbsk/health?lang=en");
-      await expect(page.getByRole("alert")).toContainText("project 'bbsk' not found");
+      await expect(page.getByRole("alert").first()).toContainText("project 'bbsk' not found");
       await expect(page.getByText("403 no policy grants")).toHaveCount(0);
       await shot(page, `health-refused-${width}`);
     });
@@ -164,6 +161,7 @@ test.describe("the health log (T-5067)", () => {
             : undefined,
       );
       await page.goto("/organization/health?lang=en");
+      await page.locator("#health-status").selectOption("all");
       await expect(page.getByText("Project: helsinki").filter({ visible: true })).toHaveCount(1);
       await shot(page, `health-admin-${width}`);
     });

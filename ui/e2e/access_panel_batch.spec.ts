@@ -168,6 +168,8 @@ for (const width of [1440, 400]) {
       await page.goto(
         `/projects/helsinki/explore?space=helsinki&type=${TYPE}&lang=en`,
       );
+      // The panel sits in the toolbar's "Your access" popover; open it to read the decisions.
+      await page.locator("summary", { hasText: "Your access" }).click();
       const panel = page.getByRole("region", { name: "Your access" });
       for (const text of EXPECTED[answer])
         await expect(panel.getByText(text)).toBeVisible();
