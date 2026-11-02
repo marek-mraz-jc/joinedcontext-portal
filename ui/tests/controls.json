@@ -1811,6 +1811,7 @@
         "Button": 1
       },
       "tests": [
+        "data_access.test.tsx",
         "organization_brokers.test.tsx",
         "organization_connectors.test.tsx",
         "organization_costs.test.tsx",

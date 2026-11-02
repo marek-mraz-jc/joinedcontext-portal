@@ -338,6 +338,14 @@ routes:
   - route: POST /organization/people
     rule: "people-admin"
     expect: [403, 403, 403, 403, 403, allow, 403, 403]
+  - route: GET /organization/data-access
+    rule: "people-admin"
+    expect: [401, 403, 403, 403, 403, allow, 403, 403]
+    note: "the Organization's Data access matrix (ADR-N-067 §2.5, T-6412): org-admin and people-admin read it; the fixture has no gateway, so its cells answer unanswered"
+  - route: GET /organization/people/{id}/readable
+    rule: "people-admin"
+    expect: [401, 403, 403, 403, 403, allow, 403, 403]
+    note: "what one person can read, by Endpoint name only (ADR-N-067 §2.5, T-6412)"
   - route: GET /organization/people/{id}
     rule: "people-admin"
     expect: [401, 403, 403, 403, 403, allow, 403, 403]

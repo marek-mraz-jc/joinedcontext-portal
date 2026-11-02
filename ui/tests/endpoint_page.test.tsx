@@ -172,6 +172,10 @@ function renderPage({
     if (path.endsWith("/auth/me")) {
       return json(IDENTITY);
     }
+    // Who reads the Endpoint is the Organization administrators' (T-6412): this caller is refused.
+    if (path === "/api/v1/organization/data-access") {
+      return json({ title: "Forbidden", status: 403, detail: "read on Person" }, 403);
+    }
     if (path.startsWith(`/api/endpoint/${SLUG}/ngsi-ld/v1/entities`)) {
       if (counts === null) {
         return Promise.resolve(new Response("{}", { status: 403 }));

@@ -34,6 +34,7 @@ pub mod changes;
 pub mod ckan;
 pub mod connectors;
 pub mod costs;
+pub mod data_access;
 pub mod data_views;
 pub mod datamodels;
 pub mod datasource_test;
@@ -130,6 +131,7 @@ pub fn router() -> Router<AppState> {
         .merge(catalogue::router())
         .merge(catalogue_draft::router())
         .merge(catalogue_readable::router())
+        .merge(data_access::router())
         .merge(endpoint_standards::router())
         .merge(changes::router())
         .merge(change_export::router())

@@ -136,7 +136,11 @@ fn subject_of(session: &Session, headers: &HeaderMap, trust_edge_token: bool) ->
 ///
 /// ponytail: one gateway question per non-public Endpoint per page load; a per-person cache
 /// keyed by the token's groups is the upgrade once an installation holds thousands.
-async fn readable<F, Fut>(state: &AppState, subject: Option<&Value>, ask: F) -> ReadableCatalogue
+pub(crate) async fn readable<F, Fut>(
+    state: &AppState,
+    subject: Option<&Value>,
+    ask: F,
+) -> ReadableCatalogue
 where
     F: Fn(String, Value) -> Fut,
     Fut: Future<Output = Result<Value, ApiError>>,

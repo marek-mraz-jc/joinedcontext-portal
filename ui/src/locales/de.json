@@ -7325,7 +7325,8 @@
       "brokers": "Broker",
       "agents": "Agenten",
       "costs": "Kosten",
-      "connectors": "Konnektoren"
+      "connectors": "Konnektoren",
+      "data-access": "Datenzugriff"
     },
     "settings": {
       "title": "Einstellungen",
@@ -7577,7 +7578,8 @@
         "change": "Änderung {change}",
         "unresolvedTitle": "Adressen, die niemand in der Organisation hat",
         "unresolved": "Diese bleiben, wie sie sind, und eine Gruppe, die eine davon nennt, wird erst synchronisiert, wenn sie korrigiert ist: {addresses}. Laden Sie die Person ein oder entfernen Sie die Adresse aus dem Manifest."
-      }
+      },
+      "invitedMember": "Der Realm hat {email} eine E-Mail zur Bestätigung der Adresse und zum Setzen eines Passworts gesendet. Die Person ist Mitglied von {organization} ohne Projekt: Sie meldet sich im Katalog an und liest, was dessen Richtlinien allen oder ihren Gruppen freigeben."
     },
     "setup": {
       "title": "Einrichtung",
@@ -11351,5 +11353,60 @@
     "connectors": "KI-Konnektoren",
     "settings": "Einstellungen",
     "signOut": "Abmelden"
+  },
+  "dataAccess": {
+    "title": "Datenzugriff",
+    "lead": "Welche internen Datensätze alle in der Organisation und jede Gruppe lesen, und die Richtlinienregel, die es erlaubt. Jede Zelle entscheidet das Gateway; eine Änderung ist ein Vorschlag dieser Richtlinie, wie üblich genehmigt.",
+    "loading": "Das Gateway wird gefragt, wer was liest…",
+    "adminOnly": "Wer welchen Datensatz liest, sehen nur Organisations- und Personenadministratoren. Fragen Sie eine dieser Personen.",
+    "unanswered": "Das Gateway hat für {count} Zellen nicht geantwortet; sie bleiben leer. Laden Sie die Seite in einer Minute neu.",
+    "everyone": "Alle in der Organisation",
+    "group": "Gruppe {group}",
+    "endpoint": "Datensatz",
+    "reads": "Liest",
+    "notGranted": "Liest nicht",
+    "cellUnanswered": "Keine Antwort",
+    "rule": "{policy}, Regel {rule}",
+    "proposeRule": "Änderung von {policy}, Regel {rule} vorschlagen",
+    "howToChange": "Um zu ändern, wer einen Datensatz liest, öffnen Sie die in der Zelle genannte Richtlinie (zum Beispiel staff-traffic) und schlagen Sie die Änderung vor; eine genehmigende Person des Projekts entscheidet.",
+    "empty": {
+      "title": "Noch keine internen Datensätze",
+      "description": "Jeder Endpoint der Organisation ist öffentlich. Setzen Sie die Zielgruppe eines Endpoints auf organization und geben Sie ihn in einer Richtlinie allen oder einer Gruppe frei.",
+      "action": "Alle Endpoints öffnen"
+    },
+    "groupTitle": "Datensätze, die diese Gruppe liest",
+    "groupLead": "Die internen Datensätze, die eine Richtlinie {group} freigibt, wie das Gateway sie für ihre Mitglieder entscheidet.",
+    "groupEmpty": {
+      "title": "{group} liest keinen internen Datensatz",
+      "description": "Geben Sie ihr einen in einer Richtlinie mit der Empfängerart group und dem Namen dieser Gruppe frei, zum Beispiel in der Richtlinie des Endpoints."
+    },
+    "endpointTitle": "Wer das lesen kann",
+    "endpointLead": "Die Zielgruppe und jede Freigabe an die ganze Organisation oder eine Gruppe, in einfachen Worten.",
+    "endpointPublic": "Diesen Datensatz kann jeder lesen, angemeldet oder nicht: seine Zielgruppe ist öffentlich.",
+    "endpointAudience": "Nur angemeldete Mitglieder von {organization} erreichen ihn, und jede Person liest nur, was eine Richtlinie ihr freigibt.",
+    "endpointProjects": "Nur die aufgeführten Projekte erreichen ihn, und jedes liest nur, was eine Richtlinie freigibt.",
+    "theOrganization": "der Organisation",
+    "endpointEveryone": "Alle in der Organisation lesen ihn:",
+    "endpointGroup": "Mitglieder der Gruppe {group} lesen ihn:",
+    "endpointNobody": "Keine Freigabe an die ganze Organisation oder eine Gruppe: nur die Personen und Rollen seiner Richtlinien lesen ihn.",
+    "personTitle": "Was diese Person lesen kann",
+    "personLead": "Der Katalog, wie {name} ihn angemeldet sieht: nur Namen der Datensätze, nie ihre Daten.",
+    "personEmpty": {
+      "title": "{name} liest keinen internen Datensatz",
+      "description": "Fügen Sie die Person einer Gruppe hinzu, der eine Richtlinie etwas freigibt, oder laden Sie sie als Mitglied einer Organisation ein, die Daten mit allen teilt."
+    },
+    "personPublic": "Öffentliche Datensätze, die jeder lesen kann, hier nicht aufgeführt: {count}.",
+    "throughEveryone": "Über alle",
+    "groupEveryone": "Mit allen in der Organisation geteilt, daher lesen die Mitglieder dieser Gruppe sie auch:",
+    "legend": {
+      "throughEveryone": "die Gruppe liest es, weil alle in der Organisation es lesen; die Regel steht in der ersten Spalte.",
+      "notGranted": "dieser Spalte nicht gewährt."
+    },
+    "personAccess": {
+      "public": "Öffentlich",
+      "organization": "Alle in der Organisation",
+      "group": "Gruppe {group}",
+      "granted": "Namentlich gewährt"
+    }
   }
 }
