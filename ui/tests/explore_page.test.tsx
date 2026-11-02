@@ -218,6 +218,18 @@ describe("the explorer", () => {
     expect(screen.queryByText(en.explore.noSpace)).not.toBeInTheDocument();
   });
 
+  // The grid is keyed by the type: an opened row dropped the type for a moment and the remounted
+  // grid lost the person's filters behind the dialog (journey clip, T-6454).
+  it("keeps the grid mounted when a row opens on the type the page chose", async () => {
+    renderPreselected(["ngsi-ld", "csv"]);
+    const open = await screen.findByRole("button", { name: `${en.entityGrid.openRow}: 001` });
+    const grid = document.querySelector(".jc-grid");
+    await userEvent.click(open);
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+    await waitFor(() => expect(new URLSearchParams(window.location.search).get("entityId")).toBeTruthy());
+    expect(document.querySelector(".jc-grid")).toBe(grid);
+  });
+
   it("exports through the Endpoint's own formats, the checked rows alone once some are checked", async () => {
     renderPreselected(["ngsi-ld", "csv"]);
     await screen.findByRole("button", { name: `${en.entityGrid.openRow}: 001` });

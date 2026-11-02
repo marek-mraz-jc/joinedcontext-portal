@@ -190,8 +190,9 @@ export function ExplorePage({
     return [...new Set(grants.map((entry) => entry.resource?.type).filter((type): type is string => Boolean(type)))];
   }, [access.data]);
   // Without a type asked or linked the grid opens on the first one the person may read (T-6107);
-  // a linked entity waits for its own type instead.
-  const firstType = selected || !slug || access.isPending ? undefined : (readable ? types.find((type) => readable.includes(type)) : types[0]);
+  // a linked entity waits for its own type instead. A row opened here stays on the page's type: the
+  // grid is keyed by it, so losing it for a moment threw the person's filters away (T-6454).
+  const firstType = (selected && selected === initialEntityId) || !slug || access.isPending ? undefined : (readable ? types.find((type) => readable.includes(type)) : types[0]);
   const query: EntityQuery = useMemo(
     () =>
       askedQuery.type

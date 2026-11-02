@@ -13,11 +13,12 @@ for (const size of SIZES) {
     const { page } = clip;
     try {
       const rows = page.getByRole("button", { name: /^Open: / });
-      await clip.step("Explore data: the page opens on a space and an Endpoint", async () => {
+      await clip.step("Explore data: pick a space, then an Endpoint", async () => {
         await expect(page.getByRole("heading", { level: 1, name: "Explore data" })).toBeVisible({ timeout: 60_000 });
         await expect(page.getByRole("combobox", { name: "Context space" })).toBeVisible({ timeout: 60_000 });
       });
-      await clip.step("Pick the Endpoint: its rows fill the grid", async () => {
+      await clip.step("Pick the space and its Endpoint: the rows fill the grid", async () => {
+        await page.getByRole("combobox", { name: "Context space" }).selectOption({ label: "Helsinki city context" });
         await page.getByRole("combobox", { name: "Endpoint" }).selectOption({ label: "Helsinki air quality" });
         await expect(rows.first()).toBeVisible({ timeout: 60_000 });
       });
@@ -38,6 +39,11 @@ for (const size of SIZES) {
       await clip.step("History: one attribute over time", async () => {
         await dialog.getByRole("tab", { name: "History" }).click();
         await expect(dialog.getByRole("tabpanel")).not.toContainText("Loading", { timeout: 60_000 });
+      });
+      await clip.step("Close the row: the filter still stands", async () => {
+        await dialog.getByRole("button", { name: /Close/ }).click();
+        await expect(page.getByRole("list", { name: /filter/i }).getByText(/contains Helsinki/)).toBeVisible();
+        await expect(page.getByText(/^5 of 5 loaded|^\d of \d loaded/)).toBeVisible({ timeout: 30_000 });
       });
     } finally {
       await clip.finish();

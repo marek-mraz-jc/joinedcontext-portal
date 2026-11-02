@@ -2354,7 +2354,7 @@ a.jc-cell--link:focus-visible {
 /* A floor, or a wide table squeezed the column until the tail that tells rows apart was cut (T-6454). */
 .jc-grid-id {
   display: flex;
-  min-width: min(14ch, 35vw);
+  min-width: min(20ch, 40vw);
   max-width: 100%;
 }
 .jc-grid-id > span {

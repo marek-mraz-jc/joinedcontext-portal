@@ -11095,7 +11095,7 @@
     "inWholeProject": "Už zahrnuté: je zaškrtnutý celý projekt.",
     "revokedList": "Odvolané ({count})",
     "find": "Nájsť projekt, priestor alebo Endpoint",
-    "findHint": "Napíšte časť názvu, napríklad air-quality.",
+    "findHint": "Napíšte časť názvu: air-quality.",
     "narrow": "Alebo vyberte len časť ({count} položiek)",
     "wholeProject": "{project}: celý projekt",
     "newTitle": "Nový AI konektor",
