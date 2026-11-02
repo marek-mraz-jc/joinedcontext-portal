@@ -356,7 +356,7 @@
       call: jc_change_plan
       args: { changes: [{ op: create, kind: Endpoint, name: '{project}-public', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-public', namespace: '{project}' }, spec: { contextSpaceRef: doprava, audience: public, enabledRepresentations: [ngsi-ld, odata, ogc-features] } } }] }
       keep: planId
-      contains: ['"planId"', '"ok":true', 'changes nothing live']
+      contains: ['"planId"', '"ok":true', 'changes nothing live', 'no Policy of the space doprava grants the public role']
     - proves: expect
       call: jc_change_apply
       args: { planId: '{planId}' }
