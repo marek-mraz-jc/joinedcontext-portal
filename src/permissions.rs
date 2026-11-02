@@ -191,9 +191,32 @@ impl Effective {
     }
 
     /// Whether some grant here lets the caller propose anything: what opening a workspace
-    /// asks for (API/01 §22). Each write into it is still checked on its own kind (PF-82).
+    /// asks for (API/01 §22) and who a conversation spends model calls for (AG-67). Each write is
+    /// still checked on its own kind (PF-82). The build lane's rule proposes nothing but its own
+    /// `status.build` (AP-73), so it counts for neither.
     pub fn may_propose_anything(&self) -> bool {
-        self.may_anything(Verb::Propose)
+        self.bootstrap
+            || self.grants.iter().any(|grant| {
+                !writes_status_only(&grant.rule)
+                    && grant
+                        .rule
+                        .kinds
+                        .iter()
+                        .any(|kind| grant.rule.grants(kind, Verb::Propose))
+            })
+    }
+
+    /// The door of a conversation: a role that may change something here, on any kind. The
+    /// assistant reads and drafts as the caller, so what the conversation can do stays the
+    /// caller's own grants, and a read-only role spends no model calls (AG-67, PF-74).
+    pub fn check_converses(&self, project: &str) -> Result<(), ApiError> {
+        if self.may_propose_anything() {
+            return Ok(());
+        }
+        Err(ApiError::Denied(format!(
+            "A conversation with the assistant needs a role with propose on some kind in project \
+             {project}."
+        )))
     }
 
     /// Whether some grant here lets the caller `verb` on some kind: what a tool that names its

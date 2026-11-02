@@ -845,12 +845,12 @@ routes:
     note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
   - route: POST /projects/{project}/agent-runs/{id}/answers
     rule: "run-owner"
-    expect: [403, 403, 403, 404, 403, 404, 403, 403]
+    expect: [403, 403, 404, 404, 403, 404, 403, 403]
     body: {"questionId": "q", "answers": {}}
     note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
   - route: POST /projects/{project}/agent-runs/{id}/cancel
     rule: "run-owner"
-    expect: [403, 403, 403, 404, 403, 404, 403, 403]
+    expect: [403, 403, 404, 404, 403, 404, 403, 403]
     note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
   - route: GET /projects/{project}/agent-runs/{id}/events
     rule: "run-owner"
@@ -858,11 +858,11 @@ routes:
     note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
   - route: POST /projects/{project}/agent-runs/{id}/functions/{fn}
     rule: "run-owner"
-    expect: [403, 403, 403, 404, 403, 404, 403, 403]
+    expect: [403, 403, 404, 404, 403, 404, 403, 403]
     note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
   - route: POST /projects/{project}/agent-runs/{id}/messages
     rule: "run-owner"
-    expect: [403, 403, 403, 404, 403, 404, 403, 403]
+    expect: [403, 403, 404, 404, 403, 404, 403, 403]
     body: {"text": "x"}
     note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
   - route: GET /projects/{project}/agent-runs/{id}/preview
@@ -871,17 +871,17 @@ routes:
     note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
   - route: POST /projects/{project}/agent-runs/{id}/preview-errors
     rule: "run-owner"
-    expect: [403, 403, 403, 404, 403, 404, 403, 403]
+    expect: [403, 403, 404, 404, 403, 404, 403, 403]
     body: {"message": "x"}
     note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
   - route: POST /projects/{project}/agent-runs/{id}/preview-observations
     rule: "run-owner"
-    expect: [403, 403, 403, 404, 403, 404, 403, 403]
+    expect: [403, 403, 404, 404, 403, 404, 403, 403]
     body: {"version": 0, "pages": []}
     note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
   - route: POST /projects/{project}/agent-runs/{id}/publish
     rule: "run-owner"
-    expect: [403, 403, 403, 404, 403, 404, 403, 403]
+    expect: [403, 403, 404, 404, 403, 404, 403, 403]
     note: "no agent run in the fixture: the owner rule is held by agent_runs_tests"
   - route: GET /projects/{project}/apps/{name}/build
     rule: "project-verb:read:App"
@@ -918,8 +918,8 @@ routes:
     rule: "signed-in"
     expect: [401, allow, allow, allow, allow, allow, allow, allow]
   - route: POST /projects/{project}/assistant/conversations
-    rule: "project-verb:propose:App"
-    expect: [403, 403, 403, allow, 403, allow, 403, 403]
+    rule: "project-verb:propose:*"
+    expect: [403, 403, allow, allow, 403, allow, 403, 403]
   - route: POST /projects/{project}/assistant/propose-endpoint
     rule: "project-verb:propose:Endpoint"
     expect: [403, 400, allow, allow, 400, allow, 400, 400]
