@@ -78,6 +78,33 @@ export function namedClients(message: string, clients: { id: string }[], t: (key
   return longestFirst.reduce((named, one) => named.split(one.id).join(clientLabel(one.id, t)), text);
 }
 
+/**
+ * A clients' refusal in plain words: which client it names and which the organization allows. A
+ * refusal naming no offered client keeps the server's text, each offered id in words.
+ */
+export function clientRefusal(
+  message: string,
+  clients: { id: string; refused?: string | null }[],
+  t: (key: string, values?: Record<string, string>) => string,
+): { id?: string; text: string } {
+  const id = clients.find((one) => message.endsWith(`does not allow the client ${one.id}`))?.id;
+  if (!id) return { text: namedClients(message, clients, t) };
+  const allowed = clients.filter((one) => !one.refused && one.id !== id).map((one) => clientLabel(one.id, t));
+  const client = clientLabel(id, t);
+  return { id, text: t(allowed.length > 0 ? "aiConnectors.clientsAllowedOnly" : "aiConnectors.noClientAllowed", { client, clients: allowed.join(", ") }) };
+}
+
+/** The refusal's words while the client it names stays ticked: Create would only be refused again. */
+export function refusalHolding(
+  message: string | undefined,
+  form: AiConnectorForm,
+  clients: { id: string; refused?: string | null }[],
+  t: (key: string, values?: Record<string, string>) => string,
+): string | undefined {
+  const said = message ? clientRefusal(message, clients, t) : undefined;
+  return said?.id && form.clients.includes(said.id) ? said.text : undefined;
+}
+
 const DNS_LABEL = /^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$/;
 const DAY = 24 * 3600_000;
 
@@ -184,6 +211,12 @@ export function scopeLines(scope: ScopeItem[]): { where: string; kind: PickKind;
     const kind: PickKind = item.space ? "space" : item.endpoint ? "endpoint" : item.pipeline ? "pipeline" : "project";
     return { where: item.project, kind, name: item.space ?? item.endpoint ?? item.pipeline ?? undefined, access: item.access };
   });
+}
+
+/** Whether a connector reads only organization data: every item in a project the person reaches as shared datasets alone. */
+export function readsShared(connector: AiConnector, options: ConnectorOptions | undefined): boolean {
+  const shared = (options?.projects ?? []).filter((project) => project.organizationData).map((project) => project.project);
+  return connector.scope.length > 0 && connector.scope.every((item) => shared.includes(item.project));
 }
 
 /** What a person pastes into each AI client (API/14 §4). */

@@ -11106,8 +11106,15 @@
       "run": "ausführen",
       "propose": "anlegen, bearbeiten, löschen"
     },
+    "nothingToReach": "Noch nichts zu erreichen: Bitten Sie zuerst um Zugriff.",
+    "otherPresets": "{count, plural, one {# weitere Vorgabe braucht} other {# weitere Vorgaben brauchen}} die Freigabe der Organisation.",
+    "segmentHintShared": "liest die mit Ihnen geteilten Endpoints und beantwortet Fragen zu Daten",
+    "organizationRead": "Daten der Organisation, lesen",
+    "clientNotAllowed": "nicht erlaubt",
+    "clientRefusedWhy": "Ihre Organisation erlaubt nur die Clients, die ihre Richtlinie nennt.",
+    "clientsAllowedOnly": "Ihre Organisation erlaubt nur diese Clients: {clients}. Entfernen Sie das Häkchen bei {client}.",
+    "noClientAllowed": "Ihre Organisation erlaubt für diesen Konnektor noch keinen Client. Entfernen Sie das Häkchen bei {client} und fragen Sie einen Administrator.",
     "binds": "nur dieser Client kann ihn nutzen",
-    "clientRefused": "die Richtlinie Ihrer Organisation lässt ihn nicht zu",
     "intendedFor": "sagt, für wen er ist; auch andere lokale Programme können ihn nennen",
     "state": {
       "active": "Aktiv",
@@ -11184,11 +11191,13 @@
     "help": {
       "name": "Kleinbuchstaben, Ziffern und Bindestriche, z. B. verkehr-in-claude.",
       "segments": "Welche Art Arbeit der Konnektor macht, z. B. Daten lesen für Fragen zu Daten. Ausgegraute Vorgaben brauchen die Freigabe der Organisation.",
+      "segmentsShared": "Welche Art Arbeit der Konnektor macht, z. B. Daten lesen für Fragen zu Daten.",
       "scope": "Kreuzen Sie ein ganzes Projekt oder einzelne Räume, Endpoints oder Pipelines an, z. B. helsinki / Endpoint bike-counters.",
       "scopeShared": "Haken Sie die mit Ihnen geteilten Datensätze an, z. B. helsinki / traffic-counts. Ein Konnektor liest sie.",
       "expires": "Der letzte gültige Tag, höchstens {days} Tage ab heute, z. B. das Monatsende.",
       "clients": "Leer lassen für jeden Client, oder z. B. Claude Code ankreuzen, für wen er ist.",
-      "clientsListed": "Kreuzen Sie den Client an, den Sie nutzen, z. B. claude.ai: Ihre Organisation lässt einen Connector nur den Clients antworten, die ihre Richtlinie nennt.",
+      "clientsListed": "Kreuzen Sie den Client an, den Sie nutzen, z. B. claude.ai: Ihre Organisation lässt einen Connector nur den Clients antworten, die ihre Richtlinie nennt. Ausgegraute Clients stehen nicht darin.",
+      "clientsSayWhom": "Leer lassen für jeden Client, oder z. B. Claude Code ankreuzen, um zu sagen, für wen er ist; auch andere lokale Programme können ihn nennen.",
       "nameStays": "Der Name bleibt; unter ihm listet Ihr KI-Client den Konnektor.",
       "kinds": "Z. B. neue Endpoints anlegen, aber keine bearbeiten. Zeilen fügen nur Vorlagen hinzu, die Änderungen vorschlagen; jede Änderung genehmigt weiterhin ein Mensch."
     },

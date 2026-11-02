@@ -1,5 +1,6 @@
 // covers (the module gate in gate_modules.test.ts): src/pages/mcp/aiConnectors.ts and
 // src/pages/mcp/AiConnectorsPage.tsx, a person's AI connectors at /c/{id} (AG-142, T-5951).
+import { useState } from "react";
 import type { JSX } from "react";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -9,8 +10,8 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { App } from "../src/App";
-import { AiConnectorsPage, KindVerbsPicker, ScopeTree, SetupPanel } from "../src/pages/mcp/AiConnectorsPage";
-import { clientLabel, emptyForm, formProblems, kindRows, namedClients, refusedSection, scopeLines, setup, toForm, toRequest } from "../src/pages/mcp/aiConnectors";
+import { AiConnectorsPage, ClientsField, KindVerbsPicker, NothingToReach, PresetsField, ScopeTree, SetupPanel } from "../src/pages/mcp/AiConnectorsPage";
+import { clientLabel, clientRefusal, emptyForm, formProblems, kindRows, namedClients, readsShared, refusedSection, scopeLines, setup, toForm, toRequest } from "../src/pages/mcp/aiConnectors";
 import type { AiConnector, ConnectorOptions } from "../src/pages/mcp/aiConnectors";
 
 const IDENTITY = { subject: "b7c1e0f4", username: "eva.steward", name: "Eva Steward", roles: [] };
@@ -111,6 +112,29 @@ describe("AI connector helpers", () => {
     );
   });
 
+  it("says a clients' refusal in plain words: whom it names and whom the organization allows (T-6424)", () => {
+    const t = i18n.getFixedT("en");
+    const code = "https://claude.ai/oauth/claude-code-client-metadata";
+    const ai = "https://claude.ai/oauth/mcp-oauth-client-metadata";
+    const clients = [{ id: "mcp-hub", refused: "no" }, { id: code }, { id: ai }];
+    const said = clientRefusal(`allowedClients[0]: DelegationPolicy claude-only does not allow the client ${code}`, clients, t);
+    expect(said).toEqual({ id: code, text: "Your organization allows only these clients: claude.ai. Untick Claude Code." });
+    expect(said.text).not.toContain("DelegationPolicy");
+    expect(clientRefusal(`p does not allow the client ${code}`, [{ id: code }], t).text).toMatch(/allows no client for this connector yet\. Untick Claude Code/);
+    // A client the options never offered, or none at all: the server's text, ids in words.
+    expect(clientRefusal("p does not allow the client of this token (none named)", clients, t)).toEqual({ text: "p does not allow the client of this token (none named)" });
+    expect(clientRefusal(`allowedClients: ${code} is not a client`, clients, t)).toEqual({ text: "Claude Code is not a client" });
+  });
+
+  it("reads a connector as organization data only when every item sits in a shared project (T-6424)", () => {
+    const options = { ...OPTIONS, projects: [{ project: "helsinki", spaces: [], endpoints: ["a"], pipelines: [], allowed: true, organizationData: true }, ...OPTIONS.projects] };
+    const item = (project: string) => ({ project, endpoint: "a", access: "read" as const });
+    expect(readsShared(connector({ scope: [item("helsinki")] }), options)).toBe(true);
+    expect(readsShared(connector({ scope: [item("helsinki"), item("doprava")] }), options)).toBe(false);
+    expect(readsShared(connector({ scope: [] }), options)).toBe(false);
+    expect(readsShared(connector({ scope: [item("helsinki")] }), undefined)).toBe(false);
+  });
+
   it("finds the section a refusal names, from errors or a 403's detail", () => {
     expect(refusedSection(["scope[0].endpoint"], "x")).toBe("scope");
     expect(refusedSection(undefined, "segments[1]: your organization lets a connector carry only data-read (AG-150)")).toBe("segments");
@@ -137,6 +161,12 @@ interface Stub {
   activity?: unknown[];
   options?: ConnectorOptions;
 }
+
+const MEMBER: ConnectorOptions = {
+  ...OPTIONS,
+  ceiling: { ...OPTIONS.ceiling, segments: ["data-read"], writes: false, kinds: [] },
+  projects: [{ project: "helsinki", spaces: [], endpoints: ["traffic-counts"], pipelines: [], allowed: true, organizationData: true }],
+};
 
 function renderAt(path: string, stub: Stub = {}, page?: JSX.Element) {
   const requests: { method: string; path: string; body?: unknown }[] = [];
@@ -260,8 +290,9 @@ describe("the AI connectors page (T-5951)", () => {
     const dialog = await screen.findByRole("dialog");
     const hub = within(dialog).getByRole("checkbox", { name: /The organization's MCP hub/ });
     expect(hub).toHaveAttribute("aria-disabled", "true");
-    expect(within(dialog).getByText(refused)).toBeInTheDocument();
-    expect(within(dialog).getByText(/only the clients its policy lists/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(refused)).not.toBeInTheDocument();
+    expect(within(dialog).getByText("Your organization allows only the clients its policy lists.")).toBeInTheDocument();
+    expect(within(dialog).getByText(/Tick the client you will use/)).toBeInTheDocument();
     await user.click(hub);
     expect(hub).not.toBeChecked();
     expect(within(dialog).getByRole("checkbox", { name: /^Claude Code/ })).not.toHaveAttribute("aria-disabled");
@@ -273,6 +304,146 @@ describe("the AI connectors page (T-5951)", () => {
     await waitFor(() => expect(requests.some((one) => one.method === "POST")).toBe(true));
     const sent = requests.find((one) => one.method === "POST")?.body as { allowedClients: string[] };
     expect(sent.allowedClients).toEqual(["https://claude.ai/oauth/mcp-oauth-client-metadata"]);
+  });
+
+  it("puts a clients' refusal under the client it names, marked, until that client is unticked (T-6424)", async () => {
+    const user = userEvent.setup();
+    const code = "https://claude.ai/oauth/claude-code-client-metadata";
+    const ai = "https://claude.ai/oauth/mcp-oauth-client-metadata";
+    const options: ConnectorOptions = { ...OPTIONS, clients: [{ id: "mcp-hub", isBoundary: false, refused: "no" }, { id: code, isBoundary: false }, { id: ai, isBoundary: true }] };
+    const Field = () => {
+      const [clients, setClients] = useState([code]);
+      return <ClientsField options={options} form={{ ...emptyForm(options, NOW), clients }} refused={`allowedClients[0]: DelegationPolicy claude-only does not allow the client ${code}`} onChange={setClients} />;
+    };
+    render(
+      <I18nextProvider i18n={i18n}>
+        <Field />
+      </I18nextProvider>,
+    );
+    const box = screen.getByRole("checkbox", { name: /^Claude Code\s*not allowed/ });
+    expect(box).toHaveAttribute("aria-invalid", "true");
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Your organization allows only these clients: claude.ai. Untick Claude Code.");
+    expect(box.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(alert.compareDocumentPosition(screen.getByRole("checkbox", { name: /^claude\.ai/ })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    await user.click(box);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: /^Claude Code/ })).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("holds Create while a client the server refused stays ticked, with the reason (T-6424)", async () => {
+    const user = userEvent.setup();
+    const code = "https://claude.ai/oauth/claude-code-client-metadata";
+    const options: ConnectorOptions = { ...OPTIONS, clients: [{ id: code, isBoundary: false }, { id: "https://claude.ai/oauth/mcp-oauth-client-metadata", isBoundary: true }] };
+    const detail = `allowedClients[0]: DelegationPolicy claude-only does not allow the client ${code}`;
+    renderAt("/ai-connectors", { options, refuse: { status: 403, detail, errors: ["allowedClients[0]"] } }, <AiConnectorsPage />);
+    await user.click((await screen.findAllByRole("button", { name: "New AI connector" }))[0]);
+    const dialog = await screen.findByRole("dialog");
+    await user.type(await within(dialog).findByRole("textbox", { name: /Name/ }), "air-in-claude");
+    await user.click(within(dialog).getByRole("checkbox", { name: "bike-counters" }));
+    await user.click(within(dialog).getByRole("checkbox", { name: /^Claude Code/ }));
+    const create = within(dialog).getByRole("button", { name: "Create" });
+    await user.click(create);
+    await within(dialog).findByRole("alert");
+    expect(create).toHaveAttribute("aria-disabled", "true");
+    expect(create).toHaveAccessibleDescription(/allows only these clients: claude\.ai/);
+    await user.click(within(dialog).getByRole("checkbox", { name: /^Claude Code/ }));
+    expect(create).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("marks a ticked client the ceiling refuses before Create is pressed (T-6424)", () => {
+    const options: ConnectorOptions = { ...OPTIONS, clients: [{ id: "mcp-hub", isBoundary: false, refused: "no" }] };
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ClientsField options={options} form={{ ...emptyForm(options, NOW), clients: ["mcp-hub"] }} onChange={() => undefined} />
+      </I18nextProvider>,
+    );
+    const box = screen.getByRole("checkbox", { name: /not allowed/ });
+    expect(box).not.toHaveAttribute("aria-disabled");
+    expect(box).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("says once what a tick means when every client's hint would repeat it (T-6424)", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <ClientsField options={OPTIONS} form={emptyForm(OPTIONS, NOW)} onChange={() => undefined} />
+      </I18nextProvider>,
+    );
+    expect(screen.getAllByText(/other local programs can name it too/)).toHaveLength(1);
+    expect(screen.getByText(/Leave empty for any client/)).toHaveAttribute("id", "ai-connector-clients-help");
+  });
+
+  it("gives a member one offered preset in narrower words and one line for the rest (T-6424)", async () => {
+    const user = userEvent.setup();
+    renderAt("/ai-connectors", { options: MEMBER }, <AiConnectorsPage />);
+    await user.click((await screen.findAllByRole("button", { name: "New AI connector" }))[0]);
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByRole("checkbox", { name: /reads the Endpoints shared with you/ })).toBeChecked();
+    expect(within(dialog).queryByText(/Endpoints, spaces and models/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/needs your organization's approval$/)).not.toBeInTheDocument();
+    const others = MEMBER.segments.length - 1;
+    expect(within(dialog).getByText(`${others} other presets need your organization's approval.`)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/Greyed presets/)).not.toBeInTheDocument();
+  });
+
+  it("keeps showing a preset a member's connector holds above the ceiling, greyed (T-6424)", () => {
+    render(
+      <I18nextProvider i18n={i18n}>
+        <PresetsField options={MEMBER} form={{ ...emptyForm(MEMBER, NOW), segments: ["data-read", "pipeline"] }} readsOnly onChange={() => undefined} />
+      </I18nextProvider>,
+    );
+    const held = screen.getByRole("checkbox", { name: /^Pipelines/ });
+    expect(held).toBeChecked();
+    expect(held).toHaveAttribute("aria-disabled", "true");
+    expect(held).toHaveAccessibleName(/needs your organization's approval/);
+    expect(screen.getByText(/^\d+ other presets need/)).toBeInTheDocument();
+  });
+
+  it("keeps every preset for a person with a project of their own beside shared data (T-6424)", async () => {
+    const user = userEvent.setup();
+    const options = { ...OPTIONS, projects: [...MEMBER.projects, ...OPTIONS.projects] };
+    renderAt("/ai-connectors", { options }, <AiConnectorsPage />);
+    await user.click((await screen.findAllByRole("button", { name: "New AI connector" }))[0]);
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText(/Greyed presets/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/other presets? needs?/)).not.toBeInTheDocument();
+  });
+
+  it("disables Create with its reason when nothing can be reached, and shows only what to do next (T-6424)", async () => {
+    const user = userEvent.setup();
+    const { requests } = renderAt("/ai-connectors", { options: { ...MEMBER, projects: [] } }, <AiConnectorsPage />);
+    await user.click((await screen.findAllByRole("button", { name: "New AI connector" }))[0]);
+    const dialog = await screen.findByRole("dialog");
+    expect(await within(dialog).findByText(/Ask a project owner/)).toBeInTheDocument();
+    const create = within(dialog).getByRole("button", { name: "Create" });
+    expect(create).toHaveAttribute("aria-disabled", "true");
+    expect(create).toHaveAccessibleDescription("Nothing to reach yet: ask for access first.");
+    expect(within(dialog).queryByRole("textbox", { name: /Name/ })).not.toBeInTheDocument();
+    await user.click(create);
+    expect(requests.some((one) => one.method === "POST")).toBe(false);
+  });
+
+  it("closes the nothing-to-reach dialog from Cancel, and Create stays off (T-6424)", async () => {
+    const user = userEvent.setup();
+    const closed = vi.fn();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <NothingToReach onClose={closed} />
+      </I18nextProvider>,
+    );
+    expect(screen.getByText(/Ask a project owner/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create" })).toHaveAttribute("aria-disabled", "true");
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(closed).toHaveBeenCalledOnce();
+  });
+
+  it("names organization data on the card and drops what a paired tab would do (T-6424)", async () => {
+    const shared = connector({ name: "shared-in-claude", scope: [{ project: "helsinki", endpoint: "traffic-counts", access: "read" }] });
+    renderAt("/ai-connectors", { options: MEMBER, items: [shared] }, <AiConnectorsPage />);
+    const scope = await screen.findByRole("list", { name: /shared-in-claude/ });
+    await within(scope).findByText(/organization data, read/);
+    expect(screen.queryByText(/Connect this tab to let the AI client/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Connect this tab/ })).not.toBeInTheDocument();
   });
 
   it("shows the server's refusal beside the field it names", async () => {

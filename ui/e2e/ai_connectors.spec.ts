@@ -265,7 +265,7 @@ for (const width of [1440, 400]) {
       await dialog.getByRole("textbox", { name: /Name/ }).fill("air-in-claude");
       await dialog.getByRole("checkbox", { name: "bike-counters" }).check();
       await expect(dialog.getByRole("checkbox", { name: /The organization's MCP hub/ })).toHaveAttribute("aria-disabled", "true");
-      await expect(dialog.getByText(`${LISTED} mcp-hub`)).toBeVisible();
+      await expect(dialog.getByText(/only the clients its policy lists/).first()).toBeVisible();
       await dialog.getByRole("checkbox", { name: /^claude\.ai/ }).check();
       await dialog.getByRole("checkbox", { name: /The organization's MCP hub/ }).scrollIntoViewIfNeeded();
       await shot(page, `ai-connectors-clients-${width}`);
@@ -282,10 +282,18 @@ for (const width of [1440, 400]) {
       await dialog.getByRole("checkbox", { name: "bike-counters" }).check();
       await dialog.getByRole("checkbox", { name: /^Claude Code(?!,)/ }).check();
       await dialog.getByRole("button", { name: "Create" }).click();
-      const why = dialog.getByText(`${LISTED} Claude Code`, { exact: false });
+      const why = dialog.getByRole("alert").getByText("Your organization allows only these clients: claude.ai. Untick Claude Code.");
       await expect(why).toBeVisible();
-      await why.scrollIntoViewIfNeeded();
+      await expect(dialog.getByRole("checkbox", { name: /^Claude Code\s*not allowed/ })).toBeChecked();
+      // Under its row, above the client after it, never at the dialog's foot.
+      const under = await why.boundingBox();
+      const next = await dialog.getByRole("checkbox", { name: /^claude\.ai/ }).boundingBox();
+      expect(under!.y).toBeLessThan(next!.y);
       await shot(page, `ai-connectors-client-refusal-${width}`);
+      await expect(dialog.getByRole("button", { name: "Create" })).toHaveAttribute("aria-disabled", "true");
+      await dialog.getByRole("checkbox", { name: /^Claude Code\s*not allowed/ }).uncheck();
+      await expect(why).toHaveCount(0);
+      await expect(dialog.getByRole("button", { name: "Create" })).not.toHaveAttribute("aria-disabled", "true");
     });
 
     test("a member builds a read-only connector over the datasets shared with her (T-6413)", async ({ page }) => {
@@ -293,16 +301,27 @@ for (const width of [1440, 400]) {
       await page.goto("/ai-connectors?lang=en");
       await page.getByRole("button", { name: "New AI connector" }).first().click();
       const dialog = page.getByRole("dialog");
-      await dialog.getByRole("textbox", { name: /Name/ }).fill("shared-in-claude");
+      const name = dialog.getByRole("textbox", { name: /Name/ });
+      await expect(name).toBeVisible();
+      // The dialog opens at its top: the first field is whole under the header (T-6424).
+      expect(await name.evaluate((input) => (input.closest(".overflow-y-auto") as HTMLElement).scrollTop)).toBe(0);
+      await name.fill("shared-in-claude");
       await expect(dialog.getByText("helsinki: organization data, read")).toBeVisible();
+      await expect(dialog.getByRole("checkbox", { name: /reads the Endpoints shared with you/ })).toBeChecked();
+      await expect(dialog.getByRole("checkbox", { name: /^Pipelines/ })).toHaveCount(0);
+      await expect(dialog.getByText(/other presets need your organization's approval/)).toBeVisible();
       await expect(dialog.getByRole("checkbox", { name: /the whole project/ })).toHaveCount(0);
       await dialog.getByRole("checkbox", { name: "traffic-counts" }).check();
       await expect(dialog.getByRole("combobox", { name: /Access for traffic-counts/ })).toHaveCount(0);
       await dialog.getByRole("checkbox", { name: /Claude Code, VS Code/ }).check();
-      await dialog.getByText("helsinki: organization data, read").scrollIntoViewIfNeeded();
+      await expect(dialog.getByText(/other local programs can name it too/)).toHaveCount(1);
+      await name.evaluate((input) => (input.closest(".overflow-y-auto") as HTMLElement).scrollTo(0, 0));
       await shot(page, `ai-connectors-member-form-${width}`);
       await dialog.getByRole("button", { name: "Create" }).click();
-      await expect(page.getByRole("region", { name: "shared-in-claude" })).toBeVisible();
+      const card = page.getByRole("region", { name: "shared-in-claude" });
+      await expect(card).toBeVisible();
+      await expect(card.getByText(/organization data, read/)).toBeVisible();
+      await expect(card.getByRole("button", { name: /Connect this tab/ })).toHaveCount(0);
       const created = requests.find((one) => one.method === "POST")?.body as { segments: string[]; scope: unknown; writes?: boolean };
       expect(created.scope).toEqual([{ project: "helsinki", endpoint: "traffic-counts", access: "read" }]);
       expect(created.segments).toEqual(["data-read"]);
@@ -313,7 +332,10 @@ for (const width of [1440, 400]) {
       await stubApi(page, { options: { ...MEMBER, projects: [] }, member: true });
       await page.goto("/ai-connectors?lang=en");
       await page.getByRole("button", { name: "New AI connector" }).first().click();
-      await expect(page.getByRole("dialog").getByText(/nothing is shared with you yet/)).toBeVisible();
+      const dialog = page.getByRole("dialog");
+      await expect(dialog.getByText(/nothing is shared with you yet/)).toBeVisible();
+      await expect(dialog.getByRole("button", { name: "Create" })).toHaveAttribute("aria-disabled", "true");
+      await expect(dialog.getByRole("textbox", { name: /Name/ })).toHaveCount(0);
       await shot(page, `ai-connectors-member-empty-${width}`);
     });
 
