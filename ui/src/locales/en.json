@@ -229,6 +229,7 @@
     "created": "Created",
     "lane": "Risk lane",
     "phase": "Phase",
+    "openMergeRequest": "Open the merge request",
     "mergeRequest": "Merge request",
     "repository": "Repository",
     "approve": "Approve",

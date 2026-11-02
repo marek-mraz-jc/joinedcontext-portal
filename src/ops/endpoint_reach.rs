@@ -96,13 +96,43 @@ pub(super) fn warn_outside(
     manifest: Option<&Value>,
 ) {
     let endpoint = manifest.filter(|m| m["kind"] == "Endpoint");
-    let why = endpoint.and_then(|m| not_admitted(state, identity, project, &m["spec"]));
+    let why = endpoint.and_then(|m| {
+        not_admitted(state, identity, project, &m["spec"])
+            .or_else(|| no_public_read(state, project, &m["spec"]))
+    });
     let findings = answer
         .pointer_mut("/verdict/findings")
         .and_then(Value::as_array_mut);
     if let (Some(message), Some(findings)) = (why, findings) {
         findings.push(json!({ "level": "warning", "path": "spec.audience", "message": message }));
     }
+}
+
+/// The warning on a public Endpoint whose space grants the public role nothing yet: such an
+/// Endpoint goes Live and every anonymous read answers 403 (T-6501).
+fn no_public_read(state: &AppState, project: &str, spec: &Value) -> Option<String> {
+    if spec["audience"] != "public" {
+        return None;
+    }
+    let space = crate::resource::reference_name(&spec["contextSpaceRef"])?;
+    let granted = state
+        .mirror
+        .list(project, "Policy", &crate::store::ListOptions::default())
+        .items
+        .iter()
+        .any(|policy| {
+            let spec = &policy.spec;
+            crate::resource::reference_name(&spec["contextSpaceRef"]) == Some(space)
+                && spec["assignee"]["kind"] == "role"
+                && spec["assignee"]["id"] == "public"
+        });
+    (!granted).then(|| {
+        format!(
+            "no Policy of the space {space} grants the public role yet, so anonymous reads answer \
+             403: add a Policy with `assignee: {{kind: role, id: public}}` and `operations: \
+             [retrieveOps]` to this plan"
+        )
+    })
 }
 
 /// The types an Endpoint serves and its address: what a listing row carries.
@@ -343,6 +373,36 @@ mod tests {
     fn person(groups: &[&str]) -> Identity {
         serde_json::from_value(json!({ "subject": "s", "username": "u", "groups": groups }))
             .expect("identity")
+    }
+
+    #[test]
+    fn a_public_endpoint_without_a_public_grant_is_warned_about() {
+        let state = state();
+        let spec = json!({ "audience": "public", "contextSpaceRef": "bikes" });
+        let warned = no_public_read(&state, "city", &spec).expect("warned");
+        assert!(warned.contains("kind: role, id: public"), "{warned}");
+        assert_eq!(
+            no_public_read(
+                &state,
+                "city",
+                &json!({ "audience": "organization", "contextSpaceRef": "bikes" })
+            ),
+            None
+        );
+
+        let policy = |name: &str, space: &str, id: &str| ResourceEnvelope {
+            api_version: crate::resource::API_VERSION.to_owned(),
+            kind: "Policy".to_owned(),
+            metadata: crate::resource::ObjectMeta::new(name, "city"),
+            spec: json!({ "contextSpaceRef": space, "assignee": { "kind": "role", "id": id } }),
+            status: None,
+        };
+        // Another space's grant and another role leave the warning; the space's public grant ends it.
+        state.mirror.upsert(policy("a", "air", "public"));
+        state.mirror.upsert(policy("b", "bikes", "steward"));
+        assert!(no_public_read(&state, "city", &spec).is_some());
+        state.mirror.upsert(policy("c", "bikes", "public"));
+        assert_eq!(no_public_read(&state, "city", &spec), None);
     }
 
     #[test]
