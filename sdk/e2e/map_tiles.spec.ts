@@ -195,16 +195,10 @@ for (const width of [1440, 400]) {
 
     // Station 55 is on no loaded page (the page holds 0 to 9): only a tile draws it.
     const target = station(55);
-    const at = await page.evaluate(([lon, lat]) => {
-      const map = (window as unknown as { kitGeoMap: { project(p: [number, number]): { x: number; y: number }; getCanvas(): HTMLCanvasElement } }).kitGeoMap;
-      const box = map.getCanvas().getBoundingClientRect();
-      const p = map.project([lon, lat]);
-      return { x: box.left + p.x, y: box.top + p.y, inside: p.x > 0 && p.y > 0 && p.x < box.width && p.y < box.height };
-    }, [target.lon, target.lat] as [number, number]);
-    if (!at.inside) {
-      await page.evaluate(([lon, lat]) => (window as unknown as { kitGeoMap: { jumpTo(o: unknown): void } }).kitGeoMap.jumpTo({ center: [lon, lat], zoom: 15 }), [target.lon, target.lat]);
-      await page.waitForFunction(() => (window as unknown as { kitGeoMap: { areTilesLoaded(): boolean } }).kitGeoMap.areTilesLoaded());
-    }
+    // Always at street zoom: a low zoom keeps the station inside the view, but its 0.002 degree
+    // neighbours overlap it there and the click lands on one of them.
+    await page.evaluate(([lon, lat]) => (window as unknown as { kitGeoMap: { jumpTo(o: unknown): void } }).kitGeoMap.jumpTo({ center: [lon, lat], zoom: 15 }), [target.lon, target.lat]);
+    await page.waitForFunction(() => (window as unknown as { kitGeoMap: { areTilesLoaded(): boolean } }).kitGeoMap.areTilesLoaded());
     const point = await page.evaluate(([lon, lat]) => {
       const map = (window as unknown as { kitGeoMap: { project(p: [number, number]): { x: number; y: number }; getCanvas(): HTMLCanvasElement } }).kitGeoMap;
       const box = map.getCanvas().getBoundingClientRect();

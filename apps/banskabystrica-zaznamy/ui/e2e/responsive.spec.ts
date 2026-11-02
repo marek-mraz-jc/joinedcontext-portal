@@ -19,7 +19,7 @@ for (const view of ["the records", "a note under review", "the charts of a cube"
       await page.setViewportSize(size);
       await page.goto(BASE);
       await expect(page.getByRole("heading", { name: TITLE, level: 1 })).toBeVisible();
-      await expect(page.getByRole("row").filter({ has: page.getByRole("gridcell") })).toHaveCount(CITY.length);
+      await expect(page.locator("tbody").getByRole("row")).toHaveCount(CITY.length);
       if (view === "the charts of a cube") {
         // The water cube is the one the fixture holds (T-2966): its chart, named, not coded.
         await page.getByRole("button", { name: DATASETS.vh5003rr.sk }).click();
