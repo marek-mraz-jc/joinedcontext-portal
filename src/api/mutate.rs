@@ -2258,7 +2258,14 @@ fn check_policy_refs(
         })
         .map(|e| e.metadata.name)
         .collect();
-    let domain = crate::api::assistant::org_domain(state, "");
+    // With Organizations and none the installation's, no domain is known to be the binder's: the
+    // reference keeps its own, and only its segment and name are judged.
+    let unclaimed = crate::permissions::installation_organization(&state.mirror).is_none()
+        && !crate::permissions::organizations(&state.mirror).is_empty();
+    let domain = match unclaimed {
+        true => String::new(),
+        false => crate::api::assistant::org_domain(state, ""),
+    };
     let field = match spec.policy_ref {
         Some(_) => "spec.policyRef",
         None => "spec.policyRefs",
@@ -4065,16 +4072,56 @@ mod tests {
     /// write: the bare space name (the T-6377 walk), another organization, a Policy the space
     /// lacks. The right URN, a Policy of the same Change, a pinned segment and a reference the
     /// Endpoint already holds pass.
+    #[test]
+    fn a_policy_ref_keeps_its_own_domain_when_no_organization_is_the_installations() {
+        let state = AppState::new(Config::for_tests(), None);
+        for (name, domain) in [("a-other", "barcelona.cat"), ("city", "hel.fi")] {
+            state
+                .mirror
+                .upsert(organization(name, json!({ "domain": domain })));
+        }
+        state.mirror.upsert(manifest(
+            "Policy",
+            "public-read",
+            space_policy(
+                "{ \"kind\": \"role\", \"id\": \"public\" }",
+                &["retrieveOps"],
+            ),
+        ));
+        let check = |reference: &str| {
+            let endpoint = manifest("Endpoint", "public-air", public_air(Some(reference)));
+            check_policy_refs(&state, "ovzdusie", &endpoint)
+        };
+
+        check("urn:ngsi-ld:Policy:hel.fi:ovzdusie-ovzdusie:public-read")
+            .expect("no domain is known to be wrong");
+        let errors = refusal(check("urn:ngsi-ld:Policy:hel.fi:ovzdusie:public-read"));
+        assert!(
+            errors[0].contains("write urn:ngsi-ld:Policy:hel.fi:ovzdusie-ovzdusie:public-read"),
+            "{errors:?}"
+        );
+    }
+
+    /// An `Organization` in the namespace that holds them.
+    fn organization(name: &str, spec: Value) -> ResourceEnvelope {
+        let mut org = manifest("Organization", name, spec);
+        org.metadata.namespace = Some(crate::api::blueprints::ORG_NAMESPACE.into());
+        org
+    }
+
     #[tokio::test]
     async fn a_policy_ref_that_binds_nothing_is_refused_naming_the_urn_to_write() {
         const RIGHT: &str = "urn:ngsi-ld:Policy:hel.fi:ovzdusie-ovzdusie:public-read";
         let state = AppState::new(Config::for_tests(), None);
-        let organization = |domain: &str| {
-            let mut org = manifest("Organization", "city", json!({ "domain": domain }));
-            org.metadata.namespace = Some(crate::api::blueprints::ORG_NAMESPACE.into());
-            org
-        };
-        state.mirror.upsert(organization("hel.fi"));
+        // The gateway binds on the installation Organization: one sorting first must not lead.
+        state.mirror.upsert(organization(
+            "a-other",
+            json!({ "domain": "barcelona.cat" }),
+        ));
+        state.mirror.upsert(organization(
+            "city",
+            json!({ "domain": "hel.fi", "installation": true }),
+        ));
         state.mirror.upsert(manifest(
             "Policy",
             "public-read",

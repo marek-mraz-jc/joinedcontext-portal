@@ -499,7 +499,7 @@ pub fn several_organizations(mirror: &Mirror) -> bool {
 }
 
 /// The Organizations of the repository by name (PF-121).
-fn organizations(mirror: &Mirror) -> Vec<(String, Value)> {
+pub fn organizations(mirror: &Mirror) -> Vec<(String, Value)> {
     mirror
         .list(ORG_NAMESPACE, "Organization", &ListOptions::default())
         .items

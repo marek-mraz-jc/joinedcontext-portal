@@ -521,20 +521,27 @@ fn item(
     }
 }
 
-/// The organization's domain, from the `Organization` manifest of the repository, else the
-/// installation's `JC_PORTAL_ORG_DOMAIN`; the project name stands in when neither is known,
-/// so a draft still renders (an entity URN needs a dotted domain, so that draft is red).
+/// The organization's domain, from the installation's `Organization` manifest (PF-121: the one
+/// the gateway binds Policy URNs on), else the first of the repository that names one, else the
+/// installation's `JC_PORTAL_ORG_DOMAIN`; the project name stands in when none is known, so a
+/// draft still renders (an entity URN needs a dotted domain, so that draft is red).
 pub fn org_domain(state: &AppState, fallback: &str) -> String {
-    state
-        .mirror
-        .list(
-            crate::api::blueprints::ORG_NAMESPACE,
-            "Organization",
-            &ListOptions::default(),
-        )
-        .items
-        .into_iter()
-        .find_map(|env| env.spec["domain"].as_str().map(str::to_owned))
+    let domain_of =
+        |env: crate::resource::ResourceEnvelope| env.spec["domain"].as_str().map(str::to_owned);
+    crate::permissions::installation_organization_manifest(&state.mirror)
+        .and_then(domain_of)
+        .or_else(|| {
+            state
+                .mirror
+                .list(
+                    crate::api::blueprints::ORG_NAMESPACE,
+                    "Organization",
+                    &ListOptions::default(),
+                )
+                .items
+                .into_iter()
+                .find_map(domain_of)
+        })
         .or_else(|| {
             state
                 .config
@@ -1166,6 +1173,39 @@ mod tests {
             org_domain(&crate::state::AppState::new(config, None), "helsinki"),
             "hel.fi"
         );
+    }
+
+    /// T-6435: the gateway binds Policy URNs on the installation Organization, so the first by
+    /// name must not stand in for it.
+    #[test]
+    fn the_org_domain_is_the_installation_organizations_before_the_first_by_name() {
+        let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
+        let organization = |name: &str, spec: serde_json::Value| {
+            serde_json::from_value(json!({
+                "apiVersion": crate::resource::API_VERSION,
+                "kind": "Organization",
+                "metadata": { "name": name, "namespace": crate::api::blueprints::ORG_NAMESPACE },
+                "spec": spec,
+            }))
+            .expect("envelope")
+        };
+        state.mirror.upsert(organization(
+            "a-other",
+            json!({ "domain": "barcelona.cat" }),
+        ));
+        state
+            .mirror
+            .upsert(organization("city", json!({ "domain": "hel.fi" })));
+        assert_eq!(
+            org_domain(&state, ""),
+            "barcelona.cat",
+            "no claim: as before"
+        );
+        state.mirror.upsert(organization(
+            "city",
+            json!({ "domain": "hel.fi", "installation": true }),
+        ));
+        assert_eq!(org_domain(&state, ""), "hel.fi");
     }
 
     /// T-2763: a follow-up that names nothing is no search: "and right now??" searched the catalog.
