@@ -100,6 +100,20 @@ export function modelsOf(catalogue: { subjects?: { models?: CatalogueModel[] }[]
 /** The op's files total at most 10 MiB (DM-55): the sample keeps room for the model beside it. */
 export const SAMPLE_BYTES = 8 * 1024 * 1024;
 
+/** What Complete this space takes at once, the op's own limit (DM-55). */
+export const MAX_FILES_BYTES = 10 * 1024 * 1024;
+
+/**
+ * The entity type a file's rows get, in ASCII PascalCase with its diacritics kept as their letters
+ * (`Kultúrne miesta.csv` is KulturneMiesta), singular as the op makes it; none when no type comes of it.
+ */
+export function typeNameOf(fileName: string): string | undefined {
+  const stem = fileName.replace(/\.[^.]+$/, "").replace(/([^s])s$/, "$1");
+  const words = stem.normalize("NFD").replace(/[\u0300-\u036f]/g, "").split(/[^A-Za-z0-9]+/);
+  const name = words.map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join("");
+  return /^[A-Z][A-Za-z0-9]{0,62}$/.test(name) && name !== "Entity" ? name : undefined;
+}
+
 /** The head of a CSV no longer than `max` UTF-8 bytes, cut after a whole line. */
 export function sampleOf(text: string, max = SAMPLE_BYTES): string {
   const bytes = new TextEncoder().encode(text);

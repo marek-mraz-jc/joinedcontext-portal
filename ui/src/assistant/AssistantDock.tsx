@@ -527,6 +527,11 @@ export function AssistantDock({
           rememberPrefill(`/projects/${activeProject}/models`, { source });
           void navigate({ to: "/projects/$project/models", params: { project: activeProject } });
         }}
+        onTable={(file) => {
+          // A table goes where its rows can load too: Complete this space drafts the model as well.
+          rememberPrefill(`/projects/${activeProject}/spaces/complete`, { file });
+          void navigate({ to: "/projects/$project/spaces/complete", params: { project: activeProject } });
+        }}
       />
     </Suspense>
   );

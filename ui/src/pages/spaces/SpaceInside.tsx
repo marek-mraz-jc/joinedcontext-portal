@@ -29,6 +29,7 @@ import { SharedWithBadge } from "../../components/endpoints/sharing";
 import { useIdentity } from "../../auth/AuthProvider";
 import { accessQuery, mayDelete } from "../../components/entities/AccessPanel";
 import { attributeAccessQuery, writableOf } from "../../api/access";
+import { AttributeHistory } from "../../components/entities/history/AttributeHistory";
 import type { AttributeAccess } from "../../api/access";
 import type { GrantDocument } from "../../api/access";
 import { PortalEntityGrid, rememberedSort } from "../../components/entities/PortalEntityGrid";
@@ -733,9 +734,10 @@ function SpaceData({
   // writes through that endpoint with the person's session, so its Policy decides every value
   // (EP-55, UI-67); a person no endpoint lets write, a viewer, gets no editor at all.
   // Those reads cost two per endpoint (20 on Helsinki, 1-1.7 s each), so they are asked only once the
-  // person turns on Edit or selects rows, never on load (T-6209): reading needs none of them.
+  // person turns on Edit, selects rows or opens one, whose Correct values tab needs the writer,
+  // never on load (T-6209): reading needs none of them.
   const [editing, setEditing] = useState(false);
-  const askAccess = editing || selectedRows.length > 0;
+  const askAccess = editing || selectedRows.length > 0 || Boolean(openRow);
   const accessed = askAccess ? endpoints.slice(0, MAX_ACCESS_READS) : NO_ENDPOINTS;
   const grants = useQueries({
     queries: accessed.map((endpoint) => accessQuery(slugOf(endpoint))),
@@ -763,6 +765,8 @@ function SpaceData({
   // where a correction goes without a second read of the type (T-6161, 4.4 s twice on Helsinki).
   // A viewer gets no editor anyway: the grid edits only with `mode: "edit"`, the views only the
   // attributes `editable` names, both empty without a writer.
+  // A plain value of a person who may write it: what the row's "Correct values" tab offers (T-5326).
+  const writtenSlots = slots.filter((slot) => writer?.attrs.includes(slot.name) && slot.kind === "Property").map((slot) => slot.name);
   const writerSlug = useRef<string | null>(null);
   useEffect(() => {
     writerSlug.current = writer?.slug ?? null;
@@ -1199,6 +1203,9 @@ function SpaceData({
           // the last one carries over.
           key={`${space}-${type}-${saved?.id ?? ""}-${imported}`}
           detailTabs={(row) => [
+            ...(writer && writtenSlots.length > 0
+              ? [{ id: "values", label: t("attributeHistory.tab"), content: <AttributeHistory slug={writer.slug} entityId={row.id} attributes={writtenSlots} /> }]
+              : []),
             { id: "comments", label: t("spaces.comments.title"), content: <CommentsPanel project={project} space={space} urn={row.id} /> },
           ]}
           openRow={openRow}
