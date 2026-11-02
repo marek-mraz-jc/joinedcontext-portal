@@ -5053,6 +5053,9 @@ output:
             assert!(processors.iter().any(|p| p["catch"][0]["mapping"]
                 .as_str()
                 .is_some_and(|m| m.contains("jc_kpi_error"))));
+            assert!(processors.iter().any(|p| p["mapping"]
+                .as_str()
+                .is_some_and(|m| m.contains(render::EMPTY_KPI_SOURCE))));
             let wrap = processors.last().expect("the wrap")["mapping"]
                 .as_str()
                 .expect("mapping");
