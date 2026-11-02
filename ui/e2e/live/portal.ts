@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect } from "@playwright/test";
-import type { APIRequestContext, Browser, BrowserContext, Locator, Page, Request, Response } from "@playwright/test";
+import type { APIRequestContext, Browser, BrowserContext, BrowserContextOptions, Locator, Page, Request, Response } from "@playwright/test";
 import { axeViolations } from "../axe";
 import { blankDocument, edgeRetryMs, pageFindings, viewerWriteFindings } from "../../tests/pageChecks";
 import { type ListedChange, changeSubject } from "./staleChanges";
@@ -146,6 +146,7 @@ export async function signIn(
   who: { user: string; password: string; totp?: string },
   path: string,
   ready: (page: Page) => Locator = portalReady,
+  options: BrowserContextOptions = {},
 ): Promise<{ context: BrowserContext; page: Page }> {
   if (!who.password) {
     throw new Error(
@@ -153,7 +154,7 @@ export async function signIn(
         "(PORTAL_PASSWORD / APPROVER_PASSWORD / VIEWER_PASSWORD / EDITOR_PASSWORD / JANITOR_PASSWORD / PROBE_PASSWORD / AUTHOR_PASSWORD / MEMBER_PASSWORD / ORGMEMBER_PASSWORD / ANALYST_PASSWORD / NEIGHBOUR_PASSWORD)",
     );
   }
-  const context = await browser.newContext();
+  const context = await browser.newContext(options);
   await withLocalUi(context);
   await shareEdge(context);
   // A crash while signing in is signed in again on a fresh page of the same context (T-6011).
@@ -166,7 +167,7 @@ export async function signIn(
  * so a walk judges a fix before it is deployed. Same origin, the same sign-in and the same API:
  * only the shell the Portal answers a page with and its `/assets/` come from the local build.
  */
-async function withLocalUi(context: BrowserContext): Promise<void> {
+export async function withLocalUi(context: BrowserContext): Promise<void> {
   const dist = process.env.WALK_UI_DIST;
   if (!dist) return;
   const shell = readFileSync(join(dist, "index.html"), "utf8");

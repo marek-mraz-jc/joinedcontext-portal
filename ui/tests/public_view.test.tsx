@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { ApiError } from "../src/api/client";
-import { PublicViewPage, retryAfterSeconds, retryPublic } from "../src/pages/spaces/PublicView";
+import { PublicViewPage, failureText, retryAfterSeconds, retryPublic } from "../src/pages/spaces/PublicView";
 import { SharePanel, publishRequest } from "../src/pages/spaces/SharePanel";
 import { publicName } from "../src/pages/spaces/publicName";
 import { expectNoViolations } from "./checks";
@@ -147,6 +147,7 @@ describe("the public link", () => {
     await expectNoViolations(screen.getByTestId("public-view"));
   });
 
+  const DOWN = en.spaces.share.downUnnamed;
   const statuses: Array<[string, () => Response, string, number]> = [
     ["404 says the view is not published", () => json({ title: "Not Found" }, 404), en.spaces.share.notPublished, 1],
     ["401 says the view is not open to the public", () => json({ title: "Unauthorized" }, 401), en.spaces.share.closed, 1],
@@ -157,7 +158,7 @@ describe("the public link", () => {
       "Too many visits just now. Try again in 30 s.",
       1,
     ],
-    ["503 says the service did not answer, after two retries", () => json({ title: "Service Unavailable" }, 503), en.spaces.share.down, 3],
+    ["503 says the service did not answer, after two retries", () => json({ title: "Service Unavailable" }, 503), DOWN, 3],
   ];
 
   it.each(statuses)("%s", async (_name, answer, message, tries) => {
@@ -183,7 +184,7 @@ describe("the public link", () => {
         return json({ typeList: [] });
       }),
     );
-    expect(await screen.findByText(en.spaces.share.down, undefined, { timeout: 4000 })).toBeInTheDocument();
+    expect(await screen.findByText(DOWN, undefined, { timeout: 4000 })).toBeInTheDocument();
     expect(reads.filter((request) => new URL(request.url).pathname.endsWith("/types"))).toHaveLength(3);
     down = false;
     await userEvent.click(screen.getByRole("button", { name: en.app.error.retry }));
@@ -192,6 +193,14 @@ describe("the public link", () => {
 });
 
 describe("reading a failure", () => {
+  it("names the view and the next step when the service is down", () => {
+    const t = (key: string, options?: Record<string, unknown>) => `${key} ${String(options?.name)}`;
+    expect(failureText(new ApiError(503, "Service Unavailable"), t, "Air quality")).toBe("spaces.share.down Air quality");
+    expect(failureText(new ApiError(503, "Service Unavailable"), t)).toBe("spaces.share.downUnnamed undefined");
+    expect(en.spaces.share.down).toContain("{name}");
+    expect(en.spaces.share.down).toContain("Try again in a minute");
+  });
+
   it("retries a 5xx and a network failure twice, never a refusal", () => {
     expect(retryPublic(0, new ApiError(503, "x"))).toBe(true);
     expect(retryPublic(1, new TypeError("Failed to fetch"))).toBe(true);

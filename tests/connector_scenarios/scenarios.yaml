@@ -2073,3 +2073,35 @@
       project: other
       args: { changes: [{ op: create, kind: ContextSpace, name: vendor, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: ContextSpace, metadata: { name: vendor, namespace: t-scn-other }, spec: { isSandbox: true } } }] }
       refused: true
+- id: S-92
+  segment: data-read
+  # A vendor (T-6470, ADR-N-067 2.2): viewer of one project by RoleBinding, no person of the
+  # Organization. A project they are not bound on is closed to them at the Portal; the gateway's
+  # 404 on another project's `organization` Endpoint and its refusal of a `{kind: organization}`
+  # grant are mocked here and proven in the gateway's attack_organization tests.
+  as: vendor
+  says: "Show me the bike counters of the project I work on, and those of the other project."
+  expect: 'a data-read connector over the Endpoint of the project they are bound on, which reads its entities'
+  deny: 'a project they are not bound on -> 403 naming the field at creation, nothing of it in the answer'
+  script:
+    - proves: deny
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s92-other, segments: [data-read], scope: [{ project: 't-scn-other', endpoint: 't-scn-other-reports', access: read }], expiresAt: '{in7days}' }
+      refused: true
+      contains: ['scope[0].project']
+    - proves: expect
+      rest: { method: GET, path: /connectors/options }
+      contains: ['{project}-intake']
+      absent: ['t-scn-other']
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s92-intake, segments: [data-read], scope: [{ project: '{project}', endpoint: '{project}-intake', access: read }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      via: connector
+      contains: ['jc_data_query']
+      absent: ['jc_data_write', 'jc_change_plan']
