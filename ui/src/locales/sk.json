@@ -3848,6 +3848,7 @@
       "email": "Osoba",
       "addMember": "Pridať člena",
       "hiddenName": "Osoba, meno skryté",
+      "removeGroup": "Odstrániť skupinu",
       "removeMember": "Odobrať {member} zo skupiny",
       "remove": "Odobrať",
       "needEmail": "Najprv vyberte osobu.",

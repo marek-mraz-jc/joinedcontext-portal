@@ -207,6 +207,7 @@ export function GroupPage({ name }: { name: string }): JSX.Element {
               {t("access.groupPage.back")}
             </Link>
             <DeleteResourceAction
+              label={t("access.groupPage.removeGroup")}
               target={{
                 project: ORG_NAMESPACE,
                 home: ORG_NAMESPACE,

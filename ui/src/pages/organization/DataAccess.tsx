@@ -116,7 +116,7 @@ function Rules({ project, cell }: { project: string; cell: AccessCell }): JSX.El
           >
             {rule.rule === 0 ? rule.policy : t("dataAccess.rule", { policy: rule.policy, rule: String(rule.rule) })}
           </Link>
-          <span className="block text-fg-muted [overflow-wrap:anywhere]">{rule.types.join(", ")}</span>
+          <span className="mt-0.5 block text-fg-muted [overflow-wrap:anywhere]">{rule.types.join(", ")}</span>
         </li>
       ))}
     </ul>
@@ -372,7 +372,7 @@ export function EndpointReaders({ slug, audience }: { slug: string; audience?: s
             ) : (
               <ul className="flex flex-col gap-3">
                 {readers.map(({ column, cell }) => (
-                  <li key={column.group ?? column.kind} className="flex flex-col gap-1">
+                  <li key={column.group ?? column.kind} className="flex flex-col gap-2">
                     {column.kind === "organization" ? (
                       <span className="text-body text-fg">{t("dataAccess.endpointEveryone")}</span>
                     ) : (
@@ -395,7 +395,7 @@ export function PersonReadable({ id, name }: { id: string; name: string }): JSX.
   const { t } = useTranslation();
   const readable = useQuery(personReadableQuery(id));
   return (
-    <Card as="section" aria-labelledby="person-readable-title" className="flex flex-col gap-3">
+    <Card as="section" padding="md" aria-labelledby="person-readable-title" className="flex flex-col gap-3">
       <div>
         <h2 id="person-readable-title" className="text-title font-semibold text-fg">
           {t("dataAccess.personTitle")}

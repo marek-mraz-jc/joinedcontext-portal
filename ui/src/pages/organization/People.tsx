@@ -13,6 +13,7 @@ import { ChangeNotice } from "../../components/ChangeNotice";
 import { FormFrame, useCreateForm } from "../../components/forms/FormRoute";
 import {
   Alert,
+  Card,
   Badge,
   Button,
   Checkbox,
@@ -1057,7 +1058,7 @@ export function PersonPage({ id, anchor }: { id: string; anchor?: string }): JSX
         </Alert>
       ) : null}
 
-      <section aria-labelledby="person-account" className="space-y-3 rounded border border-border p-4">
+      <Card as="section" padding="md" aria-labelledby="person-account" className="space-y-3">
         <h2 id="person-account" className="text-title font-semibold text-fg">
           {t("organization.people.account")}
         </h2>
@@ -1121,12 +1122,12 @@ export function PersonPage({ id, anchor }: { id: string; anchor?: string }): JSX
             </PermissionGuard>
           ))}
         </div>
-      </section>
+      </Card>
 
       {/* The catalogue as this person would see it, names only (ADR-N-067 §2.5, T-6412). */}
       <PersonReadable id={person.id} name={name} />
 
-      <section aria-labelledby="person-groups" className="space-y-3 rounded border border-border p-4">
+      <Card as="section" padding="md" aria-labelledby="person-groups" className="space-y-3">
         <h2 id="person-groups" className="text-title font-semibold text-fg">
           {t("organization.people.groups")}
         </h2>
@@ -1147,9 +1148,9 @@ export function PersonPage({ id, anchor }: { id: string; anchor?: string }): JSX
             ))}
           </ul>
         )}
-      </section>
+      </Card>
 
-      <section aria-labelledby="person-platform" className="space-y-3 rounded border border-border p-4">
+      <Card as="section" padding="md" aria-labelledby="person-platform" className="space-y-3">
         <h2 id="person-platform" className="text-title font-semibold text-fg">
           {t("organization.people.platformRoles")}
         </h2>
@@ -1169,9 +1170,9 @@ export function PersonPage({ id, anchor }: { id: string; anchor?: string }): JSX
             ))}
           </ul>
         )}
-      </section>
+      </Card>
 
-      <section aria-labelledby="person-apps" className="space-y-3 rounded border border-border p-4">
+      <Card as="section" padding="md" aria-labelledby="person-apps" className="space-y-3">
         <h2 id="person-apps" className="text-title font-semibold text-fg">
           {t("organization.people.appRoles")}
         </h2>
@@ -1196,7 +1197,7 @@ export function PersonPage({ id, anchor }: { id: string; anchor?: string }): JSX
             ))}
           </ul>
         )}
-      </section>
+      </Card>
 
       <ConfirmDialog
         open={asking !== null}
