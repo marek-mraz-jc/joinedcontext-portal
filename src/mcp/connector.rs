@@ -236,7 +236,8 @@ fn listed(
             // The Endpoints a narrowed scope names, so the client offers exactly those (T-6413).
             if let (Some(names), Some(endpoint)) = (
                 connector.endpoints_named(project),
-                tool["inputSchema"]["properties"]["endpoint"].as_object_mut(),
+                tool.pointer_mut("/inputSchema/properties/endpoint")
+                    .and_then(Value::as_object_mut),
             ) {
                 endpoint.insert("enum".into(), json!(names));
             }
@@ -258,7 +259,10 @@ fn merged(lists: impl Iterator<Item = Vec<Value>>) -> Vec<Value> {
         };
         for field in ["kind", "endpoint"] {
             let more = &tool["inputSchema"]["properties"][field]["enum"];
-            let have = &mut seen["inputSchema"]["properties"][field];
+            // `pointer_mut`: an index writes `null` into a tool without this field (T-6428).
+            let Some(have) = seen.pointer_mut(&format!("/inputSchema/properties/{field}")) else {
+                continue;
+            };
             match (
                 have.get_mut("enum").and_then(Value::as_array_mut),
                 more.as_array(),
@@ -820,6 +824,15 @@ mod tests {
         assert!(open[0]["inputSchema"]["properties"]["endpoint"]
             .get("enum")
             .is_none());
+    }
+
+    /// T-6428: a tool without `kind` or `endpoint` stays without them when two lists merge.
+    #[test]
+    fn merging_adds_no_field_a_tool_does_not_declare() {
+        let tool =
+            || vec![json!({ "name": "jc_change_list", "inputSchema": { "properties": {} } })];
+        let both = merged([tool(), tool()].into_iter());
+        assert_eq!(both[0]["inputSchema"]["properties"], json!({}));
     }
 
     /// JC2-41: a refused call names the same problem type base as every Portal error.
