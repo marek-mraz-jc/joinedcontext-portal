@@ -58,7 +58,7 @@ export function AdminNav({
   onNavigate: () => void;
 }): JSX.Element {
   const { t } = useTranslation();
-  const { administers, own } = useAdministers();
+  const { known, administers, own } = useAdministers();
   const groups = administers
     ? ORGANIZATION_GROUPS
     : own
@@ -78,6 +78,10 @@ export function AdminNav({
         <Icon name="chevronLeft" className="size-4" />
         <span>{t("organization.nav.back")}</span>
       </Link>
+      {/* Somebody with no section still reads why the column is empty (T-6423). */}
+      {known && groups.length === 0 ? (
+        <p className="px-2.5 pt-2 text-caption text-fg-muted">{t("organization.nav.notAdmin")}</p>
+      ) : null}
       {groups.map((group) => (
             <div key={group.id} className="flex flex-col gap-1">
               <h2

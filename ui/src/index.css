@@ -188,6 +188,11 @@
     & tr {
       padding-block: 0.5rem;
     }
+    /* The pinned first column's opaque fill would sit as a strip inside a stacked row. */
+    & tbody > tr > :first-child {
+      position: static;
+      background-color: transparent !important;
+    }
     & td {
       padding-block: 0.125rem;
     }

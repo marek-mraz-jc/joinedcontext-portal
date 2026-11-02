@@ -239,8 +239,11 @@ describe("the Organization page", () => {
     expect(screen.getByRole("heading", { level: 1, name: en.organization.title })).toBeInTheDocument();
     expect(screen.queryByRole("tablist")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: en.projectImport.button })).not.toBeInTheDocument();
-    // The shell's own reads (permissions, branding) go; nothing of the organization does.
-    expect(requests.filter((request) => request.includes("/projects/org/") || request.endsWith("/api/v1/projects"))).toEqual([
+    // The shell's own reads (permissions, branding) go; of the organization only its manifest,
+    // for the contacts the refusal names (T-6423), which the server answers by the person's rights.
+    const reads = requests.filter((request) => request.includes("/projects/org/") || request.endsWith("/api/v1/projects"));
+    expect([...new Set(reads)].sort()).toEqual([
+      "GET /api/v1/projects/org/organizations",
       "GET /api/v1/projects/org/permissions/me",
     ]);
   });

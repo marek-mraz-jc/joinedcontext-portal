@@ -13,6 +13,7 @@ import { ChangeNotice } from "../../components/ChangeNotice";
 import { FormFrame, useCreateForm } from "../../components/forms/FormRoute";
 import {
   Alert,
+  Card,
   Badge,
   Button,
   Checkbox,
@@ -33,7 +34,8 @@ import {
   TableSkeleton,
 } from "../../components/ui";
 import { ResourcePageFailed, PageFailed } from "../../components/ui/PageState";
-import { PermissionGuard } from "../../components/ui/PermissionGuard";
+import { AskAdmins } from "./AskAdmins";
+import { DeniedNote, PermissionGuard } from "../../components/ui/PermissionGuard";
 import { asUser } from "../apps/members";
 import { proposeChecked } from "../../api/proposal";
 import type { ResourceProposal } from "../../api/manifest";
@@ -924,12 +926,53 @@ async function perform(id: string, action: Action): Promise<Outcome> {
 }
 
 /**
+ * A person page that did not open. A 403 is whose page this is, under the section's own title: the
+ * id in the address names nobody to a caller the server refuses (T-6423).
+ */
+export function PersonFailed({
+  id,
+  anchor,
+  error,
+  onRetry,
+}: {
+  id: string;
+  anchor?: string;
+  error: unknown;
+  onRetry: () => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  if (error instanceof ApiError && error.status === 403) {
+    return (
+      <div className="flex flex-col gap-4">
+        <PageHeader title={t("organization.people.title")} description={t("organization.people.lead")} />
+        <AskAdmins message={t("organization.adminOnly")} back={anchor} />
+      </div>
+    );
+  }
+  return (
+    <ResourcePageFailed
+      title={id}
+      description={t("organization.people.lead")}
+      error={error}
+      onRetry={onRetry}
+      back={
+        <Link to="/organization/$tab" params={{ tab: "people" }} className="text-body underline">
+          {t("organization.people.back")}
+        </Link>
+      }
+    >
+      {error instanceof ApiError && error.status === 404 ? t("organization.people.notFound") : undefined}
+    </ResourcePageFailed>
+  );
+}
+
+/**
  * A person's page (PF-93, PF-94): who they are, where the realm has them, the groups they are
  * in and the roles those give them, and every lifecycle action. Each action asks first, names
  * what it does, and is disabled with the reason when the caller's role does not allow it; the
  * server still refuses anything the caller may not do to this person, and says why.
  */
-export function PersonPage({ id }: { id: string }): JSX.Element {
+export function PersonPage({ id, anchor }: { id: string; anchor?: string }): JSX.Element {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
   const navigate = useNavigate();
@@ -978,23 +1021,7 @@ export function PersonPage({ id }: { id: string }): JSX.Element {
     );
   }
   if (detail.error || !detail.data) {
-    return (
-      <ResourcePageFailed
-        title={id}
-        description={t("organization.people.lead")}
-        error={detail.error}
-        onRetry={() => void detail.refetch()}
-        back={
-          <Link to="/organization/$tab" params={{ tab: "people" }} className="text-body underline">
-            {t("organization.people.back")}
-          </Link>
-        }
-      >
-        {detail.error instanceof ApiError && detail.error.status === 404
-          ? t("organization.people.notFound")
-          : undefined}
-      </ResourcePageFailed>
-    );
+    return <PersonFailed id={id} anchor={anchor} error={detail.error} onRetry={() => void detail.refetch()} />;
   }
 
   const { person, groups, platformRoles, appRoles } = detail.data as PersonDetail;
@@ -1031,14 +1058,12 @@ export function PersonPage({ id }: { id: string }): JSX.Element {
         </Alert>
       ) : null}
 
-      <section aria-labelledby="person-account" className="space-y-3 rounded border border-border p-4">
+      <Card as="section" padding="md" aria-labelledby="person-account" className="space-y-3">
         <h2 id="person-account" className="text-title font-semibold text-fg">
           {t("organization.people.account")}
         </h2>
         <PersonState person={person} />
         <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-body">
-          <dt className="text-fg-muted">{t("organization.people.id")}</dt>
-          <dd className="font-mono text-caption">{person.id}</dd>
           <dt className="text-fg-muted">{t("organization.people.form.locale")}</dt>
           <dd>{person.locale ? t(`organization.people.language.${person.locale}`) : t("organization.people.form.localeRealm")}</dd>
           <dt className="text-fg-muted">{t("organization.people.created")}</dt>
@@ -1065,6 +1090,14 @@ export function PersonPage({ id }: { id: string }): JSX.Element {
             </>
           ) : null}
         </dl>
+        {/* The id manifests name the person by, folded away: people read the name (T-6423). */}
+        <details className="text-caption text-fg-muted">
+          <summary className="focus-ring w-fit cursor-pointer rounded-sm">{t("organization.people.id")}</summary>
+          <p className="pt-1">
+            {t("organization.people.idHint")} <code className="font-mono text-fg [overflow-wrap:anywhere]">{person.id}</code>
+          </p>
+        </details>
+        <DeniedNote project={ORG_NAMESPACE} kind="Person" verb="update" />
         <div className="flex flex-wrap gap-2">
           <PermissionGuard project={ORG_NAMESPACE} kind="Person" verb="update">
             <Button variant="secondary" size="sm" onClick={() => setEditing(true)}>
@@ -1089,12 +1122,12 @@ export function PersonPage({ id }: { id: string }): JSX.Element {
             </PermissionGuard>
           ))}
         </div>
-      </section>
+      </Card>
 
       {/* The catalogue as this person would see it, names only (ADR-N-067 §2.5, T-6412). */}
       <PersonReadable id={person.id} name={name} />
 
-      <section aria-labelledby="person-groups" className="space-y-3 rounded border border-border p-4">
+      <Card as="section" padding="md" aria-labelledby="person-groups" className="space-y-3">
         <h2 id="person-groups" className="text-title font-semibold text-fg">
           {t("organization.people.groups")}
         </h2>
@@ -1115,9 +1148,9 @@ export function PersonPage({ id }: { id: string }): JSX.Element {
             ))}
           </ul>
         )}
-      </section>
+      </Card>
 
-      <section aria-labelledby="person-platform" className="space-y-3 rounded border border-border p-4">
+      <Card as="section" padding="md" aria-labelledby="person-platform" className="space-y-3">
         <h2 id="person-platform" className="text-title font-semibold text-fg">
           {t("organization.people.platformRoles")}
         </h2>
@@ -1137,9 +1170,9 @@ export function PersonPage({ id }: { id: string }): JSX.Element {
             ))}
           </ul>
         )}
-      </section>
+      </Card>
 
-      <section aria-labelledby="person-apps" className="space-y-3 rounded border border-border p-4">
+      <Card as="section" padding="md" aria-labelledby="person-apps" className="space-y-3">
         <h2 id="person-apps" className="text-title font-semibold text-fg">
           {t("organization.people.appRoles")}
         </h2>
@@ -1164,7 +1197,7 @@ export function PersonPage({ id }: { id: string }): JSX.Element {
             ))}
           </ul>
         )}
-      </section>
+      </Card>
 
       <ConfirmDialog
         open={asking !== null}

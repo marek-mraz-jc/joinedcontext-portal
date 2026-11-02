@@ -195,8 +195,11 @@ export function DeleteResourceAction({
   open: openedByRow,
   onOpenChange,
   trigger = true,
+  label,
 }: {
   target: ResourceTarget;
+  /** The button's words where a bare "Remove" would match another on the page (T-6423). */
+  label?: string;
   /** The row holds the state when the action lives in its menu (T-2279). */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -223,10 +226,10 @@ export function DeleteResourceAction({
       <PermissionGuard project={target.home ?? target.project} kind={target.kind} verb="delete">
         <Button
           size="sm"
-          aria-label={t("resourceDelete.action", { name: target.label ?? target.name })}
+          aria-label={label ?? t("resourceDelete.action", { name: target.label ?? target.name })}
           onClick={() => setOpen(true)}
         >
-          {t("resourceDelete.button")}
+          {label ?? t("resourceDelete.button")}
         </Button>
       </PermissionGuard>
       ) : null}

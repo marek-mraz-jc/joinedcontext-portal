@@ -3847,6 +3847,8 @@
       "members": "Mitglieder",
       "email": "Person",
       "addMember": "Mitglied hinzufügen",
+      "hiddenName": "Eine Person, Name verborgen",
+      "removeGroup": "Gruppe entfernen",
       "removeMember": "{member} aus der Gruppe entfernen",
       "remove": "Entfernen",
       "needEmail": "Wählen Sie zuerst eine Person.",
@@ -3888,7 +3890,7 @@
       "ckanVia": "über die Rolle {role}",
       "appNotLoaded": "Die App wird noch geladen, oder Sie dürfen sie nicht lesen.",
       "hint": {
-        "email": "Wählen Sie eine oder mehrere Personen der Organisation nach Namen oder fügen Sie durch Kommas getrennte E-Mails ein, z. B. jana.novak@example.org, peter.horak@example.org. Die Gruppe speichert die Kennung der Person, nicht die Adresse.",
+        "email": "Wählen Sie Personen nach Namen oder fügen Sie durch Kommas getrennte E-Mails ein, z. B. jana.novak@example.org.",
         "where": "Wo die Rolle gilt: die ganze Organisation oder ein Projekt, z. B. helsinki.",
         "space": "Das ganze Projekt behalten oder die Rolle auf einen Kontextraum begrenzen, z. B. air-quality.",
         "role": "Was die Mitglieder dort dürfen, z. B. viewer liest, steward schlägt auch Änderungen vor.",
@@ -7579,7 +7581,8 @@
         "unresolvedTitle": "Adressen, die niemand in der Organisation hat",
         "unresolved": "Diese bleiben, wie sie sind, und eine Gruppe, die eine davon nennt, wird erst synchronisiert, wenn sie korrigiert ist: {addresses}. Laden Sie die Person ein oder entfernen Sie die Adresse aus dem Manifest."
       },
-      "invitedMember": "Der Realm hat {email} eine E-Mail zur Bestätigung der Adresse und zum Setzen eines Passworts gesendet. Die Person ist Mitglied von {organization} ohne Projekt: Sie meldet sich im Katalog an und liest, was dessen Richtlinien allen oder ihren Gruppen freigeben."
+      "invitedMember": "Der Realm hat {email} eine E-Mail zur Bestätigung der Adresse und zum Setzen eines Passworts gesendet. Die Person ist Mitglied von {organization} ohne Projekt: Sie meldet sich im Katalog an und liest, was dessen Richtlinien allen oder ihren Gruppen freigeben.",
+      "idHint": "Gruppen, Rollenbindungen und Richtlinien nennen diese Person mit dieser Kennung:"
     },
     "setup": {
       "title": "Einrichtung",
@@ -7971,7 +7974,8 @@
       "platformHint": "Ungenutzter Volume-Platz, und der Server, wenn nichts gemessen wurde."
     },
     "nav": {
-      "back": "Zurück zu den Projekten"
+      "back": "Zurück zu den Projekten",
+      "notAdmin": "Die Verwaltung ist für Administratoren der Organisation. Ihre Projekte sind einen Schritt zurück."
     },
     "group": {
       "access": "Personen und Zugriff",
@@ -11390,7 +11394,7 @@
     "groupLead": "Die internen Datensätze, die eine Richtlinie {group} freigibt, wie das Gateway sie für ihre Mitglieder entscheidet.",
     "groupEmpty": {
       "title": "{group} liest keinen internen Datensatz",
-      "description": "Geben Sie ihr einen in einer Richtlinie mit der Empfängerart group und dem Namen dieser Gruppe frei, zum Beispiel in der Richtlinie des Endpoints."
+      "description": "Noch keine Richtlinie gibt ihr einen Datensatz frei. Öffnen Sie einen Endpoint und nennen Sie diese Gruppe in seiner Richtlinie."
     },
     "endpointTitle": "Wer das lesen kann",
     "endpointLead": "Die Zielgruppe und jede Freigabe an die ganze Organisation oder eine Gruppe, in einfachen Worten.",
@@ -11401,6 +11405,7 @@
     "endpointEveryone": "Alle in der Organisation lesen ihn:",
     "endpointGroup": "Mitglieder der Gruppe {group} lesen ihn:",
     "endpointNobody": "Keine Freigabe an die ganze Organisation oder eine Gruppe: nur die Personen und Rollen seiner Richtlinien lesen ihn.",
+    "endpointNext": "Öffnen Sie die Richtlinien des Projekts, um ihn allen oder einer Gruppe freizugeben.",
     "personTitle": "Was diese Person lesen kann",
     "personLead": "Der Katalog, wie {name} ihn angemeldet sieht: nur Namen der Datensätze, nie ihre Daten.",
     "personEmpty": {
@@ -11420,5 +11425,10 @@
       "group": "Gruppe {group}",
       "granted": "Namentlich gewährt"
     }
+  },
+  "askAdmins": {
+    "title": "Fragen Sie einen Administrator der Organisation",
+    "contacts": "Kontakte Ihrer Organisation",
+    "back": "Zurück zu Ihren Projekten"
   }
 }

@@ -10,12 +10,12 @@ import { useProjects } from "../../api/projects";
 import { proposeChecked } from "../../api/proposal";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
-import { Alert, Button, Field, PageHeader, Select } from "../../components/ui";
+import { Alert, Button, Card, Field, PageHeader, Select } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
-import { PermissionGuard } from "../../components/ui/PermissionGuard";
+import { DeniedNote, PermissionGuard } from "../../components/ui/PermissionGuard";
 import { withMember, withoutMember } from "../apps/members";
 import { PersonPicker } from "../../components/pickers/PersonPicker";
-import { personLabel, usePersonNames } from "../../api/personNames";
+import { usePersonNames } from "../../api/personNames";
 import type { RolesSpec } from "../apps/members";
 import {
   appRolesNaming,
@@ -207,6 +207,7 @@ export function GroupPage({ name }: { name: string }): JSX.Element {
               {t("access.groupPage.back")}
             </Link>
             <DeleteResourceAction
+              label={t("access.groupPage.removeGroup")}
               target={{
                 project: ORG_NAMESPACE,
                 home: ORG_NAMESPACE,
@@ -271,6 +272,29 @@ export function GroupPage({ name }: { name: string }): JSX.Element {
   );
 }
 
+/**
+ * A member as people read them (T-6423): the name, a link to their page. A caller who resolves no
+ * name (ADR-N-061: names reach people-admins and group approvers only) reads a plain label, the
+ * Keycloak id folded under it.
+ */
+export function MemberName({ id, names }: { id: string; names: Map<string, string> }): JSX.Element {
+  const { t } = useTranslation();
+  const name = names.get(id);
+  if (!name) {
+    return (
+      <details className="min-w-0 text-body text-fg-muted">
+        <summary className="focus-ring w-fit cursor-pointer rounded-sm">{t("access.groupPage.hiddenName")}</summary>
+        <code className="block pt-1 font-mono text-caption text-fg [overflow-wrap:anywhere]">{id}</code>
+      </details>
+    );
+  }
+  return (
+    <Link to="/organization/$tab/$" params={{ tab: "people", _splat: encodeURIComponent(id) }} className="text-body underline hover:no-underline">
+      {name}
+    </Link>
+  );
+}
+
 function Members({
   members,
   busy,
@@ -301,10 +325,12 @@ function Members({
       ? t("access.groupPage.needEmail")
       : undefined;
   return (
-    <section aria-labelledby={heading} className="space-y-3 rounded border border-border p-4">
+    <Card as="section" padding="md" aria-labelledby={heading} className="space-y-3">
       <h2 id={heading} className="text-title font-semibold text-fg">
         {t("access.groupPage.members")}
       </h2>
+      {/* Why the greyed controls are off, in words beside them, on a phone too (T-6423). */}
+      <DeniedNote project={ORG_NAMESPACE} kind="Group" verb="propose" />
       {waiting ? (
         <Alert tone="warning" title={t("access.groupPage.waitingTitle")}>
           {t("access.groupPage.waiting", { change: waiting })}{" "}
@@ -319,14 +345,14 @@ function Members({
         <ul className="space-y-1">
           {members.map((member) => (
             <li key={member.user} className="flex items-center gap-2">
-              <span className="text-caption">{personLabel(member.user, names)}</span>
+              <MemberName id={member.user} names={names} />
               <PermissionGuard project={ORG_NAMESPACE} kind="Group" verb="propose">
                 <Button
                   size="sm"
                   variant="secondary"
                   disabled={busy || waiting !== null}
                   disabledReason={waiting ? t("access.groupPage.waiting", { change: waiting }) : t("app.busyReason")}
-                  aria-label={t("access.groupPage.removeMember", { member: personLabel(member.user, names) })}
+                  aria-label={t("access.groupPage.removeMember", { member: names.get(member.user) ?? member.user })}
                   onClick={() => onRemove(member.user)}
                 >
                   {t("access.groupPage.remove")}
@@ -371,7 +397,7 @@ function Members({
           </Button>
         </PermissionGuard>
       </form>
-    </section>
+    </Card>
   );
 }
 
@@ -445,7 +471,7 @@ function PlatformRoles({
       : undefined;
 
   return (
-    <section aria-labelledby={heading} className="space-y-3 rounded border border-border p-4">
+    <Card as="section" padding="md" aria-labelledby={heading} className="space-y-3">
       <h2 id={heading} className="text-title font-semibold text-fg">
         {t("access.groupPage.platformRoles")}
       </h2>
@@ -555,7 +581,7 @@ function PlatformRoles({
           </Button>
         </PermissionGuard>
       </form>
-    </section>
+    </Card>
   );
 }
 
@@ -590,7 +616,7 @@ function ApplicationRoles({
   const reason = !app || !role ? t("access.groupPage.needAppRole") : already ? t("access.groupPage.already") : undefined;
 
   return (
-    <section aria-labelledby={heading} className="space-y-3 rounded border border-border p-4">
+    <Card as="section" padding="md" aria-labelledby={heading} className="space-y-3">
       <h2 id={heading} className="text-title font-semibold text-fg">
         {t("access.groupPage.appRoles")}
       </h2>
@@ -689,7 +715,7 @@ function ApplicationRoles({
           </Button>
         </PermissionGuard>
       </form>
-    </section>
+    </Card>
   );
 }
 
@@ -724,7 +750,7 @@ function CkanInstancesReached({ group, bindings }: { group: string; bindings: Ma
   const loading = projects.isPending || roles.isPending || lists.some((query) => query.isPending);
   const failed = roles.isError ? roles.error : lists.find((query) => query.isError)?.error;
   return (
-    <section aria-labelledby={heading} className="space-y-3 rounded border border-border p-4">
+    <Card as="section" padding="md" aria-labelledby={heading} className="space-y-3">
       <h2 id={heading} className="text-title font-semibold text-fg">
         {t("access.groupPage.ckanTitle")}
       </h2>
@@ -751,6 +777,6 @@ function CkanInstancesReached({ group, bindings }: { group: string; bindings: Ma
           ))}
         </ul>
       )}
-    </section>
+    </Card>
   );
 }

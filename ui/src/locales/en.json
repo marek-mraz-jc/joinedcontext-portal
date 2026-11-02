@@ -3847,6 +3847,8 @@
       "members": "Members",
       "email": "Person",
       "addMember": "Add member",
+      "hiddenName": "A person, name hidden",
+      "removeGroup": "Remove group",
       "removeMember": "Remove {member} from the group",
       "remove": "Remove",
       "needEmail": "Pick a person first.",
@@ -3888,7 +3890,7 @@
       "ckanVia": "through the role {role}",
       "appNotLoaded": "The app is still loading, or you may not read it.",
       "hint": {
-        "email": "Pick one or more of the organization's people by name, or paste e-mails separated by commas, e.g. jana.novak@example.org, peter.horak@example.org. The group records each person's id, not the address.",
+        "email": "Pick people by name, or paste e-mails separated by commas, e.g. jana.novak@example.org.",
         "where": "Where the role holds: the whole organization or one project, e.g. helsinki.",
         "space": "Keep the whole project, or narrow the role to one context space, e.g. air-quality.",
         "role": "What the members may do there, e.g. viewer reads, steward also proposes changes.",
@@ -7579,7 +7581,8 @@
         "unresolvedTitle": "Addresses nobody in the organization has",
         "unresolved": "These stay as they are, and a group naming one is not synchronised until it is fixed: {addresses}. Invite the person, or remove the address from the manifest."
       },
-      "invitedMember": "The realm sent {email} an e-mail to verify the address and set a password. They are a member of {organization} with no project: they sign in to the catalogue and read what its Policies share with everyone or with their groups."
+      "invitedMember": "The realm sent {email} an e-mail to verify the address and set a password. They are a member of {organization} with no project: they sign in to the catalogue and read what its Policies share with everyone or with their groups.",
+      "idHint": "Groups, role bindings and policies name this person by this id:"
     },
     "setup": {
       "title": "Setup",
@@ -7971,7 +7974,8 @@
       "platformHint": "Unused volume space, and the node when nothing was measured."
     },
     "nav": {
-      "back": "Back to the projects"
+      "back": "Back to the projects",
+      "notAdmin": "Administration is for organization administrators. Your projects are one step back."
     },
     "group": {
       "access": "People and access",
@@ -11390,7 +11394,7 @@
     "groupLead": "The internal datasets a Policy grants to {group}, as the gateway decides them for its members.",
     "groupEmpty": {
       "title": "{group} reads no internal dataset",
-      "description": "Grant it one in a Policy with the assignee kind group and this group's name, for example in the Endpoint's own Policy."
+      "description": "No Policy grants this group a dataset yet. Open an Endpoint and name this group in its Policy."
     },
     "endpointTitle": "Who can read this",
     "endpointLead": "The audience and every grant to everyone in the organization or a group, in plain words.",
@@ -11401,6 +11405,7 @@
     "endpointEveryone": "Everyone in the organization reads it:",
     "endpointGroup": "Members of the group {group} read it:",
     "endpointNobody": "No grant to the whole organization or to a group: only the people and roles its Policies name read it.",
+    "endpointNext": "Open the project's Policies to share it with everyone or a group.",
     "personTitle": "What this person can read",
     "personLead": "The catalogue as {name} sees it signed in: dataset names only, never their data.",
     "personEmpty": {
@@ -11420,5 +11425,10 @@
       "group": "Group {group}",
       "granted": "Granted to them by name"
     }
+  },
+  "askAdmins": {
+    "title": "Ask an organization administrator",
+    "contacts": "Your organization's contacts",
+    "back": "Back to your projects"
   }
 }

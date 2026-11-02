@@ -20,6 +20,7 @@ import {
   TableRowHeaderCell,
 } from "../../components/ui";
 import { AccessBadge } from "../catalogue/ReadableDatasets";
+import { AskAdmins } from "./AskAdmins";
 
 type DataAccess = components["schemas"]["DataAccess"];
 type AccessColumn = components["schemas"]["AccessColumn"];
@@ -75,10 +76,20 @@ function Answer({
   children: () => ReactNode;
 }): JSX.Element {
   const { t } = useTranslation();
-  if (query.isPending) return <PageLoading label={loading} />;
+  if (query.isPending) {
+    // The gateway decides each cell, which can take seconds: the wait says so in words (T-6423).
+    return (
+      <div className="flex flex-col gap-2">
+        <p aria-hidden="true" className="text-caption text-fg-muted">
+          {loading}
+        </p>
+        <PageLoading label={loading} lines={1} />
+      </div>
+    );
+  }
   if (query.isError) {
     if (query.error instanceof ApiError && query.error.status === 403) {
-      return <Alert tone="info">{t("dataAccess.adminOnly")}</Alert>;
+      return <AskAdmins message={t("dataAccess.adminOnly")} />;
     }
     return <PageFailed error={query.error} onRetry={() => void query.refetch()} />;
   }
@@ -105,7 +116,7 @@ function Rules({ project, cell }: { project: string; cell: AccessCell }): JSX.El
           >
             {rule.rule === 0 ? rule.policy : t("dataAccess.rule", { policy: rule.policy, rule: String(rule.rule) })}
           </Link>
-          <span className="block text-fg-muted [overflow-wrap:anywhere]">{rule.types.join(", ")}</span>
+          <span className="mt-0.5 block text-fg-muted [overflow-wrap:anywhere]">{rule.types.join(", ")}</span>
         </li>
       ))}
     </ul>
@@ -178,6 +189,15 @@ export function DataAccessMatrix(): JSX.Element {
   );
 }
 
+function AllEndpoints(): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <Link to="/organization/$tab" params={{ tab: "endpoints" }} className="text-body text-primary-soft-fg underline hover:no-underline">
+      {t("dataAccess.empty.action")}
+    </Link>
+  );
+}
+
 export function MatrixTable({ data }: { data: DataAccess }): JSX.Element {
   const { t } = useTranslation();
   if (data.rows.length === 0) {
@@ -187,11 +207,7 @@ export function MatrixTable({ data }: { data: DataAccess }): JSX.Element {
         bare
         title={t("dataAccess.empty.title")}
         description={t("dataAccess.empty.description")}
-        action={
-          <Link to="/organization/$tab" params={{ tab: "endpoints" }} className="text-body text-primary-soft-fg underline hover:no-underline">
-            {t("dataAccess.empty.action")}
-          </Link>
-        }
+        action={<AllEndpoints />}
       />
     );
   }
@@ -246,7 +262,7 @@ export function GroupDatasets({ group }: { group: string }): JSX.Element {
   const { t } = useTranslation();
   const column = useQuery(dataAccessQuery({ group }));
   return (
-    <Card as="section" aria-labelledby="group-datasets-title" className="flex flex-col gap-3">
+    <Card as="section" padding="md" aria-labelledby="group-datasets-title" className="flex flex-col gap-3">
       <div>
         <h2 id="group-datasets-title" className="text-title font-semibold text-fg">
           {t("dataAccess.groupTitle")}
@@ -263,7 +279,13 @@ export function GroupDatasets({ group }: { group: string }): JSX.Element {
             <>
               <Unanswered count={data.unanswered} />
               {read.length === 0 ? (
-                <EmptyState icon="lock" bare title={t("dataAccess.groupEmpty.title", { group })} description={t("dataAccess.groupEmpty.description")} />
+                <EmptyState
+                  icon="lock"
+                  bare
+                  title={t("dataAccess.groupEmpty.title", { group })}
+                  description={t("dataAccess.groupEmpty.description")}
+                  action={<AllEndpoints />}
+                />
               ) : (
                 <ul className="flex flex-col gap-3">
                   {read.map((row) => (
@@ -294,6 +316,21 @@ export function GroupDatasets({ group }: { group: string }): JSX.Element {
   );
 }
 
+/** The sentence naming a group that reads an Endpoint, the name a link to the group's page. */
+function GroupReads({ group }: { group: string }): JSX.Element {
+  const { t } = useTranslation();
+  const [before, after] = t("dataAccess.endpointGroup", { group: "\0" }).split("\0");
+  return (
+    <span className="text-body text-fg">
+      {before}
+      <Link to="/organization/$tab/$" params={{ tab: "groups", _splat: encodeURIComponent(group) }} className="underline hover:no-underline">
+        {group}
+      </Link>
+      {after}
+    </span>
+  );
+}
+
 /** An Endpoint page's "Who can read this", in plain words: its audience and each grant. */
 export function EndpointReaders({ slug, audience }: { slug: string; audience?: string }): JSX.Element {
   const { t } = useTranslation();
@@ -302,14 +339,14 @@ export function EndpointReaders({ slug, audience }: { slug: string; audience?: s
     return <p className="text-body text-fg">{t("dataAccess.endpointPublic")}</p>;
   }
   if (slug === "") {
-    return <p className="text-body text-fg-muted">{t("dataAccess.endpointNobody")}</p>;
+    return <p className="text-body text-fg">{t("dataAccess.endpointNobody")}</p>;
   }
   return (
     <Answer query={row} loading={t("dataAccess.loading")}>
       {() => {
         const data = row.data as DataAccess;
         const only = data.rows[0];
-        if (!only) return <p className="text-body text-fg-muted">{t("dataAccess.endpointNobody")}</p>;
+        if (!only) return <p className="text-body text-fg">{t("dataAccess.endpointNobody")}</p>;
         const readers = data.columns
           .map((column, index) => ({ column, cell: only.cells[index] }))
           .filter((reader) => reader.cell?.granted && !reader.cell.throughOrganization);
@@ -322,16 +359,25 @@ export function EndpointReaders({ slug, audience }: { slug: string; audience?: s
                 : t("dataAccess.endpointProjects")}
             </p>
             {readers.length === 0 ? (
-              <p className="text-body text-fg-muted">{t("dataAccess.endpointNobody")}</p>
+              <div className="flex flex-col gap-1">
+                <p className="text-body text-fg">{t("dataAccess.endpointNobody")}</p>
+                <Link
+                  to="/projects/$project/$plural"
+                  params={{ project: only.project, plural: "policies" }}
+                  className="w-fit text-body text-primary-soft-fg underline hover:no-underline"
+                >
+                  {t("dataAccess.endpointNext")}
+                </Link>
+              </div>
             ) : (
-              <ul className="flex flex-col gap-2">
+              <ul className="flex flex-col gap-3">
                 {readers.map(({ column, cell }) => (
-                  <li key={column.group ?? column.kind} className="flex flex-col gap-1">
-                    <span className="text-body text-fg">
-                      {column.kind === "organization"
-                        ? t("dataAccess.endpointEveryone")
-                        : t("dataAccess.endpointGroup", { group: column.group ?? "" })}
-                    </span>
+                  <li key={column.group ?? column.kind} className="flex flex-col gap-2">
+                    {column.kind === "organization" ? (
+                      <span className="text-body text-fg">{t("dataAccess.endpointEveryone")}</span>
+                    ) : (
+                      <GroupReads group={column.group ?? ""} />
+                    )}
                     {cell ? <Rules project={only.project} cell={cell} /> : null}
                   </li>
                 ))}
@@ -349,7 +395,7 @@ export function PersonReadable({ id, name }: { id: string; name: string }): JSX.
   const { t } = useTranslation();
   const readable = useQuery(personReadableQuery(id));
   return (
-    <Card as="section" aria-labelledby="person-readable-title" className="flex flex-col gap-3">
+    <Card as="section" padding="md" aria-labelledby="person-readable-title" className="flex flex-col gap-3">
       <div>
         <h2 id="person-readable-title" className="text-title font-semibold text-fg">
           {t("dataAccess.personTitle")}
