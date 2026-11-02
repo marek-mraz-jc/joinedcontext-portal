@@ -124,7 +124,7 @@ export function ToolbarPopover({
             ? "border-l-2 border-border py-2 pl-3 text-body"
             : clsx(
                 "z-30 overflow-auto rounded-lg border border-border bg-surface-raised p-3 text-body shadow-2",
-                tall ? "max-h-[80dvh] sm:max-h-none" : "max-h-96",
+                tall ? "max-h-sheet sm:max-h-none" : "max-h-96",
                 anchored ? "absolute left-0 mt-1 max-sm:w-max max-sm:max-w-xs" : "max-sm:fixed max-sm:inset-x-4 max-sm:bottom-4",
                 end ? "sm:absolute sm:right-0 sm:mt-1" : "sm:absolute sm:left-0 sm:mt-1",
                 wide ? "sm:w-max sm:max-w-2xl" : "sm:w-72",
