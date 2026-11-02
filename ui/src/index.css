@@ -310,6 +310,8 @@
     --jc-color-muted: var(--portal-fg-muted);
     --jc-color-neutral: var(--portal-fg-subtle);
     --jc-color-accent: var(--portal-primary);
+    /* A link is text on the row, so the brand towards the ink: the primary fails AA there. */
+    --jc-color-link: var(--portal-primary-soft-fg);
     --jc-color-primary: var(--portal-primary);
     --jc-color-focus: var(--portal-ring);
     --jc-color-danger: var(--portal-danger);
