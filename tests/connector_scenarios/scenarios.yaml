@@ -326,7 +326,7 @@
       call: jc_change_plan
       args: { changes: [{ op: create, kind: ContextSpace, name: parking, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: ContextSpace, metadata: { name: parking, namespace: '{project}' }, spec: { isSandbox: true } } }, { op: create, kind: Endpoint, name: '{project}-parking', manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Endpoint, metadata: { name: '{project}-parking', namespace: '{project}' }, spec: { contextSpaceRef: parking, audience: public, enabledRepresentations: [ngsi-ld] } } }, { op: create, kind: Policy, name: parking-writers, manifest: { apiVersion: joinedcontext.com/v1alpha1, kind: Policy, metadata: { name: parking-writers, namespace: '{project}' }, spec: { contextSpaceRef: parking, assigner: 'did:web:hel.fi', assignee: { kind: group, id: scn-writers }, operations: [createEntity, updateAttrs], information: [{ entities: [{ type: BikeCounter }] }] } } }] }
       keep: planId
-      contains: ['"planId"', '"ok":true']
+      contains: ['"planId"', '"ok":true', 'no Policy of the space parking grants the public role']
     - proves: expect
       as: project-admin
       call: jc_change_apply
@@ -1193,11 +1193,12 @@
       call: jc_kpi_compute
       args: { name: daily-bike-count, title: Daily bike count, type: BikeCounter, attribute: count, agg: sum, rows: [{ id: c1, count: 42 }, { id: c2, count: 8 }, { id: c3, count: 17 }] }
       contains: ['KeyPerformanceIndicator', '"value":67', 'sum(count)']
+    # T-6484: read from the Endpoint as the person, the fixture's two counters hold 42 and 7.
     - proves: expect
       via: connector
       call: jc_kpi_compute
-      args: { name: daily-bike-mean, type: BikeCounter, attribute: count, agg: avg, rows: [{ id: c1, count: 42 }, { id: c2, count: 8 }, { id: c3, count: 10 }] }
-      contains: ['"value":20']
+      args: { name: daily-bike-count, type: BikeCounter, attribute: count, agg: sum, endpoint: '{project}-counters' }
+      contains: ['KeyPerformanceIndicator', '"value":49', 'sum(count)', '{project}-counters']
     - proves: deny
       via: connector
       call: jc_kpi_compute
