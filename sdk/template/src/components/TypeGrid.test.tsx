@@ -1,7 +1,7 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { JcProvider } from "@joinedcontext/sdk";
-import type { GridColumn, Row } from "@joinedcontext/sdk";
+import type { GridColumn, Row, Schema } from "@joinedcontext/sdk";
 import { stubClient } from "@joinedcontext/sdk/testing";
 import { TypeGrid } from "./TypeGrid";
 
@@ -10,8 +10,20 @@ const STATIONS: Row[] = [
   { id: "urn:ngsi-ld:Station:example.org:demo:2", type: "Station", name: "Kallio", bikes: 0, slots: 5 },
 ];
 
-function shown(columns?: GridColumn[], onSelect?: (id: string) => void) {
-  const client = stubClient({ entities: STATIONS });
+const SCHEMA = {
+  Station: {
+    properties: {
+      name: { type: "string" },
+      bikes: { type: "integer" },
+      slots: { type: "integer" },
+      location: { type: "object", "x-ngsi-ld-kind": "GeoProperty" },
+      owner: { type: "string", "x-ngsi-ld-kind": "Relationship" },
+    },
+  },
+} as Schema;
+
+function shown(columns?: GridColumn[], onSelect?: (id: string) => void, schema?: Schema) {
+  const client = stubClient({ entities: STATIONS, ...(schema ? { schema } : {}) });
   render(
     <JcProvider client={client}>
       <TypeGrid type="Station" columns={columns} onSelect={onSelect} />
@@ -38,6 +50,32 @@ describe("TypeGrid", () => {
     shown(undefined, onSelect);
     fireEvent.click(await screen.findByRole("button", { name: "Kallio" }));
     expect(onSelect).toHaveBeenCalledWith(STATIONS[1].id);
+  });
+
+  it("shows a value beside the name: no type, no geometry, no references, no query box", async () => {
+    shown(undefined, undefined, SCHEMA);
+    const grid = await screen.findByRole("grid");
+    expect(await within(grid).findByText("Kamppi")).toBeInTheDocument();
+    const heads = within(grid).getAllByRole("columnheader").map((head) => head.textContent ?? "");
+    expect(heads.some((head) => head.includes("Bikes"))).toBe(true);
+    expect(heads.some((head) => /Type|Location|Owner/.test(head))).toBe(false);
+    expect(heads.filter((head) => head.includes("Name"))).toHaveLength(1);
+    expect(screen.queryByText("The query this asks")).toBeNull();
+  });
+
+  it("filters by the name it leads with, not by the id", async () => {
+    shown(undefined, undefined, SCHEMA);
+    const grid = await screen.findByRole("grid");
+    await within(grid).findByText("Kamppi");
+    await waitFor(() => expect(grid.querySelector('[data-filter-for="name"]')).not.toBeNull());
+    expect(grid.querySelector('[data-filter-for="id"]')).toBeNull();
+  });
+
+  it("still reads the name when the listed columns leave it out", async () => {
+    shown([{ attr: "bikes" }], undefined, SCHEMA);
+    const grid = await screen.findByRole("grid");
+    expect(await within(grid).findByText("Kamppi")).toBeInTheDocument();
+    expect(within(grid).getByText("4")).toBeInTheDocument();
   });
 
   it("says what is wrong with a column it cannot draw", async () => {

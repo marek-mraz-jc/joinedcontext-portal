@@ -39,7 +39,7 @@ import { stubClient } from "@joinedcontext/sdk/testing";
 import App from "../../template/src/App.tsx";
 import { EntityDetail } from "../../template/src/components/EntityDetail.tsx";
 import { EntityForm } from "../../template/src/components/EntityForm.tsx";
-import { EntityTable } from "../samples/operations-desk/src/components/EntityTable.tsx";
+import { EntityTable } from "../../samples/operations-desk/src/components/EntityTable.tsx";
 import { StatTiles } from "../../template/src/components/StatTiles.tsx";
 import tokens from "../../template/src/design-tokens.json";
 import schema from "../../tests/fixtures/helsinki-air-quality.schema.json";
