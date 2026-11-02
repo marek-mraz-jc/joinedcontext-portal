@@ -1550,7 +1550,7 @@ a.jc-cell--link:focus-visible {
 .jc-grid-pages { display: inline-flex; flex-wrap: wrap; gap: 0.25rem; align-items: center; }
 .jc-grid-pages button { min-width: 2rem; min-height: 2rem; }
 .jc-grid-pages button[aria-current="page"] { font-weight: 600; text-decoration: underline; }
-@media (pointer: coarse) { .jc-grid-pages button { min-width: 44px; min-height: 44px; } }
+@media (pointer: coarse) { .jc-grid-pages button, .jc-grid-pager-step, .jc-grid-filter-toggle { min-width: 44px; min-height: 44px; } }
 
 /* T-5415: the query block as one row of a code line, a real copy button and a checkbox 8 px from its
    words; the current page in the accent colour; on a phone the pager is one line (‹ 1 2 3 ›) under

@@ -638,7 +638,7 @@ export function DataSourcesPage({ project }: { project: string }): JSX.Element {
               </TableCell>
               {/* At least 12rem wide, so a phone scrolls the table sideways instead of breaking
                   the address every nine characters into a 25-line row (T-4992). */}
-              <TableCell className="min-w-48">
+              <TableCell className="min-w-60">
                 <EndpointCell raw={endpointOf(source.spec)} />
               </TableCell>
               <TableCell className="text-caption">

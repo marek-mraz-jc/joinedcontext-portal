@@ -1,3 +1,4 @@
+import { RowActions } from "../../components/ui/RowActions";
 import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -357,7 +358,7 @@ export function Roles({
             { id: "rules", label: t("access.projectRoles.ruleCount"), numeric: true, align: "right", text: (row) => String(row.rules.length) },
           ]}
           actions={(row) => (
-            <span className="inline-flex items-center gap-1.5">
+            <RowActions label={row.name} actions={[]} primary={<span className="inline-flex items-center gap-1.5">
               <EditResourceAction
                 target={{ project, home: row.home, kind: "Role", plural: "roles", name: row.name, label: row.name }}
                 // A role of this project wins its name's address over the organization's.
@@ -370,7 +371,7 @@ export function Roles({
                 }}
               />
               <DeleteResourceAction target={{ project, home: row.home, kind: "Role", plural: "roles", name: row.name, label: row.name }} />
-            </span>
+            </span>} />
           )}
           empty={
             <EmptyState
