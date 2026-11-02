@@ -178,7 +178,7 @@ export function DataToolbar(props: DataToolbarProps): JSX.Element {
     <Button
       variant={props.showQuery ? "secondary" : "ghost"}
       size="sm"
-      className={phone ? "justify-start" : undefined}
+      className={phone ? "h-control-lg justify-start" : undefined}
       aria-pressed={props.showQuery}
       onClick={() => props.onShowQuery(!props.showQuery)}
     >
@@ -190,7 +190,7 @@ export function DataToolbar(props: DataToolbarProps): JSX.Element {
     const set = tools.reduce((sum, tool) => sum + (tool.count ?? 0), 0);
     return (
       <>
-        <ToolbarPopover label={t("spaces.toolbar.tools")} count={set} outlined tall>
+        <ToolbarPopover label={t("spaces.toolbar.tools")} count={set} outlined tall closeLabel={t("app.close")}>
           <div className="flex flex-col gap-1">
             {panels}
             {query}

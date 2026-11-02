@@ -85,11 +85,12 @@ export function webhooksOf(subscriptions: Manifest[], space: string, type: strin
 
 /** One address with what it is and a button that copies it. */
 function UrlRow({ label, url, copy }: { label: string; url: string; copy: string }): JSX.Element {
+  const { t } = useTranslation();
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 py-1">
       <span className="w-28 shrink-0 text-caption font-semibold text-fg-muted">{label}</span>
       <code className="order-last min-w-0 basis-full font-mono text-caption text-fg [overflow-wrap:anywhere] sm:order-none sm:flex-1 sm:basis-0">{url}</code>
-      <CopyUrlButton url={url} label={copy} />
+      <CopyUrlButton url={url} label={t("spaces.api.copy")} spoken={copy} />
     </li>
   );
 }
@@ -205,7 +206,7 @@ export function TypeApi({
               <p className="text-caption text-fg-muted">
                 {q?.trim() ? t("spaces.api.viewQueryLead", { q: q.trim() }) : t("spaces.api.viewQueryAll", { type })}
               </p>
-              <ul className="flex flex-col gap-1">
+              <ul className="flex max-w-4xl flex-col gap-1">
                 {viewQueryUrls(slug, type, q, servedRepresentations(endpoint.spec as Record<string, unknown>)).map((each) => {
                   const surface = t(`spaces.api.surface.${each.key}`);
                   return <UrlRow key={each.key} label={surface} url={each.url} copy={t("spaces.api.copySurface", { surface })} />;
@@ -214,7 +215,7 @@ export function TypeApi({
             </section>
             <section aria-label={t("spaces.api.calls")} className="flex flex-col gap-1" data-testid="api-calls">
               <h3 className="text-caption font-semibold text-fg">{t("spaces.api.calls")}</h3>
-              <ul className="flex flex-col gap-1">
+              <ul className="flex max-w-4xl flex-col gap-1">
                 {callsOf(slug, type, servedRepresentations(endpoint.spec as Record<string, unknown>), domain).map((call) => {
                   const name = t(`spaces.api.call.${call.key}`, { defaultValue: call.key });
                   return <UrlRow key={call.key} label={name} url={call.url} copy={t("spaces.api.copySurface", { surface: name })} />;

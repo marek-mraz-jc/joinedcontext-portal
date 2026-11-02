@@ -120,6 +120,16 @@ describe("the grid's one toolbar (T-6303)", () => {
       await expectNoAxeViolations(container);
     });
 
+    it("closes the menu from its own button and gives focus back", async () => {
+      const user = userEvent.setup();
+      renderPart(<DataToolbar {...props()} />);
+      const tools = screen.getByText(en.spaces.toolbar.tools, { selector: "summary" });
+      await user.click(tools);
+      await user.click(screen.getByRole("button", { name: en.app.close }));
+      expect(tools.closest("details")).not.toHaveAttribute("open");
+      expect(tools).toHaveFocus();
+    });
+
     it("closes the open tool on Escape and leaves the menu open", async () => {
       const user = userEvent.setup();
       renderPart(<DataToolbar {...props()} />);

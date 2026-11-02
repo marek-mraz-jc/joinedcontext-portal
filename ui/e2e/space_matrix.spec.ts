@@ -155,6 +155,27 @@ async function noSideways(page: Page): Promise<void> {
 
 const open = (page: Page, view = "grid") => page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en&view=${view}`);
 
+test.describe("the data workspace on a touch phone", () => {
+  test.use({ viewport: { width: 400, height: 860 }, hasTouch: true, isMobile: true });
+
+  test("gives every toolbar control a finger's height and keeps the first rows on the screen", async ({ page }) => {
+    await stubApi(page, {});
+    await open(page);
+    await expect(page.getByText("Workshop for Families 5").first()).toBeVisible();
+    const toolbar = page.getByTestId("grid-toolbar");
+    const tools = toolbar.locator("summary", { hasText: "Tools" });
+    expect((await tools.boundingBox())?.height).toBeGreaterThanOrEqual(44);
+    expect((await toolbar.getByRole("button", { name: "Add row" }).boundingBox())?.height).toBeGreaterThanOrEqual(44);
+    await shot(page, "grid-toolbar-touch-400");
+    await tools.tap();
+    await toolbar.locator("summary", { hasText: "Sort" }).tap();
+    await expect(toolbar.getByRole("button", { name: "Close" })).toBeInViewport();
+    await shot(page, "grid-tools-open-touch-400");
+    await toolbar.getByRole("button", { name: "Close" }).tap();
+    await expect(toolbar.locator("summary", { hasText: "Sort" })).toBeHidden();
+  });
+});
+
 for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400", 400, 860]] as const) {
   test.describe(`the data workspace matrix (${label})`, () => {
     test.beforeEach(async ({ page }) => {

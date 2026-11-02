@@ -114,7 +114,7 @@ function Failure({ error, name, onRetry }: { error: unknown; name?: string; onRe
   const again = !(error instanceof ApiError) || error.status >= 500 || error.status === 429;
   return (
     <Alert role="alert" tone={error instanceof ApiError && error.status === 404 ? "info" : "danger"}>
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <span>{failureText(error, t, name)}</span>
         {again ? (
           <Button size="sm" variant="secondary" onClick={onRetry}>

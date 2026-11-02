@@ -842,6 +842,7 @@
         "websocket": "WebSocket",
         "ical": "iCal"
       },
+      "copy": "Copy",
       "copySurface": "Copy the {surface} URL",
       "calls": "Calls for a program"
     },

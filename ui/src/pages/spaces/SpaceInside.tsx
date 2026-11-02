@@ -1089,7 +1089,7 @@ function SpaceData({
             ) : null}
             {addRow}
             <PermissionGuard project={project} kind="Endpoint" verb="propose">
-              <ToolbarPopover label={t("spaces.toolbar.share")} wide end>
+              <ToolbarPopover label={t("spaces.toolbar.share")} wide end outlined={phone}>
                 <SharePanel
                   key={type}
                   project={project}
@@ -1101,7 +1101,7 @@ function SpaceData({
                 />
               </ToolbarPopover>
             </PermissionGuard>
-            <ToolbarPopover label={t("spaces.toolbar.more")} wide end>
+            <ToolbarPopover label={t("spaces.toolbar.more")} wide end outlined={phone}>
               <div className="flex flex-col gap-3">
                 {config ? (
                   <ViewBar

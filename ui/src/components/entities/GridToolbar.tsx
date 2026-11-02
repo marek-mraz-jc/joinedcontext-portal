@@ -59,9 +59,12 @@ export function ToolbarPopover({
   tall,
   anchored,
   inPlace,
+  closeLabel,
   children,
 }: {
   label: string;
+  /** A sheet over the page: names a button that closes it, for a person who cannot tap beside it. */
+  closeLabel?: string;
   /** One line of a folded menu: the panel opens under its line, inside the menu. */
   inPlace?: boolean;
   /** Under its button on a phone too, for a row's first control: no bottom sheet over the toolbar. */
@@ -79,16 +82,19 @@ export function ToolbarPopover({
 }): JSX.Element {
   const ref = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
+    // Inside a menu `name` keeps one tool open: closing it on the press would move Close from under the finger.
+    if (inPlace) return;
     const onDown = (event: PointerEvent) => {
       const box = ref.current;
       if (box?.open && !box.contains(event.target as Node)) box.open = false;
     };
     document.addEventListener("pointerdown", onDown);
     return () => document.removeEventListener("pointerdown", onDown);
-  }, []);
+  }, [inPlace]);
   return (
     <details
       ref={ref}
+      name={inPlace ? "toolbar-tool" : undefined}
       className="relative"
       onKeyDown={(event) => {
         if (event.key === "Escape" && ref.current?.open) {
@@ -105,7 +111,7 @@ export function ToolbarPopover({
           clsx(
             "cursor-pointer list-none [&::-webkit-details-marker]:hidden",
             count ? "border-primary text-primary-soft-fg" : undefined,
-            inPlace ? "w-full justify-start" : undefined,
+            inPlace ? "h-control-lg w-full justify-start" : undefined,
           ),
         )}
       >
@@ -125,6 +131,20 @@ export function ToolbarPopover({
               )
         }
       >
+        {closeLabel ? (
+          <div className="sticky -top-3 z-10 -mx-3 -mt-3 mb-1 flex justify-end border-b border-border bg-surface-raised p-2">
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={() => {
+                if (ref.current) ref.current.open = false;
+                ref.current?.querySelector("summary")?.focus();
+              }}
+            >
+              {closeLabel}
+            </Button>
+          </div>
+        ) : null}
         {children}
       </div>
     </details>

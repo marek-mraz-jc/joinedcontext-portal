@@ -842,6 +842,7 @@
         "websocket": "WebSocket",
         "ical": "iCal"
       },
+      "copy": "Kopírovať",
       "copySurface": "Kopírovať URL {surface}",
       "calls": "Volania pre program"
     },
