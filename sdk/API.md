@@ -2,7 +2,7 @@
 
 ### How an app is built
 `src/main.tsx` calls `startApp(App, { tokens })`.
-Pages are laid out with this package's layout primitives (`Page`, `Header`, `Grid`, `Card`, `Split`, `Sidebar`, `Tabs`) and compose the template's components with its hooks, so every screen works from a 375 px phone to a 2560 px wall without layout CSS of its own. The components are files of the application in `src/components/` (`AppShell`, `states` with `Problem`, `Loading`, `Empty` and `ErrorBoundary`, `StatTiles`, `TypeGrid` (one type in the `EntityGrid`), `EntityDetail`, `filters`, `EntityForm`, `ExportButton`, `charts`, `EntityMap`, `components.css`): read them in the pack and change them like any other file. This reference covers the package they stand on.
+Pages are laid out with this package's layout primitives (`Page`, `Header`, `Grid`, `Card`, `Split`, `Sidebar`, `Tabs`) and compose the template's components with its hooks, so every screen works from a 375 px phone to a 2560 px wall without layout CSS of its own. The components are files of the application in `src/components/` (`AppShell`, `states` with `Problem`, `Loading`, `Empty` and `ErrorBoundary`, `StatTiles`, `TypeGrid`, `EntityDetail`, `filters`, `EntityForm`, `ExportButton`, `charts`, `EntityMap`, `components.css`): read them in the pack and change them like any other file. This reference covers the package they stand on.
 Backend functions live in `functions/{name}.ts` using `@joinedcontext/sdk/server`.
 Tests verify behaviors using `@joinedcontext/sdk/testing`.
 `design-tokens.json` re-themes all component styling, chart palettes, and map layers.
@@ -221,16 +221,16 @@ One spreadsheet-like grid of one entity type (`role="grid"`): an id column pinne
 
 The header's second row filters at the endpoint (UI-66, EP-07): per column the operators its content allows (contains/is/is not/is empty/has a value for text, comparisons and between for numbers and dates, the id by pattern, a metadata column on `attr.observedAt`), composed into one `;`-joined `q`, shown under the grid with a copy button and an "edit as text" switch. The footer carries the endpoint's own `NGSILD-Results-Count`, and nothing when a narrowed answer carried none (R22). In `mode: "edit"` the columns of `editableAttrs` take a typed value which is marked, counted, reviewed as a batch with one `observedAt` choice, and applied one `PATCH …/attrs` per entity through the source's `patch`; a refused entity keeps its cell and the endpoint's own sentence. A source without `patch` has no edit mode, one without `history` no history.
 
-`EntityHistory` shows one attribute's temporal answer: a numeric series as a line in the first chart colour (time axis in local time, value axis naming `unit`, time and value on hover) and a table of every value for a screen reader. `heading` is the panel's heading in the App's words (the default is the title and the attribute; the entity's id is never shown), `locale` the language times and numbers are written in (the page's by default) and `fractionDigits` the attribute's precision (2 by default). Copy as CSV keeps the raw values.
+`EntityHistory` shows one attribute's temporal answer: a numeric series as a line in the first chart colour and a table of every value. `heading` is the panel's heading in the App's words (the default is the title and the attribute; the entity's id is never shown), `locale` the language times and numbers are written in (the page's by default) and `fractionDigits` the attribute's precision (2 by default). Copy as CSV keeps the raw values.
 
-`EntityCompare` puts a space and an endpoint side by side (UI-69, EP-61): the left side is read first, the right side asked for exactly those ids (`id=`, split by `idChunks` under 3 500 characters per query string). `marks` paints on the left what the right does not answer (a missing row struck through, a missing attribute shaded); nothing is drawn on the right about a value it withheld. Both sides are view mode with the person's own session; a space the person may not read leaves the endpoint side alone with the reason. Under 900 px the two stack.
+`EntityCompare` puts a space and an endpoint side by side (UI-69, EP-61): the right side is asked for the left's ids, and `marks` paints on the left what the right does not answer. Both sides are view mode with the person's own session.
 ```ts
 function endpointSource(slug: string, transport: Transport, language?: string): EntitySource
 function spaceSource(space: string, transport: Transport, language?: string): EntitySource
 function sourceFor(source: { kind: "endpoint"; slug } | { kind: "space"; space }, transport: Transport, language?: string): EntitySource
 function fixtureSource(entities: object[], language?: string): EntitySource
 function idChunks(ids: string[], maxChars?: number): string[][]
-function transportFor(config: JcConfig): Transport // e.g. transportFor(jc().config); a client holds its own as `client.transport`
+function transportFor(config: JcConfig): Transport // e.g. transportFor(jc().config)
 function originTransport(fetchImpl?: typeof fetch, doc?: Document): Transport // a host page's own: same origin, the person's session and CSRF header
 class SourceError extends Error { status: number }
 function historyOf(body: unknown, attr: string): HistoryPoint[]

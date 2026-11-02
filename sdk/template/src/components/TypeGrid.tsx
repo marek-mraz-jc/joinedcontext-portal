@@ -4,25 +4,18 @@ import type { GridColumn, RichRow } from "@joinedcontext/sdk";
 import { EntityGrid } from "@joinedcontext/sdk/grid";
 import { Problem } from "./states";
 
-/**
- * The rows of one type in the SDK's `EntityGrid`: read, paged, sorted and filtered at the endpoint.
- * `columns` picks and orders the attributes; `{ attr: "occupancy", formula: "a / b * 100" }` adds a
- * column worked out of a row's attributes. `onSelect` opens a row by its name in the first column.
- * `endpoint` names where the type is read, in an application reading several (SDK-02).
- */
-export function TypeGrid({
-  type,
-  endpoint,
-  columns,
-  pageSize = 50,
-  onSelect,
-}: {
+export interface TypeGridProps {
   type: string;
+  /** Where the type is read, in an application reading several (SDK-02). */
   endpoint?: string;
   columns?: GridColumn[];
   pageSize?: number;
+  /** Opens a row, by its name in the first column. */
   onSelect?: (id: string) => void;
-}) {
+}
+
+/** One type in the SDK's `EntityGrid`, read, paged and filtered at the endpoint. A column: `{ attr }` or `{ attr, formula }`. */
+export function TypeGrid({ type, endpoint, columns, pageSize = 50, onSelect }: TypeGridProps) {
   const { config, transport } = useClient();
   const slug = config.endpoints?.find((each) => each.name === endpoint)?.slug ?? config.slug;
   const { language } = config;

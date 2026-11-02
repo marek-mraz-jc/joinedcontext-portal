@@ -59,6 +59,10 @@ const COMPLETE_TURN: &str = "Complete the application.";
 /// 6,000 tokens, which a model writes in about 35 seconds; the ceiling leaves room for its
 /// reasoning so a slightly longer answer is not cut.
 const FIRST_VERSION_BUDGET: u32 = 20000;
+/// The reasoning effort of that call (AG-72): a person watches it, and medium effort took 42 to 90 s
+/// over the bike prompt against 20 to 29 s at low, with the same components chosen (T-6403). The
+/// second call, which completes the application, keeps the profile's.
+const FIRST_VERSION_EFFORT: &str = "low";
 /// One model call, wall clock: the budget above at a hundred tokens a second, with room.
 const CALL_TIMEOUT: Duration = Duration::from_secs(480);
 /// One model call of a conversation, wall clock. A person waits in front of it: the bikes
