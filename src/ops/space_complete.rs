@@ -1087,14 +1087,16 @@ async fn standing_of(
             .await
             .map_err(ApiError::from)?;
         if holds(held) {
-            return Ok(Standing::Open(Box::new(crate::api::import::waiting_change(
-                state,
-                &gitea,
-                project,
-                lane,
-                crate::change::PlanSummary::new(files, 0, 0),
-                pull,
-            ))));
+            return Ok(Standing::Open(Box::new(
+                crate::api::import::waiting_change(
+                    state,
+                    &gitea,
+                    project,
+                    lane,
+                    crate::change::PlanSummary::new(files, 0, 0),
+                    pull,
+                ),
+            )));
         }
         if propose {
             return Err(OpError::Api(ApiError::Conflict(format!(

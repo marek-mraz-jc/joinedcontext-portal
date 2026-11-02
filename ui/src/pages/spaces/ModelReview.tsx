@@ -10,7 +10,7 @@ import { parseDocument } from "yaml";
 import { useOrgDomain } from "../../api/projects";
 import { Select } from "../../components/ui";
 import { importSlotsOf, rowIds, suggestMapping, toEntities } from "./importRows";
-import type { Mapping, Table } from "./importRows";
+import type { ImportSlot, Mapping, Table } from "./importRows";
 import { RowsCheck } from "./LoadRows";
 
 /** The types a column of a table can take; a slot naming another range keeps it and shows it read only. */
@@ -24,9 +24,12 @@ export function withRange(source: string, type: string, slot: string, range: str
   return doc.toString();
 }
 
-/** The first value of `slot`'s column, so a person judges its type by what the file holds. */
-function sampleOf(table: Table, mapping: Mapping, slot: string): string {
-  const column = Object.keys(mapping).find((name) => mapping[name] === slot);
+/**
+ * The first value of the slot's column, so a person judges its type by what the file holds. A
+ * column mapped elsewhere (latitude and longitude into a position) is still the slot's by title.
+ */
+function sampleOf(table: Table, mapping: Mapping, slot: ImportSlot): string {
+  const column = Object.keys(mapping).find((name) => mapping[name] === slot.name) ?? table.columns.find((name) => slot.titles?.includes(name));
   if (column === undefined) return "";
   return table.rows.find((row) => (row[column] ?? "") !== "")?.[column] ?? "";
 }
@@ -41,9 +44,11 @@ export function ModelReview({ project, space, type, source, table, onCorrect }: 
 }): JSX.Element | null {
   const { t } = useTranslation();
   const orgDomain = useOrgDomain(project);
-  const slots = useMemo(() => importSlotsOf(source, type), [source, type]);
-  const mapping = useMemo(() => suggestMapping(table.columns, slots), [table, slots]);
-  const checked = useMemo(() => toEntities(table, mapping, slots, { type, orgDomain, space }, rowIds(table)), [table, mapping, slots, type, orgDomain, space]);
+  const every = useMemo(() => importSlotsOf(source, type), [source, type]);
+  const mapping = useMemo(() => suggestMapping(table.columns, every), [table, every]);
+  // The position every entity may carry is no attribute of a table with no such column.
+  const slots = every.filter((slot) => slot.kind !== "GeoProperty" || Object.values(mapping).includes(slot.name));
+  const checked = useMemo(() => toEntities(table, mapping, every, { type, orgDomain, space }, rowIds(table)), [table, mapping, every, type, orgDomain, space]);
   if (source === undefined || slots.length === 0) return null;
   return (
     <section aria-labelledby="model-review" data-testid="model-review" className="flex flex-col gap-2">
@@ -54,7 +59,7 @@ export function ModelReview({ project, space, type, source, table, onCorrect }: 
       <ul className="flex flex-col divide-y divide-border rounded-md border border-border">
         {slots.map((slot) => {
           const label = slot.titles?.[0] ?? slot.name;
-          const sample = sampleOf(table, mapping, slot.name);
+          const sample = sampleOf(table, mapping, slot);
           const id = `review-${slot.name}`;
           return (
             <li key={slot.name} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">

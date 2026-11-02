@@ -188,6 +188,12 @@ function Drafts({ folded, count, children }: { folded: boolean; count: number; c
   );
 }
 
+/** A name for the space a dropped file makes: its stem as a DNS-1123 label, the person may change it. */
+export function spaceNameOf(fileName: string): string {
+  const stem = fileName.replace(/\.[^.]*$/, "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  return stem.replace(/[^a-z0-9]+/g, "-").slice(0, 40).replace(/^-+|-+$/g, "");
+}
+
 /** One draft: what it is, whether its check passed, and the way to its own page (AG-73). */
 function DraftCard({ project, draft: d }: { project: string; draft: CompletedDraft }): JSX.Element {
   const { t } = useTranslation();
@@ -262,6 +268,7 @@ export function CompleteFlow({ project, file, inDock = false }: {
   const { t } = useTranslation();
   const permissions = usePermissions(project);
   const [spaceName, setSpaceName] = useState(() => {
+    if (file !== undefined) return spaceNameOf(file.name);
     if (typeof window === "undefined") return "";
     return new URLSearchParams(window.location.search).get("space") ?? "";
   });
@@ -308,6 +315,7 @@ export function CompleteFlow({ project, file, inDock = false }: {
   // updates while the navigation is pending) would otherwise take them and show nothing (T-0894).
   useEffect(() => {
     if (file !== undefined) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- a handed file is taken once after mount
       takeHanded(file);
       return;
     }
@@ -385,8 +393,8 @@ export function CompleteFlow({ project, file, inDock = false }: {
 
   return (
     <div className="flex flex-col gap-section">
-      <Card className="flex flex-col gap-4">
-        <Field id="complete-space" label={t("spaces.complete.space")}>
+      {inDock && result?.change ? null : <Card className="flex flex-col gap-4">
+        <Field id="complete-space" label={t("spaces.complete.space")} help={t("spaces.complete.spaceHint")}>
           {/* An existing space to complete, or the name of a new one (ADR-N-033). */}
           <ResourceNamePicker
             id="complete-space"
@@ -410,19 +418,21 @@ export function CompleteFlow({ project, file, inDock = false }: {
           </Field>
         )}
 
-        <FileDropZone
-          label={t("spaces.complete.files")}
-          button={t("form.dropMany")}
-          hint={t("spaces.complete.filesHint")}
-          multiple
-          onFiles={(selected) => void takeFiles(selected)}
-        >
-          {chosen.length > 0 ? (
-            <p className="text-caption text-fg">
-              {t("form.chosenFiles", { names: chosen.join(", ") })}
-            </p>
-          ) : null}
-        </FileDropZone>
+        {inDock ? null : (
+          <FileDropZone
+            label={t("spaces.complete.files")}
+            button={t("form.dropMany")}
+            hint={t("spaces.complete.filesHint")}
+            multiple
+            onFiles={(selected) => void takeFiles(selected)}
+          >
+            {chosen.length > 0 ? (
+              <p className="text-caption text-fg">
+                {t("form.chosenFiles", { names: chosen.join(", ") })}
+              </p>
+            ) : null}
+          </FileDropZone>
+        )}
         {books.map((book, at) => (
           <SheetChoice
             key={book.name}
@@ -437,7 +447,8 @@ export function CompleteFlow({ project, file, inDock = false }: {
           <ModelReview project={project} space={result.space} type={model.type} source={corrected ?? model.source} table={rows.table} onCorrect={setCorrected} />
         ) : null}
 
-        <div className="flex flex-wrap items-center gap-3">
+        {/* The attributes above can outgrow the dock: the next step stays in view. */}
+        <div className={`flex flex-wrap items-center gap-3 ${inDock ? "sticky bottom-0 bg-surface py-2" : ""}`}>
           <Button
             id="complete-btn"
             variant={result?.proposeReady ? "secondary" : "primary"}
@@ -465,7 +476,7 @@ export function CompleteFlow({ project, file, inDock = false }: {
           ) : null}
           {!url.trim() && chosen.length === 0 ? <span className="text-caption text-fg-muted" aria-hidden="true">{t("spaces.complete.needInput")}</span> : null}
         </div>
-      </Card>
+      </Card>}
 
       {error ? (
         <Alert role="alert" tone="danger">

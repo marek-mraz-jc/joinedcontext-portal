@@ -102,9 +102,9 @@ for (const [label, width, height] of [["1440", 1440, 900], ["400", 400, 860]] as
       await page.getByLabel(/^Attach a table/).setInputFiles(BOOK);
 
       const dock = page.getByTestId("assistant-table");
-      await expect(dock.getByLabel("Files", { exact: true })).toHaveCount(1);
-      await expect(dock.getByText("garages.xlsx")).toBeVisible();
-      await expect(page).toHaveURL(new RegExp(`/projects/${PROJECT}\\?`));
+      await expect(dock.getByText("garages.xlsx: 2 rows, 3 columns.")).toBeVisible();
+      await expect(dock.getByLabel("Files", { exact: true })).toHaveCount(0);
+      await expect(page).not.toHaveURL(/spaces\/complete/);
       await shot(page, `dock-attached-${label}`);
 
       await dock.getByRole("button", { name: "Complete", exact: true }).click();
@@ -120,7 +120,7 @@ for (const [label, width, height] of [["1440", 1440, 900], ["400", 400, 860]] as
       expect(world.ops.at(-1)?.files).toEqual(expect.arrayContaining([expect.objectContaining({ name: "garages.linkml.yaml", content: expect.stringContaining("range: string") })]));
       await shot(page, `dock-proposed-${label}`);
 
-      await dock.getByRole("textbox", { name: "Type the name to confirm" }).fill("garages");
+      await dock.getByRole("textbox", { name: "Resource name confirmation" }).fill("garages");
       await approve.click();
       const write = dock.getByRole("button", { name: "Write 2 rows" });
       await expect(write).not.toHaveAttribute("aria-disabled", "true", { timeout: 15_000 });

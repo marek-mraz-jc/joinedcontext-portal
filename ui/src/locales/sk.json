@@ -690,7 +690,8 @@
           "date": "Dátum",
           "datetime": "Dátum a čas"
         }
-      }
+      },
+      "spaceHint": "Existujúci priestor na doplnenie alebo názov nového, napríklad mestske-garaze."
     },
     "segment": "v identifikátoroch entít: {segment}",
     "quality": {

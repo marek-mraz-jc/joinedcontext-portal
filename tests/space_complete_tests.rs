@@ -1439,17 +1439,31 @@ async fn a_proposed_space_commits_its_model_with_the_compiled_artifacts() {
 
 /// The same model proposed against a forge holding `open` and a main holding `main`, with
 /// `served` in the mirror: the answer, and how many merge requests the call opened (T-6456).
-async fn proposed_again(open: Option<&str>, main: Option<&str>, served: bool, propose: bool) -> (StatusCode, Value, usize) {
+async fn proposed_again(
+    open: Option<&str>,
+    main: Option<&str>,
+    served: bool,
+    propose: bool,
+) -> (StatusCode, Value, usize) {
     use base64::Engine;
     let gitea = common::forge().await;
     let model_tools = MockServer::start().await;
     Mock::given(method("POST"))
         .and(path("/generate"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "jsonSchema": {}, "context": {}, "docs": "", "example": {} })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(
+                json!({ "jsonSchema": {}, "context": {}, "docs": "", "example": {} }),
+            ),
+        )
         .mount(&model_tools)
         .await;
-    let file = |text: &str| ResponseTemplate::new(200).set_body_json(json!({ "sha": "s", "content": base64::engine::general_purpose::STANDARD.encode(text) }));
-    let held = format!("{}/contents/projects/helsinki/spaces/room-bookings/datamodels/room-bookings.linkml.yaml", common::REPO);
+    let file = |text: &str| {
+        ResponseTemplate::new(200).set_body_json(json!({ "sha": "s", "content": base64::engine::general_purpose::STANDARD.encode(text) }))
+    };
+    let held = format!(
+        "{}/contents/projects/helsinki/spaces/room-bookings/datamodels/room-bookings.linkml.yaml",
+        common::REPO
+    );
     if let Some(text) = open {
         Mock::given(method("GET"))
             .and(path(format!("{}/pulls", common::REPO)))
@@ -1460,17 +1474,39 @@ async fn proposed_again(open: Option<&str>, main: Option<&str>, served: bool, pr
             }])))
             .mount(&gitea)
             .await;
-        Mock::given(method("GET")).and(path(held.clone())).and(wiremock::matchers::query_param("ref", "portal/create-contextspace-room-bookings-0a1b2c3d")).respond_with(file(text)).mount(&gitea).await;
+        Mock::given(method("GET"))
+            .and(path(held.clone()))
+            .and(wiremock::matchers::query_param(
+                "ref",
+                "portal/create-contextspace-room-bookings-0a1b2c3d",
+            ))
+            .respond_with(file(text))
+            .mount(&gitea)
+            .await;
     }
     if let Some(text) = main {
-        Mock::given(method("GET")).and(path(held.clone())).and(wiremock::matchers::query_param("ref", "main")).respond_with(file(text)).mount(&gitea).await;
+        Mock::given(method("GET"))
+            .and(path(held.clone()))
+            .and(wiremock::matchers::query_param("ref", "main"))
+            .respond_with(file(text))
+            .mount(&gitea)
+            .await;
     }
     let mut config = Config::for_tests();
     config.model_tools_url = Some(model_tools.uri());
-    let client = joinedcontext_portal::git::GiteaClient::new(gitea.uri().parse().expect("mock url"), "test-owner", "test-repo", "token-xyz").expect("client");
+    let client = joinedcontext_portal::git::GiteaClient::new(
+        gitea.uri().parse().expect("mock url"),
+        "test-owner",
+        "test-repo",
+        "token-xyz",
+    )
+    .expect("client");
     let mirror = std::sync::Arc::new(Mirror::new());
     if served {
-        for (kind, name) in [("ContextSpace", "room-bookings"), ("Policy", "room-bookings-upload")] {
+        for (kind, name) in [
+            ("ContextSpace", "room-bookings"),
+            ("Policy", "room-bookings-upload"),
+        ] {
             mirror.upsert(joinedcontext_portal::resource::ResourceEnvelope {
                 api_version: API_VERSION.to_owned(),
                 kind: kind.to_owned(),
@@ -1480,8 +1516,16 @@ async fn proposed_again(open: Option<&str>, main: Option<&str>, served: bool, pr
             });
         }
     }
-    let state = AppState::new(config.clone(), None).with_mirror(mirror).with_gitea(std::sync::Arc::new(client));
-    let cookie = session_cookie(&config, "steward.user", Some("steward@hel.fi"), vec!["portal-approver"], vec![]);
+    let state = AppState::new(config.clone(), None)
+        .with_mirror(mirror)
+        .with_gitea(std::sync::Arc::new(client));
+    let cookie = session_cookie(
+        &config,
+        "steward.user",
+        Some("steward@hel.fi"),
+        vec!["portal-approver"],
+        vec![],
+    );
     let payload = json!({
         "space": "room-bookings",
         "typeName": "Booking",
@@ -1511,7 +1555,11 @@ async fn proposed_again(open: Option<&str>, main: Option<&str>, served: bool, pr
         .iter()
         .filter(|r| r.method.as_str() == "POST" && r.url.path().ends_with("/pulls"))
         .count();
-    (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null), opened)
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+        opened,
+    )
 }
 
 #[tokio::test]

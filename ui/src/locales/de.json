@@ -690,7 +690,8 @@
           "date": "Datum",
           "datetime": "Datum und Uhrzeit"
         }
-      }
+      },
+      "spaceHint": "Ein bestehender Bereich zum Ergänzen oder der Name eines neuen, zum Beispiel stadt-garagen."
     },
     "segment": "in Entitäts-IDs: {segment}",
     "quality": {

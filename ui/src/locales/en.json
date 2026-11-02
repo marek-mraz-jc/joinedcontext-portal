@@ -690,7 +690,8 @@
           "date": "Date",
           "datetime": "Date and time"
         }
-      }
+      },
+      "spaceHint": "An existing space to complete, or the name of a new one, for example city-garages."
     },
     "segment": "in entity ids: {segment}",
     "quality": {

@@ -28682,6 +28682,9 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "alreadyLive": {
+                      "type": "boolean"
+                    },
                     "change": {
                       "type": [
                         "object",
@@ -28715,7 +28718,8 @@
                     "found",
                     "drafts",
                     "proposeReady",
-                    "lane"
+                    "lane",
+                    "alreadyLive"
                   ],
                   "type": "object"
                 }
