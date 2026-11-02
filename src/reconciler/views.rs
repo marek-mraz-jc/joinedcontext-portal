@@ -698,7 +698,8 @@ pub struct Desired {
 }
 
 impl Desired {
-    /// What this asks of the broker that `before` did not.
+    /// What this asks of the broker that `before` did not. Every refusal stays: it is no write,
+    /// and an Endpoint a merge touched and the writer still refuses must not read `Live`.
     fn beyond(mut self, before: &Desired) -> Desired {
         self.views
             .retain(|id, entry| before.views.get(id) != Some(&*entry));
@@ -710,7 +711,6 @@ impl Desired {
             .retain(|tenant, entry| before.retention.get(tenant) != Some(&*entry));
         self.quality
             .retain(|tenant, entry| before.quality.get(tenant) != Some(&*entry));
-        self.refused.retain(|entry| !before.refused.contains(entry));
         self
     }
 }
@@ -2905,6 +2905,21 @@ mod tests {
             unread.draft_view("city", "air-public", &Draft::default()),
             Ok(None)
         );
+    }
+
+    /// T-6455: an Endpoint a merge touched and the writer still refuses stays refused, or the
+    /// merge would show it `Live` until the whole run.
+    #[test]
+    fn a_refusal_a_merge_did_not_change_still_counts() {
+        let refused = Desired {
+            refused: vec![(Owner::space("city", "air"), "no such type".into())],
+            ..Desired::default()
+        };
+        let before = Desired {
+            refused: refused.refused.clone(),
+            ..Desired::default()
+        };
+        assert_eq!(refused.beyond(&before).refused.len(), 1);
     }
 
     /// T-3813: the page is asked with the admin token, the candidate view as the body and the

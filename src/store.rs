@@ -243,7 +243,6 @@ impl Mirror {
         }
     }
 
-    /// A copy of what the mirror holds now, to overlay without touching the original.
     /// What `fresh` holds of `kinds` that this mirror lacks or holds with another spec, as
     /// `fresh` has it.
     pub fn behind(&self, fresh: &Mirror, kinds: &[&str]) -> Vec<ResourceEnvelope> {
@@ -259,6 +258,7 @@ impl Mirror {
             .collect()
     }
 
+    /// A copy of what the mirror holds now, to overlay without touching the original.
     pub fn snapshot(&self) -> Mirror {
         let copy = Mirror::new();
         copy.replace_all(self);

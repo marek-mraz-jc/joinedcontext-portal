@@ -771,7 +771,10 @@ impl Syncer {
             return 0;
         };
         let outcomes = views.converge_merged(repository).await;
-        let written = outcomes.len();
+        let written = outcomes
+            .iter()
+            .filter(|(_, outcome)| !matches!(outcome, super::views::ViewOutcome::Refused(_)))
+            .count();
         super::views::record(fresh_mirror, outcomes);
         written
     }
@@ -914,14 +917,6 @@ impl Syncer {
         self.status().last_sync.is_some()
     }
 
-    /// The render of the staged organization: itself in layout 1; in layout 2 every registered
-    /// project staged from its own repository at its entry's `spec.ref` and assembled with it
-    /// (CC-86). A project that does not stage keeps the render the last assembly gave it, and
-    /// the rest of the organization renders.
-    /// Steps 2 to 4: the organization at `revision` staged, rendered and loaded; or the last
-    /// run's render and repository, when the organization and every project repository list the
-    /// same files at the same blobs as when it staged them (T-4481). At 10,000 Endpoints the
-    /// stage and load took 5 s of a 7.6 s wave that changed nothing.
     /// `main` as a render of its own, beside any run in flight, which may be reading the shared
     /// assembly; `None` when a repository did not stage, or nothing moved since the last run.
     async fn staged_apart(
@@ -945,6 +940,10 @@ impl Syncer {
         Ok(render.unstaged.is_empty().then_some((render, repository)))
     }
 
+    /// Steps 2 to 4: the organization at `revision` staged, rendered and loaded; or the last
+    /// run's render and repository, when the organization and every project repository list the
+    /// same files at the same blobs as when it staged them (T-4481). At 10,000 Endpoints the
+    /// stage and load took 5 s of a 7.6 s wave that changed nothing.
     async fn staged(&self, revision: &str) -> Result<(Arc<Render>, Arc<Repository>), SyncError> {
         let org = listing(&self.gitea, revision, false).await?;
         let last = self
@@ -965,6 +964,10 @@ impl Syncer {
         Ok(fresh)
     }
 
+    /// The render of the staged organization: itself in layout 1; in layout 2 every registered
+    /// project staged from its own repository at its entry's `spec.ref` and assembled with it
+    /// (CC-86). A project that does not stage keeps the render the last assembly gave it, and
+    /// the rest of the organization renders.
     /// Assembles into `into`, or into the assembly the runs share.
     async fn render(
         &self,
@@ -3794,17 +3797,57 @@ output_error{stream="kpi"} 6
         )
     }
 
+    /// The space a broker test writes into, with a first Endpoint.
+    fn air_files() -> Vec<(&'static str, String)> {
+        vec![
+            (
+                "projects/city/spaces/air/space.yaml",
+                manifest("ContextSpace", "air", json!({})),
+            ),
+            air_endpoint(
+                "projects/city/spaces/air/endpoints/first.yaml",
+                "first",
+                "cccccccccccccccccccccccccc",
+            ),
+        ]
+    }
+
+    fn air_endpoint(file: &'static str, name: &str, slug: &str) -> (&'static str, String) {
+        (
+            file,
+            manifest(
+                "Endpoint",
+                name,
+                json!({
+                    "contextSpaceRef": "air",
+                    "slug": slug,
+                    "audience": "public",
+                    "enabledRepresentations": ["ngsi-ld"],
+                }),
+            ),
+        )
+    }
+
+    fn vendor_endpoint() -> (&'static str, String) {
+        air_endpoint(
+            "projects/city/spaces/air/endpoints/vendor.yaml",
+            "vendor",
+            "dddddddddddddddddddddddddd",
+        )
+    }
+
     fn write_grant() -> (&'static str, String) {
         (
-            "projects/city/policies/vendor-write.yaml",
+            "projects/city/spaces/air/policies/vendor-write.yaml",
             manifest(
                 "Policy",
                 "vendor-write",
                 json!({
-                    "contextSpaceRef": {"kind": "ContextSpace", "name": "catalog"},
+                    "contextSpaceRef": "air",
+                    "assigner": "did:web:city.example",
                     "assignee": {"kind": "user", "id": "vendor"},
                     "operations": ["upsertBatch"],
-                    "information": [{"entities": [{"type": "Car"}]}],
+                    "information": [{"entities": [{"type": "Car"}], "propertyNames": ["speed"]}],
                 }),
             ),
         )
@@ -3968,7 +4011,7 @@ output_error{stream="kpi"} 6
         let token = dir.path().join("token");
         std::fs::write(&token, "t\n").expect("the token");
 
-        let base = catalogue_files();
+        let base = air_files();
         let (_forge, gitea, shared) = changing_forge(&base).await;
         let views = super::super::views::ViewSync::new(broker.uri(), &token);
         let syncer =
@@ -3976,7 +4019,7 @@ output_error{stream="kpi"} 6
         syncer.sync_once().await.expect("the first run loads");
 
         let seen = broker.received_requests().await.unwrap_or_default().len();
-        next_revision(&shared, &base, &[second_endpoint(), write_grant()]);
+        next_revision(&shared, &base, &[vendor_endpoint(), write_grant()]);
         syncer.go_live().await.expect("the merge loads");
         let written = broker_calls(&broker, seen).await;
         assert!(
@@ -3993,7 +4036,7 @@ output_error{stream="kpi"} 6
         );
 
         let seen = broker.received_requests().await.unwrap_or_default().len();
-        next_revision(&shared, &base, &[second_endpoint()]);
+        next_revision(&shared, &base, &[vendor_endpoint()]);
         syncer.go_live().await.expect("the revocation loads");
         let revoked = broker_calls(&broker, seen).await;
         assert!(
