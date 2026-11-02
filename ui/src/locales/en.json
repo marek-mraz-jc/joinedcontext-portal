@@ -533,6 +533,7 @@
     "empty": "This project has no Context Space yet.",
     "add": "New Context Space",
     "addHint": "Saving proposes a change; a space appears once the change is approved.",
+    "fromFile": "Start from a file",
     "propose": "Propose change",
     "sandbox": "sandbox, {days} days",
     "field": {

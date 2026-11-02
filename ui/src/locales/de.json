@@ -533,6 +533,7 @@
     "empty": "Dieses Projekt hat noch keinen Kontextraum.",
     "add": "Neuer Kontextraum",
     "addHint": "Das Speichern schlägt eine Änderung vor; der Raum entsteht nach der Freigabe.",
+    "fromFile": "Mit einer Datei beginnen",
     "propose": "Änderung vorschlagen",
     "sandbox": "Sandbox, {days} Tage",
     "field": {
