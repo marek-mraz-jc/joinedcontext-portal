@@ -21,12 +21,13 @@ for (const size of SIZES) {
         await page.getByRole("combobox", { name: "Endpoint" }).selectOption({ label: "Helsinki air quality" });
         await expect(rows.first()).toBeVisible({ timeout: 60_000 });
       });
-      await clip.step("Filter a column by one of its values", async () => {
+      await clip.step("Filter the name column: the rows and the query narrow", async () => {
         // A phone folds the filter row under one button.
         if (size.width < 640) await page.locator(".jc-grid-filter-toggle").first().click();
-        const filter = page.locator(".jc-grid-filter-row select").first();
-        await filter.selectOption({ index: 1 });
-        await expect(page.getByText(/^\d+ of \d+ loaded/)).toBeVisible({ timeout: 60_000 });
+        await page.getByRole("combobox", { name: "Filter: name" }).selectOption("contains");
+        await page.getByRole("textbox", { name: /: name$/ }).fill("Helsinki");
+        await page.keyboard.press("Enter");
+        await expect(page.getByText(/^\d+ of \d+ loaded/)).not.toHaveText(/^11 of 11/, { timeout: 60_000 });
         await expect(rows.first()).toBeVisible({ timeout: 60_000 });
       });
       const dialog = page.getByRole("dialog", { name: /^Details:/ });
