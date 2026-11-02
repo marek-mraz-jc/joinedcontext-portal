@@ -229,6 +229,7 @@
     "created": "Vytvořeno",
     "lane": "Úroveň rizika",
     "phase": "Fáze",
+    "openMergeRequest": "Otevřít žádost o sloučení",
     "mergeRequest": "Požadavek na sloučení",
     "repository": "Repozitář",
     "approve": "Schválit",

@@ -287,8 +287,9 @@ describe("approval actions", () => {
     await userEvent.click(await screen.findByRole("button", { name: en.approvals.approve }));
 
     expect(await screen.findByText(en.phase.deploying)).toBeInTheDocument();
+    // Nothing is left to decide, so no decision is offered.
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: en.approvals.approve })).toBeDisabled(),
+      expect(screen.queryByRole("button", { name: en.approvals.approve })).not.toBeInTheDocument(),
     );
   });
 
