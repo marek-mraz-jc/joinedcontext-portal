@@ -1292,7 +1292,12 @@ fn written(kinds: &[&str]) -> Vec<&'static str> {
     let run = kinds.contains(&"Pipeline").then_some(RUN);
     let data = kinds.contains(&"Endpoint").then_some(DATA_WRITE);
     let build = kinds.contains(&"App").then_some(BUILD);
-    [APPLY].into_iter().chain(run).chain(data).chain(build).collect()
+    [APPLY]
+        .into_iter()
+        .chain(run)
+        .chain(data)
+        .chain(build)
+        .collect()
 }
 
 /// The Endpoints a build call names, by `endpointName` and `endpointNames`.
@@ -2903,8 +2908,14 @@ pub(crate) mod tests {
         base["endpoints"] = json!(["counters"]);
         let listed = policy(base.clone());
         assert!(policy_builds(&listed, &call));
-        assert!(!policy_builds(&listed, &json!({ "appName": "a", "endpointName": "permits" })));
-        assert!(!policy_builds(&listed, &json!({ "appName": "a" })), "no Endpoint named");
+        assert!(!policy_builds(
+            &listed,
+            &json!({ "appName": "a", "endpointName": "permits" })
+        ));
+        assert!(
+            !policy_builds(&listed, &json!({ "appName": "a" })),
+            "no Endpoint named"
+        );
         base.as_object_mut().expect("object").remove("endpoints");
         base["kinds"] = json!([{ "kind": "App", "verbs": ["read"] }]);
         assert!(!policy_builds(&policy(base), &call));

@@ -33,9 +33,9 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use joinedcontext_portal::auth::csrf::{CSRF_COOKIE, CSRF_HEADER};
 use joinedcontext_portal::auth::session::EDGE_TOKEN_HEADER;
+use joinedcontext_portal::config::AgentSettings;
 use joinedcontext_portal::config::Config;
 use joinedcontext_portal::connectors;
-use joinedcontext_portal::config::AgentSettings;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
 use joinedcontext_portal::pipeline_log::NewLine;
 use joinedcontext_portal::reconciler::streams::{Bentos, StreamDeployer};

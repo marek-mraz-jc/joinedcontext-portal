@@ -524,7 +524,12 @@ mod tests {
     #[tokio::test]
     async fn a_run_names_its_page_and_a_whole_preview_address() {
         let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
-        let base = state.config.public_base_url.as_str().trim_end_matches('/').to_owned();
+        let base = state
+            .config
+            .public_base_url
+            .as_str()
+            .trim_end_matches('/')
+            .to_owned();
         let run = with_pages(
             &state,
             json!({

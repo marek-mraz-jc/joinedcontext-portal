@@ -1221,13 +1221,13 @@
       contains: ['endpointRef']
 - id: S-39
   segment: apps
-  as: steward
+  as: project-admin
   says: "Create an App that lists today's events from Endpoint Y."
   expect: 'app run created under the person, its answer names the builder page that shows the preview'
   deny: 'writes off -> no build; a connector narrowed to one Endpoint -> refused'
   script:
     - proves: expect
-      manifest: { kind: Group, name: builders, spec: { members: [{ user: scn.steward@hel.fi }] } }
+      manifest: { kind: Group, name: builders, spec: { members: [{ user: scn.project-admin@hel.fi }] } }
     - proves: expect
       manifest: { kind: DelegationPolicy, name: builders-apps, spec: { subjects: [{ kind: Group, name: builders }], projects: ['{project}'], segments: [apps], writes: true, maxExpiry: P90D } }
     - proves: expect
@@ -1241,8 +1241,9 @@
       contains: ['jc_run_create']
     - proves: expect
       via: connector
+      accepted: true
       call: jc_run_create
-      args: { appName: todays-counters, endpointName: '{project}-counters', prompt: "Lists today's counters." }
+      args: { appName: todays-counters, appClass: ui, visibility: project, kind: application, endpointName: '{project}-counters', dataNeeds: [{ contextSpaceRef: { kind: ContextSpace, name: doprava }, types: [BikeCounter], operations: [retrieveOps] }], prompt: "Lists today's counters." }
       contains: ['"appName":"todays-counters"', '"status":"queued"', '/apps?run=']
     - proves: deny
       rest:
@@ -1253,7 +1254,7 @@
     - proves: deny
       via: connector
       call: jc_run_create
-      args: { appName: todays-counters-2, endpointName: '{project}-counters', prompt: "Lists today's counters." }
+      args: { appName: todays-counters-2, appClass: ui, visibility: project, kind: application, endpointName: '{project}-counters', dataNeeds: [{ contextSpaceRef: { kind: ContextSpace, name: doprava }, types: [BikeCounter], operations: [retrieveOps] }], prompt: "Lists today's counters." }
       refused: true
 - id: S-40
   segment: apps
