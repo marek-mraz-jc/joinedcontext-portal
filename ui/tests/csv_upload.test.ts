@@ -202,6 +202,9 @@ describe("a file's columns against an inferred model (T-6445)", () => {
   it("makes a type name of a file or sheet, its diacritics kept as letters", () => {
     expect(typeNameOf("Kultúrne miesta.csv")).toBe("KulturneMiesta");
     expect(typeNameOf("stations.csv")).toBe("Station");
+    expect(typeNameOf("Autobus.csv")).toBe("Autobus");
+    expect(typeNameOf("analysis.csv")).toBe("Analysis");
+    expect(typeNameOf("Vozidlá Mercedes.csv")).toBe("VozidlaMercedes");
     expect(typeNameOf("bike-counters_2026.xlsx")).toBe("BikeCounters2026");
     expect(typeNameOf("2026.csv")).toBeUndefined();
     expect(typeNameOf("名前.csv")).toBeUndefined();

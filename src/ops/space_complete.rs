@@ -5,6 +5,7 @@ use std::collections::BTreeMap;
 use jcctl::pipeline_test::{Sample, SampleFormat};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use unicode_normalization::{char::is_combining_mark, UnicodeNormalization};
 use utoipa::ToSchema;
 
 use super::Operation;
@@ -217,11 +218,15 @@ fn class_name_of(type_name: Option<&str>, sample_name: Option<&str>, space_name:
     } else {
         derived
     };
-    if derived.starts_with(|c: char| c.is_ascii_uppercase()) && derived != "Entity" {
+    let mut class = if derived.starts_with(|c: char| c.is_ascii_uppercase()) && derived != "Entity"
+    {
         derived
     } else {
         format!("Feed{derived}")
-    }
+    };
+    // ASCII by construction, so the cut lands between characters.
+    class.truncate(63);
+    class
 }
 
 /// The inferred LinkML source with `description` on `class`, when the source parses and the
@@ -262,19 +267,50 @@ fn describe(manifest: &mut Value, description: Option<&str>) {
     }
 }
 
+/// `raw` with its diacritics dropped and the letters Unicode does not decompose spelled out.
+/// Any other non-ASCII character stays, for the caller to read as a word break.
+fn fold_to_ascii(raw: &str) -> String {
+    let mut out = String::with_capacity(raw.len());
+    for c in raw.nfkd().filter(|c| !is_combining_mark(*c)) {
+        match c {
+            'ß' | 'ẞ' => out.push_str("ss"),
+            'ł' | 'Ł' => out.push('l'),
+            'đ' | 'Đ' => out.push('d'),
+            'ø' | 'Ø' => out.push('o'),
+            'æ' | 'Æ' => out.push_str("ae"),
+            'œ' | 'Œ' => out.push_str("oe"),
+            _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// A plural `s` to drop: an ASCII name not ending in -ss, -us or -is. A name with diacritics is
+/// no English plural (Vozidlá Mercedes), and address, autobus and analysis stay whole.
+fn is_english_plural(stem: &str) -> bool {
+    stem.is_ascii()
+        && stem.len() > 1
+        && stem.ends_with('s')
+        && !["ss", "us", "is"].iter().any(|end| stem.ends_with(end))
+}
+
 fn to_pascal_case(raw: &str) -> String {
     let stem = raw
-        .strip_suffix(".csv")
-        .or_else(|| raw.strip_suffix(".json"))
-        .or_else(|| raw.strip_suffix(".geojson"))
-        .unwrap_or(raw);
-    let mut s = stem.to_string();
-    if s.ends_with('s') && !s.ends_with("ss") && s.len() > 1 {
-        s.pop();
-    }
+        .rsplit_once('.')
+        .filter(|(_, suffix)| {
+            ["csv", "tsv", "json", "geojson", "xlsx"]
+                .iter()
+                .any(|known| suffix.eq_ignore_ascii_case(known))
+        })
+        .map_or(raw, |(stem, _)| stem);
+    let singular = if is_english_plural(stem) {
+        &stem[..stem.len() - 1]
+    } else {
+        stem
+    };
     let mut result = String::new();
     let mut cap_next = true;
-    for c in s.chars() {
+    for c in fold_to_ascii(singular).chars() {
         if c.is_ascii_alphanumeric() {
             if cap_next {
                 result.extend(c.to_uppercase());
@@ -2051,6 +2087,70 @@ mod tests {
         assert!(!is_type_name("weatherObserved"));
         assert!(!is_type_name("Weather-Observed"));
         assert!(!is_type_name(""));
+    }
+
+    #[test]
+    fn a_name_with_diacritics_folds_to_a_readable_class() {
+        for (sample, class) in [
+            ("Kultúrne miesta.csv", "KulturneMiesta"),
+            ("Školské zariadenia", "SkolskeZariadenia"),
+            ("Dětská hřiště.csv", "DetskaHriste"),
+            ("Přírodní rezervace.json", "PrirodniRezervace"),
+            ("Straßenbäume.csv", "Strassenbaume"),
+            ("Öffnungszeiten", "Offnungszeiten"),
+            ("Łódź ulice", "LodzUlice"),
+        ] {
+            let name = class_name_of(None, Some(sample), "bikes");
+            assert_eq!(name, class);
+            assert!(is_type_name(&name), "{name}");
+        }
+    }
+
+    #[test]
+    fn a_name_with_nothing_to_fold_falls_back_to_the_space() {
+        for sample in ["北京市.csv", "Киев", "…"] {
+            let name = class_name_of(None, Some(sample), "helsinki-bikes");
+            assert_eq!(name, "HelsinkiBike");
+        }
+        let name = class_name_of(None, Some("北京市.csv"), "Киев");
+        assert_eq!(name, "FeedEntity");
+        assert!(is_type_name(&name), "{name}");
+    }
+
+    #[test]
+    fn a_sample_name_loses_its_file_suffix_whatever_its_case() {
+        for sample in [
+            "kulturne-miesta.xlsx",
+            "kulturne-miesta.XLSX",
+            "kulturne-miesta.tsv",
+            "kulturne-miesta.geojson",
+        ] {
+            assert_eq!(class_name_of(None, Some(sample), "bikes"), "KulturneMiesta");
+        }
+        assert_eq!(class_name_of(None, Some("v1.2 feed"), "bikes"), "V12Feed");
+    }
+
+    #[test]
+    fn only_an_english_plural_loses_its_last_letter() {
+        for (sample, class) in [
+            ("stations.csv", "Station"),
+            ("Autobus.csv", "Autobus"),
+            ("status.json", "Status"),
+            ("analysis.csv", "Analysis"),
+            ("address.csv", "Address"),
+            ("Vozidlá Mercedes.csv", "VozidlaMercedes"),
+        ] {
+            assert_eq!(class_name_of(None, Some(sample), "bikes"), class);
+        }
+    }
+
+    #[test]
+    fn a_class_stays_within_the_length_a_type_name_may_have() {
+        let name = class_name_of(None, Some(&format!("{}ž.csv", "a".repeat(80))), "bikes");
+        assert_eq!(name.len(), 63);
+        assert!(is_type_name(&name), "{name}");
+        let name = class_name_of(None, Some(&format!("7{}.csv", "a".repeat(80))), "bikes");
+        assert!(is_type_name(&name), "{name}");
     }
 
     #[test]
