@@ -124,8 +124,11 @@ describe("the API tab", () => {
     ["cs", 3, "3 Endpointy tohoto"],
     ["cs", 7, "7 Endpointů tohoto"],
     ["en", 2, "2 Endpoints of"],
-  ])("counts the Endpoints in %s: %i", (language, count, words) => {
-    expect(i18n.getFixedT(language)("spaces.api.pickHint", { count })).toContain(words);
+  ])("counts the Endpoints in %s: %i", async (language, count, words) => {
+    await i18n.changeLanguage(language);
+    const hint = i18n.t("spaces.api.pickHint", { count });
+    await i18n.changeLanguage("en");
+    expect(hint).toContain(words);
   });
 
   it("gives every call its own copy button and copies that call's address", async () => {
