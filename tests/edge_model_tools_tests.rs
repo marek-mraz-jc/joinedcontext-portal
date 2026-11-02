@@ -150,7 +150,7 @@ async fn asked(server: &MockServer) -> Vec<String> {
 // -------------------------------------------------------------------------------------------------
 
 /// DM-10: the caller names a model in the catalogue and never a place to fetch it from. This is the
-/// whole grammar of what `is_catalogue_id` accepts (`src/tools/model_tools.rs:140`) — two segments of
+/// whole grammar of what `is_catalogue_id` accepts (`src/tools/sdm_mirror.rs`) — two segments of
 /// letters, digits, dot, dash and underscore, neither empty, neither starting with a dot, neither
 /// longer than 128 — and every refusal leaves the service untouched, which is what makes this the
 /// Portal's guard rather than Model Tools'.
