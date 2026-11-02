@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { KpiEditorDialog } from "../src/pages/pipelines/KpiEditor";
-import { choiceFormula, emptyDraft, kpiManifest, kpiTargets, missingOf, placeOf } from "../src/pages/pipelines/kpiEditor";
+import { choiceFormula, emptyDraft, formulaOf, kpiManifest, kpiTargets, missingOf, placeOf } from "../src/pages/pipelines/kpiEditor";
 import type { KpiDraft } from "../src/pages/pipelines/kpiEditor";
 import type { Manifest } from "../src/api/manifest";
 import { expectNoViolations } from "./checks";
@@ -46,7 +46,6 @@ describe("the KPI editor's model", () => {
       kind: "Pipeline",
       metadata: { name: "parking-per-stop", namespace: "helsinki" },
       spec: {
-        title: "Occupied places per stop",
         class: "scheduled",
         schedule: "0 * * * *",
         sources: [
@@ -166,6 +165,20 @@ describe("the KPI editor", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("writes the share in use from a plain choice", () => {
+    expect(formulaOf({ ...DRAFT, choice: "rest" })).toBe("1 - sum(parking.occupied) / sum(stops.)");
+  });
+
+  it("says a preview that stopped at the page is not the final value", async () => {
+    stubFetch({
+      preview: { values: [{ key: null, name: "parking-per-stop", value: 100 }], rows: { parking: 100, stops: 2 } },
+    });
+    show();
+    await waitFor(() => expect(propose()).toBeEnabled());
+    await userEvent.click(screen.getByRole("button", { name: k.runPreview }));
+    expect(await screen.findByText(/stopped at 100 rows of a source/)).toBeInTheDocument();
   });
 
   it("checks the draft as typed, previews it and proposes the manifest it checked", async () => {
