@@ -24,6 +24,13 @@ export function EndpointDatasetPage({ slug }: { slug: string }): JSX.Element {
   // The title and the mark come from what the person may read; the grid decides alone.
   const readable = useQuery({ ...readableQuery(), enabled: status === "authenticated" });
   const dataset = readable.data?.datasets.find((row) => row.slug === slug);
+  // Without the row the page cannot name the dataset: it says why instead of a bare "Dataset".
+  const words =
+    status !== "authenticated"
+      ? { title: t("catalogue.readable.endpoint.visitorTitle"), lead: t("catalogue.readable.endpoint.visitorLead") }
+      : readable.isSuccess && !dataset
+        ? { title: t("catalogue.readable.endpoint.refusedTitle"), lead: t("catalogue.readable.endpoint.refusedLead") }
+        : { title: t("catalogue.readable.endpoint.title"), lead: t("catalogue.readable.endpoint.lead") };
   return (
     <div className="flex flex-col gap-section">
       <Link to="/catalogue" className="focus-ring inline-flex items-center gap-1 self-start rounded-sm text-body text-primary-soft-fg hover:underline">
@@ -31,9 +38,9 @@ export function EndpointDatasetPage({ slug }: { slug: string }): JSX.Element {
         {t("catalogue.dataset.back")}
       </Link>
       <PageHeader
-        title={dataset?.title ?? dataset?.name ?? t("catalogue.readable.endpoint.title")}
+        title={dataset?.title ?? dataset?.name ?? words.title}
         titleAction={dataset ? <AccessBadge dataset={dataset} /> : undefined}
-        description={dataset?.description ?? t("catalogue.readable.endpoint.lead")}
+        description={dataset?.description ?? words.lead}
       />
       <Suspense fallback={<PageLoading label={t("catalogue.dataset.loading")} />}>
         <EndpointDataView project={dataset?.project ?? "catalogue"} slug={slug} csv={dataset?.representations.includes("csv") ?? false} />
