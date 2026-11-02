@@ -106,12 +106,15 @@ async function generate(page: Page, name: string, prompt: string, label: string)
   await page.getByText("Details:", { exact: false }).first().click();
   await page.getByLabel("App name").fill(name);
   await both(page, label, "prompt");
-  const started = page.waitForResponse((answer) => answer.request().method() === "POST" && answer.url().endsWith(`/projects/${PROJECT}/agent-runs`));
+  // The body is read as the answer lands: the browser drops it once the page moves to the App (T-6441).
+  const started = page
+    .waitForResponse((answer) => answer.request().method() === "POST" && answer.url().endsWith(`/projects/${PROJECT}/agent-runs`))
+    .then(async (answer) => ({ status: answer.status(), body: await answer.text() }));
   const pressed = Date.now();
   await page.getByRole("button", { name: "Generate the app" }).click();
   const answer = await started;
-  expect(answer.status(), await answer.text()).toBeLessThan(300);
-  const { id } = (await answer.json()) as { id: string };
+  expect(answer.status, answer.body).toBeLessThan(300);
+  const { id } = JSON.parse(answer.body) as { id: string };
   await page.waitForURL(new RegExp(`/projects/${PROJECT}/apps/${name}`), { timeout: 60_000 });
   return { id, pressed };
 }
@@ -176,7 +179,9 @@ for (let round = 1; round <= RUNS; round += 1) {
     let note = "";
     try {
       await expect(preview.locator(MAP)).toBeVisible({ timeout: 300_000 });
+      // A basemap paints before the rows land (run 7 of T-6441): the template's tiles hold "…" until they do.
       await expect(preview.locator(".jc-loading, [aria-busy=true]")).toHaveCount(0, { timeout: 120_000 });
+      await expect(preview.getByText("…", { exact: true })).toHaveCount(0, { timeout: 120_000 });
       await expect.poll(() => paintedPixels(preview), { timeout: 120_000 }).toBeGreaterThanOrEqual(PAINTED);
       firstRenderS = (Date.now() - pressed) / 1000;
       await both(page, label, "first-render");
