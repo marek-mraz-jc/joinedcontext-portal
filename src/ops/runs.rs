@@ -393,6 +393,7 @@ pub fn operations() -> Vec<Operation> {
                         as_user(caller),
                         State(state.clone()),
                         Path((project.to_owned(), input.id)),
+                        Default::default(),
                         Json(crate::api::agent_runs::AnswerRequest {
                             question_id: input.question_id,
                             answers: input.answers,
@@ -425,6 +426,7 @@ pub fn operations() -> Vec<Operation> {
                         as_user(caller),
                         State(state.clone()),
                         Path((project.to_owned(), input.id)),
+                        Default::default(),
                         Json(crate::api::agent_runs::MessageRequest {
                             text: input.text,
                             endpoint_names: input.endpoint_names,
