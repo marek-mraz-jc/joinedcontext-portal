@@ -3889,7 +3889,7 @@
       "ckanVia": "through the role {role}",
       "appNotLoaded": "The app is still loading, or you may not read it.",
       "hint": {
-        "email": "Pick one or more of the organization's people by name, or paste e-mails separated by commas, e.g. jana.novak@example.org, peter.horak@example.org. The group records each person's id, not the address.",
+        "email": "Pick people by name, or paste e-mails separated by commas, e.g. jana.novak@example.org.",
         "where": "Where the role holds: the whole organization or one project, e.g. helsinki.",
         "space": "Keep the whole project, or narrow the role to one context space, e.g. air-quality.",
         "role": "What the members may do there, e.g. viewer reads, steward also proposes changes.",
@@ -11384,7 +11384,7 @@
     "groupLead": "The internal datasets a Policy grants to {group}, as the gateway decides them for its members.",
     "groupEmpty": {
       "title": "{group} reads no internal dataset",
-      "description": "Grant it one in a Policy with the assignee kind group and this group's name, for example in the Endpoint's own Policy."
+      "description": "No Policy grants this group a dataset yet. Open an Endpoint and name this group in its Policy."
     },
     "endpointTitle": "Who can read this",
     "endpointLead": "The audience and every grant to everyone in the organization or a group, in plain words.",
@@ -11395,6 +11395,7 @@
     "endpointEveryone": "Everyone in the organization reads it:",
     "endpointGroup": "Members of the group {group} read it:",
     "endpointNobody": "No grant to the whole organization or to a group: only the people and roles its Policies name read it.",
+    "endpointNext": "Open the project's Policies to share it with everyone or a group.",
     "personTitle": "What this person can read",
     "personLead": "The catalogue as {name} sees it signed in: dataset names only, never their data.",
     "personEmpty": {

@@ -3889,7 +3889,7 @@
       "ckanVia": "über die Rolle {role}",
       "appNotLoaded": "Die App wird noch geladen, oder Sie dürfen sie nicht lesen.",
       "hint": {
-        "email": "Wählen Sie eine oder mehrere Personen der Organisation nach Namen oder fügen Sie durch Kommas getrennte E-Mails ein, z. B. jana.novak@example.org, peter.horak@example.org. Die Gruppe speichert die Kennung der Person, nicht die Adresse.",
+        "email": "Wählen Sie Personen nach Namen oder fügen Sie durch Kommas getrennte E-Mails ein, z. B. jana.novak@example.org.",
         "where": "Wo die Rolle gilt: die ganze Organisation oder ein Projekt, z. B. helsinki.",
         "space": "Das ganze Projekt behalten oder die Rolle auf einen Kontextraum begrenzen, z. B. air-quality.",
         "role": "Was die Mitglieder dort dürfen, z. B. viewer liest, steward schlägt auch Änderungen vor.",
@@ -11384,7 +11384,7 @@
     "groupLead": "Die internen Datensätze, die eine Richtlinie {group} freigibt, wie das Gateway sie für ihre Mitglieder entscheidet.",
     "groupEmpty": {
       "title": "{group} liest keinen internen Datensatz",
-      "description": "Geben Sie ihr einen in einer Richtlinie mit der Empfängerart group und dem Namen dieser Gruppe frei, zum Beispiel in der Richtlinie des Endpoints."
+      "description": "Noch keine Richtlinie gibt ihr einen Datensatz frei. Öffnen Sie einen Endpoint und nennen Sie diese Gruppe in seiner Richtlinie."
     },
     "endpointTitle": "Wer das lesen kann",
     "endpointLead": "Die Zielgruppe und jede Freigabe an die ganze Organisation oder eine Gruppe, in einfachen Worten.",
@@ -11395,6 +11395,7 @@
     "endpointEveryone": "Alle in der Organisation lesen ihn:",
     "endpointGroup": "Mitglieder der Gruppe {group} lesen ihn:",
     "endpointNobody": "Keine Freigabe an die ganze Organisation oder eine Gruppe: nur die Personen und Rollen seiner Richtlinien lesen ihn.",
+    "endpointNext": "Öffnen Sie die Richtlinien des Projekts, um ihn allen oder einer Gruppe freizugeben.",
     "personTitle": "Was diese Person lesen kann",
     "personLead": "Der Katalog, wie {name} ihn angemeldet sieht: nur Namen der Datensätze, nie ihre Daten.",
     "personEmpty": {

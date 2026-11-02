@@ -3889,7 +3889,7 @@
       "ckanVia": "cez rolu {role}",
       "appNotLoaded": "Aplikácia sa ešte načítava alebo ju nemôžete čítať.",
       "hint": {
-        "email": "Vyberte jednu alebo viac osôb organizácie podľa mena alebo vložte e-maily oddelené čiarkami, napr. jana.novak@example.org, peter.horak@example.org. Skupina si zapíše identifikátor osoby, nie adresu.",
+        "email": "Vyberte osoby podľa mena alebo vložte e-maily oddelené čiarkami, napr. jana.novak@example.org.",
         "where": "Kde rola platí: celá organizácia alebo jeden projekt, napr. helsinki.",
         "space": "Ponechajte celý projekt alebo zúžte rolu na jeden kontextový priestor, napr. air-quality.",
         "role": "Čo môžu členovia robiť, napr. viewer číta, steward aj navrhuje zmeny.",
@@ -11384,7 +11384,7 @@
     "groupLead": "Interné množiny údajov, ktoré politika sprístupňuje skupine {group}, ako ich brána rozhoduje pre jej členov.",
     "groupEmpty": {
       "title": "{group} nečíta žiadnu internú množinu údajov",
-      "description": "Sprístupnite jej niektorú v politike s príjemcom druhu group a názvom tejto skupiny, napríklad v politike Endpointu."
+      "description": "Zatiaľ jej žiadna politika nesprístupňuje množinu údajov. Otvorte Endpoint a uveďte túto skupinu v jeho politike."
     },
     "endpointTitle": "Kto to môže čítať",
     "endpointLead": "Publikum a každé sprístupnenie celej organizácii alebo skupine, jednoducho povedané.",
@@ -11395,6 +11395,7 @@
     "endpointEveryone": "Číta ju každý v organizácii:",
     "endpointGroup": "Číta ju skupina {group}:",
     "endpointNobody": "Žiadne sprístupnenie celej organizácii ani skupine: čítajú ju len ľudia a roly, ktoré uvádzajú jej politiky.",
+    "endpointNext": "Otvorte politiky projektu a sprístupnite ju všetkým alebo skupine.",
     "personTitle": "Čo táto osoba môže čítať",
     "personLead": "Katalóg, ako ho vidí {name} po prihlásení: len názvy množín údajov, nikdy ich údaje.",
     "personEmpty": {

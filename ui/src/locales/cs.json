@@ -3889,7 +3889,7 @@
       "ckanVia": "přes roli {role}",
       "appNotLoaded": "Aplikace se ještě načítá nebo ji nemůžete číst.",
       "hint": {
-        "email": "Vyberte jednu nebo více osob organizace podle jména nebo vložte e-maily oddělené čárkami, např. jana.novak@example.org, peter.horak@example.org. Skupina si zapíše identifikátor osoby, ne adresu.",
+        "email": "Vyberte osoby podle jména nebo vložte e-maily oddělené čárkami, např. jana.novak@example.org.",
         "where": "Kde role platí: celá organizace nebo jeden projekt, např. helsinki.",
         "space": "Ponechte celý projekt nebo zužte roli na jeden kontextový prostor, např. air-quality.",
         "role": "Co mohou členové dělat, např. viewer čte, steward také navrhuje změny.",
@@ -11384,7 +11384,7 @@
     "groupLead": "Interní datové sady, které politika zpřístupňuje skupině {group}, jak je brána rozhoduje pro její členy.",
     "groupEmpty": {
       "title": "{group} nečte žádnou interní datovou sadu",
-      "description": "Zpřístupněte jí některou v politice s příjemcem druhu group a názvem této skupiny, například v politice Endpointu."
+      "description": "Zatím jí žádná politika nezpřístupňuje datovou sadu. Otevřete Endpoint a uveďte tuto skupinu v jeho politice."
     },
     "endpointTitle": "Kdo to může číst",
     "endpointLead": "Publikum a každé zpřístupnění celé organizaci nebo skupině, jednoduše řečeno.",
@@ -11395,6 +11395,7 @@
     "endpointEveryone": "Čte ji každý v organizaci:",
     "endpointGroup": "Čte ji skupina {group}:",
     "endpointNobody": "Žádné zpřístupnění celé organizaci ani skupině: čtou ji jen lidé a role, které uvádějí její politiky.",
+    "endpointNext": "Otevřete politiky projektu a zpřístupněte ji všem nebo skupině.",
     "personTitle": "Co tato osoba může číst",
     "personLead": "Katalog, jak ho vidí {name} po přihlášení: jen názvy datových sad, nikdy jejich data.",
     "personEmpty": {

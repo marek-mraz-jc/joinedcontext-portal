@@ -1831,6 +1831,7 @@
         "RadioGroup": 1
       },
       "tests": [
+        "data_access.test.tsx",
         "people_invite.test.tsx",
         "people_page.test.tsx"
       ]

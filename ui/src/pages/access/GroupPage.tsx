@@ -10,7 +10,7 @@ import { useProjects } from "../../api/projects";
 import { proposeChecked } from "../../api/proposal";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { DeleteResourceAction } from "../../components/DeleteResourceDialog";
-import { Alert, Button, Field, PageHeader, Select } from "../../components/ui";
+import { Alert, Button, Card, Field, PageHeader, Select } from "../../components/ui";
 import { ResourcePageFailed } from "../../components/ui/PageState";
 import { DeniedNote, PermissionGuard } from "../../components/ui/PermissionGuard";
 import { withMember, withoutMember } from "../apps/members";
@@ -324,7 +324,7 @@ function Members({
       ? t("access.groupPage.needEmail")
       : undefined;
   return (
-    <section aria-labelledby={heading} className="space-y-3 rounded border border-border p-4">
+    <Card as="section" padding="md" aria-labelledby={heading} className="space-y-3">
       <h2 id={heading} className="text-title font-semibold text-fg">
         {t("access.groupPage.members")}
       </h2>
@@ -396,7 +396,7 @@ function Members({
           </Button>
         </PermissionGuard>
       </form>
-    </section>
+    </Card>
   );
 }
 
@@ -470,7 +470,7 @@ function PlatformRoles({
       : undefined;
 
   return (
-    <section aria-labelledby={heading} className="space-y-3 rounded border border-border p-4">
+    <Card as="section" padding="md" aria-labelledby={heading} className="space-y-3">
       <h2 id={heading} className="text-title font-semibold text-fg">
         {t("access.groupPage.platformRoles")}
       </h2>
@@ -580,7 +580,7 @@ function PlatformRoles({
           </Button>
         </PermissionGuard>
       </form>
-    </section>
+    </Card>
   );
 }
 
@@ -615,7 +615,7 @@ function ApplicationRoles({
   const reason = !app || !role ? t("access.groupPage.needAppRole") : already ? t("access.groupPage.already") : undefined;
 
   return (
-    <section aria-labelledby={heading} className="space-y-3 rounded border border-border p-4">
+    <Card as="section" padding="md" aria-labelledby={heading} className="space-y-3">
       <h2 id={heading} className="text-title font-semibold text-fg">
         {t("access.groupPage.appRoles")}
       </h2>
@@ -714,7 +714,7 @@ function ApplicationRoles({
           </Button>
         </PermissionGuard>
       </form>
-    </section>
+    </Card>
   );
 }
 
@@ -749,7 +749,7 @@ function CkanInstancesReached({ group, bindings }: { group: string; bindings: Ma
   const loading = projects.isPending || roles.isPending || lists.some((query) => query.isPending);
   const failed = roles.isError ? roles.error : lists.find((query) => query.isError)?.error;
   return (
-    <section aria-labelledby={heading} className="space-y-3 rounded border border-border p-4">
+    <Card as="section" padding="md" aria-labelledby={heading} className="space-y-3">
       <h2 id={heading} className="text-title font-semibold text-fg">
         {t("access.groupPage.ckanTitle")}
       </h2>
@@ -776,6 +776,6 @@ function CkanInstancesReached({ group, bindings }: { group: string; bindings: Ma
           ))}
         </ul>
       )}
-    </section>
+    </Card>
   );
 }

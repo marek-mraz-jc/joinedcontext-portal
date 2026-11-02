@@ -11,8 +11,8 @@ import { axeViolations } from "./axe";
 // T-6423: the Endpoint's "Who can read this", loading and failing states, names instead of ids, and a
 // refusal that names whom to ask, as somebody other than the administrator.
 
-const IDENTITY = { subject: "b7c1e0f4", username: "ada", name: "Ada Admin", email: "ada@hel.fi", roles: [] };
-const MEMBER = { subject: "c2d4e6f8", username: "mia", name: "Mia Member", email: "mia@hel.fi", roles: [] };
+const IDENTITY = { subject: "b7c1e0f4", username: "ada", name: "Ada Admin", email: "ada@example.org", roles: [] };
+const MEMBER = { subject: "c2d4e6f8", username: "mia", name: "Mia Member", email: "mia@example.org", roles: [] };
 const JANA_ID = "3f2a9c1e-7b4d-4e8a-9f61-2c5d8e0b7a14";
 const list = (items: unknown[]) => ({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items });
 const columns = [{ kind: "organization" }, { kind: "group", group: "traffic-analysts" }];
@@ -77,7 +77,7 @@ const ORGANIZATION = {
   apiVersion: "joinedcontext.com/v1alpha1",
   kind: "Organization",
   metadata: { name: "helsinki", namespace: "org" },
-  spec: { installation: true, contacts: [{ role: "administrative", name: "Ada Admin", email: "ada@hel.fi" }] },
+  spec: { installation: true, contacts: [{ role: "administrative", name: "Ada Admin", email: "ada@example.org" }] },
 };
 const ENDPOINT = {
   apiVersion: "joinedcontext.com/v1alpha1",
@@ -199,7 +199,7 @@ test.describe("Organization → Data access", () => {
     await page.goto("/organization/data-access?lang=en");
     const refusal = page.getByRole("status").filter({ hasText: "Ask an organization administrator" });
     await expect(refusal).toContainText(/This page is for organization administrators/);
-    await expect(refusal).toContainText("Ada Admin, ada@hel.fi");
+    await expect(refusal).toContainText("Ada Admin, ada@example.org");
     await expect(page.getByText("Administration is for organization administrators.")).toBeVisible();
     await shot(page, "matrix-refused");
     await refusal.getByRole("link", { name: "Back to your projects" }).click();

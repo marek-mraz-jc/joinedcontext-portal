@@ -172,6 +172,12 @@ describe("Endpoint page: who can read this", () => {
     expect(requests).toContain("/api/v1/organization/data-access?endpoint=countszzzzzzzzzzzzzzzzzz");
   });
 
+  it("names a reading group as a link to its page", async () => {
+    const granted = { columns, rows: [row("vehicles", [cell([]), cell([{ policy: "staff-traffic", rule: 2, types: ["Vehicle"] }])])], unanswered: 0 };
+    render(<EndpointReaders slug="vehizzzzzzzzzzzzzzzzzzzz" audience="organization" />, () => json(granted));
+    expect(await screen.findByRole("link", { name: "traffic-analysts" })).toHaveAttribute("href", "/organization/groups/traffic-analysts");
+  });
+
   it("says a public Endpoint is open without asking, and nobody when no grant names a group", async () => {
     const { requests } = render(<EndpointReaders slug="bikeszzzzzzzzzzzzzzzzzzz" audience="public" />, () => undefined);
     expect(await screen.findByText(en.dataAccess.endpointPublic)).toBeInTheDocument();
@@ -180,6 +186,7 @@ describe("Endpoint page: who can read this", () => {
     const closed = { columns, rows: [row("closed", [cell([]), cell([])])], unanswered: 0 };
     render(<EndpointReaders slug="closedzzzzzzzzzzzzzzzzzz" audience="organization" />, () => json(closed));
     expect(await screen.findByText(en.dataAccess.endpointNobody)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: en.dataAccess.endpointNext })).toHaveAttribute("href", "/projects/helsinki/policies");
     cleanup();
     render(<EndpointReaders slug="closedzzzzzzzzzzzzzzzzzz" audience="organization" />, forbidden);
     expect(await screen.findByText(en.dataAccess.adminOnly)).toBeInTheDocument();
@@ -226,7 +233,7 @@ describe("T-6423: names, not ids, and a refusal that says whom to ask", () => {
     apiVersion: "joinedcontext.com/v1alpha1",
     kind: "Organization",
     metadata: { name: "helsinki", namespace: "org" },
-    spec: { installation: true, contacts: [{ role: "administrative", name: "Ada Admin", email: "ada@hel.fi" }] },
+    spec: { installation: true, contacts: [{ role: "administrative", name: "Ada Admin", email: "ada@example.org" }] },
   };
   const READER = { project: "org", bootstrap: false, grants: [{ role: "r", binding: "b", rule: { kinds: ["*"], verbs: ["read"] } }] };
 
@@ -235,7 +242,7 @@ describe("T-6423: names, not ids, and a refusal that says whom to ask", () => {
       path === "/api/v1/projects/org/organizations" ? json({ kind: "List", items: [ORGANIZATION] }) : forbidden(),
     );
     expect(await screen.findByText(en.askAdmins.title)).toBeInTheDocument();
-    expect(await screen.findByText(/Ada Admin, ada@hel\.fi/)).toBeInTheDocument();
+    expect(await screen.findByText(/Ada Admin, ada@example\.org/)).toBeInTheDocument();
     expect(screen.getByText(en.dataAccess.adminOnly)).toBeInTheDocument();
     // A refused panel keeps its page: no way back is offered inside it.
     expect(screen.queryByRole("link", { name: en.askAdmins.back })).toBeNull();
