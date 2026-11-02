@@ -661,6 +661,8 @@
       "onApproval": "Propose all sends these drafts for approval together. Once a person approves them, the source is fetched and the space fills.",
       "onApprovalRows": "Propose all sends these drafts for approval together. Once a person approves them, this page offers to load the {count, plural, one {# row} other {# rows}} of the file. Stay here or keep the file: the rows are not sent yet.",
       "tooLarge": "That is more than 10 MB together. Choose smaller files, or use Upload a CSV, which takes up to 50 MB.",
+      "urlHint": "The address of a live feed, instead of a file. Example: https://example.org/stations.json",
+      "failedNext": "Nothing can be proposed yet. Fix what the check names in the file and choose it again.",
       "title": "Complete this space",
       "lead": "Give a sample file or the address of a feed. The Portal drafts the data model, the space, the data source and the pipeline, and checks each draft.",
       "space": "Space name",
@@ -1155,7 +1157,10 @@
       "write": "{count, plural, =0 {Nothing to write} one {Write # row} other {Write # rows}}",
       "done": "{written, plural, =0 {No row was written} one {# row written} other {# rows written}}, {refused, plural, =0 {none refused.} one {# refused.} other {# refused.}}",
       "preview": "Preview the first {count, plural, one {# entity} other {# entities}} as NGSI-LD",
-      "firstRefusal": "Row {row}: {reason}"
+      "firstRefusal": "Row {row}: {reason}",
+      "liveNow": "The change is live. Write the rows into {space} as {type}. Writing the same file again updates the same entities.",
+      "goingLive": "Approved. It goes live in a few minutes and this button unlocks by itself; stay on this page.",
+      "openSpace": "Open the space"
     },
     "toolbar": {
       "filter": "Filter",
@@ -6376,7 +6381,7 @@
     "sideView": "Beside the page",
     "floatView": "Float over the page",
     "cancel": "Stop the assistant",
-    "attach": "Attach a sample file (CSV, Excel, JSON or PDF) to draft a data model",
+    "attach": "Attach a table (CSV or Excel) to build a space from it, or a JSON or PDF sample to draft a data model",
     "backToChat": "Back to the assistant",
     "empty": {
       "lead": "Pick what you want to do, or ask in your own words.",

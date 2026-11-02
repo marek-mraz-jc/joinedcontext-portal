@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
+import { Link } from "@tanstack/react-router";
 import { download, originTransport } from "@joinedcontext/sdk";
 import { api, queryKeys, unwrap } from "../../api/client";
 import { useOrgDomain } from "../../api/projects";
@@ -14,7 +15,7 @@ import { asManifests, refName } from "../../api/manifest";
 import type { Change } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { spaceSegment } from "../../components/endpoints/policyBinding";
-import { Alert, Button, Card, CodeBlock } from "../../components/ui";
+import { Alert, Button, buttonClass, Card, CodeBlock } from "../../components/ui";
 import { createInBatches, importSlotsOf, rejectedCsv, rowIds, suggestMapping, toEntities } from "./importRows";
 import type { Rejected, Table } from "./importRows";
 
@@ -102,7 +103,7 @@ export function LoadRows({ project, space, type, source, table, change: proposed
   return (
     <Card className="flex flex-col gap-4">
       {change ? <ChangeNotice change={change} project={project} /> : null}
-      <p className="text-body">{t("spaces.upload.afterApproval", { space, type })}</p>
+      <p className="text-body">{t(live ? "spaces.upload.liveNow" : merged ? "spaces.upload.goingLive" : "spaces.upload.afterApproval", { space, type })}</p>
       {checked ? (
         <p role="status" className="text-body">
           {t("spaces.import.checked", { valid: checked.entities.length, refused: checked.rejected.length })}
@@ -124,7 +125,7 @@ export function LoadRows({ project, space, type, source, table, change: proposed
         <p role="status" className="text-body">
           {t("spaces.import.writing", progress)}
         </p>
-      ) : (
+      ) : done?.written === checked?.entities.length && done?.rejected.length === 0 ? null : (
         <Button className="w-fit" onClick={() => void write()} disabled={!live || !checked || checked.entities.length === 0} disabledReason={t(live ? "spaces.import.nothingToCreate" : "spaces.upload.notLive")}>
           {t("spaces.upload.write", { count: checked?.entities.length ?? 0 })}
         </Button>
@@ -148,7 +149,11 @@ export function LoadRows({ project, space, type, source, table, change: proposed
             >
               {t("spaces.import.downloadRefused")}
             </Button>
-          ) : null}
+          ) : (
+            <Link to="/projects/$project/spaces/$name" params={{ project, name: space }} className={buttonClass("primary", "sm") + " w-fit"}>
+              {t("spaces.upload.openSpace")}
+            </Link>
+          )}
         </>
       ) : null}
     </Card>

@@ -153,11 +153,13 @@ function ProposedNext({ project, result, change, rows }: { project: string; resu
 }
 
 /** The drafts the assistant's `space_complete` handed over with its navigation, when it did. */
-function handedOver(prefill: Record<string, unknown> | null): { result: CompleteResult | null; url: string } {
+function handedOver(prefill: Record<string, unknown> | null): { result: CompleteResult | null; url: string; file: File | null } {
   const result = prefill?.result as CompleteResult | undefined;
   return {
     result: result && Array.isArray(result.drafts) && typeof result.space === "string" ? result : null,
     url: typeof prefill?.url === "string" ? prefill.url : "",
+    // The dock's table (T-6445); a File lives only in this tab's memory, so a reload has none.
+    file: prefill?.file instanceof File ? prefill.file : null,
   };
 }
 
@@ -182,6 +184,11 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
   // updates while the navigation is pending) would otherwise take them and show nothing (T-0894).
   useEffect(() => {
     const handed = handedOver(takePrefill(window.location.pathname));
+    if (handed.file !== null) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- a hand-off read once after mount, as below
+      void takeFiles([handed.file]);
+      return;
+    }
     if (handed.result === null && handed.url === "") {
       return;
     }
@@ -323,7 +330,7 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
           />
         </Field>
 
-        <Field id="complete-url" label={t("spaces.complete.url")}>
+        <Field id="complete-url" label={t("spaces.complete.url")} help={t("spaces.complete.urlHint")}>
           <Input
             id="complete-url"
             value={url}
@@ -382,6 +389,7 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
               {t("spaces.complete.proposeAll")}
             </Button>
           ) : null}
+          {!url.trim() && chosen.length === 0 ? <span className="text-caption text-fg-muted" aria-hidden="true">{t("spaces.complete.needInput")}</span> : null}
         </div>
       </Card>
 
@@ -435,7 +443,8 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
               </Card>
             );
           })}
-          {result.proposeReady ? (
+          {result.drafts.some((d) => d.verdict?.ok === false) ? <p className="text-caption text-danger">{t("spaces.complete.failedNext")}</p> : null}
+          {result.proposeReady && !result.change ? (
             <p className="text-caption text-fg-muted">{t(rows ? "spaces.complete.onApprovalRows" : "spaces.complete.onApproval", { count: rows?.table.rows.length })}</p>
           ) : null}
         </div>

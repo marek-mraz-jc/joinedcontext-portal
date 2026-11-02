@@ -504,10 +504,9 @@ slots:
       expect(rows).toHaveLength(2);
       expect(rows[0]).toMatchObject({ N_zov: { value: "Dom kultúry" }, Zemepisn_rka: { value: 48.54 }, location: { value: { coordinates: [19.41, 48.54] } } });
 
-      // The same file again is the same entities, not a second copy.
-      await user.click(await screen.findByRole("button", { name: "Write 2 rows" }));
-      await waitFor(() => expect(dev.written).toHaveLength(2));
-      expect((dev.written[1] as { id: string }[]).map((row) => row.id)).toEqual(rows.map((row) => row.id));
+      // Done: nothing invites a second copy, and the next step is on the page.
+      expect(screen.queryByRole("button", { name: "Write 2 rows" })).toBeNull();
+      expect(screen.getByRole("link", { name: "Open the space" })).toBeInTheDocument();
     }, 30_000);
 
     it("keeps a table with a README beside it a feed: no upload, and Complete says the source fills it", async () => {
