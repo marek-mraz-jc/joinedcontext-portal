@@ -7,7 +7,9 @@
 //! deleted.
 
 use joinedcontext_portal::config::ClientAuth;
-use joinedcontext_portal::reconciler::app_clients::{audience_mapper, groups_mapper};
+use joinedcontext_portal::reconciler::app_clients::{
+    audience_mapper, groups_mapper, organization_mappers,
+};
 use joinedcontext_portal::reconciler::groups::{MANAGED_BY, MANAGED_VALUE};
 use joinedcontext_portal::reconciler::mcp_clients::{
     desired, McpClientSync, CALLBACKS, SERVER_ATTRIBUTE,
@@ -86,7 +88,12 @@ async fn realm(listed: Value) -> MockServer {
         .and(path(format!(
             "{REALM}/clients/uuid-all/protocol-mappers/models"
         )))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!([own, groups])))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            own,
+            groups,
+            org_held(0),
+            org_held(1)
+        ])))
         .with_priority(20)
         .mount(&keycloak)
         .await;
@@ -189,6 +196,8 @@ async fn a_server_gets_a_public_pkce_client_naming_itself() {
             format!("POST {REALM}/clients"),
             format!("POST {REALM}/clients/uuid-m/protocol-mappers/models"),
             format!("POST {REALM}/clients/uuid-m/protocol-mappers/models"),
+            format!("POST {REALM}/clients/uuid-m/protocol-mappers/models"),
+            format!("POST {REALM}/clients/uuid-m/protocol-mappers/models"),
         ]
     );
     let created = &bodies(&keycloak, "POST", &format!("{REALM}/clients")).await[0];
@@ -214,7 +223,11 @@ async fn a_server_gets_a_public_pkce_client_naming_itself() {
     .await;
     assert_eq!(
         sent,
-        vec![audience_mapper("mcp-helsinki-mobility"), groups_mapper()]
+        [
+            vec![audience_mapper("mcp-helsinki-mobility"), groups_mapper()],
+            organization_mappers().to_vec()
+        ]
+        .concat()
     );
 }
 
@@ -232,7 +245,12 @@ async fn a_changed_client_is_written_back_and_a_stray_mapper_removed() {
     own["id"] = json!("mapper-own");
     let mut groups = groups_mapper();
     groups["id"] = json!("mapper-groups");
-    mappers(&keycloak, "uuid-m", json!([own, groups, stray])).await;
+    mappers(
+        &keycloak,
+        "uuid-m",
+        json!([own, groups, org_held(0), org_held(1), stray]),
+    )
+    .await;
 
     let outcomes = sync(&keycloak)
         .converge(&mirror_with(vec![server("helsinki", "mobility")]))
@@ -274,7 +292,12 @@ async fn reordered_callbacks_are_no_drift_and_no_put() {
     own["id"] = json!("mapper-own");
     let mut groups = groups_mapper();
     groups["id"] = json!("mapper-groups");
-    mappers(&keycloak, "uuid-m", json!([own, groups])).await;
+    mappers(
+        &keycloak,
+        "uuid-m",
+        json!([own, groups, org_held(0), org_held(1)]),
+    )
+    .await;
 
     let outcomes = sync(&keycloak)
         .converge(&mirror_with(vec![server("helsinki", "mobility")]))
@@ -303,7 +326,12 @@ async fn inherited_optional_scopes_are_unlinked_from_a_servers_client() {
     own["id"] = json!("mapper-own");
     let mut groups = groups_mapper();
     groups["id"] = json!("mapper-groups");
-    mappers(&keycloak, "uuid-m", json!([own, groups])).await;
+    mappers(
+        &keycloak,
+        "uuid-m",
+        json!([own, groups, org_held(0), org_held(1)]),
+    )
+    .await;
     let scopes = format!("{REALM}/clients/uuid-m/optional-client-scopes");
     Mock::given(method("GET"))
         .and(path(scopes.clone()))
@@ -386,7 +414,12 @@ async fn the_client_of_a_removed_server_is_deleted_and_nothing_else() {
     own["id"] = json!("a");
     let mut groups = groups_mapper();
     groups["id"] = json!("g");
-    mappers(&keycloak, "uuid-org", json!([own, groups])).await;
+    mappers(
+        &keycloak,
+        "uuid-org",
+        json!([own, groups, org_held(0), org_held(1)]),
+    )
+    .await;
 
     let outcomes = sync(&keycloak)
         .converge(&mirror_with(vec![server("org", "city")]))
@@ -421,4 +454,11 @@ async fn org_all_gets_its_client_without_a_manifest() {
     assert_eq!(created["clientId"], "mcp-org-all");
     assert_eq!(created["publicClient"], true);
     assert_eq!(created["attributes"][SERVER_ATTRIBUTE], "org/all");
+}
+
+/// The Keycloak copy of the Organization mapper `index` (ADR-N-067 2.2), with its id.
+fn org_held(index: usize) -> Value {
+    let mut held = organization_mappers()[index].clone();
+    held["id"] = json!(format!("org-{index}"));
+    held
 }

@@ -19,7 +19,7 @@ use joinedcontext_portal::config::ClientAuth;
 use std::sync::Arc;
 
 use joinedcontext_portal::reconciler::app_clients::{
-    audience_mapper, desired, groups_mapper, record, AppClientSync,
+    audience_mapper, desired, groups_mapper, organization_mappers, record, AppClientSync,
 };
 use joinedcontext_portal::reconciler::groups::{MANAGED_BY, MANAGED_VALUE};
 use joinedcontext_portal::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
@@ -82,10 +82,12 @@ async fn roles_in_place(keycloak: &MockServer, uuid: &str, app: &str) {
         .and(path(format!(
             "{REALM}/clients/{uuid}/protocol-mappers/models"
         )))
-        .respond_with(
-            ResponseTemplate::new(200)
-                .set_body_json(json!([mapper("m-1", &format!("app-{app}")), groups_held()])),
-        )
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+            mapper("m-1", &format!("app-{app}")),
+            groups_held(),
+            org_held(0),
+            org_held(1)
+        ])))
         .with_priority(10)
         .mount(keycloak)
         .await;
@@ -101,6 +103,13 @@ fn mapper(id: &str, audience: &str) -> Value {
 fn groups_held() -> Value {
     let mut held = groups_mapper();
     held["id"] = json!("m-groups");
+    held
+}
+
+/// The Keycloak copy of the Organization mapper `index` (ADR-N-067 2.2), with its id.
+fn org_held(index: usize) -> Value {
+    let mut held = organization_mappers()[index].clone();
+    held["id"] = json!(format!("m-org-{index}"));
     held
 }
 
@@ -242,6 +251,8 @@ async fn a_published_app_with_no_client_gets_one_and_its_secret_is_read_back() {
         wrote(&keycloak).await,
         vec![
             format!("POST {REALM}/clients"),
+            format!("POST {REALM}/clients/uuid-bikes/protocol-mappers/models"),
+            format!("POST {REALM}/clients/uuid-bikes/protocol-mappers/models"),
             format!("POST {REALM}/clients/uuid-bikes/protocol-mappers/models"),
             format!("POST {REALM}/clients/uuid-bikes/protocol-mappers/models"),
         ]
@@ -496,7 +507,12 @@ async fn the_apps_roles_become_client_roles_mapped_to_its_groups_and_users_and_n
     answer(
         &keycloak,
         "/clients/uuid-a/protocol-mappers/models",
-        json!([mapper("m-1", "app-alerts"), groups_held()]),
+        json!([
+            mapper("m-1", "app-alerts"),
+            groups_held(),
+            org_held(0),
+            org_held(1)
+        ]),
     )
     .await;
     writes_succeed(&keycloak).await;
@@ -607,7 +623,12 @@ async fn an_apps_role_member_named_by_keycloak_id_is_matched_by_the_id_alone() {
     answer(
         &keycloak,
         "/clients/uuid-a/protocol-mappers/models",
-        json!([mapper("m-1", "app-alerts"), groups_held()]),
+        json!([
+            mapper("m-1", "app-alerts"),
+            groups_held(),
+            org_held(0),
+            org_held(1)
+        ]),
     )
     .await;
     writes_succeed(&keycloak).await;
@@ -648,7 +669,7 @@ async fn the_audiences_are_the_app_and_every_endpoint_it_reads_and_nothing_else(
     edited["config"]["access.token.claim"] = json!("false");
     answer(&keycloak, "/clients/uuid-a/protocol-mappers/models", json!([
         edited,
-        groups_held(),
+        groups_held(), org_held(0), org_held(1),
         mapper("m-old", "ep-gone"),
         // Another kind under the wave's prefix is still not an audience the App reads (T-2857).
         { "id": "m-theirs", "name": "audience-by-hand", "protocolMapper": "oidc-hardcoded-claim-mapper", "config": {} },
@@ -716,11 +737,16 @@ async fn an_apps_client_carries_the_platforms_groups_mapper_and_keeps_it() {
     client_in_place(&keycloak).await;
     answer(&keycloak, "/clients/uuid-a/roles", json!([])).await;
     let mut widened = groups_held();
-    widened["config"]["full.path"] = json!("true");
+    widened["config"]["full.path"] = json!("false");
     answer(
         &keycloak,
         "/clients/uuid-a/protocol-mappers/models",
-        json!([mapper("m-app", "app-alerts"), widened]),
+        json!([
+            mapper("m-app", "app-alerts"),
+            widened,
+            org_held(0),
+            org_held(1)
+        ]),
     )
     .await;
     writes_succeed(&keycloak).await;
@@ -763,6 +789,8 @@ async fn a_foreign_mapper_named_groups_is_removed_and_the_platforms_is_written()
             mapper("m-app", "app-alerts"),
             { "id": "m-fake", "name": "groups", "protocolMapper": "oidc-hardcoded-claim-mapper",
               "config": { "claim.name": "groups", "claim.value": "helsinki-admins" } },
+            org_held(0),
+            org_held(1),
         ]),
     )
     .await;
@@ -795,7 +823,12 @@ async fn a_foreign_mapper_named_groups_is_removed_and_the_platforms_is_written()
 /// A client whose mappers are exactly the App's audiences: nothing to read back as wrong.
 async fn only_the_apps_audience(keycloak: &MockServer, extra: Vec<Value>) {
     answer(keycloak, "/clients/uuid-a/roles", json!([])).await;
-    let mut held = vec![mapper("m-app", "app-alerts"), groups_held()];
+    let mut held = vec![
+        mapper("m-app", "app-alerts"),
+        groups_held(),
+        org_held(0),
+        org_held(1),
+    ];
     held.extend(extra);
     answer(
         keycloak,
@@ -923,7 +956,12 @@ async fn a_realm_that_fails_on_the_roles_still_gets_the_audiences() {
     answer(
         &keycloak,
         "/clients/uuid-a/protocol-mappers/models",
-        json!([mapper("m-app", "app-alerts"), groups_held()]),
+        json!([
+            mapper("m-app", "app-alerts"),
+            groups_held(),
+            org_held(0),
+            org_held(1)
+        ]),
     )
     .await;
     writes_succeed(&keycloak).await;
@@ -1049,7 +1087,12 @@ async fn viewer_held_by_others(keycloak: &MockServer) {
     answer(
         keycloak,
         "/clients/uuid-a/protocol-mappers/models",
-        json!([mapper("m-1", "app-alerts"), groups_held()]),
+        json!([
+            mapper("m-1", "app-alerts"),
+            groups_held(),
+            org_held(0),
+            org_held(1)
+        ]),
     )
     .await;
     writes_succeed(keycloak).await;

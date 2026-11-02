@@ -126,7 +126,6 @@ struct UserSession {
 
 #[derive(Deserialize)]
 struct NamedGroup {
-    name: String,
     #[serde(default)]
     path: String,
 }
@@ -451,7 +450,9 @@ impl Admin<'_> {
     }
 
     /// The same names kept apart, groups first, as a token of theirs carries them in `groups`
-    /// and `realm_access.roles` (EP-103).
+    /// and `realm_access.roles` (EP-103): a group by its path less one leading `/`, so a root
+    /// group reads as its name and an Organization's subgroup as `helsinki/members` (ADR-N-067
+    /// section 2.2).
     pub async fn groups_and_realm_roles(
         &self,
         id: &str,
@@ -462,7 +463,7 @@ impl Admin<'_> {
             .json(&format!("/users/{id}/role-mappings/realm/composite"))
             .await?;
         Ok((
-            groups.into_iter().map(|g| g.name).collect(),
+            token_groups(groups),
             roles.into_iter().map(|r| r.name).collect(),
         ))
     }
@@ -484,6 +485,15 @@ impl Admin<'_> {
         .await
         .map(drop)
     }
+}
+
+/// The `groups` claim a full-path mapper writes, read as jc-core `Claims::group_names` reads it:
+/// one leading `/` stripped. A group without a path is left out rather than read by its bare name.
+fn token_groups(groups: Vec<NamedGroup>) -> Vec<String> {
+    groups
+        .into_iter()
+        .filter_map(|g| g.path.strip_prefix('/').map(str::to_owned))
+        .collect()
 }
 
 /// A Keycloak id as one path segment: letters, digits and `-` only, so no id reaches another
@@ -541,6 +551,17 @@ pub fn temporary_password() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_subgroup_reads_as_its_path_and_a_root_group_as_its_name() {
+        let groups: Vec<NamedGroup> = serde_json::from_value(serde_json::json!([
+            { "name": "stewards", "path": "/stewards" },
+            { "name": "members", "path": "/helsinki/members" },
+            { "name": "orphan" }
+        ]))
+        .unwrap();
+        assert_eq!(token_groups(groups), ["stewards", "helsinki/members"]);
+    }
 
     #[test]
     fn a_temporary_password_meets_the_strictest_realm_policy() {

@@ -1884,6 +1884,25 @@ mod tests {
         }
     }
 
+    /// ADR-N-067 2.2 (T-6408): Keycloak writes groups as full paths and the session keeps them
+    /// with one leading `/` trimmed, so a member of `/helsinki/members` is in no RoleBinding
+    /// subject group `members`; the root group `/helsinki` still reads `helsinki`.
+    #[test]
+    fn an_organizations_subgroup_is_in_no_binding_group_of_its_bare_name() {
+        let member = Identity {
+            client: None,
+            subject: "f:1:ana".to_owned(),
+            username: "ana".to_owned(),
+            email: None,
+            name: None,
+            roles: Vec::new(),
+            groups: vec!["helsinki".to_owned(), "helsinki/members".to_owned()],
+            second_factor: false,
+        };
+        assert!(in_group(&member, "helsinki"));
+        assert!(!in_group(&member, "members"));
+    }
+
     #[test]
     fn a_person_id_subject_matches_their_sub_and_no_username_or_address_spelling_it() {
         let id = "2f1c6b1e-7a4d-4c55-9e0e-3b8f1a2d4c6e";
