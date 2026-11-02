@@ -47,6 +47,8 @@ describe("playwright.live.config", () => {
   it("keeps Chromium's shared memory off /dev/shm", async () => {
     const config = (await import("../playwright.live.config")).default;
     const args = (config.projects ?? []).map((project) => project.use?.launchOptions?.args);
-    expect(args).toEqual([["--disable-dev-shm-usage"]]);
+    // One project per state group (e2e/live/stateGroups.ts): each must carry the flag.
+    expect(args.length).toBeGreaterThan(0);
+    for (const a of args) expect(a).toEqual(["--disable-dev-shm-usage"]);
   });
 });
