@@ -183,7 +183,7 @@ describe("Connect this tab (T-5967)", () => {
   }, 20_000);
 
   it("keeps the pairing while the page unloads: the browser closes the stream, the next page listens", async () => {
-    sessionStorage.setItem("jc.pairedTab", JSON.stringify({ connector: ID, name: CONNECTOR.name, tab: TAB }));
+    sessionStorage.setItem("jc.pairedTab", JSON.stringify({ connector: ID, name: CONNECTOR.name, tab: "tab-of-the-reload" }));
     renderAt("/ai-connectors");
     await waitFor(() => expect(FakeSource.opened.length).toBeGreaterThan(0));
     const source = FakeSource.opened.at(-1);
