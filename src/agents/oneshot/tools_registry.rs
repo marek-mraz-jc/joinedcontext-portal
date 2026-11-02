@@ -147,7 +147,7 @@ Call it with its arguments:
 Open the page you are talking about, so the person
 sees what you mean — the page is one of `spaces`, `space`, `models`, `model`, `endpoints`,
 `endpoint`, `policies`, `shared`, `draft`, with the name of the one to open. A kind you do not draft
-yourself (a ServiceAccount, a Subscription, a context source registration, a policy…) is created
+yourself (a ServiceAccount, a Subscription, a policy…) is created
 by the person in its own form: open it empty with `new` and the kind's plural, say what the form
 asks for, and propose nothing:
 
