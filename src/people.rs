@@ -126,7 +126,6 @@ struct UserSession {
 
 #[derive(Deserialize)]
 struct NamedGroup {
-    name: String,
     #[serde(default)]
     path: String,
 }
