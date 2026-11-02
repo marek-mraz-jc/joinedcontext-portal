@@ -930,15 +930,23 @@ pub fn render_merged(
 
     let mut processors = Vec::new();
     // Each step by its place in the manifest (PL-66): the `j`-th processor step is `step_{j}`,
-    // the compute step `compute`, which are the studio's own node names.
+    // the first compute step `compute` and a later `j`-th one `compute_{j}`, which are the
+    // studio's own node names; the runner refuses a stream with a label twice.
     let mut processor_steps = 0usize;
+    let mut compute_steps = 0usize;
     for step in pipeline.steps() {
         let label = match &step {
             Step::Processor(_) => {
                 processor_steps += 1;
                 format!("step_{}", processor_steps - 1)
             }
-            Step::Compute(_) => COMPUTE_LABEL.to_owned(),
+            Step::Compute(_) => {
+                compute_steps += 1;
+                match compute_steps {
+                    1 => COMPUTE_LABEL.to_owned(),
+                    n => format!("{COMPUTE_LABEL}_{}", n - 1),
+                }
+            }
         };
         if let Some(kpi) = kpi {
             processors.push(labelled(kpi_mapping(pipeline, kpi, name, project)?, &label));
