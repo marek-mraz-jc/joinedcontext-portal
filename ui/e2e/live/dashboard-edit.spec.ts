@@ -22,7 +22,7 @@ const NAME = process.env.DASHBOARD_APP ?? "t6429-bike-dashboard";
 const DIR = process.env.DASHBOARD_DIR ?? "test-results/dashboard-edit";
 const APPS_URL = process.env.APPS_URL ?? "https://dev.joinedcontext.com";
 const PROMPT =
-  "A dashboard of the shared bike stations, kept in src/dashboard.json and drawn by Dashboard: a grid of the stations with their free bikes and total slots, and a tile counting the empty ones. One page, no other pages.";
+  "A dashboard of the shared bike stations, kept in src/dashboard.json and drawn by Dashboard alone: a grid of the stations with their free bikes and total slots, and a tile counting the empty ones. src/App.tsx renders Dashboard and nothing else: no map, no chart, no other component. One page, no other pages.";
 const FORMULA = "availableBikeNumber / totalSlotNumber * 100";
 const COLUMN = "Occupancy %";
 const ROUTE = `/api/v1/projects/${PROJECT}/apps/${NAME}/dashboard`;
@@ -103,10 +103,11 @@ test("a generated dashboard App keeps its file and is published with another per
     if (!(await exists(page))) {
       // The App is a draft of the run until it is published: only then does /dashboard answer.
       await page.goto(PAGE, { waitUntil: "load" });
-      // Publish stays disabled until the tests of the newest version ran.
+      // Publish stays disabled until the tests of the newest version ran; the builder fixes its own
+      // red tests first, which took 6 min on 2026-11-02 (versions 2 to 4).
       const publish = page.getByRole("button", { name: "Publish this app" });
       await expect(page.getByTestId("run-progress").filter({ hasText: "Waiting for you" })).toBeVisible({ timeout: 900_000 });
-      await expect(publish).toBeEnabled({ timeout: 300_000 });
+      await expect(publish).toBeEnabled({ timeout: 900_000 });
       await both(page, "1-builder-preview");
       await publish.click();
       const notice = page.getByRole("link", { name: /review/i }).first();

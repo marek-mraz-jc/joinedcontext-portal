@@ -41,8 +41,8 @@
 //                                      environment, the file system or a process (AP-147)
 //   node lane.mjs test-project <project.json.gz> <work-dir>
 //                                      a run's sandbox (SDK-38): writes the version's files, links
-//                                      the template, runs vitest as the lane does and prints one
-//                                      line `JC-TESTS {json}` the Portal reads from the pod's log
+//                                      the template, runs vitest and tsc -b as the lane does and prints
+//                                      one line `JC-TESTS {json}` the Portal reads from the pod's log
 //
 // Lives beside /opt/template/node_modules in the image, so `vite` resolves to the template's.
 
@@ -138,6 +138,7 @@ export function linkTemplate(dir, store = join(dirname(new URL(import.meta.url).
 const MAX_FAILURES = 20;
 const MAX_MESSAGE = 2000;
 const ANSI = /\u001b\[[0-9;]*m/g;
+const EMPTY = { outcome: "passed", passed: 0, failed: 0, failures: [] };
 const cut = (text, limit) => {
   const plain = String(text ?? "").replace(ANSI, "").trim();
   return plain.length > limit ? `${plain.slice(0, limit)}…` : plain;
@@ -213,6 +214,52 @@ export function cargoSummary(stdout, stderr, status) {
 }
 
 /**
+ * What `tsc -b` printed, as the Portal reads it: one failure per error, under the file it names,
+ * so the model sees what the build lane would refuse (T-6429). A line that starts no error goes
+ * with the error above it. A run that failed without one error line is one failure of its own.
+ */
+export function typeSummary(stdout, stderr, status) {
+  const failures = [];
+  for (const line of `${stdout ?? ""}\n${stderr ?? ""}`.replace(ANSI, "").split("\n")) {
+    const one = /^(.+?)\((\d+),\d+\): error TS\d+/.exec(line);
+    if (one) failures.push({ file: one[1], name: `(type error at line ${one[2]})`, message: cut(line, MAX_MESSAGE) });
+    else if (failures.length > 0 && line.trim() !== "") {
+      const last = failures[failures.length - 1];
+      last.message = cut(`${last.message}\n${line}`, MAX_MESSAGE);
+    }
+  }
+  if (status !== 0 && failures.length === 0) {
+    failures.push({ file: "tsconfig.json", name: "(the type check did not run)", message: cut(`${stdout ?? ""}${stderr ?? ""}`.replace(ANSI, ""), MAX_MESSAGE) });
+  }
+  return { outcome: failures.length > 0 ? "failed" : "passed", passed: 0, failed: failures.length, failures: failures.slice(0, MAX_FAILURES) };
+}
+
+/** The sum of two summaries, a failure in either failing it. */
+function summed(a, b) {
+  return {
+    outcome: a.failed + b.failed > 0 ? "failed" : "passed",
+    passed: a.passed + b.passed,
+    failed: a.failed + b.failed,
+    failures: [...a.failures, ...b.failures].slice(0, MAX_FAILURES),
+  };
+}
+
+/**
+ * `tsc -b` of a version, the check the build lane runs after its tests (T-6429). A project with no
+ * `tsconfig.json` is the lane's `build: {}` shape, and a store without tsc has nothing to run.
+ */
+function typeCheck(work, env, timeoutMs) {
+  const tsc = join(work, "node_modules", ".bin", "tsc");
+  if (!existsSync(join(work, "tsconfig.json")) || !existsSync(tsc)) return EMPTY;
+  if (timeoutMs <= 0) return { ...EMPTY, skipped: "the tests left no time for the type check, so the build lane alone runs it" };
+  const run = spawnSync(tsc, ["-b"], { cwd: work, env, encoding: "utf8", timeout: timeoutMs, maxBuffer: 16 * 1024 * 1024 });
+  if (run.error?.code === "ETIMEDOUT" || run.signal) {
+    return { ...EMPTY, skipped: "the type check did not finish in the time left, so the build lane alone runs it" };
+  }
+  return typeSummary(run.stdout, run.stderr, run.status);
+}
+
+/**
  * The rust runner's crate store and the precompiled dependencies of the wasm template's server
  * (builder/Dockerfile, T-3618). The job's cargo home and target sit at the paths the seed was
  * compiled at, so the fingerprints match and only the App's own crate is compiled.
@@ -259,11 +306,13 @@ export function cargoTests(work, { timeoutMs, cargo = CARGO } = {}) {
 
 /**
  * One run of a version's tests in the sandbox (SDK-38): the project from the Portal's gzipped
- * JSON, the template linked, the lane's vitest config, one `vitest run` with a JSON report, then
- * `cargo test` of a `wasm` App's `server/` in what time is left (T-3618). The answer is both
- * summed, or `{outcome: "error", reason}` when the tests could not run at all.
+ * JSON, the template linked, the lane's vitest config, one `vitest run` with a JSON report, `tsc -b`,
+ * then `cargo test` of a `wasm` App's `server/` in what time is left (T-3618). vitest's exit status
+ * counts too: an unhandled error fails the build lane's run while every test in the report passed
+ * (T-6429). The answer is all of them summed, or `{outcome: "error", reason}` when the tests could
+ * not run at all.
  */
-export function testProject(input, work, { store, timeoutMs = 100_000, cargo = CARGO } = {}) {
+export function testProject(input, work, { store, timeoutMs = 150_000, cargo = CARGO } = {}) {
   const started = Date.now();
   let files;
   try {
@@ -286,10 +335,11 @@ export function testProject(input, work, { store, timeoutMs = 100_000, cargo = C
   linkTemplate(work, store);
   const config = vitestConfig(work);
   const report = join(work, ".jc-tests.json");
-  const run = spawnSync(join(work, "node_modules", ".bin", "vitest"), ["run", "--config", config, "--reporter=json", `--outputFile=${report}`, "--passWithNoTests"], {
+  // Nothing of the pod's environment reaches the model's code beyond what node needs.
+  const env = { PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin", HOME: work, CI: "true", NODE_ENV: "test" };
+  const run = spawnSync(join(work, "node_modules", ".bin", "vitest"), ["run", "--config", config, "--reporter=json", "--reporter=dot", `--outputFile.json=${report}`, "--passWithNoTests"], {
     cwd: work,
-    // Nothing of the pod's environment reaches the model's code beyond what node needs.
-    env: { PATH: process.env.PATH ?? "/usr/local/bin:/usr/bin:/bin", HOME: work, CI: "true", NODE_ENV: "test" },
+    env,
     encoding: "utf8",
     timeout: timeoutMs,
     maxBuffer: 16 * 1024 * 1024,
@@ -307,18 +357,21 @@ export function testProject(input, work, { store, timeoutMs = 100_000, cargo = C
   } catch (err) {
     return { outcome: "error", reason: `the report could not be read: ${err instanceof Error ? err.message : String(err)}`, durationMs };
   }
-  if (!existsSync(join(work, "server", "Cargo.toml"))) return { ...ui, durationMs };
-  const server = cargoTests(work, { timeoutMs: timeoutMs - durationMs, cargo });
+  if (run.status !== 0 && ui.failed === 0) {
+    const printed = `${run.stderr ?? ""}${run.stdout ?? ""}`.replace(ANSI, "");
+    const at = printed.search(/Unhandled/);
+    ui = summed(ui, { ...EMPTY, failed: 1, failures: [{ file: "vitest", name: "(an error outside the tests)", message: cut(at < 0 ? printed : printed.slice(at), MAX_MESSAGE) }] });
+  }
+  const types = typeCheck(work, env, timeoutMs - (Date.now() - started));
+  const checked = summed(ui, types);
+  if (!existsSync(join(work, "server", "Cargo.toml"))) {
+    return { ...checked, ...(types.skipped ? { reason: types.skipped } : {}), durationMs: Date.now() - started };
+  }
+  const server = cargoTests(work, { timeoutMs: timeoutMs - (Date.now() - started), cargo });
   const total = Date.now() - started;
   if (server.error) return { outcome: "error", reason: server.error, durationMs: total };
-  if (server.skipped) return { ...ui, reason: server.skipped, durationMs: total };
-  return {
-    outcome: ui.failed + server.failed > 0 ? "failed" : "passed",
-    passed: ui.passed + server.passed,
-    failed: ui.failed + server.failed,
-    failures: [...ui.failures, ...server.failures].slice(0, MAX_FAILURES),
-    durationMs: total,
-  };
+  if (server.skipped) return { ...checked, reason: server.skipped, durationMs: total };
+  return { ...summed(checked, server), durationMs: total };
 }
 
 /** The functions of `functions/`, by name; a test file is not a function. */
@@ -912,7 +965,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     } else if (command === "test-project" && appDir && outDir) {
       // One line the Portal reads from the pod's log, whatever happened (SDK-38).
       const timeoutMs = Number.parseInt(process.env.JC_TEST_TIMEOUT_MS ?? "", 10);
-      console.log(`JC-TESTS ${JSON.stringify(testProject(appDir, outDir, { timeoutMs: timeoutMs > 0 ? timeoutMs : 100_000 }))}`);
+      console.log(`JC-TESTS ${JSON.stringify(testProject(appDir, outDir, { timeoutMs: timeoutMs > 0 ? timeoutMs : 150_000 }))}`);
     } else if (command === "seed" && appDir && outDir) {
       console.log(seed(appDir, outDir));
     } else if (command === "lock-manifest" && appDir) {
