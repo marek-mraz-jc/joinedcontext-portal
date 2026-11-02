@@ -1614,6 +1614,7 @@ async fn check_content(
     //       in the same words, so the reconciler is never handed an Endpoint it would refuse.
     if kind == "Endpoint" && operation != Operation::Delete {
         check_surfaces(state, project, &envelope.metadata.name, &envelope.spec).await?;
+        check_policy_refs(state, project, envelope)?;
     }
 
     // 4b'''. A Pipeline in replace drops what another Pipeline writes onto the same ids in its
@@ -2192,6 +2193,107 @@ fn check_replace(
 /// policyRef, the Endpoints that bind, the Policies and Pipelines that write, an App's own Endpoint.
 const WRITE_BINDING_KINDS: [&str; 5] = ["ContextSpace", "Endpoint", "Policy", "Pipeline", "App"];
 
+/// The drafts proposed in the same Change that stand in for what the mirror holds of them.
+fn bundled_bindings(project: &str) -> Vec<ResourceEnvelope> {
+    crate::references::bundled()
+        .into_iter()
+        .filter_map(|m| serde_json::from_value::<ResourceEnvelope>(m).ok())
+        .filter(|e| WRITE_BINDING_KINDS.contains(&e.kind.as_str()))
+        .map(|mut e| {
+            e.metadata.namespace = Some(project.to_owned());
+            e.status = None;
+            e
+        })
+        .collect()
+}
+
+/// Refuses a Policy reference the proposed Endpoint would not bind (EP-117, T-6435): another
+/// organization's, another space's (a person writes the space's name, the URN wants its rendered
+/// segment), or one naming no Policy of the space in the mirror or the same Change. Such an
+/// Endpoint plans, merges and goes Live granting nothing. Each line names the URN to write. A
+/// reference the Endpoint already holds passes, so an unrelated edit can still land.
+fn check_policy_refs(
+    state: &AppState,
+    project: &str,
+    envelope: &ResourceEnvelope,
+) -> Result<(), ApiError> {
+    use jc_core::kinds::EndpointSpec;
+    let parsed = |spec: Value| serde_json::from_value::<EndpointSpec>(spec).ok();
+    let Some(spec) = parsed(envelope.spec.clone()) else {
+        return Ok(());
+    };
+    let name = &envelope.metadata.name;
+    let held = state
+        .mirror
+        .get(project, "Endpoint", name)
+        .and_then(|endpoint| parsed(endpoint.spec));
+    let held = held.as_ref().and_then(EndpointSpec::policy_refs);
+    let fresh: Vec<&jc_core::Urn> = spec
+        .policy_refs()
+        .unwrap_or_default()
+        .iter()
+        .filter(|reference| !held.is_some_and(|held| held.contains(reference)))
+        .collect();
+    if fresh.is_empty() {
+        return Ok(());
+    }
+    let space = spec.context_space_ref.name();
+    let bundle = bundled_bindings(project);
+    let segment = bundle
+        .iter()
+        .find(|e| e.kind == "ContextSpace" && e.metadata.name == space)
+        .map_or_else(
+            || crate::spaces::segment(&state.mirror, project, space),
+            crate::spaces::segment_of,
+        );
+    let mirrored = state
+        .mirror
+        .list(project, "Policy", &crate::store::ListOptions::default());
+    let policies: std::collections::BTreeSet<String> = mirrored
+        .items
+        .into_iter()
+        .chain(bundle.into_iter().filter(|e| e.kind == "Policy"))
+        .filter(|e| {
+            crate::api::assistant::ref_name(&e.spec["contextSpaceRef"]).as_deref() == Some(space)
+        })
+        .map(|e| e.metadata.name)
+        .collect();
+    let domain = crate::api::assistant::org_domain(state, "");
+    let field = match spec.policy_ref {
+        Some(_) => "spec.policyRef",
+        None => "spec.policyRefs",
+    };
+    let lines: Vec<String> = fresh
+        .into_iter()
+        .filter_map(|reference| {
+            let domain = Some(domain.as_str())
+                .filter(|domain| !domain.is_empty())
+                .or(reference.org_domain())
+                .unwrap_or_default();
+            let policy = reference.local_id();
+            let urn = format!("urn:ngsi-ld:Policy:{domain}:{segment}:{policy}");
+            if !policies.contains(policy) {
+                let known = policies.iter().cloned().collect::<Vec<_>>().join(", ");
+                return Some(format!(
+                    "{field}: {reference} names no Policy of the space {space}, so this Endpoint \
+                     would grant nothing: propose the Policy {policy} of that space in the same \
+                     plan and write {urn}, or name one the space holds ({known})"
+                ));
+            }
+            (reference.to_string() != urn).then(|| {
+                format!(
+                    "{field}: {reference} binds nothing, so this Endpoint would grant nothing: \
+                     the space {space} renders as the segment {segment} in a URN, write {urn}"
+                )
+            })
+        })
+        .collect();
+    match lines.is_empty() {
+        true => Ok(()),
+        false => Err(unprocessable(lines)),
+    }
+}
+
 /// Refuses a change after which a write Policy no Endpoint of its project binds, or a Pipeline
 /// output whose `targetEndpoint` does not grant its account the write (PL-111, ADR-N-057
 /// decision 5), with `jcctl validate`'s sentences. Only the findings this change brings count, so a
@@ -2207,17 +2309,7 @@ fn check_unmade_writes(
         return Ok(());
     }
     let options = crate::store::ListOptions::default();
-    // The drafts proposed in the same Change stand in for what the mirror holds of them.
-    let bundle: Vec<ResourceEnvelope> = crate::references::bundled()
-        .into_iter()
-        .filter_map(|m| serde_json::from_value::<ResourceEnvelope>(m).ok())
-        .filter(|e| WRITE_BINDING_KINDS.contains(&e.kind.as_str()))
-        .map(|mut e| {
-            e.metadata.namespace = Some(project.to_owned());
-            e.status = None;
-            e
-        })
-        .collect();
+    let bundle = bundled_bindings(project);
     let bundled = |e: &ResourceEnvelope| {
         bundle
             .iter()
@@ -2226,13 +2318,15 @@ fn check_unmade_writes(
     let current: Vec<ResourceEnvelope> = WRITE_BINDING_KINDS
         .iter()
         .flat_map(|kind| state.mirror.list(project, kind, &options).items)
-        .filter(|e| !bundled(e))
-        .chain(bundle.iter().cloned())
         .collect();
     let same =
         |e: &ResourceEnvelope| e.kind == envelope.kind && e.metadata.name == envelope.metadata.name;
-    let mut proposed: Vec<ResourceEnvelope> =
-        current.iter().filter(|e| !same(e)).cloned().collect();
+    let mut proposed: Vec<ResourceEnvelope> = current
+        .iter()
+        .filter(|e| !same(e) && !bundled(e))
+        .chain(bundle.iter().filter(|e| !same(e)))
+        .cloned()
+        .collect();
     if operation != Operation::Delete {
         let mut mine = envelope.clone();
         mine.metadata.namespace = Some(project.to_owned());
@@ -3965,6 +4059,126 @@ mod tests {
             Err(ApiError::Unprocessable { errors, .. }) => errors,
             other => panic!("expected a 422, got {other:?}"),
         }
+    }
+
+    /// EP-117, T-6435: a Policy reference that would bind nothing is refused naming the URN to
+    /// write: the bare space name (the T-6377 walk), another organization, a Policy the space
+    /// lacks. The right URN, a Policy of the same Change, a pinned segment and a reference the
+    /// Endpoint already holds pass.
+    #[tokio::test]
+    async fn a_policy_ref_that_binds_nothing_is_refused_naming_the_urn_to_write() {
+        const RIGHT: &str = "urn:ngsi-ld:Policy:hel.fi:ovzdusie-ovzdusie:public-read";
+        let state = AppState::new(Config::for_tests(), None);
+        let organization = |domain: &str| {
+            let mut org = manifest("Organization", "city", json!({ "domain": domain }));
+            org.metadata.namespace = Some(crate::api::blueprints::ORG_NAMESPACE.into());
+            org
+        };
+        state.mirror.upsert(organization("hel.fi"));
+        state.mirror.upsert(manifest(
+            "Policy",
+            "public-read",
+            space_policy(
+                "{ \"kind\": \"role\", \"id\": \"public\" }",
+                &["retrieveOps"],
+            ),
+        ));
+        let check = |reference: &str| {
+            let endpoint = manifest("Endpoint", "public-air", public_air(Some(reference)));
+            check_policy_refs(&state, "ovzdusie", &endpoint)
+        };
+
+        check(RIGHT).expect("the rendered segment binds");
+        for wrong in [
+            "urn:ngsi-ld:Policy:hel.fi:ovzdusie:public-read",
+            "urn:ngsi-ld:Policy:other.example:ovzdusie-ovzdusie:public-read",
+        ] {
+            let errors = refusal(check(wrong));
+            assert_eq!(errors.len(), 1, "{errors:?}");
+            assert!(errors[0].starts_with("spec.policyRef: "), "{errors:?}");
+            assert!(errors[0].contains(&format!("write {RIGHT}")), "{errors:?}");
+        }
+        let errors = refusal(check("urn:ngsi-ld:Policy:hel.fi:ovzdusie-ovzdusie:nobody"));
+        assert!(
+            errors[0].contains("urn:ngsi-ld:Policy:hel.fi:ovzdusie-ovzdusie:nobody, or name")
+                && errors[0].contains("(public-read)"),
+            "{errors:?}"
+        );
+
+        // `policyRefs` is judged entry by entry, and says which field to change.
+        let listed = json!({ "contextSpaceRef": "ovzdusie", "policyRefs": [
+            RIGHT, "urn:ngsi-ld:Policy:hel.fi:ovzdusie:public-read"
+        ] });
+        let mut spec = public_air(None);
+        spec.as_object_mut()
+            .expect("object")
+            .extend(listed.as_object().expect("object").clone());
+        let endpoint = manifest("Endpoint", "public-air", spec);
+        let errors = refusal(check_policy_refs(&state, "ovzdusie", &endpoint));
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        assert!(errors[0].starts_with("spec.policyRefs: "), "{errors:?}");
+
+        // A Policy and a pinned space proposed in the same Change count.
+        let mut space = manifest("ContextSpace", "ovzdusie", json!({ "urnSegment": "air" }));
+        space.metadata.namespace = None;
+        let sibling = manifest(
+            "Policy",
+            "kiosks",
+            space_policy(
+                "{ \"kind\": \"role\", \"id\": \"public\" }",
+                &["retrieveOps"],
+            ),
+        );
+        let drafts = vec![
+            serde_json::to_value(&space).expect("space"),
+            serde_json::to_value(&sibling).expect("policy"),
+        ];
+        crate::references::BUNDLE
+            .scope(drafts, async {
+                check("urn:ngsi-ld:Policy:hel.fi:air:kiosks").expect("the draft binds");
+                let errors = refusal(check("urn:ngsi-ld:Policy:hel.fi:ovzdusie-ovzdusie:kiosks"));
+                assert!(errors[0].contains("write urn:ngsi-ld:Policy:hel.fi:air:kiosks"));
+            })
+            .await;
+
+        // A repository already holding one can still change the Endpoint's other fields.
+        const OLD: &str = "urn:ngsi-ld:Policy:hel.fi:ovzdusie:public-read";
+        state
+            .mirror
+            .upsert(manifest("Endpoint", "public-air", public_air(Some(OLD))));
+        check(OLD).expect("a reference the Endpoint already holds");
+    }
+
+    /// T-6435: a write Policy and the Endpoint that fails to bind it, proposed in one Change, are
+    /// a finding of that Change: both drafts used to count as already there, so it went unsaid.
+    #[tokio::test]
+    async fn a_write_nobody_can_make_inside_one_change_is_refused() {
+        let state = narrowed_space();
+        let writer = manifest(
+            "Policy",
+            "sensors-write",
+            space_policy(
+                "{ \"kind\": \"serviceAccount\", \"id\": \"sensors\" }",
+                &["upsertBatch"],
+            ),
+        );
+        let narrow = manifest(
+            "Endpoint",
+            "public-air",
+            public_air(Some(
+                "urn:ngsi-ld:Policy:banskabystrica.sk:ovzdusie-ovzdusie:public-read",
+            )),
+        );
+        let drafts = vec![
+            serde_json::to_value(&writer).expect("policy"),
+            serde_json::to_value(&narrow).expect("endpoint"),
+        ];
+        let result = crate::references::BUNDLE
+            .scope(drafts, async {
+                check_unmade_writes(&state, "ovzdusie", Operation::Create, &writer)
+            })
+            .await;
+        assert!(refusal(result)[0].contains("sensors-write"));
     }
 
     /// DM-61, T-6394: a second own model of a space is refused naming the space's model and the

@@ -76,7 +76,8 @@ pub fn broker_address(name: &str, main: Option<&str>, template: Option<&str>) ->
     }
 }
 
-fn segment_of(env: &ResourceEnvelope) -> String {
+/// The `{space}` segment of a Context Space manifest in hand, a draft included.
+pub fn segment_of(env: &ResourceEnvelope) -> String {
     let project = env.metadata.namespace.as_deref().unwrap_or_default();
     jc_core::kinds::urn_segment(project, &env.metadata.name, pin_of(&env.spec))
 }

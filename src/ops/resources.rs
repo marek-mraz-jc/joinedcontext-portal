@@ -119,14 +119,24 @@ fn space_of(envelope: &ResourceEnvelope) -> Option<String> {
 /// One row of a listing: enough to pick a resource and open it, not the whole manifest.
 fn row(envelope: &ResourceEnvelope) -> Value {
     let status = envelope.status.as_ref();
-    json!({
+    let mut row = json!({
         "kind": envelope.kind,
         "name": envelope.metadata.name,
         "space": space_of(envelope),
         "title": envelope.metadata.title,
         "phase": status.map(|status| status.phase),
         "sourceUrl": status.and_then(|status| status.source_url.clone()),
-    })
+    });
+    // The phase stays the gateway's (T-3640), so a Live Endpoint the broker holds no view of
+    // says so beside it, or it reads as serving (T-6435).
+    if let Some(unserved) = status.and_then(|status| {
+        status.conditions.iter().find(|held| {
+            held.r#type == crate::reconciler::views::CONDITION && held.status == "False"
+        })
+    }) {
+        row["notServing"] = json!(unserved.message);
+    }
+    row
 }
 
 fn list_input_schema() -> Value {
@@ -682,7 +692,35 @@ pub fn operations() -> Vec<Operation> {
 
 #[cfg(test)]
 mod tests {
-    use super::unreadable;
+    use super::{row, unreadable};
+
+    /// T-6435: a Live Endpoint the broker holds no view of says why beside its phase; one the
+    /// broker serves, or one whose other condition is false, carries no such member.
+    #[test]
+    fn a_listed_endpoint_without_a_view_does_not_read_as_plain_live() {
+        use crate::reconciler::{streams::make_condition, views::CONDITION};
+        let mut endpoint: crate::resource::ResourceEnvelope = serde_json::from_value(
+            serde_json::json!({ "apiVersion": "joinedcontext.com/v1alpha1", "kind": "Endpoint",
+                                "metadata": { "name": "air" }, "spec": {} }),
+        )
+        .expect("envelope");
+        let with = |condition, status, message| {
+            serde_json::from_value(serde_json::json!({
+                "phase": "Live",
+                "conditions": [make_condition(condition, status, "Why", message)]
+            }))
+            .expect("status")
+        };
+        endpoint.status = Some(with(CONDITION, "False", "no Policy grants anything"));
+        let listed = row(&endpoint);
+        assert_eq!(listed["phase"], "Live");
+        assert_eq!(listed["notServing"], "no Policy grants anything");
+
+        for (condition, status) in [(CONDITION, "True"), ("HubLinked", "False")] {
+            endpoint.status = Some(with(condition, status, "said"));
+            assert!(row(&endpoint).get("notServing").is_none());
+        }
+    }
 
     #[test]
     fn an_unreadable_kind_names_the_kinds_the_caller_may_read() {
