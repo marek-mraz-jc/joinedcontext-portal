@@ -383,8 +383,8 @@ export function SmartDataModelsImport({
         ) : null}
         {(catalogue.data?.failed ?? []).length > 0 ? (
           <details className="text-caption text-fg-muted">
-            <summary className="cursor-pointer">{t("models.sdm.failed", { count: catalogue.data?.failed?.length ?? 0 })}</summary>
-            <p className="mt-1">{t("models.sdm.failedHint")}</p>
+            <summary className="cursor-pointer">{t("models.sdm.notConverted", { count: catalogue.data?.failed?.length ?? 0 })}</summary>
+            <p className="mt-1">{t("models.sdm.notConvertedHint")}</p>
             <ul className="mt-1 flex max-h-48 flex-col gap-1 overflow-auto">
               {catalogue.data?.failed?.map((one) => (
                 <li key={one.id} className="break-words">

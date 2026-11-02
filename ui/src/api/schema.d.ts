@@ -7850,6 +7850,8 @@ export interface components {
         };
         /** @description The catalogue index: the mirror's, or the one Model Tools caches and refreshes daily (DM-12). */
         Catalogue: {
+            /** @description The models the mirror could not convert, each with its finding. */
+            failed?: components["schemas"]["CatalogueFailure"][];
             /** @description When the cache was last filled from the catalogue. */
             refreshedAt?: string | null;
             /**
@@ -7858,8 +7860,6 @@ export interface components {
              */
             stale?: boolean;
             subjects?: components["schemas"]["CatalogueSubject"][];
-            /** @description The models the mirror could not convert, each with its finding. */
-            failed?: components["schemas"]["CatalogueFailure"][];
         };
         /** @description One calendar output of an Endpoint: its name, its title per language and its `.ics` address. */
         CatalogueCalendar: {
@@ -8040,13 +8040,13 @@ export interface components {
         CatalogueModel: {
             /** @description Attribute names, so the wizard can search by attribute without fetching the model. */
             attributes?: string[];
+            /** @description The upstream commit the model was converted from (DM-08), where the mirror answers. */
+            commit?: string | null;
             description?: string | null;
             /** @description The catalogue identifier, `dataModel.Environment/AirQualityObserved`. */
             id: string;
             /** @description The model name, `AirQualityObserved`. */
             name: string;
-            /** @description The upstream commit the model was converted from (DM-08), where the mirror answers. */
-            commit?: string | null;
         };
         /** @description One page of the catalogue. */
         CataloguePage: {

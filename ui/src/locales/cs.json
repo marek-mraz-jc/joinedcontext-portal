@@ -4255,8 +4255,8 @@
       "graph": "Graf"
     },
     "sdm": {
-      "failed": "Modely, které se nepodařilo převést: {count}",
-      "failedHint": "V seznamu výše nebudou, dokud je nepřevede další noční běh.",
+      "notConverted": "Modely, které se nepodařilo převést: {count}",
+      "notConvertedHint": "V seznamu výše nejsou. Každý řádek říká, co převod zastavilo; noční běh model vrátí, až ho opraví ve zdroji.",
       "browse": "Katalog Smart Data Models",
       "search": "Hledat modely a atributy",
       "subject": "Oblast",
@@ -4740,12 +4740,13 @@
     },
     "findType": "Najít typ",
     "className": "Název typu",
-    "classNameHint": "Přejmenování upraví každé pole a typ, který ho uvádí, například OnStreetParking.",
+    "typeName": { "hint": "Přejmenování upraví každé pole a typ, který ho uvádí, například Parking." },
+    "slotName": { "hint": "Přejmenování upraví každý typ, který pole uvádí, například airQualityIndex." },
+    "enumName": { "hint": "Přejmenování upraví každé pole, které ho používá, například Level." },
+    "enumValue": { "hint": "To, co entity obsahují. Import přejmenujte před uložením, například moderate." },
     "enumValues": {
       "name": "Název",
-      "nameHint": "Přejmenování upraví každé pole, které ho používá, například AirQualityLevel.",
       "storedOf": "Uložená hodnota {value}",
-      "storedHint": "To, co entity obsahují. Import přejmenujte před uložením, například moderate.",
       "caption": "Hodnoty {name}",
       "stored": "Uložená hodnota",
       "label": "Popisek",
@@ -4764,8 +4765,7 @@
     "deprecatedBadge": "Zastaralé",
     "slotName": "Název",
     "slotNameHint": "Jako temperature nebo openingHours: písmena a číslice, bez mezer.",
-    "slotNameFirst": "Pojmenujte pole a přidejte ho; typ, druh, jednotka a pravidla následují v tomto formuláři.",
-    "slotNameFixed": "Přejmenování upraví každý typ, který pole uvádí, například airQualityIndex."
+    "slotNameFirst": "Pojmenujte pole a přidejte ho; typ, druh, jednotka a pravidla následují v tomto formuláři."
   },
   "apps": {
     "title": "Aplikace",

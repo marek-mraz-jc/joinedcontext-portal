@@ -24,7 +24,10 @@ fn linkml(commit: &str) -> String {
 
 /// A mirror on disk: one model at its pin, one at another commit, one listed without a file, one failed.
 fn mirror(tag: &str) -> PathBuf {
-    let stamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+    let stamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
     let root = std::env::temp_dir().join(format!("sdm-mirror-{tag}-{stamp}"));
     let folder = |name: &str| root.join("dataModel.Environment").join(name);
     for (name, commit) in [("AirQualityObserved", PIN), ("WaterObserved", OTHER)] {
@@ -60,14 +63,23 @@ async fn a_model_at_its_pin_is_served() {
 #[tokio::test]
 async fn a_model_the_index_does_not_list_or_whose_file_is_gone_is_a_miss() {
     let open = SdmMirror::open(&mirror("miss")).unwrap();
-    assert_eq!(open.model("dataModel.Environment/Nothing").await, Mirrored::Unknown);
-    assert_eq!(open.model("dataModel.Environment/Gone").await, Mirrored::Unknown);
+    assert_eq!(
+        open.model("dataModel.Environment/Nothing").await,
+        Mirrored::Unknown
+    );
+    assert_eq!(
+        open.model("dataModel.Environment/Gone").await,
+        Mirrored::Unknown
+    );
 }
 
 #[tokio::test]
 async fn a_file_at_another_commit_than_the_index_pins_is_not_served() {
     let open = SdmMirror::open(&mirror("stale")).unwrap();
-    assert_eq!(open.model("dataModel.Environment/WaterObserved").await, Mirrored::Unknown);
+    assert_eq!(
+        open.model("dataModel.Environment/WaterObserved").await,
+        Mirrored::Unknown
+    );
 }
 
 #[tokio::test]
@@ -84,7 +96,11 @@ async fn a_traversal_in_an_id_reaches_no_file() {
     let root = mirror("traversal");
     std::fs::write(root.join("secret.yaml"), linkml(PIN)).unwrap();
     let open = SdmMirror::open(&root).unwrap();
-    for id in ["../secret.yaml", "dataModel.Environment/../../secret.yaml", "/etc/passwd"] {
+    for id in [
+        "../secret.yaml",
+        "dataModel.Environment/../../secret.yaml",
+        "/etc/passwd",
+    ] {
         assert_eq!(open.model(id).await, Mirrored::Unknown, "{id}");
     }
 }
@@ -115,7 +131,14 @@ fn an_index_with_an_unusable_id_or_no_commit_does_not_open() {
 async fn the_import_answers_from_the_mirror_with_no_model_tools_behind_it() {
     let state = AppState::new(config(&mirror("route")), None);
     let body = serde_json::json!({ "model": AIR });
-    let answer = common::send(&state, common::person("demo.steward"), "POST", "/api/v1/tools/import-sdm", Some(body)).await;
+    let answer = common::send(
+        &state,
+        common::person("demo.steward"),
+        "POST",
+        "/api/v1/tools/import-sdm",
+        Some(body),
+    )
+    .await;
     assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
     let body: serde_json::Value = serde_json::from_str(&answer.text).unwrap();
     assert_eq!(body["linkml"], linkml(PIN));
@@ -136,7 +159,9 @@ async fn the_catalogue_lists_the_pins_and_the_failed_with_their_finding() {
 #[tokio::test]
 async fn an_anonymous_caller_reads_nothing_of_the_mirror() {
     let state = AppState::new(config(&mirror("anonymous")), None);
-    let request = Request::get("/api/v1/tools/sdm-catalog").body(Body::empty()).unwrap();
+    let request = Request::get("/api/v1/tools/sdm-catalog")
+        .body(Body::empty())
+        .unwrap();
     let response = server::app(state).oneshot(request).await.unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 }

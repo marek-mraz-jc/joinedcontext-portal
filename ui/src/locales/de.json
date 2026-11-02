@@ -4255,8 +4255,8 @@
       "graph": "Graph"
     },
     "sdm": {
-      "failed": "Nicht konvertierte Modelle: {count}",
-      "failedHint": "Sie fehlen in der Liste oben, bis der nächste nächtliche Lauf sie konvertiert.",
+      "notConverted": "Nicht konvertierte Modelle: {count}",
+      "notConvertedHint": "Sie fehlen in der Liste oben. Jede Zeile nennt, was die Konvertierung gestoppt hat; ein nächtlicher Lauf bringt das Modell zurück, sobald es im Original behoben ist.",
       "browse": "Smart-Data-Models-Katalog",
       "search": "Modelle und Attribute suchen",
       "subject": "Themenfeld",
@@ -4740,12 +4740,13 @@
     },
     "findType": "Typ finden",
     "className": "Typname",
-    "classNameHint": "Beim Umbenennen werden alle Felder und Typen angepasst, die ihn nennen, zum Beispiel OnStreetParking.",
+    "typeName": { "hint": "Beim Umbenennen werden alle Felder und Typen angepasst, die ihn nennen, zum Beispiel Parking." },
+    "slotName": { "hint": "Beim Umbenennen wird jeder Typ angepasst, der das Feld führt, zum Beispiel airQualityIndex." },
+    "enumName": { "hint": "Beim Umbenennen wird jedes Feld angepasst, das sie nutzt, zum Beispiel Level." },
+    "enumValue": { "hint": "Das, was Entitäten enthalten. Benennen Sie einen Import vor dem Speichern um, zum Beispiel moderate." },
     "enumValues": {
       "name": "Name",
-      "nameHint": "Beim Umbenennen wird jedes Feld angepasst, das sie nutzt, zum Beispiel AirQualityLevel.",
       "storedOf": "Gespeicherter Wert von {value}",
-      "storedHint": "Das, was Entitäten enthalten. Benennen Sie einen Import vor dem Speichern um, zum Beispiel moderate.",
       "caption": "Werte von {name}",
       "stored": "Gespeicherter Wert",
       "label": "Bezeichnung",
@@ -4764,8 +4765,7 @@
     "deprecatedBadge": "Veraltet",
     "slotName": "Name",
     "slotNameHint": "Wie temperature oder openingHours: Buchstaben und Ziffern, ohne Leerzeichen.",
-    "slotNameFirst": "Benennen Sie das Feld und fügen Sie es hinzu; Typ, Art, Einheit und Regeln folgen in diesem Formular.",
-    "slotNameFixed": "Beim Umbenennen wird jeder Typ angepasst, der das Feld führt, zum Beispiel airQualityIndex."
+    "slotNameFirst": "Benennen Sie das Feld und fügen Sie es hinzu; Typ, Art, Einheit und Regeln folgen in diesem Formular."
   },
   "apps": {
     "title": "Anwendungen",

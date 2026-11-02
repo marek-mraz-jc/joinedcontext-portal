@@ -4255,8 +4255,8 @@
       "graph": "Graf"
     },
     "sdm": {
-      "failed": "Modely, ktoré sa nepodarilo previesť: {count}",
-      "failedHint": "V zozname vyššie nebudú, kým ich neprevedie ďalší nočný beh.",
+      "notConverted": "Modely, ktoré sa nepodarilo previesť: {count}",
+      "notConvertedHint": "V zozname vyššie nie sú. Každý riadok hovorí, čo prevod zastavilo; nočný beh model vráti, keď ho opravia v zdroji.",
       "browse": "Katalóg Smart Data Models",
       "search": "Hľadať modely a atribúty",
       "subject": "Oblasť",
@@ -4740,12 +4740,13 @@
     },
     "findType": "Nájsť typ",
     "className": "Názov typu",
-    "classNameHint": "Premenovanie upraví každé pole a typ, ktorý ho uvádza, napríklad OnStreetParking.",
+    "typeName": { "hint": "Premenovanie upraví každé pole a typ, ktorý ho uvádza, napríklad Parking." },
+    "slotName": { "hint": "Premenovanie upraví každý typ, ktorý pole uvádza, napríklad airQualityIndex." },
+    "enumName": { "hint": "Premenovanie upraví každé pole, ktoré ho používa, napríklad Level." },
+    "enumValue": { "hint": "To, čo entity obsahujú. Import premenujte pred uložením, napríklad moderate." },
     "enumValues": {
       "name": "Názov",
-      "nameHint": "Premenovanie upraví každé pole, ktoré ho používa, napríklad AirQualityLevel.",
       "storedOf": "Uložená hodnota {value}",
-      "storedHint": "To, čo entity obsahujú. Import premenujte pred uložením, napríklad moderate.",
       "caption": "Hodnoty {name}",
       "stored": "Uložená hodnota",
       "label": "Popis",
@@ -4764,8 +4765,7 @@
     "deprecatedBadge": "Zastarané",
     "slotName": "Názov",
     "slotNameHint": "Ako temperature alebo openingHours: písmená a číslice, bez medzier.",
-    "slotNameFirst": "Pomenujte pole a pridajte ho; typ, druh, jednotka a pravidlá nasledujú v tomto formulári.",
-    "slotNameFixed": "Premenovanie upraví každý typ, ktorý pole uvádza, napríklad airQualityIndex."
+    "slotNameFirst": "Pomenujte pole a pridajte ho; typ, druh, jednotka a pravidlá nasledujú v tomto formulári."
   },
   "apps": {
     "title": "Aplikácie",

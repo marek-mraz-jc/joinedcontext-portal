@@ -71,7 +71,7 @@ export function EnumValues({
         <NameField
           id={`enum-${entry.name}-name`}
           label={t("models.enumValues.name")}
-          help={t("models.enumValues.nameHint")}
+          help={t("models.enumName.hint")}
           name={entry.name}
           onRename={(to) => {
             const done = run({ op: "renameEnum", name: entry.name, to });
@@ -110,7 +110,7 @@ export function EnumValues({
                     <NameField
                       id={`enum-${entry.name}-${value.name}-stored`}
                       label={t("models.enumValues.storedOf", { value: value.name })}
-                      help={t("models.enumValues.storedHint")}
+                      help={t("models.enumValue.hint")}
                       name={value.name}
                       onRename={(to) => run({ op: "renameEnumValue", enum: entry.name, value: value.name, to })}
                     />

@@ -41520,6 +41520,13 @@
         "type": "object",
         "description": "The catalogue index: the mirror's, or the one Model Tools caches and refreshes daily (DM-12).",
         "properties": {
+          "failed": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogueFailure"
+            },
+            "description": "The models the mirror could not convert, each with its finding."
+          },
           "refreshedAt": {
             "type": [
               "string",
@@ -41536,13 +41543,6 @@
             "items": {
               "$ref": "#/components/schemas/CatalogueSubject"
             }
-          },
-          "failed": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/CatalogueFailure"
-            },
-            "description": "The models the mirror could not convert, each with its finding."
           }
         }
       },
@@ -42230,6 +42230,13 @@
             },
             "description": "Attribute names, so the wizard can search by attribute without fetching the model."
           },
+          "commit": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The upstream commit the model was converted from (DM-08), where the mirror answers."
+          },
           "description": {
             "type": [
               "string",
@@ -42243,13 +42250,6 @@
           "name": {
             "type": "string",
             "description": "The model name, `AirQualityObserved`."
-          },
-          "commit": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "description": "The upstream commit the model was converted from (DM-08), where the mirror answers."
           }
         }
       },

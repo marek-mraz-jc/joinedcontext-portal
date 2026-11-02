@@ -38,7 +38,7 @@ const CATALOGUE = {
       ],
     },
   ],
-  failed: [{ id: "dataModel.Environment/WaterObserved", finding: "the schema's $ref to common-schema.json#/definitions/Gone names nothing" }],
+  failed: [{ id: "dataModel.Agrifood/Animal", finding: "slots.weight: primitive-range: weight on Animal is a Relationship with the range float" }],
 };
 
 async function stub(page: Page): Promise<void> {
@@ -72,7 +72,7 @@ for (const [width, height] of [[1440, 900], [400, 860]] as const) {
     await shot(page, `search-${width}`);
 
     await page.getByText("Models that could not be converted: 1").click();
-    await expect(page.getByText("names nothing")).toBeVisible();
+    await expect(page.getByText("primitive-range")).toBeVisible();
     await shot(page, `failed-${width}`);
 
     await page.getByRole("button", { name: /AirQualityObserved/ }).first().click();

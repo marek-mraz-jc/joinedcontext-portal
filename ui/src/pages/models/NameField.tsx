@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Field, Input } from "../../components/ui";
 
 /**
@@ -18,21 +18,21 @@ export function NameField({
   help: string;
   name: string;
   readOnly?: boolean;
-  onRename: (to: string) => boolean;
+  onRename: (to: string) => void;
 }): React.JSX.Element {
-  const [draft, setDraft] = useState(name);
-  useEffect(() => setDraft(name), [name]);
+  // Null while nothing is being typed, so a name renamed elsewhere shows at once.
+  const [draft, setDraft] = useState<string | null>(null);
   const commit = () => {
-    const to = draft.trim();
-    if (to === name) return;
-    if (to === "" || !onRename(to)) setDraft(name);
+    const to = draft?.trim();
+    setDraft(null);
+    if (to && to !== name) onRename(to);
   };
   return (
     <Field id={id} label={label} help={help}>
       <Input
         id={id}
         className="font-mono"
-        value={draft}
+        value={draft ?? name}
         readOnly={readOnly}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}

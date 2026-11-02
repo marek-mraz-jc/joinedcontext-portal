@@ -192,7 +192,9 @@ impl AppState {
     pub fn new(config: Config, oidc: Option<OidcClient>) -> Self {
         let sdm_mirror = config.sdm_mirror_dir.as_deref().and_then(|dir| {
             crate::tools::sdm_mirror::SdmMirror::open(std::path::Path::new(dir))
-                .inspect_err(|err| tracing::warn!(%err, "the Smart Data Models mirror did not read"))
+                .inspect_err(
+                    |err| tracing::warn!(%err, "the Smart Data Models mirror did not read"),
+                )
                 .ok()
                 .map(Arc::new)
         });

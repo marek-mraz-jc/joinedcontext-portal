@@ -9,7 +9,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use super::model_tools::{Catalogue, is_catalogue_id};
+use super::model_tools::{is_catalogue_id, Catalogue};
 
 /// The index the mirror's nightly run wrote.
 const INDEX: &str = "index.json";
@@ -92,7 +92,10 @@ impl SdmMirror {
         match tokio::fs::read_to_string(&path).await {
             Ok(linkml) if pinned_to(&linkml, pin) => Mirrored::Model(linkml),
             Ok(_) => {
-                tracing::warn!(model = id, "mirrored model is not at the commit its index pins");
+                tracing::warn!(
+                    model = id,
+                    "mirrored model is not at the commit its index pins"
+                );
                 Mirrored::Unknown
             }
             Err(err) => {

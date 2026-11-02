@@ -4274,8 +4274,8 @@
       "nameTaken": "A model with this name already exists. Choose another name."
     },
     "sdm": {
-      "failed": "Models that could not be converted: {count}",
-      "failedHint": "They stay out of the list above until the next nightly run converts them.",
+      "notConverted": "Models that could not be converted: {count}",
+      "notConvertedHint": "They are left out of the list above. Each line says what stopped the conversion; a nightly run brings a model back once its upstream schema is fixed.",
       "browse": "Smart Data Models catalogue",
       "search": "Search models and attributes",
       "subject": "Subject",
@@ -4740,12 +4740,13 @@
     },
     "findType": "Find a type",
     "className": "Type name",
-    "classNameHint": "Renaming updates every field and type that names it, for example OnStreetParking.",
+    "typeName": { "hint": "Renaming updates every field and type that names it, for example Parking." },
+    "slotName": { "hint": "Renaming updates every type that lists the field, for example airQualityIndex." },
+    "enumName": { "hint": "Renaming updates every field that uses it, for example Level." },
+    "enumValue": { "hint": "What entities hold. Rename an import before you save it, for example moderate." },
     "enumValues": {
       "name": "Name",
-      "nameHint": "Renaming updates every field that uses it, for example AirQualityLevel.",
       "storedOf": "Stored value of {value}",
-      "storedHint": "What entities hold. Rename an import before you save it, for example moderate.",
       "caption": "Values of {name}",
       "stored": "Stored value",
       "label": "Label",
@@ -4764,8 +4765,7 @@
     "deprecatedBadge": "Deprecated",
     "slotName": "Name",
     "slotNameHint": "Such as temperature or openingHours: letters and digits, no spaces.",
-    "slotNameFirst": "Name the field and add it; its type, kind, unit and rules follow in this form.",
-    "slotNameFixed": "Renaming updates every type that lists the field, for example airQualityIndex."
+    "slotNameFirst": "Name the field and add it; its type, kind, unit and rules follow in this form."
   },
   "apps": {
     "title": "Applications",
