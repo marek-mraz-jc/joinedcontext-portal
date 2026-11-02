@@ -3168,13 +3168,9 @@ mod tests {
         use wiremock::matchers::{method, path};
         use wiremock::{Mock, MockServer, ResponseTemplate};
         let server = MockServer::start().await;
-        let gitea = crate::git::GiteaClient::new(
-            server.uri().parse().unwrap(),
-            "o",
-            "r",
-            "token-xyz",
-        )
-        .unwrap();
+        let gitea =
+            crate::git::GiteaClient::new(server.uri().parse().unwrap(), "o", "r", "token-xyz")
+                .unwrap();
         let info = resource::by_kind("Policy").expect("Policy");
         let policy = |space: &str| ResourceEnvelope {
             api_version: "joinedcontext.com/v1alpha1".into(),

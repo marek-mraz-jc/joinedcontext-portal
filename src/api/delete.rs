@@ -602,15 +602,9 @@ pub async fn delete_with_identity(
     let read_from = workspace_branch
         .clone()
         .unwrap_or_else(|| default_branch.clone());
-    let (repo_path, existing) = crate::api::mutate::held_file(
-        gitea,
-        &repo_path,
-        &envelope,
-        kind_info,
-        project,
-        &read_from,
-    )
-    .await?;
+    let (repo_path, existing) =
+        crate::api::mutate::held_file(gitea, &repo_path, &envelope, kind_info, project, &read_from)
+            .await?;
     let existing = existing.ok_or_else(not_found)?;
 
     let (branch, _turn) = match workspace_branch {
