@@ -230,7 +230,7 @@ fn a_representation_the_catalogue_does_not_know_is_refused() {
         assert!(refused.contains("representation"), "{bad:?}: {refused}");
     }
     // Every name the catalogue does know renders.
-    for good in REPRESENTATIONS.iter().copied() {
+    for good in REPRESENTATIONS.iter() {
         let mut params = share();
         params.representations = vec![format!("  {good}  ")];
         let rendered = render(PROJECT, &params, &[]).expect("a known representation");
