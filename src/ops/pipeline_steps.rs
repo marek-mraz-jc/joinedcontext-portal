@@ -148,6 +148,8 @@ fn sample_source_output_schema() -> Value {
             "fields": { "type": "array", "items": { "type": "string" }, "description": "Every field of those records, once each, in name order" },
             "count": { "type": "integer" },
             "truncated": { "type": "boolean", "description": "Whether the source answered more than the records shown" },
+            "bytes": { "type": "integer", "description": "When truncated by size: the bytes the records held before they were cut to 16 KiB" },
+            "cut": { "type": "string", "description": "When one record held a long array: its JSON pointer and how many of its items are shown" },
             "errors": { "type": "array", "description": "What the fetch or the parse said, when it failed" },
             "withheld": withheld_schema()
         }
@@ -870,7 +872,8 @@ async fn sample_source(
         }
         (Some(name), None) => {
             if let Some(source) = streamed_source(caller, state, project, &name)? {
-                let answer = streamed_sample(caller, state, project, &name, &source).await?;
+                let answer =
+                    bounded_sample(streamed_sample(caller, state, project, &name, &source).await?);
                 return Ok(without_source_fields(
                     caller,
                     state,
@@ -903,11 +906,98 @@ async fn sample_source(
         "records": trace.mapping,
         "errors": trace.errors,
     });
+    let answer = bounded_sample(answer);
     let answer = without_source_fields(caller, state, project, named.as_deref(), answer);
     Ok(match named.as_deref() {
         Some(name) => without_planned_fields(caller, name, &planned, answer),
         None => answer,
     })
+}
+
+/// The most bytes of records one sample answer carries (T-6393): a client refuses a tool result
+/// over its token cap, so a 234 KB feed showed the steward nothing at all.
+const MAX_SAMPLE_BYTES: usize = 16 * 1024;
+
+/// Cuts `answer.records` to [`MAX_SAMPLE_BYTES`], saying so in `truncated`, `bytes` and `cut`. A
+/// source that is one JSON document keeps its first items of its longest array, the records a
+/// mapping splits it into; else the first records that fit; a single record that still does not
+/// fit is shown as the start of its text.
+fn bounded_sample(mut answer: Value) -> Value {
+    let size = |value: &Value| value.to_string().len();
+    let bytes = size(&answer["records"]);
+    let Some(records) = answer["records"].as_array_mut() else {
+        return answer;
+    };
+    if bytes <= MAX_SAMPLE_BYTES {
+        return answer;
+    }
+    let mut cut = None;
+    if let [record] = records.as_mut_slice() {
+        if let Some((path, _)) = longest_array(record, "", 0) {
+            let whole = size(record);
+            if let Some(items) = record.pointer_mut(&path).and_then(Value::as_array_mut) {
+                let sizes: Vec<usize> = items.iter().map(|item| size(item) + 1).collect();
+                let room = MAX_SAMPLE_BYTES.saturating_sub(whole - sizes.iter().sum::<usize>());
+                let kept = fitting(&sizes, room);
+                cut = Some(format!(
+                    "{path}: the first {kept} of its {} items",
+                    items.len()
+                ));
+                items.truncate(kept);
+            }
+        }
+    }
+    if records.len() > 1 {
+        let sizes: Vec<usize> = records.iter().map(|record| size(record) + 1).collect();
+        records.truncate(fitting(&sizes, MAX_SAMPLE_BYTES).max(1));
+    }
+    if let [record] = records.as_mut_slice() {
+        let text = record.to_string();
+        if text.len() > MAX_SAMPLE_BYTES {
+            let mut end = MAX_SAMPLE_BYTES;
+            while !text.is_char_boundary(end) {
+                end -= 1;
+            }
+            *record = Value::String(format!(
+                "{}… (cut at {end} of {} bytes)",
+                &text[..end],
+                text.len()
+            ));
+        }
+    }
+    answer["truncated"] = json!(true);
+    answer["bytes"] = json!(bytes);
+    if let Some(cut) = cut {
+        answer["cut"] = json!(cut);
+    }
+    answer
+}
+
+/// How many of the leading `sizes` fit in `room` bytes.
+fn fitting(sizes: &[usize], mut room: usize) -> usize {
+    sizes
+        .iter()
+        .take_while(|n| room.checked_sub(**n).map(|left| room = left).is_some())
+        .count()
+}
+
+/// The JSON pointer and length of the array with the most items in `value`, at most four
+/// object levels down.
+fn longest_array(value: &Value, at: &str, depth: usize) -> Option<(String, usize)> {
+    let Value::Object(members) = value else {
+        return None;
+    };
+    members
+        .iter()
+        .filter_map(|(name, child)| {
+            let path = format!("{at}/{}", name.replace('~', "~0").replace('/', "~1"));
+            match child {
+                Value::Array(items) => Some((path, items.len())),
+                Value::Object(_) if depth < 4 => longest_array(child, &path, depth + 1),
+                _ => None,
+            }
+        })
+        .max_by_key(|(_, len)| *len)
 }
 
 /// This module's operations in the registry (`super::init_registry`).
@@ -1091,6 +1181,59 @@ pub(super) async fn candidate(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-6393: a 250 KB feed that is one JSON document answers under the cap with its first
+    /// stations, the array's pointer and the size it had; a small sample is left alone.
+    #[test]
+    fn a_one_message_feed_over_the_cap_keeps_the_first_items_of_its_array() {
+        let stations: Vec<Value> = (0..1500)
+            .map(|n| json!({ "station_id": format!("s{n}"), "name": format!("Station number {n} by the river"), "lat": 60.17, "lon": 24.94, "capacity": 20 }))
+            .collect();
+        let feed = json!({ "last_updated": 1, "ttl": 0, "data": { "stations": stations } });
+        let answer =
+            json!({ "count": 1, "truncated": false, "fields": ["data"], "records": [feed] });
+        let original = answer["records"].to_string().len();
+        assert!(original > 150_000, "{original}");
+
+        let bounded = bounded_sample(answer);
+        assert!(bounded["records"].to_string().len() <= MAX_SAMPLE_BYTES);
+        assert!(bounded.to_string().len() <= MAX_SAMPLE_BYTES + 512);
+        assert_eq!(bounded["truncated"], true);
+        assert_eq!(bounded["bytes"], original);
+        let kept = bounded["records"][0]["data"]["stations"]
+            .as_array()
+            .expect("the array");
+        assert!(kept.len() >= 2, "{}", kept.len());
+        assert_eq!(kept[1]["station_id"], "s1");
+        assert_eq!(bounded["records"][0]["last_updated"], 1);
+        let cut = bounded["cut"].as_str().expect("cut");
+        assert!(cut.starts_with("/data/stations: the first "), "{cut}");
+        assert!(cut.ends_with(" of its 1500 items"), "{cut}");
+
+        let small = json!({ "count": 1, "truncated": false, "records": [{ "a": 1 }] });
+        assert_eq!(bounded_sample(small.clone()), small);
+    }
+
+    /// T-6393: many records keep the first that fit; one record with no array is shown as the
+    /// start of its text.
+    #[test]
+    fn many_records_or_one_long_text_are_cut_to_the_cap() {
+        let rows: Vec<Value> = (0..400)
+            .map(|n| json!({ "n": n, "text": "x".repeat(200) }))
+            .collect();
+        let bounded = bounded_sample(json!({ "count": 400, "records": rows }));
+        let kept = bounded["records"].as_array().expect("records");
+        assert!(!kept.is_empty() && kept.len() < 400, "{}", kept.len());
+        assert_eq!(kept[0]["n"], 0);
+        assert!(bounded["records"].to_string().len() <= MAX_SAMPLE_BYTES);
+        assert!(bounded.get("cut").is_none());
+
+        let long = json!({ "records": [{ "body": "ž".repeat(20_000) }] });
+        let bounded = bounded_sample(long);
+        let text = bounded["records"][0].as_str().expect("the record's text");
+        assert!(text.ends_with(" bytes)"), "{}", &text[text.len() - 40..]);
+        assert!(bounded["records"].to_string().len() <= MAX_SAMPLE_BYTES + 64);
+    }
 
     /// T-6269: a planned source's name is judged by what it resolves to: a public name pointing at
     /// loopback, or a cluster Service name, is refused before the runner fetches it.

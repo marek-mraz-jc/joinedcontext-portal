@@ -670,6 +670,19 @@ pub(crate) fn seed_envelope(path: &str, content: &str) -> Option<ResourceEnvelop
 /// `Project` manifest first when the bundle deletes one. Every file is still approved on its own
 /// (`approve_every_file`); the headline is what the list and the detail page show, and the kind
 /// the first, cheap approval check reads (T-1400).
+/// Which file of a bundle heads its Change, lowest first (stable, so the forge's order breaks a
+/// tie): the Project manifest heads a project's deletion, and a Context Space heads the files it
+/// brings, so a new space is headed "Create ContextSpace", never by its DataModel (T-6390).
+fn headline_rank(path: &str) -> u8 {
+    if path.ends_with("/project.yaml") {
+        0
+    } else if path.ends_with("/space.yaml") {
+        1
+    } else {
+        2
+    }
+}
+
 async fn bundle_headline(
     gitea: &GiteaClient,
     pr: &PullRequest,
@@ -709,8 +722,7 @@ async fn bundle_headline(
         .iter()
         .filter(|file| file.path.starts_with(&home))
         .collect();
-    // `false` sorts first: the Project manifest heads a project's deletion.
-    files.sort_by_key(|file| !file.path.ends_with("/project.yaml"));
+    files.sort_by_key(|file| headline_rank(&file.path));
     for file in &files {
         let git_ref = if file.deleted {
             pr.base_ref()
@@ -3066,6 +3078,22 @@ pub fn router() -> Router<AppState> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-6390: a new space proposed with its DataModel and LinkML source is headed by the space,
+    /// whatever order the forge lists the files in; a project's own manifest still comes first.
+    #[test]
+    fn a_space_heads_the_bundle_it_brings_with_its_model() {
+        let space = "projects/t6025-full/spaces/t6377-walk/space.yaml";
+        let model = "projects/t6025-full/spaces/t6377-walk/datamodels/t6377-walk/t6377-walk.yaml";
+        let source =
+            "projects/t6025-full/spaces/t6377-walk/datamodels/t6377-walk/t6377-walk.linkml.yaml";
+        let mut files = [model, source, space];
+        files.sort_by_key(|path| headline_rank(path));
+        assert_eq!(files, [space, model, source]);
+        let mut files = [space, "projects/t6025-full/project.yaml"];
+        files.sort_by_key(|path| headline_rank(path));
+        assert_eq!(files[0], "projects/t6025-full/project.yaml");
+    }
 
     #[test]
     fn a_seed_file_heads_a_change_as_an_entity_and_nothing_else_does() {

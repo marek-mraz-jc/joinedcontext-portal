@@ -1623,6 +1623,13 @@ async fn check_content(
         check_replace(state, project, &envelope.metadata.name, &envelope.spec)?;
     }
 
+    // 4b-model. A space has one data model, whose classes are its types (DM-61, T-6394): a
+    //       second model of the space would plan and merge, then every Pipeline and Endpoint
+    //       of its classes is refused. The rule `jcctl validate` runs, said before the merge.
+    if kind == "DataModel" && operation != Operation::Delete {
+        check_one_model(state, project, &envelope.metadata.name, &envelope.spec)?;
+    }
+
     // 4b-writes. A write nobody can make (PL-111, ADR-N-057 decision 5): a write Policy no
     //       Endpoint binds, a Pipeline output whose targetEndpoint does not bind its write. The
     //       rule `jcctl validate` runs, over the project with this change in place.
@@ -2257,6 +2264,61 @@ fn check_unmade_writes(
     match lines.is_empty() {
         true => Ok(()),
         false => Err(unprocessable(lines)),
+    }
+}
+
+/// Refuses a DataModel that would be a second own model of its space (DM-61): the space's types
+/// are the classes of the one model it holds, so the classes of this one would never be. The
+/// drafts of the same Change count beside the mirror; a mirrored peer copy (DM-48) is none.
+fn check_one_model(
+    state: &AppState,
+    project: &str,
+    name: &str,
+    spec: &Value,
+) -> Result<(), ApiError> {
+    use crate::api::assistant::ref_name;
+    let own = |spec: &Value| spec["lifecycle"] != "mirrored";
+    let Some(space) = ref_name(&spec["contextSpaceRef"]).filter(|_| own(spec)) else {
+        return Ok(());
+    };
+    let of_space = |kind: &str, model: &str, spec: &Value| {
+        kind == "DataModel"
+            && model != name
+            && own(spec)
+            && ref_name(&spec["contextSpaceRef"]).as_deref() == Some(space.as_str())
+    };
+    let in_project = |m: &ResourceEnvelope| m.metadata.namespace.as_deref() == Some(project);
+    // A model the space already counts adds no second one: a repository that holds two from
+    // before this check can still change either.
+    let counted = state.mirror.find(|m| {
+        in_project(m)
+            && m.kind == "DataModel"
+            && m.metadata.name == name
+            && own(&m.spec)
+            && ref_name(&m.spec["contextSpaceRef"]).as_deref() == Some(space.as_str())
+    });
+    if counted.is_some() {
+        return Ok(());
+    }
+    let held = state
+        .mirror
+        .find(|m| in_project(m) && of_space(&m.kind, &m.metadata.name, &m.spec))
+        .map(|m| m.metadata.name)
+        .or_else(|| {
+            crate::references::bundled().into_iter().find_map(|m| {
+                let model = m["metadata"]["name"].as_str()?;
+                let kind = m["kind"].as_str()?;
+                of_space(kind, model, &m["spec"]).then(|| model.to_owned())
+            })
+        });
+    match held {
+        None => Ok(()),
+        Some(first) => Err(unprocessable(vec![format!(
+            "spec.contextSpaceRef: DataModel `{name}` would be a second model of space `{space}` \
+             beside `{first}`; a space has one model and its classes are the space's types \
+             (DM-61), so Pipelines and Endpoints would refuse the classes of `{name}`. Add the \
+             classes to DataModel `{first}` (change its source), or give `{name}` a space of its own"
+        )])),
     }
 }
 
@@ -3903,6 +3965,44 @@ mod tests {
             Err(ApiError::Unprocessable { errors, .. }) => errors,
             other => panic!("expected a 422, got {other:?}"),
         }
+    }
+
+    /// DM-61, T-6394: a second own model of a space is refused naming the space's model and the
+    /// two ways out; its first model, a re-proposal of the space's own model, a model of another
+    /// space and a mirrored peer copy pass.
+    #[test]
+    fn a_second_model_of_a_space_is_refused_naming_the_spaces_model() {
+        let state = AppState::new(Config::for_tests(), None);
+        let model = |space: &str, lifecycle: &str| {
+            json!({ "contextSpaceRef": space, "linkml": "./m.linkml.yaml", "version": "0.1.0",
+                    "lifecycle": lifecycle })
+        };
+        let check = |name: &str, spec: Value| check_one_model(&state, "ovzdusie", name, &spec);
+        check("walk", model("walk", "draft")).expect("the space's first model");
+        state
+            .mirror
+            .upsert(manifest("DataModel", "walk", model("walk", "draft")));
+        check("walk", model("walk", "published")).expect("the space's own model again");
+        check("other", model("other-space", "draft")).expect("a model of another space");
+        check("peer", model("walk", "mirrored")).expect("a peer's read-only copy");
+        let errors = refusal(check("bikes", model("walk", "draft")));
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        let line = &errors[0];
+        assert!(line.starts_with("spec.contextSpaceRef: "), "{line}");
+        for part in [
+            "second model of space `walk`",
+            "beside `walk`",
+            "DM-61",
+            "Add the classes to DataModel `walk`",
+        ] {
+            assert!(line.contains(part), "{part}: {line}");
+        }
+        // A repository holding two models of one space from before DM-61 changes either.
+        state
+            .mirror
+            .upsert(manifest("DataModel", "reports", model("walk", "published")));
+        check("reports", model("walk", "published")).expect("a model the space already counts");
+        refusal(check("third", model("walk", "draft")));
     }
 
     /// PL-111, ADR-N-057 decision 5, T-5040: a write Policy no Endpoint binds and a Pipeline aimed

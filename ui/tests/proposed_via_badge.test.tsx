@@ -5,6 +5,7 @@ import i18n from "../src/i18n";
 import {
   ProposedViaBadge,
   ProposedViaHint,
+  clientName,
 } from "../src/components/ProposedViaBadge";
 
 const CONNECTOR = {
@@ -37,8 +38,9 @@ describe("proposed-via badge", () => {
       </>,
     );
     expect(screen.getByTestId("change-proposed-via")).toHaveTextContent(
-      "Via claude-code connector doprava-in-claude",
+      "Via Claude Code connector doprava-in-claude",
     );
+    expect(screen.getByText(/An AI client \(Claude Code\) wrote this proposal/)).toBeInTheDocument();
     expect(screen.getByTestId("change-proposed-plan")).toHaveTextContent(
       "Plan p2345234523452345234523452",
     );
@@ -56,5 +58,12 @@ describe("proposed-via badge", () => {
       "connector",
     );
     expect(screen.queryByTestId("change-proposed-plan")).toBeNull();
+  });
+
+  it("names a CIMD client by its product and keeps any other id as the server sent it", () => {
+    expect(clientName("claude-code")).toBe("Claude Code");
+    expect(clientName("claude-ai")).toBe("claude.ai");
+    expect(clientName("chatgpt.com")).toBe("chatgpt.com");
+    expect(clientName("unknown")).toBe("unknown");
   });
 });

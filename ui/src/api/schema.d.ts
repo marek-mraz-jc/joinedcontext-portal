@@ -28712,7 +28712,11 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @description When truncated by size: the bytes the records held before they were cut to 16 KiB */
+                        bytes?: number;
                         count?: number;
+                        /** @description When one record held a long array: its JSON pointer and how many of its items are shown */
+                        cut?: string;
                         /** @description What the fetch or the parse said, when it failed */
                         errors?: unknown[];
                         /** @description Every field of those records, once each, in name order */

@@ -165,7 +165,7 @@ describe("approval actions", () => {
       }),
     });
     const badge = await screen.findByTestId("change-proposed-via");
-    expect(badge).toHaveTextContent("Via claude-code connector doprava-in-claude");
+    expect(badge).toHaveTextContent("Via Claude Code connector doprava-in-claude");
     expect(screen.getByTestId("change-proposed-plan")).toHaveTextContent(
       "Plan p2345234523452345234523452",
     );
