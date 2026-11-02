@@ -216,8 +216,8 @@ describe("the run page", () => {
     const alert = await screen.findByText(/did not answer in time/);
     expect(alert.textContent).toContain(en.agentRun.failedNext);
     const publish = screen.getByRole("button", { name: new RegExp(`^${en.agentRun.publish}`) });
-    expect(publish.getAttribute("aria-disabled")).toBe("true");
-    expect(publish).toHaveAttribute("title", en.agentRun.publishOver);
+    expect(publish).toBeDisabled();
+    expect(publish).toHaveAccessibleDescription(en.agentRun.publishOver);
   });
 
   it("says the same things in every language", async () => {

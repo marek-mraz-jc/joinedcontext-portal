@@ -270,14 +270,18 @@ export function AgentRunPage({
           <Button
             variant="primary"
             disabled={!publishable || held !== null || publish.isPending}
-            disabledReason={over ? t("agentRun.publishOver") : undefined}
-            aria-describedby={held ? "run-tests-hold" : undefined}
+            aria-describedby={held ? "run-tests-hold" : record.status === "failed" ? "run-publish-over" : undefined}
             onClick={() => {
               publish.mutate();
             }}
           >
             {t("agentRun.publish")}
           </Button>
+          {record.status === "failed" ? (
+            <span id="run-publish-over" className="basis-full text-caption text-fg-muted">
+              {t("agentRun.publishOver")}
+            </span>
+          ) : null}
           {held ? (
             <span id="run-tests-hold" className="basis-full text-caption text-fg-muted">
               {held.running
