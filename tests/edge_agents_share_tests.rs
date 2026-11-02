@@ -306,10 +306,7 @@ fn an_attribute_or_type_that_is_not_an_identifier_is_refused() {
     params.hidden_attributes = vec!["a".repeat(128)];
     assert!(render(PROJECT, &params, &[]).is_ok(), "the bound");
     params.hidden_attributes = vec!["a".repeat(129)];
-    assert!(
-        render(PROJECT, &params, &[]).is_err(),
-        "the bound plus one"
-    );
+    assert!(render(PROJECT, &params, &[]).is_err(), "the bound plus one");
 }
 
 /// EP-72: a rate limit of zero would serve nobody; it is refused rather than rendered.
@@ -373,7 +370,7 @@ fn a_draft_policy_grants_a_read_to_the_named_audience_only() {
     assert_eq!(policy["spec"]["operations"], json!(["retrieveOps"]));
     assert_eq!(
         policy["spec"]["assignee"],
-        json!({ "kind": "group", "id": ORG })
+        json!({ "kind": "organization" })
     );
     assert_eq!(
         policy["spec"]["contextSpaceRef"],
@@ -1144,8 +1141,7 @@ fn a_public_or_organization_policy_name_is_bounded_too() {
         let mut params = share();
         params.name = "b".repeat(63);
         params.audience = Some(audience.to_owned());
-        let refused =
-            render(PROJECT, &params, &[]).expect_err("63 + the suffix is not a label");
+        let refused = render(PROJECT, &params, &[]).expect_err("63 + the suffix is not a label");
         assert!(refused.contains(audience), "{audience}: {refused}");
     }
 }
