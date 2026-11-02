@@ -241,8 +241,8 @@
     "ownProposal": "You cannot approve or reject your own proposal.",
     "ownAccessChange": "Access changes need a second person: another administrator approves your own change to roles, groups or service accounts.",
     "ownModelChange": "A data model change needs a second person: another administrator approves your own change to a model.",
-    "confirmPrompt": "For red lane, type the resource name to confirm:",
-    "confirmLabel": "Resource name confirmation",
+    "confirmPrompt": "To confirm, type this name:",
+    "confirmLabel": "Type the name to confirm",
     "diffAdded": "Added",
     "diffChanged": "Changed",
     "diffRemoved": "Removed",
@@ -466,7 +466,9 @@
     "accepted": "Proposed as a change:",
     "review": "Review it in Approvals",
     "approvedAsProposed": "Approved as you proposed it, applying:",
-    "open": "Open the change"
+    "open": "Open the change",
+    "waitingApprover": "Waiting for an approver",
+    "whoApproves": "Next: someone with the approve right on this project, other than you, decides. They find it in Approvals, and this view follows by itself."
   },
   "resourceDelete": {
     "title": "Remove {name}",
@@ -661,7 +663,7 @@
       },
       "onApproval": "Propose all sends these drafts for approval together. Once a person approves them, the source is fetched and the space fills.",
       "onApprovalRows": "Propose all sends these drafts for approval together. Once a person approves them, this page offers to load the {count, plural, one {# row} other {# rows}} of the file. Stay here or keep the file: the rows are not sent yet.",
-      "inChange": "What this Change holds ({count})",
+      "inChange": "What will be added ({count})",
       "tooLarge": "That is more than 10 MB together. Choose smaller files, or use Upload a CSV, which takes up to 50 MB.",
       "urlHint": "The address of a live feed, instead of a file. Example: https://example.org/stations.json",
       "failedNext": "Nothing can be proposed yet. Fix what the check names in the file and choose it again.",
@@ -672,11 +674,28 @@
       "files": "Files",
       "dropHint": "Drop files here or browse",
       "action": "Complete",
+      "checkFile": "Check my file",
+      "fileGiven": "File: {name}",
       "proposeAll": "Propose all",
       "open": "Open",
       "noDrafts": "No drafts completed yet.",
       "needInput": "Give an endpoint URL or add a file first.",
-      "filesHint": "A sample of the data as CSV, Excel (.xlsx), JSON or GeoJSON, with any manifests, README or .env that describe the source; up to 10 MB together. Example: stations.xlsx."
+      "filesHint": "A sample of the data as CSV, Excel (.xlsx), JSON or GeoJSON, with any manifests, README or .env that describe the source; up to 10 MB together. Example: stations.xlsx.",
+      "review": {
+        "title": "Proposed data model {type}: {count, plural, one {# attribute} other {# attributes}}",
+        "hint": "Check each type against the value from your file. Change a type here if the draft misread a column, for example a postcode read as a number should be text.",
+        "sample": "Example from the file: {value}",
+        "noSample": "No value in the file",
+        "range": {
+          "string": "Text",
+          "integer": "Whole number",
+          "float": "Decimal number",
+          "boolean": "Yes or no",
+          "date": "Date",
+          "datetime": "Date and time"
+        }
+      },
+      "spaceHint": "An existing space to complete, or the name of a new one, for example city-garages."
     },
     "segment": "in entity ids: {segment}",
     "quality": {
@@ -1165,10 +1184,10 @@
       "noSlots": "The proposed model declares no fields for this type: there is nothing to write.",
       "write": "{count, plural, =0 {Nothing to write} one {Write # row} other {Write # rows}}",
       "done": "{written, plural, =0 {No row was written} one {# row written} other {# rows written}}, {refused, plural, =0 {none refused.} one {# refused.} other {# refused.}}",
-      "preview": "Preview the first {count, plural, one {# entity} other {# entities}} as NGSI-LD",
+      "preview": "Preview the first {count, plural, one {# row} other {# rows}} as stored",
       "firstRefusal": "Row {row}: {reason}",
       "liveNow": "The change is live. Write the rows into {space} as {type}. Writing the same file again updates the same entities.",
-      "goingLive": "Approved. It goes live in a few minutes and this button unlocks by itself; stay on this page.",
+      "goingLive": "Approved. It goes live within a minute and this button unlocks by itself; stay here.",
       "openSpace": "Open the space"
     },
     "toolbar": {

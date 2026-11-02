@@ -31456,6 +31456,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        alreadyLive: boolean;
                         change?: Record<string, never> | null;
                         drafts: Record<string, never>[];
                         found: string[];

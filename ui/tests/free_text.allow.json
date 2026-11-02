@@ -105,7 +105,11 @@
       "class": "FREE",
       "reason": "the published attributes are ticked in the list above it; this box names one the schema does not publish yet (T-1767), shape-checked (T-4947 decided)"
     },
-    "src/pages/inbox/InboxPage.tsx :: For red lane, type the resource name to confirm:": {
+    "src/components/ChangeNotice.tsx :: Type the name to confirm": {
+      "class": "FREE",
+      "reason": "typing the name is the confirmation itself"
+    },
+    "src/pages/inbox/InboxPage.tsx :: To confirm, type this name:": {
       "class": "FREE",
       "reason": "typing the name is the confirmation itself"
     },
