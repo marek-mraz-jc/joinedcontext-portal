@@ -546,8 +546,12 @@ body {
   .jc-count {
     margin-left: 0;
   }
-  .jc-filter:has(input + input) {
+  /* Date fields need the whole width; two numbers share it. */
+  .jc-filter:has(input[type="date"]) {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .jc-map {
+    height: 15rem;
   }
   .jc-tile:last-child:nth-child(odd) {
     grid-column: 1 / -1;
