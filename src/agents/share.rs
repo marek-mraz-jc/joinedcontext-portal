@@ -919,7 +919,7 @@ pub fn edit_call(answer: &str) -> Option<Result<EditEndpoint, String>> {
 #[cfg(test)]
 mod tests {
     use super::{
-        edit, edit_call, form_values, prose_of, render, slug, tool_call, EditEndpoint, FieldChange,
+        edit_call, form_values, prose_of, render, slug, tool_call, Edit, EditEndpoint, FieldChange,
         Preset, ProposeEndpoint, DEFAULT_CREATES_PER_DAY,
     };
     use crate::change::Lane;
