@@ -177,6 +177,9 @@ fn person_subject(id: &str, groups: Vec<String>, roles: Vec<String>, paths: &[St
     let organizations: BTreeSet<&str> = nested
         .iter()
         .filter_map(|path| path.trim_start_matches('/').split('/').next())
+        .chain(paths.iter().filter_map(|path| {
+            crate::reconciler::groups::organization_of_group(path.strip_prefix('/')?)
+        }))
         .collect();
     json!({
         "user": id,
@@ -691,9 +694,11 @@ mod tests {
             "/stewards".to_owned(),
             "/helsinki/members".to_owned(),
             "/helsinki/traffic-analysts".to_owned(),
+            "/espoo_bound".to_owned(),
+            "/doprava-readers".to_owned(),
         ];
         let subject = person_subject("u1", vec!["stewards".into()], vec!["viewer".into()], &paths);
-        assert_eq!(subject["organizations"], json!(["helsinki"]));
+        assert_eq!(subject["organizations"], json!(["espoo", "helsinki"]));
         assert_eq!(
             subject["organizationGroups"],
             json!(["/helsinki/members", "/helsinki/traffic-analysts"])
