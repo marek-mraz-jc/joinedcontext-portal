@@ -219,8 +219,6 @@ export function GroupPage({ name }: { name: string }): JSX.Element {
           </span>
         }
       />
-      {/* Why the greyed controls below are off, in words beside the header's Remove (T-6423). */}
-      <DeniedNote project={ORG_NAMESPACE} kind="Group" verb="propose" />
       {naming.length + appRoles.length > 0 ? (
         <p className="text-body text-fg-muted">
           {t("access.groupPage.deleteCascade", { bindings: naming.length, apps: appRoles.length })}
@@ -274,12 +272,21 @@ export function GroupPage({ name }: { name: string }): JSX.Element {
 }
 
 /**
- * A member as people read them (T-6423): the name, a link to their page; the Keycloak id only when
- * the caller resolves no name (ADR-N-061: names reach people-admins and group approvers only).
+ * A member as people read them (T-6423): the name, a link to their page. A caller who resolves no
+ * name (ADR-N-061: names reach people-admins and group approvers only) reads a plain label, the
+ * Keycloak id folded under it.
  */
 export function MemberName({ id, names }: { id: string; names: Map<string, string> }): JSX.Element {
+  const { t } = useTranslation();
   const name = names.get(id);
-  if (!name) return <span className="font-mono text-caption [overflow-wrap:anywhere]">{id}</span>;
+  if (!name) {
+    return (
+      <details className="min-w-0 text-body text-fg-muted">
+        <summary className="focus-ring w-fit cursor-pointer rounded-sm">{t("access.groupPage.hiddenName")}</summary>
+        <code className="block pt-1 font-mono text-caption text-fg [overflow-wrap:anywhere]">{id}</code>
+      </details>
+    );
+  }
   return (
     <Link to="/organization/$tab/$" params={{ tab: "people", _splat: encodeURIComponent(id) }} className="text-body underline hover:no-underline">
       {name}
@@ -321,6 +328,8 @@ function Members({
       <h2 id={heading} className="text-title font-semibold text-fg">
         {t("access.groupPage.members")}
       </h2>
+      {/* Why the greyed controls are off, in words beside them, on a phone too (T-6423). */}
+      <DeniedNote project={ORG_NAMESPACE} kind="Group" verb="propose" />
       {waiting ? (
         <Alert tone="warning" title={t("access.groupPage.waitingTitle")}>
           {t("access.groupPage.waiting", { change: waiting })}{" "}

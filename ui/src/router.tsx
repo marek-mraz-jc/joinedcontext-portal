@@ -860,7 +860,7 @@ function OrganizationPersonView({ id }: { id: string }): React.JSX.Element {
   }
   return (
     <Shell project={first} sidebar={(close) => <AdminNav project={first} active="people" onNavigate={close} />}>
-      <PersonPage id={id} />
+      <PersonPage id={id} anchor={first} />
     </Shell>
   );
 }

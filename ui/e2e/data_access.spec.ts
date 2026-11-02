@@ -139,6 +139,8 @@ async function stubApi(page: Page, state: State): Promise<void> {
       return json({ datasets: readable, unanswered: 0 });
     }
     if (path === `/api/v1/organization/people/${JANA_ID}`) {
+      // The person page is people-admin only on the server: a refused viewer reads no name.
+      if (state === "refused") return refused();
       return json({ person: JANA, groups: [{ name: "traffic-analysts" }], platformRoles: [], appRoles: [] });
     }
     if (path === "/api/v1/projects/org/groups/traffic-analysts") return json(GROUP);
@@ -280,7 +282,7 @@ test.describe("a group's and a person's datasets", () => {
       const expected = {
         filled: "Vehicles on duty",
         empty: "reads no internal dataset",
-        refused: "Only organization administrators and people administrators",
+        refused: "This page is for organization administrators",
       }[state];
       await expect(page.getByText(expected).first()).toBeVisible();
       await shot(page, `person-${state}`);

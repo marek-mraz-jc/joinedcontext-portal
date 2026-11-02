@@ -33,6 +33,7 @@ import {
   TableSkeleton,
 } from "../../components/ui";
 import { ResourcePageFailed, PageFailed } from "../../components/ui/PageState";
+import { AskAdmins } from "./AskAdmins";
 import { DeniedNote, PermissionGuard } from "../../components/ui/PermissionGuard";
 import { asUser } from "../apps/members";
 import { proposeChecked } from "../../api/proposal";
@@ -924,12 +925,53 @@ async function perform(id: string, action: Action): Promise<Outcome> {
 }
 
 /**
+ * A person page that did not open. A 403 is whose page this is, under the section's own title: the
+ * id in the address names nobody to a caller the server refuses (T-6423).
+ */
+export function PersonFailed({
+  id,
+  anchor,
+  error,
+  onRetry,
+}: {
+  id: string;
+  anchor?: string;
+  error: unknown;
+  onRetry: () => void;
+}): JSX.Element {
+  const { t } = useTranslation();
+  if (error instanceof ApiError && error.status === 403) {
+    return (
+      <div className="flex flex-col gap-4">
+        <PageHeader title={t("organization.people.title")} description={t("organization.people.lead")} />
+        <AskAdmins message={t("organization.adminOnly")} back={anchor} />
+      </div>
+    );
+  }
+  return (
+    <ResourcePageFailed
+      title={id}
+      description={t("organization.people.lead")}
+      error={error}
+      onRetry={onRetry}
+      back={
+        <Link to="/organization/$tab" params={{ tab: "people" }} className="text-body underline">
+          {t("organization.people.back")}
+        </Link>
+      }
+    >
+      {error instanceof ApiError && error.status === 404 ? t("organization.people.notFound") : undefined}
+    </ResourcePageFailed>
+  );
+}
+
+/**
  * A person's page (PF-93, PF-94): who they are, where the realm has them, the groups they are
  * in and the roles those give them, and every lifecycle action. Each action asks first, names
  * what it does, and is disabled with the reason when the caller's role does not allow it; the
  * server still refuses anything the caller may not do to this person, and says why.
  */
-export function PersonPage({ id }: { id: string }): JSX.Element {
+export function PersonPage({ id, anchor }: { id: string; anchor?: string }): JSX.Element {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "en";
   const navigate = useNavigate();
@@ -978,23 +1020,7 @@ export function PersonPage({ id }: { id: string }): JSX.Element {
     );
   }
   if (detail.error || !detail.data) {
-    return (
-      <ResourcePageFailed
-        title={id}
-        description={t("organization.people.lead")}
-        error={detail.error}
-        onRetry={() => void detail.refetch()}
-        back={
-          <Link to="/organization/$tab" params={{ tab: "people" }} className="text-body underline">
-            {t("organization.people.back")}
-          </Link>
-        }
-      >
-        {detail.error instanceof ApiError && detail.error.status === 404
-          ? t("organization.people.notFound")
-          : undefined}
-      </ResourcePageFailed>
-    );
+    return <PersonFailed id={id} anchor={anchor} error={detail.error} onRetry={() => void detail.refetch()} />;
   }
 
   const { person, groups, platformRoles, appRoles } = detail.data as PersonDetail;

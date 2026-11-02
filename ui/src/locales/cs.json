@@ -3847,6 +3847,7 @@
       "members": "Členové",
       "email": "Osoba",
       "addMember": "Přidat člena",
+      "hiddenName": "Osoba, jméno skryté",
       "removeMember": "Odebrat {member} ze skupiny",
       "remove": "Odebrat",
       "needEmail": "Nejprve vyberte osobu.",

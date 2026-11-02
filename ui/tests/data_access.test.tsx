@@ -18,6 +18,7 @@ import {
 import { OrganizationPage } from "../src/pages/organization/OrganizationPage";
 import { MemberName } from "../src/pages/access/GroupPage";
 import { AskAdmins } from "../src/pages/organization/AskAdmins";
+import { PersonPage } from "../src/pages/organization/People";
 import { DeniedNote } from "../src/components/ui/PermissionGuard";
 import { expectNoAxeViolations, json, renderPage } from "./page_contract";
 
@@ -253,7 +254,7 @@ describe("T-6423: names, not ids, and a refusal that says whom to ask", () => {
     expect(screen.getByRole("link", { name: en.askAdmins.back })).toHaveAttribute("href", "/projects/helsinki/home");
   });
 
-  it("names a group member by name with a link to their page, the id only when no name is known", async () => {
+  it("names a group member by name with a link to their page, a plain label over the folded id when no name is known", async () => {
     const id = "3f2a9c1e-7b4d-4e8a-9f61-2c5d8e0b7a14";
     renderPage(<MemberName id={id} names={new Map([[id, "Jana Nováková"]])} />, { path: "/", answer: () => undefined });
     const link = await screen.findByRole("link", { name: "Jana Nováková" });
@@ -261,7 +262,18 @@ describe("T-6423: names, not ids, and a refusal that says whom to ask", () => {
     expect(screen.queryByText(id)).toBeNull();
     cleanup();
     renderPage(<MemberName id={id} names={new Map()} />, { path: "/", answer: () => undefined });
-    expect(await screen.findByText(id)).toBeInTheDocument();
+    const label = await screen.findByText(en.access.groupPage.hiddenName);
+    expect(label.closest("details")).not.toHaveAttribute("open");
+    expect(label.closest("details")).toHaveTextContent(id);
+  });
+
+  it("answers a refused person page with whom to ask, the id nowhere", async () => {
+    const id = "3f2a9c1e-7b4d-4e8a-9f61-2c5d8e0b7a14";
+    renderPage(<PersonPage id={id} anchor="helsinki" />, { path: "/", answer: () => forbidden() });
+    expect(await screen.findByText(en.organization.adminOnly)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: en.organization.people.title })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: en.askAdmins.back })).toHaveAttribute("href", "/projects/helsinki/home");
+    expect(screen.queryByText(id)).toBeNull();
   });
 
   it("says the sentence alone when the Organization cannot be read", async () => {

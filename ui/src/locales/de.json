@@ -3847,6 +3847,7 @@
       "members": "Mitglieder",
       "email": "Person",
       "addMember": "Mitglied hinzufügen",
+      "hiddenName": "Eine Person, Name verborgen",
       "removeMember": "{member} aus der Gruppe entfernen",
       "remove": "Entfernen",
       "needEmail": "Wählen Sie zuerst eine Person.",
