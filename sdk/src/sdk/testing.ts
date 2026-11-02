@@ -83,6 +83,14 @@ function inBox(geometry: unknown, box: number[]): boolean {
   return lon >= box[0] && lon <= box[2] && lat >= box[1] && lat <= box[3];
 }
 
+/** A row as the normalized representation holds it, which is what the grid's sources read. */
+function normalized(row: Row): Record<string, unknown> {
+  const attributes = Object.entries(row)
+    .filter(([name]) => name !== "id" && name !== "type")
+    .map(([name, value]) => [name, { type: (value as { coordinates?: unknown } | null)?.coordinates ? "GeoProperty" : "Property", value }]);
+  return { id: row.id, type: row.type, ...Object.fromEntries(attributes) };
+}
+
 const OGC = /\/ogc\/features\/collections(?:\/([^/]+)\/items(?:\/([^/]+))?)?$/;
 
 export function stubTransport(fixture?: Fixture): StubTransport {
@@ -142,7 +150,8 @@ export function stubTransport(fixture?: Fixture): StubTransport {
           return projected;
         });
       }
-      return { status: 200, body: items.slice(offset, offset + limit) };
+      const page = items.slice(offset, offset + limit);
+      return { status: 200, body: params.get("options")?.includes("sysAttrs") ? page.map(normalized) : page };
     }
 
     if (pathname.endsWith("/ngsi-ld/v1/entities") && method === "POST") {

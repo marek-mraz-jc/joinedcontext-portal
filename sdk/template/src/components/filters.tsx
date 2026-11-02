@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { ReactNode } from "react";
 import { distinct, extent } from "@joinedcontext/sdk";
 import type { FilterBinding } from "@joinedcontext/sdk";
@@ -14,8 +15,14 @@ export function FilterBar({
   shown?: number;
   total?: number;
 }): React.JSX.Element {
+  // A phone opens the filters on demand, or they would stand a full screen above the data.
+  const [open, setOpen] = useState(false);
   return (
-    <div className="jc-filterbar" role="search">
+    <div className="jc-filterbar" role="search" data-open={open}>
+      <button type="button" className="jc-filter-toggle" aria-expanded={open} onClick={() => setOpen(!open)}>
+        {t("filter.toggle")}
+        {shown !== undefined && total !== undefined && ` · ${shown} / ${total}`}
+      </button>
       {children}
       {shown !== undefined && total !== undefined && (
         <span className="jc-count">

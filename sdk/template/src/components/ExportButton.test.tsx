@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { JcProvider } from "@joinedcontext/sdk";
 import type { Row } from "@joinedcontext/sdk";
-import { ExportButton } from "./ExportButton";
+import { ExportButton, defaultColumns } from "./ExportButton";
 import { stubClient } from "@joinedcontext/sdk/testing";
 
 const downloadMock = vi.fn();
@@ -98,5 +98,17 @@ describe("ExportButton component", () => {
     expect(screen.getByRole("button", { name: "GeoJSON" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "PDF" })).toBeDisabled();
     expect(screen.getByRole("button", { name: "PNG" })).toBeDisabled();
+  });
+});
+
+describe("defaultColumns", () => {
+  const STATIONS: Row[] = [
+    { id: "urn:ngsi-ld:Station:1", type: "Station", name: "Kaivopuisto", bikes: 10, location: { type: "Point", coordinates: [24.95, 60.15] } },
+    { id: "urn:ngsi-ld:Station:2", type: "Station", name: "Kamppi", bikes: 5, location: { type: "Point", coordinates: [24.93, 60.17] } },
+  ];
+
+  it("excludes id, type, @context, and geo columns, and caps at max", () => {
+    expect(defaultColumns(STATIONS, 8)).toEqual(["name", "bikes"]);
+    expect(defaultColumns(STATIONS, 1)).toEqual(["name"]);
   });
 });

@@ -855,7 +855,8 @@ impl Driver {
                 "Write the FIRST VERSION of the application for the request above, which goes on \
                  screen at once: `src/App.tsx`, the layout (`src/app.css`; \
                  `src/design-tokens.json` is already this application's look) and the one page the request is most about, complete and working \
-                 with the real data. No tests, no other page and no function unless that page \
+                 with the real data, its entities in a `TypeGrid` under the map or charts with any \
+                 worked-out value as a `formula` column. No tests, no other page and no function unless that page \
                  needs it: a second call adds them while the person already looks at this \
                  version. Keep the whole answer under 6,000 tokens. Begin your sentences with \
                  the application's name in bold, two to five words that say what it shows, for \

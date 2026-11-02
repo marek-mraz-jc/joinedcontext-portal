@@ -56,7 +56,8 @@ describe("the template on the helsinki air-quality endpoint", () => {
     // The chart initialises in an effect after the rows render, so it is awaited, not assumed.
     await waitFor(() => expect(echarts.init).toHaveBeenCalled());
 
-    fireEvent.click(within(page).getByText("Leppävaara"));
+    const row = (await within(within(page).getByRole("grid")).findByText("Leppävaara")).closest("tr") as HTMLElement;
+    fireEvent.click(row.querySelector(".jc-open") as HTMLElement);
     const panel = await screen.findByRole("dialog");
     expect(await within(panel).findByText("Leppävaara")).toBeInTheDocument();
 

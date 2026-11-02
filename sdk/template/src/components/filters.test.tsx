@@ -161,4 +161,13 @@ describe("Filter UI components with useFilters", () => {
       "DateRangeFilter needs a dateRange filter",
     );
   });
+
+  it("opens the filters on demand on a phone, with the count on the button", () => {
+    render(<FilterBar shown={2} total={5} />);
+    const toggle = screen.getByRole("button", { name: /2 \/ 5/ });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("search")).toHaveAttribute("data-open", "true");
+  });
 });

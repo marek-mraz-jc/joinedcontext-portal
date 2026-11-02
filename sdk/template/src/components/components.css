@@ -219,11 +219,30 @@ body {
   border-radius: var(--jc-radius-md, 6px);
 }
 
+/* Beside the filters on a wide screen there is room for all of them. */
+.jc-filter-toggle {
+  display: none;
+}
+
 .jc-filter {
   display: flex;
   flex-direction: column;
   gap: var(--jc-space-1, 0.25rem);
   font-size: var(--jc-font-size-sm, 0.75rem);
+}
+
+/* Two ends of a range sit side by side, under their one label. */
+.jc-filter:has(input + input) {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.jc-filter:has(input + input) span {
+  grid-column: 1 / -1;
+}
+
+.jc-filter:has(input + input) input {
+  min-width: 0;
 }
 
 .jc-filter span {
@@ -533,8 +552,41 @@ body {
     flex-direction: column;
     align-items: stretch;
   }
+  .jc-filter-toggle {
+    display: block;
+  }
+  .jc-filterbar[data-open="false"] > :not(.jc-filter-toggle) {
+    display: none;
+  }
   .jc-count {
     margin-left: 0;
+  }
+  /* Date fields need the whole width; two numbers share it. */
+  .jc-filter:has(input[type="date"]) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .jc-map {
+    height: 15rem;
+  }
+  .jc-tile:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+  /* A phone keeps the width for values: the glyph repeats what the cells show. */
+  .jc-grid .jc-grid-kind {
+    display: none;
+  }
+  /* A header's controls wrap under its label, so three columns fit. */
+  .jc-grid .jc-grid-th {
+    white-space: normal;
+  }
+  /* The name is the row's whole label: it keeps its width, the other columns scroll. */
+  .jc-shell .jc-grid td.jc-grid-pinned {
+    max-width: none;
+  }
+  /* The name's 44 px target already spaces the row. */
+  .jc-shell .jc-grid td {
+    padding-block: 0;
+    vertical-align: middle;
   }
 }
 
@@ -557,4 +609,35 @@ body {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* The last card of an odd row takes the row, so no gap stands beside it. */
+.jc-grid-cols[data-columns="2"] > :last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
+/* `TypeGrid`'s cue that more columns lie sideways; a wide screen shows them all. */
+.jc-grid-swipe {
+  display: none;
+  margin: 0;
+  color: var(--jc-color-muted, #64748b);
+  font-size: var(--jc-font-size-sm, 0.8125rem);
+}
+
+@media (width <= 640px) {
+  .jc-grid-swipe {
+    display: block;
+  }
+}
+
+/* A row of `TypeGrid` opens by its name. */
+.jc-open, .jc-shell .jc-grid .jc-open {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--jc-color-accent);
+  font: inherit;
+  text-align: start;
+  text-decoration: underline;
+  cursor: pointer;
 }
