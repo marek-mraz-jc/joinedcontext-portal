@@ -5285,7 +5285,11 @@
       "previewTitle": "Čo bude zmena obsahovať: {path}",
       "added": "pridané",
       "removed": "odstránené",
-      "refused": "Polia, ktoré portál odmietol: {n}. Pri každom je dôvod.",
+      "refused": "Zmena nebola navrhnutá. Opravte tieto polia a znova zobrazte náhľad:",
+      "refusedRowField": "{section}, riadok {row}, {field}",
+      "refusedRow": "{section}, riadok {row}",
+      "refusedField": "{section}, {field}",
+      "goTo": "Prejsť na pole",
       "previewLegend": "+ označuje riadok, ktorý zmena pridá, - riadok, ktorý odstráni.",
       "again": "Začať ďalšiu zmenu"
     }

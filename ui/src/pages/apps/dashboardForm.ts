@@ -57,6 +57,39 @@ export function errorsByPath(errors: readonly string[]): Map<string, string[]> {
   return out;
 }
 
+/** Where a refusal points in the form: the field's element id and its words, by locale key. */
+export interface RefusedField {
+  id?: string;
+  section: string;
+  row?: number;
+  field?: string;
+}
+
+const PLACES: Record<string, { prefix: string; section: string; fields: Record<string, string> }> = {
+  "grid/columns": { prefix: "col", section: "columns", fields: { attr: "attribute", label: "label", formula: "formula" } },
+  filters: { prefix: "filter", section: "filters", fields: { attr: "attribute", op: "op", value: "value" } },
+  "colour/bands": { prefix: "band", section: "colour", fields: { below: "below", tone: "tone", label: "label" } },
+  kpis: { prefix: "kpi", section: "kpis", fields: { label: "label", agg: "agg", attr: "attribute", where: "where" } },
+};
+const SINGLE: Record<string, RefusedField> = {
+  "/colour/attr": { id: "colour-attr", section: "colour", field: "colourAttr" },
+  "/colour/bands": { section: "colour" },
+  "/chart/x": { id: "chart-x", section: "chart", field: "chartX" },
+  "/chart/agg": { id: "chart-agg", section: "chart", field: "agg" },
+  "/chart/y": { id: "chart-y", section: "chart", field: "chartY" },
+};
+
+/** The form field a refusal path names (`/kpis/0/where`), or undefined for one the form does not show. */
+export function refusedField(path: string): RefusedField | undefined {
+  if (SINGLE[path]) return SINGLE[path];
+  const match = /^\/(grid\/columns|filters|colour\/bands|kpis)\/(\d+)(?:\/(\w+))?$/.exec(path);
+  const place = match ? PLACES[match[1]] : undefined;
+  if (!match || !place) return undefined;
+  const row = Number(match[2]);
+  const field = match[3] ? place.fields[match[3]] : undefined;
+  return { id: field ? `${place.prefix}-${row}-${match[3]}` : undefined, section: place.section, row: row + 1, field };
+}
+
 /** A filter's value as typed: a number stays a number, true/false a boolean, the rest text. */
 export function typedValue(text: string): string | number | boolean {
   if (text === "true" || text === "false") return text === "true";

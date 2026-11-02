@@ -5285,7 +5285,11 @@
       "previewTitle": "Was die Änderung enthält: {path}",
       "added": "hinzugefügt",
       "removed": "entfernt",
-      "refused": "Vom Portal abgelehnte Felder: {n}. Jedes nennt den Grund.",
+      "refused": "Die Änderung wurde nicht vorgeschlagen. Korrigieren Sie diese Felder und zeigen Sie die Vorschau erneut an:",
+      "refusedRowField": "{section}, Zeile {row}, {field}",
+      "refusedRow": "{section}, Zeile {row}",
+      "refusedField": "{section}, {field}",
+      "goTo": "Zum Feld",
       "previewLegend": "+ markiert eine Zeile, die die Änderung hinzufügt, - eine, die sie entfernt.",
       "again": "Weitere Änderung beginnen"
     }

@@ -128,9 +128,13 @@ for (const width of [1440, 400]) {
     await open(page);
     await fill(page, "fetch(name)");
     await page.getByRole("button", { name: "Preview change" }).click();
-    await expect(page.getByText(/calls a function, and a formula calls none/)).toBeVisible();
     await expect(page.locator("#col-2-formula")).toHaveAttribute("aria-invalid", "true");
-    await page.locator("#col-2-formula").scrollIntoViewIfNeeded();
+    const banner = page.getByText("The Change was not proposed. Fix these fields, then preview again:");
+    await expect(page.getByText(/^Columns, row 3, Formula: .*calls a function, and a formula calls none/)).toBeVisible();
+    await banner.scrollIntoViewIfNeeded();
     await shot(page, `${width}-5-refused`);
+    await page.getByRole("button", { name: "Go to the field" }).click();
+    await expect(page.locator("#col-2-formula")).toBeFocused();
+    await shot(page, `${width}-6-refused-field`);
   });
 }

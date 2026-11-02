@@ -986,7 +986,7 @@
     },
     "src/pages/apps/DashboardEditor.tsx": {
       "controls": {
-        "Button": 9
+        "Button": 10
       },
       "tests": [
         "dashboard_editor.test.tsx"

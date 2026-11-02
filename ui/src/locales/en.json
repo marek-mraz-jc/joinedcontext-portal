@@ -5285,7 +5285,11 @@
       "previewTitle": "What the Change will hold: {path}",
       "added": "added",
       "removed": "removed",
-      "refused": "Fields the Portal refused: {n}. Each says why beside it.",
+      "refused": "The Change was not proposed. Fix these fields, then preview again:",
+      "refusedRowField": "{section}, row {row}, {field}",
+      "refusedRow": "{section}, row {row}",
+      "refusedField": "{section}, {field}",
+      "goTo": "Go to the field",
       "previewLegend": "+ marks a line the Change adds, - a line it removes.",
       "again": "Start another change"
     }

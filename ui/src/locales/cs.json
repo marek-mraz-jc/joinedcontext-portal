@@ -5285,7 +5285,11 @@
       "previewTitle": "Co bude změna obsahovat: {path}",
       "added": "přidáno",
       "removed": "odebráno",
-      "refused": "Pole, která portál odmítl: {n}. U každého je důvod.",
+      "refused": "Změna nebyla navržena. Opravte tato pole a znovu zobrazte náhled:",
+      "refusedRowField": "{section}, řádek {row}, {field}",
+      "refusedRow": "{section}, řádek {row}",
+      "refusedField": "{section}, {field}",
+      "goTo": "Přejít na pole",
       "previewLegend": "+ značí řádek, který změna přidá, - řádek, který odebere.",
       "again": "Začít další změnu"
     }

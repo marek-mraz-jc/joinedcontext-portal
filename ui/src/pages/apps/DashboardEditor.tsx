@@ -12,6 +12,7 @@ import {
   lineDiff,
   OPS,
   readableNames,
+  refusedField,
   replaced,
   TONES,
   typedValue,
@@ -337,6 +338,39 @@ function refusals(error: unknown): string[] {
   return [String(error)];
 }
 
+/** Each refused field in the person's words with its reason; a click moves to the field (T-6402). */
+export function RefusedList({ errors }: { errors: Errors }): JSX.Element {
+  const { t } = useTranslation();
+  const where = (path: string): string => {
+    const place = refusedField(path);
+    if (!place) return path;
+    const section = t(`apps.dashboard.${place.section}`);
+    const field = place.field ? t(`apps.dashboard.${place.field}`) : "";
+    if (place.row) return t(field ? "apps.dashboard.refusedRowField" : "apps.dashboard.refusedRow", { section, row: place.row, field });
+    return field ? t("apps.dashboard.refusedField", { section, field }) : section;
+  };
+  return (
+    <Alert tone="danger" title={t("apps.dashboard.refused")}>
+      <ul className="mt-1 list-disc space-y-1 pl-5">
+        {[...errors].map(([path, reasons]) => {
+          const id = refusedField(path)?.id;
+          const text = `${where(path)}: ${reasons.join(" ")}`;
+          return (
+            <li key={path}>
+              {text}
+              {id ? (
+                <Button size="xs" variant="ghost" className="ml-2" onClick={() => document.getElementById(id)?.focus()}>
+                  {t("apps.dashboard.goTo")}
+                </Button>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+    </Alert>
+  );
+}
+
 /** What follows the form: the refusals, the preview, the Change once proposed, and the buttons. */
 function EditorFooter({ project, name, path, send, errors }: { project: string; name: string; path: string; send: UseMutationResult<Proposal, Error, boolean>; errors: Map<string, string[]> }): JSX.Element {
   const { t } = useTranslation();
@@ -344,7 +378,7 @@ function EditorFooter({ project, name, path, send, errors }: { project: string; 
   return (
     <>
       {errors.get("") ? <Alert tone="danger">{errors.get("")?.join(" ")}</Alert> : null}
-      {send.isError && errors.size > 0 && !errors.get("") ? <Alert tone="danger">{t("apps.dashboard.refused", { n: [...errors.values()].flat().length })}</Alert> : null}
+      {send.isError && errors.size > 0 && !errors.get("") ? <RefusedList errors={errors} /> : null}
       {send.data && !proposed ? <PreviewDiff path={path} before={send.data.before} after={send.data.after} /> : null}
       {proposed ? (
         <div className="space-y-3">

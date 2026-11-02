@@ -11,7 +11,7 @@ import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { DashboardEditor } from "../src/pages/apps/DashboardEditor";
-import { errorsByPath, lineDiff, readableNames, typedValue } from "../src/pages/apps/dashboardForm";
+import { errorsByPath, lineDiff, readableNames, refusedField, typedValue } from "../src/pages/apps/dashboardForm";
 import en from "../src/locales/en.json";
 import { expectNoViolations } from "./checks";
 
@@ -138,7 +138,11 @@ describe("the dashboard editor", () => {
     await user.click(screen.getByRole("button", { name: words.preview }));
     expect(await screen.findByText('"name" is no attribute of this type you may read')).toBeInTheDocument();
     expect(screen.getByLabelText(words.attribute, { selector: "#col-0-attr" })).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByText(words.refused.replace("{n}", "1"))).toBeInTheDocument();
+    expect(screen.getByText(words.refused)).toBeInTheDocument();
+    expect(screen.getByText(`Columns, row 1, Attribute: "name" is no attribute of this type you may read`)).toBeInTheDocument();
+    (document.activeElement as HTMLElement | null)?.blur();
+    await user.click(screen.getByRole("button", { name: words.goTo }));
+    expect(screen.getByLabelText(words.attribute, { selector: "#col-0-attr" })).toHaveFocus();
   });
 
   it("says why when the App cannot be edited here", async () => {
@@ -153,6 +157,13 @@ describe("the dashboard form", () => {
     const by = errorsByPath(["config/grid/columns/0/formula: no call", "config: too big", "plain"]);
     expect(by.get("/grid/columns/0/formula")).toEqual(["no call"]);
     expect(by.get("")).toEqual(["too big", "plain"]);
+  });
+  it("names the form field each refusal path points at", () => {
+    expect(refusedField("/kpis/0/where")).toEqual({ id: "kpi-0-where", section: "kpis", row: 1, field: "where" });
+    expect(refusedField("/grid/columns/2/formula")).toEqual({ id: "col-2-formula", section: "columns", row: 3, field: "formula" });
+    expect(refusedField("/filters/1")).toEqual({ id: undefined, section: "filters", row: 2, field: undefined });
+    expect(refusedField("/chart/y")?.id).toBe("chart-y");
+    expect(refusedField("/grid/source")).toBeUndefined();
   });
   it("types a filter value, offers computed columns after the attributes and diffs line by line", () => {
     expect([typedValue("0"), typedValue("true"), typedValue("working"), typedValue("")]).toEqual([0, true, "working", ""]);
