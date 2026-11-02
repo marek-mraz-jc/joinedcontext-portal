@@ -409,14 +409,25 @@ impl Driver {
                     .await
                     .unwrap_or_default();
                 if status.is_success() {
-                    serde_json::from_str::<Value>(&body).unwrap_or_else(
-                        |err| json!({ "error": format!("the endpoint's answer is not JSON: {err}") }),
-                    )
+                    serde_json::from_str::<Value>(&body).unwrap_or_else(|err| {
+                        unreachable_endpoint(format!("the endpoint's answer is not JSON: {err}"))
+                    })
                 } else {
-                    json!({ "error": format!("{status}: {}", body.chars().take(300).collect::<String>()) })
+                    // The gateway's own problem document goes through as it is.
+                    match serde_json::from_str::<Value>(&body) {
+                        Ok(problem) if problem.get("title").is_some() => {
+                            json!({ "error": problem })
+                        }
+                        _ => unreachable_endpoint(format!(
+                            "the endpoint answered {status}: {}",
+                            body.chars().take(300).collect::<String>()
+                        )),
+                    }
                 }
             }
-            Err(err) => json!({ "error": format!("the call did not go through the proxy: {err}") }),
+            Err(err) => {
+                unreachable_endpoint(format!("the call did not go through the proxy: {err}"))
+            }
         }
     }
 
@@ -575,6 +586,12 @@ fn endpoint_project(state: &AppState, slug: &str) -> Option<String> {
         })
         .into_iter()
         .find_map(|env| env.metadata.namespace)
+}
+
+/// A call that reached no answer, as the JSON-RPC `error` member holding the Portal's problem
+/// document: the model reads one refusal shape from every door (JC1-57).
+fn unreachable_endpoint(detail: String) -> Value {
+    json!({ "error": crate::error::ApiError::Unavailable(detail).into_document().1 })
 }
 
 #[cfg(test)]
@@ -1035,5 +1052,41 @@ mod tests {
         let last = logged(&state, "tool").await.pop().expect("logged");
         assert_eq!("failed", last["status"], "{last}");
         assert!(!last.to_string().contains("jana@example.org"), "{last}");
+    }
+
+    /// JC1-57: an endpoint call that reached no answer comes back as the problem document every
+    /// other door answers, and the gateway's own problem passes through untouched.
+    #[tokio::test]
+    async fn an_endpoint_call_without_an_answer_is_a_problem_document() {
+        let proxy = MockServer::start().await;
+        Mock::given(wiremock::matchers::path("/v1/data/mcp"))
+            .respond_with(ResponseTemplate::new(502).set_body_string("upstream down"))
+            .mount(&proxy)
+            .await;
+        Mock::given(wiremock::matchers::path("/v1/data/endpoints/shut/mcp"))
+            .respond_with(ResponseTemplate::new(403).set_body_json(
+                json!({ "type": "about:blank", "title": "Forbidden", "status": 403, "detail": "no grant" }),
+            ))
+            .mount(&proxy)
+            .await;
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let mut driver = Driver::for_tests(state, "helsinki");
+        driver.proxy_base = proxy.uri();
+        let run = |slug: &str| endpoints::RunEndpoint {
+            name: slug.into(),
+            slug: slug.into(),
+            space: "bikes".into(),
+        };
+        let chosen = [run("primary"), run("shut")];
+        let down = driver.call_endpoint(&chosen, 0, &json!({})).await;
+        assert_eq!(down["error"]["status"], 503, "{down}");
+        let detail = down["error"]["detail"].as_str().unwrap_or_default();
+        assert!(
+            detail.contains("502") && detail.contains("upstream down"),
+            "{detail}"
+        );
+        let refused = driver.call_endpoint(&chosen, 1, &json!({})).await;
+        assert_eq!(refused["error"]["detail"], "no grant", "{refused}");
+        assert!(data_query::result_text(&refused).starts_with("error: "));
     }
 }

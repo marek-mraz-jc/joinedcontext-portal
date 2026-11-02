@@ -111,10 +111,7 @@ fn bounded(text: String) -> String {
     if text.len() <= RESULT_CHARS {
         return text;
     }
-    let mut end = RESULT_CHARS;
-    while !text.is_char_boundary(end) {
-        end -= 1;
-    }
+    let end = text.floor_char_boundary(RESULT_CHARS);
     format!(
         "{}… [cut at {RESULT_CHARS} characters; ask for less]",
         &text[..end]

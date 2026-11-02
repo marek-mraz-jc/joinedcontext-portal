@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use super::bounds::{text, texts, ID, NAME, RECORD_MEMBERS, TERM, TEXT};
-use super::{parse_input, Annotations, Caller, OpError, Operation};
+use super::{parse_input, Caller, OpError, Operation, OperationAnnotations};
 use crate::auth::session::{CurrentUser, Session};
 use crate::change::Lane;
 
@@ -252,7 +252,7 @@ pub fn operations() -> Vec<Operation> {
             description: "The SDK's services: calls, app.yaml lines, quotas",
             input: || json!({ "type": "object", "properties": {}, "additionalProperties": false }),
             output: || json!({ "type": "object", "required": ["services", "kit"] }),
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: true,
                 destructive_hint: false,
                 idempotent_hint: true,
@@ -273,7 +273,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Starts an application, dashboard or analysis run, which waits for a person's approval at the end",
             input: create_input_schema,
             output: run_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: false,
                 idempotent_hint: false,
@@ -316,7 +316,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Stops one of this caller's runs; what it had not finished is not published",
             input: run_id_input_schema,
             output: run_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: true,
                 idempotent_hint: true,
@@ -345,7 +345,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Proposes the application a finished run built; a person approves the change",
             input: run_id_input_schema,
             output: super::change_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: false,
                 idempotent_hint: false,
@@ -376,7 +376,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Answers one question a run asked, so it carries on; a person answers, never another run",
             input: answer_input_schema,
             output: accepted_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: false,
                 idempotent_hint: false,
@@ -409,7 +409,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Sends text to one of this caller's running conversations or applications",
             input: message_input_schema,
             output: accepted_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: false,
                 idempotent_hint: false,
@@ -444,7 +444,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Expands one of the organisation's blueprints with the parameters given, as one change: a green flow merges at once, anything stricter waits for a person's approval",
             input: flow_input_schema,
             output: super::change_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: false,
                 idempotent_hint: false,

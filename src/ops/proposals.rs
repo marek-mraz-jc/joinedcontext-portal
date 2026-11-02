@@ -11,7 +11,7 @@ use super::OpError;
 use super::Operation;
 use super::OperationAnnotations;
 use super::Via;
-use super::{draft_store, verdict, Draft, DraftError, Finding, Level, Verdict};
+use super::{verdict, Draft, DraftError, Finding, Level, Verdict};
 use crate::agents::share;
 use crate::api::assistant;
 use crate::api::dry_run;
@@ -353,7 +353,7 @@ pub(crate) async fn record_verdict(
     if !may_propose {
         return;
     }
-    let store = draft_store(state);
+    let store = state.drafts.clone();
     if !matches!(
         store
             .set_verdict(project, &draft.kind, &draft.name, verdict.clone())
@@ -394,7 +394,8 @@ pub(crate) async fn record_records(
     manifest: &Value,
     records: verdict::RecordsVerdict,
 ) {
-    let earlier = draft_store(state)
+    let earlier = state
+        .drafts
         .get(project, &draft.kind, &draft.name)
         .await
         .ok()
@@ -467,7 +468,8 @@ pub async fn verdict_for_manifest(
         // No kind or no name: the proposal refuses the shape itself, naming the field.
         return Ok(false);
     };
-    let recorded = draft_store(state)
+    let recorded = state
+        .drafts
         .get(project, &own.kind, &own.name)
         .await
         .map_err(|e| OpError::Api(ApiError::Internal(e.to_string())))?
@@ -488,7 +490,7 @@ pub async fn forget_check(state: &AppState, project: &str, manifest: &Value) {
     let Some(own) = own_draft(manifest) else {
         return;
     };
-    let store = draft_store(state);
+    let store = state.drafts.clone();
     if let Ok(Some(draft)) = store.get(project, &own.kind, &own.name).await {
         if verdict::digest_of(&draft.manifest) == verdict::digest_of(manifest) {
             let _ = store.drop(project, &own.kind, &own.name).await;
@@ -525,7 +527,8 @@ pub async fn record_refused_check(
     let Some(own) = own_draft(manifest) else {
         return;
     };
-    let _ = draft_store(state)
+    let _ = state
+        .drafts
         .set_verdict(project, &own.kind, &own.name, verdict.clone())
         .await;
 }
@@ -569,7 +572,7 @@ pub async fn record_import_check(
     project: &str,
     subject: &Value,
 ) {
-    let store = draft_store(state);
+    let store = state.drafts.clone();
     let who = &identity.username;
     if store
         .put(
@@ -603,7 +606,8 @@ pub async fn verdict_for_import(
     project: &str,
     subject: &Value,
 ) -> Result<bool, OpError> {
-    let recorded = draft_store(state)
+    let recorded = state
+        .drafts
         .get(project, IMPORT_CHECK_KIND, &identity.username)
         .await
         .map_err(|e| OpError::Api(ApiError::Internal(e.to_string())))?
@@ -619,7 +623,8 @@ pub async fn verdict_for_import(
 
 /// After an import became a Change, its check goes, so the next import is checked again.
 pub async fn forget_import_check(state: &AppState, identity: &Identity, project: &str) {
-    let _ = draft_store(state)
+    let _ = state
+        .drafts
         .drop(project, IMPORT_CHECK_KIND, &identity.username)
         .await;
 }
@@ -744,7 +749,7 @@ pub(crate) async fn propose_with_optional_draft(
             false,
         )
         .await?;
-        let _ = draft_store(state).drop(project, &d.kind, &d.name).await;
+        let _ = state.drafts.drop(project, &d.kind, &d.name).await;
         if warning {
             out["warning"] = json!("proposed without a fresh green verdict");
         }
@@ -1015,7 +1020,8 @@ mod tests {
         let state = AppState::new(crate::config::Config::for_tests(), None);
         let manifest = json!({ "kind": "Policy", "metadata": { "name": "hidden", "namespace": "p" },
             "spec": { "contextSpaceRef": { "name": "closed" } } });
-        draft_store(&state)
+        state
+            .drafts
             .put("p", "Policy", "hidden", manifest, None, "sub-a", "person")
             .await
             .expect("kept");
@@ -1048,7 +1054,8 @@ mod tests {
         let state = AppState::new(crate::config::Config::for_tests(), None);
         let manifest = json!({ "kind": "Policy", "metadata": { "name": "hidden", "namespace": "p" },
             "spec": { "contextSpaceRef": { "name": "closed" } } });
-        draft_store(&state)
+        state
+            .drafts
             .put("p", "Policy", "hidden", manifest, None, "sub-a", "person")
             .await
             .expect("kept");
@@ -1086,7 +1093,8 @@ mod tests {
             matches!(refused, OpError::Api(ApiError::NotFound(_))),
             "{refused}"
         );
-        assert!(draft_store(&state)
+        assert!(state
+            .drafts
             .get("p", "Policy", "hidden")
             .await
             .expect("read")

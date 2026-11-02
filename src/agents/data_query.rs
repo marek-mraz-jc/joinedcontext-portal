@@ -568,8 +568,7 @@ pub fn results_section(results: &[(QueryCall, String)]) -> String {
     );
     for (i, (call, whole)) in results.iter().enumerate() {
         let text = shown(whole);
-        let longest = text.split(|c| c != '`').map(str::len).max().unwrap_or(0);
-        let fence = "`".repeat(longest.max(2) + 1);
+        let fence = crate::mcp::fence_for(&text);
         section.push_str(&format!(
             "### Call {} — {} on {} with {}\n{fence}\n{}\n{fence}\n\n",
             i + 1,

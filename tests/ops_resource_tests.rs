@@ -252,7 +252,7 @@ async fn op(
 async fn records_checked(state: &AppState, project: &str, manifest: &Value) {
     use joinedcontext_portal::ops::verdict::{digest_of, RecordsVerdict, Verdict};
     let name = manifest["metadata"]["name"].as_str().expect("a name");
-    let store = joinedcontext_portal::ops::drafts::draft_store(state);
+    let store = state.drafts.clone();
     store
         .put(
             project,

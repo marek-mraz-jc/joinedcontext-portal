@@ -15,7 +15,6 @@
 
 use joinedcontext_portal::auth::session::Identity;
 use joinedcontext_portal::config::Config;
-use joinedcontext_portal::ops::drafts::draft_store;
 use joinedcontext_portal::ops::verdict::{Finding, Level, Verdict};
 use joinedcontext_portal::ops::{self, Caller, OpError, Via};
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
@@ -102,7 +101,7 @@ fn lax_config() -> Config {
 async fn recorded(state: &AppState, project: &str, held: &Value, verdict: Verdict) {
     let kind = held["kind"].as_str().expect("a kind");
     let name = held["metadata"]["name"].as_str().expect("a name");
-    let store = draft_store(state);
+    let store = state.drafts.clone();
     store
         .put(project, kind, name, held.clone(), Some(0), "jana", "person")
         .await
@@ -513,7 +512,7 @@ async fn only_a_proposal_carries_a_verdict_refusal_and_it_is_the_routes_own() {
 
     // A draft nobody checked: the document is the one the route answers, and it says which check.
     let unchecked = manifest("ovzdusie-unchecked");
-    let store = draft_store(&state);
+    let store = state.drafts.clone();
     store
         .put(
             PROJECT,

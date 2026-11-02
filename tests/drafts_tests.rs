@@ -552,7 +552,8 @@ async fn draft_of(state: &AppState, kind: &str, name: &str, space: Option<&str>)
     if let Some(space) = space {
         manifest["spec"]["contextSpaceRef"] = json!(space);
     }
-    joinedcontext_portal::ops::drafts::draft_store(state)
+    state
+        .drafts
         .put("ovzdusie", kind, name, manifest, None, "author", "person")
         .await
         .expect("draft put");

@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use super::bounds::{text, ID, NAME, TERM, TEXT};
 use super::{
     change_schema, check_for_kind, manifest_input_schema, parse_input, propose_with_optional_draft,
-    Annotations, Caller, ManifestInput, OpError, Operation, Via,
+    Caller, ManifestInput, OpError, Operation, OperationAnnotations, Via,
 };
 use crate::api::assistant::ref_name;
 use crate::api::changes;
@@ -585,7 +585,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Lists the resources of one kind in the project, optionally of one context space",
             input: list_input_schema,
             output: list_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: true,
                 destructive_hint: false,
                 idempotent_hint: true,
@@ -604,7 +604,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Reads one resource's manifest and status by kind and name",
             input: get_input_schema,
             output: get_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: true,
                 destructive_hint: false,
                 idempotent_hint: true,
@@ -623,7 +623,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Proposes creating or changing a resource of any kind from its manifest or a draft; the change waits for a person's approval",
             input: manifest_input_schema,
             output: change_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: false,
                 idempotent_hint: false,
@@ -642,7 +642,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Proposes removing a resource by kind and name, its name typed back; refused while other resources reference it",
             input: delete_input_schema,
             output: change_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: true,
                 idempotent_hint: false,
@@ -661,7 +661,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Rejects a change proposal with a reason and closes its merge request",
             input: reject_input_schema,
             output: change_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: false,
                 idempotent_hint: true,

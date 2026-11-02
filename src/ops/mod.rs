@@ -220,11 +220,13 @@ pub struct OperationAnnotations {
     pub idempotent_hint: bool,
 }
 
-pub type Annotations = OperationAnnotations;
-
 /// An operation's hints, in the order MCP names them.
-pub(crate) fn annotations(read_only: bool, destructive: bool, idempotent: bool) -> Annotations {
-    Annotations {
+pub(crate) fn annotations(
+    read_only: bool,
+    destructive: bool,
+    idempotent: bool,
+) -> OperationAnnotations {
+    OperationAnnotations {
         read_only_hint: read_only,
         destructive_hint: destructive,
         idempotent_hint: idempotent,

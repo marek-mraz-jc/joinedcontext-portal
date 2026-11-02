@@ -13,7 +13,7 @@ use serde_json::{json, Value};
 
 use super::bounds::{text, NAME};
 use super::runs::as_user;
-use super::{parse_input, Annotations, OpError, Operation};
+use super::{parse_input, OpError, Operation, OperationAnnotations};
 use crate::api::pipelines::{LogQuery, RunsQuery};
 use crate::change::Lane;
 use crate::pipeline_log::LogLine;
@@ -259,7 +259,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Queues one run of a queued pipeline now, outside its schedule, and answers its id; it waits its turn in its lane. 409 while its run is in the runner or for a pipeline fed by pushes. Needs propose and approve on Pipeline (a steward); each run is an activity event `pipeline.run`",
             input: run_input_schema,
             output: run_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: false,
                 destructive_hint: false,
                 idempotent_hint: false,
@@ -288,7 +288,7 @@ pub fn operations() -> Vec<Operation> {
             description: "A pipeline's newest runs with what each sent, rejected and failed, and one run's log a page at a time: each record's outcome and why, by step if asked",
             input: runs_input_schema,
             output: runs_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: true,
                 destructive_hint: false,
                 idempotent_hint: true,
@@ -307,7 +307,7 @@ pub fn operations() -> Vec<Operation> {
             description: "One panel of the pipeline page: the last message per node, per-node rates, the records validation refused, or a snapshot pipeline's source-delete dry run",
             input: inspect_input_schema,
             output: inspect_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: true,
                 destructive_hint: false,
                 idempotent_hint: true,

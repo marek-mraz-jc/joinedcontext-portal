@@ -10,7 +10,7 @@ use serde_json::{json, Value};
 
 use super::bounds::{text, ID, NAME, QUERY, TERM};
 use super::runs::as_user;
-use super::{parse_input, Annotations, Caller, EmptyInput, OpError, Operation};
+use super::{parse_input, Caller, EmptyInput, OpError, Operation, OperationAnnotations};
 use crate::change::Lane;
 use crate::state::AppState;
 
@@ -77,10 +77,6 @@ fn named_input_schema() -> Value {
         "required": ["name"],
         "additionalProperties": false
     })
-}
-
-fn nothing_input_schema() -> Value {
-    json!({ "type": "object", "properties": {}, "additionalProperties": false })
 }
 
 fn metrics_output_schema() -> Value {
@@ -359,7 +355,7 @@ pub fn operations() -> Vec<Operation> {
             description: "What the runner has counted for one pipeline: state, messages, errors and latency",
             input: named_input_schema,
             output: metrics_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: true,
                 destructive_hint: false,
                 idempotent_hint: true,
@@ -384,7 +380,7 @@ pub fn operations() -> Vec<Operation> {
             description: "What happened in the project: the same events, filters and paging the activity page reads",
             input: activity_input_schema,
             output: activity_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: true,
                 destructive_hint: false,
                 idempotent_hint: true,
@@ -429,9 +425,9 @@ pub fn operations() -> Vec<Operation> {
             name: "jc_federation_graph",
             title: "Read Federation",
             description: "The project's spaces, endpoints, pipelines and apps, and what links them",
-            input: nothing_input_schema,
+            input: super::empty_input_schema,
             output: graph_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: true,
                 destructive_hint: false,
                 idempotent_hint: true,
@@ -457,7 +453,7 @@ pub fn operations() -> Vec<Operation> {
             description: "One DataModel's LinkML, as the repository holds it",
             input: named_input_schema,
             output: source_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: true,
                 destructive_hint: false,
                 idempotent_hint: true,
@@ -510,7 +506,7 @@ pub fn operations() -> Vec<Operation> {
             description: "One proposed change: what it does, who wrote it, its lane and where it stands",
             input: id_input_schema,
             output: change_proposal_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: true,
                 destructive_hint: false,
                 idempotent_hint: true,
@@ -541,7 +537,7 @@ pub fn operations() -> Vec<Operation> {
             description: "The project's agent runs, newest first, narrowed by app, kind or status",
             input: run_list_input_schema,
             output: run_list_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: true,
                 destructive_hint: false,
                 idempotent_hint: true,
@@ -578,7 +574,7 @@ pub fn operations() -> Vec<Operation> {
             description: "One of this caller's runs: what it is building, what it asks and where it stands",
             input: id_input_schema,
             output: run_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: true,
                 destructive_hint: false,
                 idempotent_hint: true,
@@ -604,9 +600,9 @@ pub fn operations() -> Vec<Operation> {
             name: "jc_ckan_status",
             title: "Read Catalogue Publication",
             description: "The catalogues this project publishes to, and what each endpoint's publication is doing",
-            input: nothing_input_schema,
+            input: super::empty_input_schema,
             output: ckan_status_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: true,
                 destructive_hint: false,
                 idempotent_hint: true,
@@ -635,7 +631,7 @@ pub fn operations() -> Vec<Operation> {
             description: "The project and what it holds of each quota: context spaces, resident pipelines, public endpoints and apps",
             input: super::empty_input_schema,
             output: project_usage_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: true,
                 destructive_hint: false,
                 idempotent_hint: true,
@@ -663,7 +659,7 @@ pub fn operations() -> Vec<Operation> {
             description: "Every Endpoint of every project with its project, for an organization administrator (PF-61, PF-03)",
             input: super::empty_input_schema,
             output: endpoints_everywhere_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: true,
                 destructive_hint: false,
                 idempotent_hint: true,
@@ -693,7 +689,7 @@ pub fn operations() -> Vec<Operation> {
             description: "The project's history: the commits an export can be read from",
             input: revisions_input_schema,
             output: revisions_output_schema,
-            annotations: Annotations {
+            annotations: OperationAnnotations {
                 read_only_hint: true,
                 destructive_hint: false,
                 idempotent_hint: true,
