@@ -826,6 +826,70 @@ async fn ingest(app: &axum::Router, bearer: Option<&str>, body: Value) -> (Statu
     )
 }
 
+/// T-6431: the wire shape otelcol-contrib 0.162.0 exports after the allow-list and the gateway's
+/// `mcp.tool` record, taken from a real export: an empty scope, an emptied body, `severityText`
+/// and an `intValue` as a string. On dev every batch was gzip, the exporter's default, which this
+/// route refuses as a 400 before it reads a record.
+#[tokio::test]
+async fn the_collectors_real_export_lands_and_a_gzip_batch_does_not() {
+    let (app, state, signer, issuer) = portal_with_realm().await;
+    let token = workload_token(&signer, &issuer, COLLECTOR_CLIENT);
+    let text = |key: &str, value: &str| json!({ "key": key, "value": { "stringValue": value } });
+    let batch = json!({ "resourceLogs": [{
+        "resource": { "attributes": [text("service.name", "context-gateway")] },
+        "scopeLogs": [{ "scope": {}, "logRecords": [{
+            "timeUnixNano": "1788696000000000000",
+            "severityText": "INFO",
+            "body": { "stringValue": "" },
+            "attributes": [
+                text("project", PROJECT),
+                text("space", "air-quality"),
+                text("kind", "mcp.tool"),
+                text("source", "gateway"),
+                text("summary", "user:ana called query_entities on walk-read."),
+                text("severity", "info"),
+                text("endpoint", "walk-read"),
+                text("tool", "query_entities"),
+                text("outcome", "ok"),
+                { "key": "count", "value": { "intValue": "3" } },
+            ],
+        }] }],
+    }] });
+
+    let gzip = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method(Method::POST)
+                .uri("/api/v1/activity")
+                .header(header::AUTHORIZATION, format!("Bearer {token}"))
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(header::CONTENT_ENCODING, "gzip")
+                .body(Body::from(&b"\x1f\x8b\x08\x00\x00\x00\x00\x00"[..]))
+                .expect("a request"),
+        )
+        .await
+        .expect("a response");
+    assert_eq!(gzip.status(), StatusCode::BAD_REQUEST);
+
+    let (status, body) = ingest(&app, Some(&token), batch).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert!(body["partialSuccess"].is_null(), "{body}");
+    let page = state
+        .activity
+        .list(PROJECT, &filter_with(50))
+        .await
+        .expect("a page");
+    assert_eq!(page.items.len(), 1, "only the plain batch was stored");
+    let event = &page.items[0];
+    assert_eq!(event.kind, "mcp.tool");
+    assert_eq!(event.space.as_deref(), Some("air-quality"));
+    assert_eq!(
+        event.details,
+        json!({ "endpoint": "walk-read", "tool": "query_entities", "outcome": "ok", "count": 3 })
+    );
+}
+
 /// OPS-48, T-1402: the audit trail is appended by the collector's own Keycloak client and by nobody
 /// else. Not a person's session, whatever roles it carries; not another workload's token, though it
 /// carries the Portal's audience too.
