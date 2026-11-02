@@ -230,7 +230,7 @@ export function MatrixTable({ data }: { data: DataAccess }): JSX.Element {
           </Badge>
         </dt>
         <dd>{t("dataAccess.legend.throughEveryone")}</dd>
-        <dt className="text-center text-fg-subtle">
+        <dt className="text-fg-subtle">
           <span aria-hidden="true">—</span>
           <span className="sr-only">{t("dataAccess.notGranted")}</span>
         </dt>
