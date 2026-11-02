@@ -279,6 +279,8 @@ describe("map dashboard", () => {
     const paint = calls.layers[0].paint as Record<string, unknown>;
     expect(calls.layers[0]).toMatchObject({ id: "air-quality-stations", type: "circle" });
     expect(JSON.stringify(paint["circle-color"])).toContain("pm10");
+    // T-6442: a feature without the number is unknown, not the ramp's low end.
+    expect(JSON.stringify(paint["circle-color"])).toContain('["has","pm10"]');
     expect(JSON.stringify(paint["circle-radius"])).toContain("18");
   });
 

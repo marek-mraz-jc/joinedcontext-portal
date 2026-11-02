@@ -36,6 +36,17 @@ export function mapFeatures(entities: Entity[], columns: string[]): { type: "Fea
   return { type: "FeatureCollection", features };
 }
 
+/** A coloured map's range and how many of its points hold no number to colour by. */
+export function colourOf(features: unknown[], attr: string): { domain?: [number, number]; unknown: number } {
+  const values = (features as { properties: Record<string, unknown> }[])
+    .map((feature) => feature.properties[attr])
+    .filter((value): value is number => typeof value === "number");
+  return {
+    domain: values.length > 0 ? [Math.min(...values), Math.max(...values)] : undefined,
+    unknown: features.length - values.length,
+  };
+}
+
 /** Whether a type has a place: a GeoProperty in its model, or the conventional `location`. */
 export function isLocated(slots: { name: string; kind: string }[]): boolean {
   return slots.some((slot) => slot.kind === "GeoProperty" || slot.name === "location");
@@ -47,6 +58,7 @@ export function ExploreMap({
   query,
   columns,
   geo,
+  colorBy,
   onOpen,
 }: {
   project: string;
@@ -57,10 +69,12 @@ export function ExploreMap({
   columns: string[];
   /** The type's geometry attributes, `location` first. */
   geo: string[];
+  /** The number attribute the points take their colour from; a point without it stays grey. */
+  colorBy?: string;
   onOpen: (id: string) => void;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
-  const shown = columns.slice(0, 4);
+  const shown = [...new Set([...(colorBy ? [colorBy] : []), ...columns.slice(0, 4)])];
   const attrs = [...new Set([...geo, ...shown])];
   const key = [slug, query.type, query.q, query.scopeQ, query.idPattern, attrs.join(",")];
   // keyValues and only what the popup shows, beside the geometry: a map of thousands of points
@@ -108,6 +122,16 @@ export function ExploreMap({
       total,
     });
   }
+  const coloured = colorBy ? colourOf(collection.features, colorBy) : undefined;
+  if (colorBy && coloured?.domain) {
+    const [min, max] = coloured.domain;
+    status += `${status.endsWith(".") ? "" : "."} ${t("explore.map.colouredBy", {
+      attr: colorBy,
+      min: number.format(min),
+      max: number.format(max),
+      unknown: number.format(coloured.unknown),
+    })}`;
+  }
   if (paged) {
     status += `${status.endsWith(".") ? "" : "."} ${t(inView.data?.truncated ? "explore.map.truncated" : "explore.map.paged", { max: number.format(MAP_MAX) })}`;
   }
@@ -134,7 +158,9 @@ export function ExploreMap({
               url: "",
               data: collection,
               style: "circle",
-              cluster: true,
+              // A cluster has no one value, so a coloured map draws every point.
+              cluster: !colorBy,
+              colorBy: colorBy && coloured?.domain ? { property: colorBy, domain: coloured.domain } : undefined,
               popupProperties: shown,
               open: { label: t("explore.map.open"), onOpen },
             },

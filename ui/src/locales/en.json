@@ -5966,7 +5966,8 @@
       "inView": "{shown} in this view, {total} in all",
       "noneInView": "No entity of this view lies in the part of the map shown.",
       "reading": "Reading the part in view…",
-      "viewFailed": "The part in view could not be read ({reason}); move the map to try again."
+      "viewFailed": "The part in view could not be read ({reason}); move the map to try again.",
+      "colouredBy": "Colour shows {attr} from {min} to {max}, yellow to red. Grey: no value ({unknown})."
     },
     "chart": {
       "open": "Chart",
@@ -6356,7 +6357,9 @@
       "running": "Publish waits until the tests of version {version} have run.",
       "failed": "Version {version} is not published while {failed} of its tests fail: {names}. Ask the assistant to fix them."
     },
-    "cancelOver": "The run is over; there is nothing to cancel."
+    "cancelOver": "The run is over; there is nothing to cancel.",
+    "publishOver": "This run has ended, so it has nothing to publish.",
+    "failedNext": "Nothing was published. Open the Assistant page to build it again."
   },
   "assistant": {
     "newConversation": "Start a new conversation",

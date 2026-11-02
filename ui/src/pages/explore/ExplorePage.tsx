@@ -84,6 +84,8 @@ export function ExplorePage({
   initialEntityId,
   initialType,
   initialQ,
+  initialView,
+  colorBy,
 }: {
   project: string;
   /** Chosen on arrival, the way a catalog card opens the page (UI-46). */
@@ -97,6 +99,10 @@ export function ExplorePage({
    */
   initialType?: string;
   initialQ?: string;
+  /** Opens on the map when the type has a place (T-6442). */
+  initialView?: "map";
+  /** The number attribute the map colours its points by. */
+  colorBy?: string;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const identity = useIdentity();
@@ -115,7 +121,7 @@ export function ExplorePage({
   );
   const [selected, setSelected] = useState<string | null>(initialEntityId ?? null);
   // The type's entities, or its data-quality report (T-3252).
-  const [view, setView] = useState<"entities" | "quality" | "map">("entities");
+  const [askedView, setView] = useState<"entities" | "quality" | "map">(initialView ?? "entities");
   /** What the grid's filter row asks, for the map and the export of the view (T-3253). */
   const [gridAsk, setGridAsk] = useState<{ q?: string; idPattern?: string }>({});
   /** The grid's checked rows: the export then holds only them, as on a space's page (T-6107). */
@@ -226,6 +232,8 @@ export function ExplorePage({
   const modelSource = useModelSource(project, model);
   const slots = useMemo(() => filterSlotsOf(modelSource, query.type), [modelSource, query.type]);
   const located = isLocated(slots);
+  // A hand-off to the map of a type without a place opens its table.
+  const view = askedView === "map" && !located ? "entities" : askedView;
   const geoAttrs = useMemo(() => {
     // The model's GeoProperties, `location` first; a model that marks none still has `location`.
     const named = slots.filter((slot) => slot.kind === "GeoProperty").map((slot) => slot.name);
@@ -474,6 +482,7 @@ export function ExplorePage({
             query={{ ...query, q: andQ(query.q, gridAsk.q), idPattern: gridAsk.idPattern }}
             columns={popupColumns}
             geo={geoAttrs}
+            colorBy={colorBy}
             onOpen={setSelected}
           />
         </div>

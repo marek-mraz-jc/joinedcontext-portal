@@ -5966,7 +5966,8 @@
       "inView": "{shown} in diesem Ausschnitt, {total} insgesamt",
       "noneInView": "Im gezeigten Kartenausschnitt liegt keine Entität dieser Ansicht.",
       "reading": "Lese den sichtbaren Ausschnitt…",
-      "viewFailed": "Der sichtbare Ausschnitt konnte nicht gelesen werden ({reason}); verschieben Sie die Karte, um es erneut zu versuchen."
+      "viewFailed": "Der sichtbare Ausschnitt konnte nicht gelesen werden ({reason}); verschieben Sie die Karte, um es erneut zu versuchen.",
+      "colouredBy": "Die Farbe zeigt {attr} von {min} bis {max}, von Gelb nach Rot. Grau: kein Wert ({unknown})."
     },
     "chart": {
       "open": "Diagramm",
@@ -6356,7 +6357,9 @@
       "running": "Veröffentlichen wartet, bis die Tests von Version {version} gelaufen sind.",
       "failed": "Version {version} wird nicht veröffentlicht, solange {failed} ihrer Tests fehlschlagen: {names}. Bitten Sie den Assistenten, sie zu beheben."
     },
-    "cancelOver": "Der Lauf ist beendet; es gibt nichts abzubrechen."
+    "cancelOver": "Der Lauf ist beendet; es gibt nichts abzubrechen.",
+    "publishOver": "Dieser Lauf ist beendet und hat nichts zu veröffentlichen.",
+    "failedNext": "Es wurde nichts veröffentlicht. Bauen Sie die App auf der Seite Assistent neu."
   },
   "assistant": {
     "newConversation": "Ein neues Gespräch beginnen",

@@ -58,6 +58,9 @@ export const outlineColour = (): string => themeColour("--portal-neutral-900", "
 /** What a layer is painted when it encodes no value: the installation's own primary. */
 export const plainColour = (): string => themeColour("--portal-primary", "#2563eb");
 
+/** A point whose value is unknown: grey, outside the ramp, so nobody reads it as low (T-6442). */
+export const unknownColour = (): string => themeColour("--portal-fg-muted", "#6b7280");
+
 /**
  * Yellow→orange→red, the "YlOrRd" ramp the Layer manifests name, as four stops. A data scale,
  * not a brand colour, and deliberately the same in both themes — see the note above.

@@ -38,7 +38,7 @@ function dock(n: number, bikes: number, lon: number, lat: number) {
   };
 }
 
-type Data = "points" | "polygons" | "empty" | "many" | "failing";
+type Data = "points" | "polygons" | "empty" | "many" | "failing" | "unreported";
 
 // T-5061: a square around a point, for a type whose places are areas.
 function area(n: number, lon: number, lat: number) {
@@ -57,6 +57,13 @@ function entitiesAnswer(data: Data, url: URL): { status: number; rows: unknown[]
   // The map's reads are the export's pages of 500; the table's own page still answers.
   if (data === "failing" && limit >= 500) return { status: 502, rows: [] };
   if (data === "empty") return { status: 200, rows: [], count: 0 };
+  if (data === "unreported") {
+    const rows = Array.from({ length: 24 }, (_, i) => {
+      const { availableBikeNumber, ...station } = dock(i + 1, i % 9, 24.9 + (i % 6) * 0.012, 60.15 + Math.floor(i / 6) * 0.012);
+      return i % 4 === 3 ? station : { ...station, availableBikeNumber };
+    });
+    return { status: 200, rows: rows.slice(offset, offset + limit), count: rows.length };
+  }
   if (data === "polygons") {
     const rows = Array.from({ length: 30 }, (_, i) => area(i + 1, 24.9 + (i % 6) * 0.01, 60.15 + Math.floor(i / 6) * 0.01));
     return { status: 200, rows: rows.slice(offset, offset + limit), count: rows.length };
@@ -134,6 +141,28 @@ test("a located type opens on the map with the view's filter", async ({ page }) 
   await expect(page.locator("tbody tr")).toHaveCount(8);
 });
 
+// T-6442: the assistant's "map the stations" hand-off opens the map itself, coloured, with the
+// stations that report no number counted and grey.
+for (const width of [1440, 400]) {
+  test(`the assistant's map hand-off draws the coloured view at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: width === 400 ? 860 : 900 });
+    await stub(page, "unreported");
+    await page.goto(`/projects/helsinki/explore?endpoint=helsinki-bikes&type=${TYPE}&colorBy=availableBikeNumber&view=map&lang=en`);
+    await expect(page.getByRole("tab", { name: "Map" })).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByRole("status").filter({ hasText: "on the map" })).toHaveText(
+      "24 of 24 on the map. Colour shows availableBikeNumber from 0 to 8, yellow to red. Grey: no value (6).",
+      { timeout: 30_000 },
+    );
+    await expect(page.getByRole("application", { name: `Map of ${TYPE}` })).toBeVisible();
+    expect(await axeViolations(page)).toEqual([]);
+    if (process.env.JC_EVIDENCE_DIR) {
+      mkdirSync(process.env.JC_EVIDENCE_DIR, { recursive: true });
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${process.env.JC_EVIDENCE_DIR}/map-handoff-${width}.png` });
+    }
+  });
+}
+
 // T-3257: a number charted from the explorer as a histogram, with its axis in words, ready to save.
 test("charts an attribute of the view as the histogram its numbers suggest", async ({ page }) => {
   await stub(page);
@@ -152,7 +181,7 @@ test("charts an attribute of the view as the histogram its numbers suggest", asy
 // an Endpoint that answers 502. Every state leaves a picture for the UX read in the task.
 const SHOTS = process.env.T5061_SHOTS ?? "test-results/explore-map";
 mkdirSync(SHOTS, { recursive: true });
-const STATUS: Record<Data, RegExp> = {
+const STATUS: Record<Exclude<Data, "unreported">, RegExp> = {
   points: /^40 of 40 on the map$/,
   polygons: /^30 of 30 on the map$/,
   empty: /^No entity of this view has a location; the Entities tab lists them all\.$/,

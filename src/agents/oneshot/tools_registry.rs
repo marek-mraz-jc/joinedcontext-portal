@@ -176,6 +176,14 @@ question already said:
 {{ "tool": "jc_ui_navigate", "arguments": {{ "page": "entities", "endpoint": "bikes-public", "type": "BikeHireDockingStation", "q": "availableBikeNumber==0" }} }}
 ```
 
+A request to map or draw located data opens `map` the same way, every row asked to be seen, with
+`color` a number attribute when colours were asked for; say any count in your words, and count
+rows lacking the attribute (`!attr`) as not reporting, never as 0:
+
+```json
+{{ "tool": "jc_ui_navigate", "arguments": {{ "page": "map", "endpoint": "bikes-public", "type": "BikeHireDockingStation", "color": "availableBikeNumber" }} }}
+```
+
 And ask, rather than guess, whenever a choice is the person's — which space, which base model,
 which unit. When more than one resource fits the ask, ask; never take the first. To choose among
 the project's resources, name the kind in `pick` (`endpoints`, `spaces`, `datamodels`,
@@ -424,7 +432,7 @@ impl Driver {
 
 /// The pages the assistant may open, and what each one needs (UI-59). The route is built here,
 /// so a page the enum does not name cannot be reached however the model spells it.
-const PAGES: [(&str, &str); 20] = [
+const PAGES: [(&str, &str); 21] = [
     ("spaces", "/projects/{project}/spaces"),
     ("space", "/projects/{project}/spaces/{name}"),
     ("models", "/projects/{project}/models"),
@@ -451,6 +459,12 @@ const PAGES: [(&str, &str); 20] = [
         "entities",
         "/projects/{project}/explore?endpoint={endpoint}&type={type}&q={q}",
     ),
+    // The same view on its map (T-6442): "map the stations" ends in a map on screen, coloured by
+    // a number attribute when `color` names one. `q` and `color` are optional.
+    (
+        "map",
+        "/projects/{project}/explore?endpoint={endpoint}&type={type}&q={q}&colorBy={color}&view=map",
+    ),
     ("ckan", "/projects/{project}/ckan"),
     ("assistant", "/projects/{project}/assistant"),
     ("app", "/projects/{project}/apps/{name}"),
@@ -473,6 +487,8 @@ pub(super) struct NavigateCall {
     /// The entity type of that grid, and the NGSI-LD filter it opens narrowed by.
     pub entity_type: Option<String>,
     pub q: Option<String>,
+    /// The number attribute the `map` page colours its points by.
+    pub color: Option<String>,
 }
 
 /// One option of a question: the value the answer carries and what the person reads.
@@ -584,12 +600,13 @@ pub(super) fn navigate_args(arguments: &Value) -> Result<NavigateCall, String> {
         endpoint: text("endpoint"),
         entity_type: text("type"),
         q: text("q"),
+        color: text("color"),
     })
 }
 
 /// The route a call opens, or the reason it opens none (UI-59). Every placeholder the template
-/// names has to be filled, so a route cannot reach a page with a hole in it; `q` alone is
-/// optional, because a question without a filter is the whole grid.
+/// names has to be filled, so a route cannot reach a page with a hole in it; `q` and `color` alone
+/// are optional, because a question without a filter is the whole grid.
 pub(super) fn route_of(project: &str, call: &NavigateCall) -> Result<String, String> {
     let template = PAGES
         .iter()
@@ -618,6 +635,7 @@ pub(super) fn route_of(project: &str, call: &NavigateCall) -> Result<String, Str
         ("endpoint", call.endpoint.as_deref()),
         ("type", call.entity_type.as_deref()),
         ("q", call.q.as_deref()),
+        ("color", call.color.as_deref()),
     ];
     let mut route = template;
     for (placeholder, value) in filled {
@@ -626,7 +644,7 @@ pub(super) fn route_of(project: &str, call: &NavigateCall) -> Result<String, Str
             continue;
         }
         let value = value.unwrap_or_default().trim();
-        if value.is_empty() && placeholder != "q" {
+        if value.is_empty() && !matches!(placeholder, "q" | "color") {
             let what = needed(placeholder, &call.page);
             return Err(format!("the page '{}' needs {what}", call.page));
         }
@@ -1197,6 +1215,7 @@ mod tests {
                 endpoint: None,
                 entity_type: None,
                 q: None,
+                color: None,
             }
         );
     }
@@ -1547,6 +1566,7 @@ mod tests {
                 endpoint: Some("air-public".to_owned()),
                 entity_type: Some("AirQualityObserved".to_owned()),
                 q: q.map(str::to_owned),
+                color: None,
             };
             assert_eq!(
                 route_of("helsinki", &call).expect("a route"),
@@ -1554,6 +1574,42 @@ mod tests {
                 "q = {q:?}"
             );
         }
+    }
+
+    /// T-6442: "map the stations" ends in a map: the same view as the grid, on its map tab, with
+    /// the colour attribute and the filter optional and the endpoint and type required.
+    #[test]
+    fn the_map_page_opens_the_view_on_its_map() {
+        let call = |q: Option<&str>, color: Option<&str>, endpoint: Option<&str>| NavigateCall {
+            page: "map".to_owned(),
+            name: None,
+            plural: None,
+            endpoint: endpoint.map(str::to_owned),
+            entity_type: Some("BikeHireDockingStation".to_owned()),
+            q: q.map(str::to_owned),
+            color: color.map(str::to_owned),
+        };
+        assert_eq!(
+            route_of(
+                "helsinki",
+                &call(None, Some("availableBikeNumber"), Some("bikes"))
+            )
+            .expect("a route"),
+            "/projects/helsinki/explore?endpoint=bikes&type=BikeHireDockingStation\
+             &colorBy=availableBikeNumber&view=map"
+        );
+        assert_eq!(
+            route_of(
+                "helsinki",
+                &call(Some("status==\"working\""), None, Some("bikes"))
+            )
+            .expect("a route"),
+            "/projects/helsinki/explore?endpoint=bikes&type=BikeHireDockingStation\
+             &q=status%3D%3D%22working%22&view=map"
+        );
+        assert!(route_of("helsinki", &call(None, None, None))
+            .expect_err("no endpoint")
+            .contains("the endpoint"));
     }
 
     /// T-2577, AG-73: "create a ServiceAccount" opens the kind's empty form in the section a
@@ -1568,6 +1624,7 @@ mod tests {
             endpoint: None,
             entity_type: None,
             q: None,
+            color: None,
         };
         for (plural, route) in [
             (
@@ -1621,6 +1678,7 @@ mod tests {
             endpoint: None,
             entity_type: None,
             q: None,
+            color: None,
         }
     }
 
@@ -1667,6 +1725,7 @@ mod tests {
             endpoint: None,
             entity_type: None,
             q: None,
+            color: None,
         };
         for (kind, plural) in [
             ("Blueprint", "blueprints"),
@@ -1753,6 +1812,7 @@ mod tests {
                 endpoint: endpoint.map(str::to_owned),
                 entity_type: entity_type.map(str::to_owned),
                 q: Some("availableBikeNumber==0".to_owned()),
+                color: None,
             };
             let err = route_of("helsinki", &call).expect_err("no route");
             assert!(err.contains(needed), "{err}");

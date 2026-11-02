@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import type { Bbox, MapLayer } from "../src/components/dashboards/MapLibreView";
-import { ExploreMap, isLocated, mapFeatures } from "../src/pages/explore/ExploreMap";
+import { colourOf, ExploreMap, isLocated, mapFeatures } from "../src/pages/explore/ExploreMap";
 
 const drawn = vi.hoisted(() => ({ layers: [] as MapLayer[], onMoveEnd: undefined as undefined | ((bbox: Bbox) => void) }));
 vi.mock("../src/components/dashboards/MapLibreView", async (original) => ({
@@ -38,7 +38,7 @@ function stub(answer: () => Response) {
   return asked;
 }
 
-function show(onOpen = vi.fn(), geo = ["location"]) {
+function show(onOpen = vi.fn(), geo = ["location"], colorBy?: string) {
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
       <I18nextProvider i18n={i18n}>
@@ -48,6 +48,7 @@ function show(onOpen = vi.fn(), geo = ["location"]) {
           query={{ type: "BikeStation", q: "bikes>0;name==\"Kamppi\"" }}
           columns={["name", "bikes", "address", "status", "extra"]}
           geo={geo}
+          colorBy={colorBy}
           onOpen={onOpen}
         />
       </I18nextProvider>
@@ -85,6 +86,20 @@ describe("the explorer's map", () => {
     expect(asked[0].searchParams.get("q")).toBe('bikes>0;name=="Kamppi"');
     expect(asked[0].searchParams.get("attrs")).toBe("location,name,bikes,address,status");
     expect(drawn.layers[0]).toMatchObject({ style: "circle", cluster: true, popupProperties: ["name", "bikes", "address", "status"] });
+  });
+
+  // T-6442: "colour-coded by occupancy": every point drawn, a point without the number grey and
+  // counted, never the ramp's low end.
+  it("colours by a number over its own range and counts the points without it", async () => {
+    const point = { type: "Point", coordinates: [24.9, 60.1] };
+    const row = (id: string, bikes?: number) => ({ id: `urn:ngsi-ld:BikeStation:${id}`, type: "BikeStation", location: point, ...(bikes === undefined ? {} : { bikes }) });
+    const asked = stub(() => new Response(JSON.stringify([row("a", 0), row("b", 8), row("c")]), { status: 200, headers: { "NGSILD-Results-Count": "3" } }));
+    show(undefined, undefined, "bikes");
+    await screen.findByRole("application");
+    expect(asked[0]?.searchParams.get("attrs")).toContain("bikes");
+    expect(drawn.layers[0]).toMatchObject({ cluster: false, colorBy: { property: "bikes", domain: [0, 8] } });
+    expect(screen.getByRole("status").textContent).toContain("Colour shows bikes from 0 to 8, yellow to red. Grey: no value (1).");
+    expect(colourOf([{ properties: {} }], "bikes")).toEqual({ domain: undefined, unknown: 1 });
   });
 
   it("opens the entity from the popup", async () => {

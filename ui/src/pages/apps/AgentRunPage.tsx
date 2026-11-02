@@ -152,7 +152,7 @@ export function AgentRunPage({
       />
       {record.error !== undefined && record.error !== "" && (
         <InlineError>
-          {record.error}
+          {record.error} {t("agentRun.failedNext")}
         </InlineError>
       )}
       {[cancel.error, publish.error].map((error, index) =>
@@ -270,6 +270,7 @@ export function AgentRunPage({
           <Button
             variant="primary"
             disabled={!publishable || held !== null || publish.isPending}
+            disabledReason={over ? t("agentRun.publishOver") : undefined}
             aria-describedby={held ? "run-tests-hold" : undefined}
             onClick={() => {
               publish.mutate();

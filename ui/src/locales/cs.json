@@ -5966,7 +5966,8 @@
       "inView": "{shown} v tomto výřezu, celkem {total}",
       "noneInView": "V zobrazené části mapy není žádná entita tohoto pohledu.",
       "reading": "Načítám zobrazený výřez…",
-      "viewFailed": "Zobrazený výřez se nepodařilo načíst ({reason}); posuňte mapu a zkuste to znovu."
+      "viewFailed": "Zobrazený výřez se nepodařilo načíst ({reason}); posuňte mapu a zkuste to znovu.",
+      "colouredBy": "Barva ukazuje {attr} od {min} do {max}, od žluté po červenou. Šedá: bez hodnoty ({unknown})."
     },
     "chart": {
       "open": "Graf",
@@ -6356,7 +6357,9 @@
       "running": "Zveřejnění počká, až proběhnou testy verze {version}.",
       "failed": "Verze {version} se nezveřejní, dokud selhává {failed} jejích testů: {names}. Požádejte asistenta o opravu."
     },
-    "cancelOver": "Běh skončil; není co zrušit."
+    "cancelOver": "Běh skončil; není co zrušit.",
+    "publishOver": "Tento běh skončil, takže nemá co zveřejnit.",
+    "failedNext": "Nic se nezveřejnilo. Na stránce Asistent aplikaci sestavte znovu."
   },
   "assistant": {
     "newConversation": "Začít novou konverzaci",

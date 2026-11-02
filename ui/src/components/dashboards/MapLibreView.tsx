@@ -5,7 +5,7 @@ import type { MapGeoJSONFeature, MapLayerMouseEvent, StyleSpecification } from "
 import workerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import { useTranslation } from "react-i18next";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { basemapColour, outlineColour, plainColour, RAMP } from "./mapColours";
+import { basemapColour, outlineColour, plainColour, RAMP, unknownColour } from "./mapColours";
 
 // MapLibre finds its worker beside its own module (`./maplibre-gl-worker.mjs`), which after
 // bundling is /assets/, where nothing of that name is emitted: every dashboard asked for it and
@@ -90,13 +90,19 @@ const DEFAULT_ZOOM = 11;
 function paintFor(layer: MapLayer): Record<string, unknown> {
   const color = layer.colorBy
     ? [
-        "interpolate",
-        ["linear"],
-        ["to-number", ["get", layer.colorBy.property], 0],
-        ...RAMP.flatMap((stop, index) => {
-          const [min, max] = layer.colorBy?.domain ?? [0, 100];
-          return [min + ((max - min) * index) / (RAMP.length - 1), stop];
-        }),
+        "case",
+        // A feature without the number is unknown, not the ramp's low end (T-6442).
+        ["has", layer.colorBy.property],
+        [
+          "interpolate",
+          ["linear"],
+          ["to-number", ["get", layer.colorBy.property], 0],
+          ...RAMP.flatMap((stop, index) => {
+            const [min, max] = layer.colorBy?.domain ?? [0, 100];
+            return [min + ((max - min) * index) / (RAMP.length - 1), stop];
+          }),
+        ],
+        unknownColour(),
       ]
     : plainColour();
 

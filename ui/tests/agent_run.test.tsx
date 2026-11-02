@@ -565,7 +565,7 @@ describe("watching a run", () => {
     await screen.findByRole("heading", { name: APP_TITLE });
 
     expect(screen.getByRole("button", { name: en.agentRun.cancel })).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByRole("button", { name: en.agentRun.publish })).toBeDisabled();
+    expect(screen.getByRole("button", { name: en.agentRun.publish })).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByText(en.agentRun.states.cancelled)).toBeInTheDocument();
   });
 
