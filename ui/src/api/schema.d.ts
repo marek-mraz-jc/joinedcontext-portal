@@ -4249,7 +4249,7 @@ export interface paths {
         put?: never;
         /**
          * List Project Members
-         * @description People with a role in this project: user id for a RoleBinding, name, roles
+         * @description Project members: user id, name, roles and the RoleBinding of each role
          */
         post: operations["jc_member_list"];
         delete?: never;
@@ -27321,6 +27321,16 @@ export interface operations {
                 content: {
                     "application/json": {
                         members: {
+                            /** @description The RoleBindings behind the roles. To remove the member, delete a binding by name with jc_change_plan where subjects is 1 and no group is named; else take the member out of its subjects, or out of the Group */
+                            bindings: {
+                                /** @description The RoleBinding's metadata.name */
+                                binding: string;
+                                /** @description The Group that carries this member, where the binding names one */
+                                group?: string;
+                                role: string;
+                                /** @description Subjects the binding names: deleting it removes them all */
+                                subjects: number;
+                            }[];
                             name: string | null;
                             roles: string[];
                             /** @description The subject a RoleBinding names: put it in a RoleBinding's subjects as { user: ... } */

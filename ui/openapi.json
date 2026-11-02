@@ -21583,7 +21583,7 @@
     },
     "/api/v1/projects/{project}/ops/jc_member_list": {
       "post": {
-        "description": "People with a role in this project: user id for a RoleBinding, name, roles",
+        "description": "Project members: user id, name, roles and the RoleBinding of each role",
         "operationId": "jc_member_list",
         "parameters": [
           {
@@ -21624,6 +21624,35 @@
                     "members": {
                       "items": {
                         "properties": {
+                          "bindings": {
+                            "description": "The RoleBindings behind the roles. To remove the member, delete a binding by name with jc_change_plan where subjects is 1 and no group is named; else take the member out of its subjects, or out of the Group",
+                            "items": {
+                              "properties": {
+                                "binding": {
+                                  "description": "The RoleBinding's metadata.name",
+                                  "type": "string"
+                                },
+                                "group": {
+                                  "description": "The Group that carries this member, where the binding names one",
+                                  "type": "string"
+                                },
+                                "role": {
+                                  "type": "string"
+                                },
+                                "subjects": {
+                                  "description": "Subjects the binding names: deleting it removes them all",
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "binding",
+                                "role",
+                                "subjects"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
                           "name": {
                             "type": [
                               "string",
@@ -21644,7 +21673,8 @@
                         "required": [
                           "user",
                           "name",
-                          "roles"
+                          "roles",
+                          "bindings"
                         ],
                         "type": "object"
                       },

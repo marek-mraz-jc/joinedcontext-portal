@@ -35,6 +35,19 @@ pub const MEMBERS: &str = "jc_member_list";
 const MEMBERS_MAX: usize = 200;
 const NAMES_AT_ONCE: usize = 8;
 
+/// One RoleBinding reaching a member: what `jc_change_plan` needs to name it, and what deleting
+/// it takes from others, since a binding goes whole (T-6485).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+struct Grant {
+    binding: String,
+    role: String,
+    /// The subjects the binding names: above one, deleting it removes them too.
+    subjects: usize,
+    /// The Group that carries the member, where the binding names one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    group: Option<String>,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct MemberInput {
@@ -43,9 +56,9 @@ struct MemberInput {
 }
 
 /// The people the RoleBindings of `project` reach, by the subject the binding names (a user id,
-/// or an e-mail where a binding names one), each with the roles it holds there: directly, or
-/// through an organization Group the binding names (T-6039).
-fn members_of(mirror: &Mirror, project: &str) -> BTreeMap<String, BTreeSet<String>> {
+/// or an e-mail where a binding names one), each with the bindings it holds there: directly, or
+/// through an organization Group the binding names (T-6039, T-6485).
+fn members_of(mirror: &Mirror, project: &str) -> BTreeMap<String, Vec<Grant>> {
     let groups: HashMap<String, Vec<String>> = mirror
         .matching(|env| {
             env.kind == "Group" && env.metadata.namespace.as_deref() == Some(ORG_NAMESPACE)
@@ -56,25 +69,41 @@ fn members_of(mirror: &Mirror, project: &str) -> BTreeMap<String, BTreeSet<Strin
             (group.metadata.name, users)
         })
         .collect();
-    let mut members: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    let mut members: BTreeMap<String, Vec<Grant>> = BTreeMap::new();
     let bindings = mirror.matching(|env| {
         env.kind == "RoleBinding" && binding_project(mirror, &env.spec).as_deref() == Some(project)
     });
     for binding in bindings {
         let role = binding.spec["role"].as_str().unwrap_or_default().to_owned();
         let subjects = binding.spec.get("subjects").and_then(Value::as_array);
-        for subject in subjects.into_iter().flatten() {
-            let users = match (subject["user"].as_str(), subject["group"].as_str()) {
+        let subjects = subjects.map_or(&[][..], Vec::as_slice);
+        for subject in subjects {
+            let group = subject["group"].as_str();
+            let users = match (subject["user"].as_str(), group) {
                 (Some(user), _) => vec![user.to_owned()],
                 (None, Some(group)) => groups.get(group).cloned().unwrap_or_default(),
                 (None, None) => Vec::new(),
             };
             for user in users {
-                members.entry(user).or_default().insert(role.clone());
+                members.entry(user).or_default().push(Grant {
+                    binding: binding.metadata.name.clone(),
+                    role: role.clone(),
+                    subjects: subjects.len(),
+                    group: group.map(str::to_owned),
+                });
             }
         }
     }
+    for grants in members.values_mut() {
+        grants.sort_by(|a, b| a.binding.cmp(&b.binding));
+    }
     members
+}
+
+/// A member as `jc_member_list` answers it.
+fn member_answer(user: &str, grants: &[Grant], name: Option<String>) -> Value {
+    let roles: BTreeSet<&str> = grants.iter().map(|grant| grant.role.as_str()).collect();
+    json!({ "user": user, "name": name, "roles": roles, "bindings": grants })
 }
 
 fn users_in(list: Option<&Value>) -> Vec<String> {
@@ -140,9 +169,23 @@ fn members_schema() -> Value {
                     "properties": {
                         "user": { "type": "string", "description": "The subject a RoleBinding names: put it in a RoleBinding's subjects as { user: ... }" },
                         "name": { "type": ["string", "null"] },
-                        "roles": { "type": "array", "items": { "type": "string" } }
+                        "roles": { "type": "array", "items": { "type": "string" } },
+                        "bindings": {
+                            "type": "array",
+                            "description": "The RoleBindings behind the roles. To remove the member, delete a binding by name with jc_change_plan where subjects is 1 and no group is named; else take the member out of its subjects, or out of the Group",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "binding": { "type": "string", "description": "The RoleBinding's metadata.name" },
+                                    "role": { "type": "string" },
+                                    "subjects": { "type": "integer", "description": "Subjects the binding names: deleting it removes them all" },
+                                    "group": { "type": "string", "description": "The Group that carries this member, where the binding names one" }
+                                },
+                                "required": ["binding", "role", "subjects"]
+                            }
+                        }
                     },
-                    "required": ["user", "name", "roles"]
+                    "required": ["user", "name", "roles", "bindings"]
                 }
             },
             "truncated": { "type": "boolean" }
@@ -281,7 +324,7 @@ pub fn operations() -> Vec<Operation> {
         Operation {
             name: MEMBERS,
             title: "List Project Members",
-            description: "People with a role in this project: user id for a RoleBinding, name, roles",
+            description: "Project members: user id, name, roles and the RoleBinding of each role",
             input: member_schema,
             output: members_schema,
             annotations: annotations(true, false, true),
@@ -302,7 +345,7 @@ pub fn operations() -> Vec<Operation> {
                     )?;
                     let members = members_of(&state.mirror, project);
                     let truncated = members.len() > MEMBERS_MAX;
-                    let members: Vec<(String, BTreeSet<String>)> =
+                    let members: Vec<(String, Vec<Grant>)> =
                         members.into_iter().take(MEMBERS_MAX).collect();
                     let subjects: Vec<&str> = members.iter().map(|(user, _)| user.as_str()).collect();
                     let names = names_of(state, &subjects).await;
@@ -316,7 +359,7 @@ pub fn operations() -> Vec<Operation> {
                                     || name.as_deref().is_some_and(|n| n.to_lowercase().contains(search))
                             })
                         })
-                        .map(|((user, roles), name)| json!({ "user": user, "name": name, "roles": roles }))
+                        .map(|((user, grants), name)| member_answer(user, grants, name))
                         .collect();
                     Ok(json!({ "members": found, "truncated": truncated }))
                 })
@@ -567,8 +610,17 @@ mod tests {
         let found = members_of(&mirror, "doprava");
         let users: Vec<&str> = found.keys().map(String::as_str).collect();
         assert_eq!(users, ["id-group-1", "id-jana", "id-space"]);
-        let jana: Vec<&str> = found["id-jana"].iter().map(String::as_str).collect();
-        assert_eq!(jana, ["steward", "viewer"]);
+        let jana: Vec<(&str, &str)> = found["id-jana"]
+            .iter()
+            .map(|grant| (grant.binding.as_str(), grant.role.as_str()))
+            .collect();
+        assert_eq!(jana, [("a", "viewer"), ("b", "steward")]);
+        // What deleting each binding takes: the person alone, or the Group that carries them.
+        assert_eq!(
+            (found["id-jana"][0].subjects, &found["id-jana"][0].group),
+            (1, &None)
+        );
+        assert_eq!(found["id-jana"][1].group.as_deref(), Some("pipeliners"));
         assert!(members_of(&mirror, "elsewhere").is_empty());
     }
 
