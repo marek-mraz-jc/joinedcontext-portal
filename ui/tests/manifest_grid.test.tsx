@@ -11,7 +11,7 @@ import "../src/i18n";
 import en from "../src/locales/en.json";
 import type { Manifest } from "../src/api/manifest";
 import { fieldWidget, hintText, specValue, withSpecValue } from "../src/components/grid/fieldWidget";
-import { GridFooter, GridRow, GridToolbar, ManifestGrid, example, visibleRows } from "../src/components/grid/ManifestGrid";
+import { GridFooter, GridRow, GridToolbar, ManifestGrid, example, valueCounts, visibleRows } from "../src/components/grid/ManifestGrid";
 import type { GridColumn } from "../src/components/grid/ManifestGrid";
 import endpointSchema from "./fixtures/kinds/Endpoint.json";
 import subscriptionSchema from "./fixtures/kinds/Subscription.json";
@@ -162,6 +162,20 @@ function harness(put: (body: unknown, dryRun: boolean) => Response, mayPropose =
   };
   return { sent, answer };
 }
+
+describe("valueCounts", () => {
+  it("counts each value in one pass over the rows, sorted, without the empty ones", () => {
+    const text = vi.fn((row: { phase: string }) => row.phase);
+    const rows = ["Live", "Failed", "", "Live", "Pending", "Live"].map((phase) => ({ phase }));
+    expect(valueCounts(rows, { id: "phase", label: "Phase", text })).toEqual([
+      ["Failed", 1],
+      ["Live", 3],
+      ["Pending", 1],
+    ]);
+    // A scan per value read the 10 000 rows of a project once per value, on every render (T-5181).
+    expect(text).toHaveBeenCalledTimes(rows.length);
+  });
+});
 
 describe("ManifestGrid", () => {
   it("hides a column until ticked under Columns, and the panel still shows it", async () => {

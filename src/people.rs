@@ -10,6 +10,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use argon2::password_hash::rand_core::{OsRng, RngCore};
+use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -266,8 +267,13 @@ impl Admin<'_> {
         }
     }
 
+    /// Every call to the realm's Admin API starts here: this address and no other.
+    fn request(&self, method: Method, path: &str) -> reqwest::RequestBuilder {
+        self.people.http.request(method, self.url(path))
+    }
+
     async fn json<T: serde::de::DeserializeOwned>(&self, path: &str) -> Result<T, PeopleError> {
-        self.send(self.people.http.get(self.url(path)))
+        self.send(self.request(Method::GET, path))
             .await?
             .json()
             .await
@@ -281,7 +287,7 @@ impl Admin<'_> {
         first: u32,
         max: u32,
     ) -> Result<Vec<KcUser>, PeopleError> {
-        let request = self.people.http.get(self.url("/users")).query(&[
+        let request = self.request(Method::GET, "/users").query(&[
             ("search", search),
             ("first", &first.to_string()),
             ("max", &max.to_string()),
@@ -318,7 +324,7 @@ impl Admin<'_> {
             body["attributes"] = json!({ "locale": [locale] });
         }
         let response = self
-            .send(self.people.http.post(self.url("/users")).json(&body))
+            .send(self.request(Method::POST, "/users").json(&body))
             .await?;
         // The id is the last segment of `Location`; without one, find the person by e-mail.
         if let Some(id) = response
@@ -332,9 +338,7 @@ impl Admin<'_> {
         }
         let found: Vec<KcUser> = self
             .send(
-                self.people
-                    .http
-                    .get(self.url("/users"))
+                self.request(Method::GET, "/users")
                     .query(&[("email", person.email), ("exact", "true")]),
             )
             .await?
@@ -354,9 +358,7 @@ impl Admin<'_> {
         let mut user = self.raw(id).await?;
         edit(&mut user);
         self.send(
-            self.people
-                .http
-                .put(self.url(&format!("/users/{}", segment(id)?)))
+            self.request(Method::PUT, &format!("/users/{}", segment(id)?))
                 .json(&user),
         )
         .await
@@ -376,9 +378,10 @@ impl Admin<'_> {
         back: Option<(&str, &str)>,
     ) -> Result<bool, PeopleError> {
         let mut request = self
-            .people
-            .http
-            .put(self.url(&format!("/users/{}/execute-actions-email", segment(id)?)))
+            .request(
+                Method::PUT,
+                &format!("/users/{}/execute-actions-email", segment(id)?),
+            )
             .json(&actions);
         if let Some(lifespan) = lifespan {
             request = request.query(&[("lifespan", lifespan.as_secs())]);
@@ -400,10 +403,11 @@ impl Admin<'_> {
         password: &str,
     ) -> Result<(), PeopleError> {
         self.send(
-            self.people
-                .http
-                .put(self.url(&format!("/users/{}/reset-password", segment(id)?)))
-                .json(&json!({ "type": "password", "value": password, "temporary": true })),
+            self.request(
+                Method::PUT,
+                &format!("/users/{}/reset-password", segment(id)?),
+            )
+            .json(&json!({ "type": "password", "value": password, "temporary": true })),
         )
         .await
         .map(drop)
@@ -411,13 +415,9 @@ impl Admin<'_> {
 
     /// Ends every session of the person.
     pub async fn sign_out(&self, id: &str) -> Result<(), PeopleError> {
-        self.send(
-            self.people
-                .http
-                .post(self.url(&format!("/users/{}/logout", segment(id)?))),
-        )
-        .await
-        .map(drop)
+        self.send(self.request(Method::POST, &format!("/users/{}/logout", segment(id)?)))
+            .await
+            .map(drop)
     }
 
     /// Removes every OTP and WebAuthn credential; answers how many there were.
@@ -429,10 +429,10 @@ impl Admin<'_> {
             .iter()
             .filter(|credential| SECOND_FACTORS.contains(&credential.kind.as_str()))
         {
-            self.send(self.people.http.delete(self.url(&format!(
-                "/users/{id}/credentials/{}",
-                segment(&credential.id)?
-            ))))
+            self.send(self.request(
+                Method::DELETE,
+                &format!("/users/{id}/credentials/{}", segment(&credential.id)?),
+            ))
             .await?;
             removed += 1;
         }
@@ -456,11 +456,10 @@ impl Admin<'_> {
     /// Revokes the person's consent to `client`, which also ends that client's offline sessions
     /// of theirs; no grant changes.
     pub async fn revoke_consent(&self, id: &str, client: &str) -> Result<(), PeopleError> {
-        self.send(self.people.http.delete(self.url(&format!(
-            "/users/{}/consents/{}",
-            segment(id)?,
-            segment(client)?
-        ))))
+        self.send(self.request(
+            Method::DELETE,
+            &format!("/users/{}/consents/{}", segment(id)?, segment(client)?),
+        ))
         .await
         .map(drop)
     }
@@ -511,23 +510,15 @@ impl Admin<'_> {
             return Ok(false);
         };
         let group = segment(&group)?;
-        self.send(
-            self.people
-                .http
-                .put(self.url(&format!("/users/{id}/groups/{group}"))),
-        )
-        .await
-        .map(|_| true)
+        self.send(self.request(Method::PUT, &format!("/users/{id}/groups/{group}")))
+            .await
+            .map(|_| true)
     }
 
     pub async fn delete(&self, id: &str) -> Result<(), PeopleError> {
-        self.send(
-            self.people
-                .http
-                .delete(self.url(&format!("/users/{}", segment(id)?))),
-        )
-        .await
-        .map(drop)
+        self.send(self.request(Method::DELETE, &format!("/users/{}", segment(id)?)))
+            .await
+            .map(drop)
     }
 }
 
