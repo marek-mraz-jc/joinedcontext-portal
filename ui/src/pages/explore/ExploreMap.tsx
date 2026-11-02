@@ -11,6 +11,8 @@ import { useTranslation } from "react-i18next";
 import { fetchEntities } from "../../components/entities/filters";
 import type { EntityQuery } from "../../components/entities/filters";
 import { MapLibreView } from "../../components/dashboards/MapLibreView";
+import { RAMP, unknownColour } from "../../components/dashboards/mapColours";
+import { readable } from "../../components/entities/displayOrder";
 import type { Bbox } from "../../components/dashboards/MapLibreView";
 import { InlineError } from "../../components/ui/InlineError";
 import { PageFailed, PageLoading } from "../../components/ui/PageState";
@@ -50,6 +52,27 @@ export function colourOf(features: unknown[], attr: string): { domain?: [number,
 /** Whether a type has a place: a GeoProperty in its model, or the conventional `location`. */
 export function isLocated(slots: { name: string; kind: string }[]): boolean {
   return slots.some((slot) => slot.kind === "GeoProperty" || slot.name === "location");
+}
+
+/** The coloured map's key; the status line above says the same in words. */
+function ColourKey({ min, max }: { min: string; max: string }): JSX.Element {
+  return (
+    <div aria-hidden="true" className="flex items-center gap-2 text-caption text-fg-muted">
+      <span>{min}</span>
+      <svg width="128" height="8">
+        <linearGradient id="explore-map-ramp">
+          {RAMP.map((stop, index) => (
+            <stop key={stop} offset={index / (RAMP.length - 1)} stopColor={stop} />
+          ))}
+        </linearGradient>
+        <rect width="128" height="8" rx="4" fill="url(#explore-map-ramp)" />
+      </svg>
+      <span>{max}</span>
+      <svg width="10" height="10" className="ml-2">
+        <circle cx="5" cy="5" r="5" fill={unknownColour()} />
+      </svg>
+    </div>
+  );
 }
 
 export function ExploreMap({
@@ -126,7 +149,7 @@ export function ExploreMap({
   if (colorBy && coloured?.domain) {
     const [min, max] = coloured.domain;
     status += `${status.endsWith(".") ? "" : "."} ${t("explore.map.colouredBy", {
-      attr: colorBy,
+      attr: readable(colorBy),
       min: number.format(min),
       max: number.format(max),
       unknown: number.format(coloured.unknown),
@@ -141,15 +164,17 @@ export function ExploreMap({
         {status}
         {inView.isFetching ? ` ${t("explore.map.reading")}` : ""}
       </p>
+      {colorBy && coloured?.domain ? <ColourKey min={number.format(coloured.domain[0])} max={number.format(coloured.domain[1])} /> : null}
       {inView.isError ? (
         <InlineError>
           {t("explore.map.viewFailed", { reason: inView.error instanceof Error ? inView.error.message : String(inView.error) })}
         </InlineError>
       ) : null}
       {collection.features.length === 0 && !paged ? null : (
-      <div className="h-96 overflow-hidden rounded-lg border border-border">
+      <div className="h-preview min-h-preview-min overflow-hidden rounded-lg border border-border">
         <MapLibreView
           project={project}
+          fill
           label={t("explore.map.label", { type: query.type ?? "" })}
           onMoveEnd={paged ? onMoveEnd : undefined}
           layers={[

@@ -98,7 +98,7 @@ describe("the explorer's map", () => {
     await screen.findByRole("application");
     expect(asked[0]?.searchParams.get("attrs")).toContain("bikes");
     expect(drawn.layers[0]).toMatchObject({ cluster: false, colorBy: { property: "bikes", domain: [0, 8] } });
-    expect(screen.getByRole("status").textContent).toContain("Colour shows bikes from 0 to 8, yellow to red. Grey: no value (1).");
+    expect(screen.getByRole("status").textContent).toContain("Colour shows Bikes from 0 to 8, yellow to red. Grey: no value (1).");
     expect(colourOf([{ properties: {} }], "bikes")).toEqual({ domain: undefined, unknown: 1 });
   });
 

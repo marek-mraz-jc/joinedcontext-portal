@@ -150,7 +150,7 @@ for (const width of [1440, 400]) {
     await page.goto(`/projects/helsinki/explore?endpoint=helsinki-bikes&type=${TYPE}&colorBy=availableBikeNumber&view=map&lang=en`);
     await expect(page.getByRole("tab", { name: "Map" })).toHaveAttribute("aria-selected", "true");
     await expect(page.getByRole("status").filter({ hasText: "on the map" })).toHaveText(
-      "24 of 24 on the map. Colour shows availableBikeNumber from 0 to 8, yellow to red. Grey: no value (6).",
+      "24 of 24 on the map. Colour shows Available bike number from 0 to 8, yellow to red. Grey: no value (6).",
       { timeout: 30_000 },
     );
     await expect(page.getByRole("application", { name: `Map of ${TYPE}` })).toBeVisible();

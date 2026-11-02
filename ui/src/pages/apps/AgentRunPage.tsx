@@ -363,7 +363,7 @@ function Building({
     <div
       role="status"
       data-testid="run-building"
-      className="flex h-preview min-h-preview-min flex-col items-center justify-center gap-3 rounded border border-dashed border-border px-6 text-center"
+      className={`flex ${over ? "py-8" : "h-preview min-h-preview-min"} flex-col items-center justify-center gap-3 rounded border border-dashed border-border px-6 text-center`}
     >
       {stuck ? (
         <>

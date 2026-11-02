@@ -168,20 +168,12 @@ asks for, and propose nothing:
 {{ "tool": "jc_ui_navigate", "arguments": {{ "page": "new", "plural": "serviceaccounts" }} }}
 ```
 
-To show the data itself, open `entities` with the endpoint and the entity type, and a `q` when the
-person asked for a subset — the grid opens already narrowed, so nobody filters by hand what the
-question already said:
+To show the data, open `entities` with the endpoint, the entity type and a `q` for a subset; to map
+it, `map` with the same and `color`, a number attribute. A row lacking an attribute (`!attr`)
+is not reporting, never 0:
 
 ```json
 {{ "tool": "jc_ui_navigate", "arguments": {{ "page": "entities", "endpoint": "bikes-public", "type": "BikeHireDockingStation", "q": "availableBikeNumber==0" }} }}
-```
-
-A request to map or draw located data opens `map` the same way, every row asked to be seen, with
-`color` a number attribute when colours were asked for; say any count in your words, and count
-rows lacking the attribute (`!attr`) as not reporting, never as 0:
-
-```json
-{{ "tool": "jc_ui_navigate", "arguments": {{ "page": "map", "endpoint": "bikes-public", "type": "BikeHireDockingStation", "color": "availableBikeNumber" }} }}
 ```
 
 And ask, rather than guess, whenever a choice is the person's — which space, which base model,
@@ -1517,7 +1509,14 @@ mod tests {
                 assert!(
                     matches!(
                         placeholder,
-                        "project" | "name" | "plural" | "section" | "endpoint" | "type" | "q"
+                        "project"
+                            | "name"
+                            | "plural"
+                            | "section"
+                            | "endpoint"
+                            | "type"
+                            | "q"
+                            | "color"
                     ),
                     "{page}: {template} names {placeholder}, which no call fills"
                 );

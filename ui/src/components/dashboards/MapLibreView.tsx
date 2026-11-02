@@ -48,6 +48,8 @@ export interface MapLibreViewProps {
   label: string;
   /** The viewport after every pan or zoom, for the page to ask the Endpoints again (UI-22). */
   onMoveEnd?: (bbox: Bbox) => void;
+  /** Fills a box of the caller's, instead of the map's own framed height. */
+  fill?: boolean;
   /**
    * Called once the map exists, for an overlay to attach itself to it (UI-20); what it
    * returns is called when the map goes away. This is how the deck.gl overlay draws on the
@@ -205,6 +207,7 @@ export function MapLibreView({
   project,
   onReady,
   onMoveEnd,
+  fill,
 }: MapLibreViewProps): JSX.Element {
   const { t } = useTranslation();
   const container = useRef<HTMLDivElement | null>(null);
@@ -391,7 +394,7 @@ export function MapLibreView({
       ref={container}
       role="application"
       aria-label={label}
-      className="h-112 w-full overflow-hidden rounded border border-border"
+      className={`${fill ? "h-full" : "h-112 rounded border border-border"} w-full overflow-hidden`}
     />
   );
 }

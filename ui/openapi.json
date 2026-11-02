@@ -28508,6 +28508,9 @@
                     "more": {
                       "type": "string"
                     },
+                    "note": {
+                      "type": "string"
+                    },
                     "path": {
                       "type": "string"
                     },
