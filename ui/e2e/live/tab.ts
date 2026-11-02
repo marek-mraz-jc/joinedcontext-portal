@@ -4,10 +4,18 @@
  * steward's whole walk with an empty report. `run` notices the crash, opens a fresh tab in the same
  * signed-in context (cookies and routes are the context's) and tells the caller, which reports the
  * crash on the page it hit and walks on.
+ *
+ * `net::ERR_NETWORK_CHANGED` is Chromium dropping its sockets because an address of the machine it
+ * runs on moved, which a container starting on the walker's host does. No server can answer it, and
+ * it ended the viewer's walk at the first list with an empty report and the steward's halfway
+ * (T-6476), so `run` runs the work again on the same tab, `NETWORK_TRIES` times at most.
  */
 import type { BrowserContext, Page } from "@playwright/test";
 
 export type Outcome<T> = { crashed: false; value: T } | { crashed: true };
+
+const NETWORK_TRIES = 3;
+const networkChanged = (error: unknown) => String(error).includes("net::ERR_NETWORK_CHANGED");
 
 export class Tab {
   page!: Page;
@@ -18,6 +26,7 @@ export class Tab {
     private readonly context: BrowserContext,
     page: Page,
     private readonly setup: (page: Page) => void,
+    private readonly networkSettleMs = 3_000,
   ) {
     this.adopt(page);
   }
@@ -31,16 +40,24 @@ export class Tab {
     this.setup(page);
   }
 
-  /** Runs `work` on the tab. A crash under it opens a fresh tab; any other error is `work`'s own and is thrown. */
+  /**
+   * Runs `work` on the tab. A crash under it opens a fresh tab; the machine's network changing under
+   * it runs it again, so `work` starts from nothing; any other error is `work`'s own and is thrown.
+   */
   async run<T>(work: (page: Page) => Promise<T>): Promise<Outcome<T>> {
-    try {
-      return { crashed: false, value: await work(this.page) };
-    } catch (error) {
-      if (!this.crashed) throw error;
-      const dead = this.page;
-      this.adopt(await this.context.newPage());
-      await dead.close().catch(() => undefined);
-      return { crashed: true };
+    for (let tries = 1; ; tries += 1) {
+      try {
+        return { crashed: false, value: await work(this.page) };
+      } catch (error) {
+        if (this.crashed) {
+          const dead = this.page;
+          this.adopt(await this.context.newPage());
+          await dead.close().catch(() => undefined);
+          return { crashed: true };
+        }
+        if (tries >= NETWORK_TRIES || !networkChanged(error)) throw error;
+        await new Promise((settled) => setTimeout(settled, this.networkSettleMs));
+      }
     }
   }
 
