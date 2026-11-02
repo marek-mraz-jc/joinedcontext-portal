@@ -58,7 +58,7 @@ async function stub(page: Page, refuse = false): Promise<void> {
     if (path.endsWith("/apps/bike-board/dashboard")) {
       const body = request.postDataJSON() as { config: unknown; dryRun: boolean };
       if (refuse) {
-        return json({ type: "about:blank", title: "Unprocessable Entity", status: 422, detail: "refused", errors: [{ path: "config/grid/columns/2/formula", message: '"fetch(" calls a function, and a formula calls none (at character 1)' }] }, 422);
+        return json({ type: "about:blank", title: "Unprocessable Entity", status: 422, detail: "refused", errors: [{ path: "config/grid/columns/2/formula", message: '"fetch(" is a function, which a formula cannot use: write attribute names, numbers and + - * / only (at character 1)' }] }, 422);
       }
       return body.dryRun ? json({ before: text(FILE), after: text(body.config) }) : json({ before: text(FILE), after: text(body.config), change: CHANGE, pullRequestUrl: "https://forge.example/pulls/4" }, 202);
     }
@@ -130,7 +130,7 @@ for (const width of [1440, 400]) {
     await page.getByRole("button", { name: "Preview change" }).click();
     await expect(page.locator("#col-2-formula")).toHaveAttribute("aria-invalid", "true");
     const banner = page.getByText("The Change was not proposed. Fix these fields, then preview again:");
-    await expect(page.getByText(/^Columns, row 3, Formula: .*calls a function, and a formula calls none/)).toBeVisible();
+    await expect(page.getByText(/^Columns, row 3, Formula: .*is a function, which a formula cannot use/)).toBeVisible();
     await banner.scrollIntoViewIfNeeded();
     await shot(page, `${width}-5-refused`);
     await page.getByRole("button", { name: "Go to the field" }).click();

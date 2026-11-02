@@ -359,7 +359,7 @@ export function RefusedList({ errors }: { errors: Errors }): JSX.Element {
             <li key={path}>
               {text}
               {id ? (
-                <Button size="xs" variant="ghost" className="ml-2" onClick={() => document.getElementById(id)?.focus()}>
+                <Button size="sm" className="ml-2" onClick={() => document.getElementById(id)?.focus()}>
                   {t("apps.dashboard.goTo")}
                 </Button>
               ) : null}

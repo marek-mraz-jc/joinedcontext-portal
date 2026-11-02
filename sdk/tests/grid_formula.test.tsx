@@ -61,7 +61,7 @@ describe("parseFormula and evaluate", () => {
       expect(parsed.ok, code).toBe(false);
     }
     const call = parseFormula("total + fetch(1)");
-    expect(call).toEqual({ ok: false, error: '"fetch(" calls a function, and a formula calls none', at: 8 });
+    expect(call).toEqual({ ok: false, error: '"fetch(" is a function, which a formula cannot use: write attribute names, numbers and + - * / only', at: 8 });
   });
 
   it("refuses an attribute the type does not have when the names are known", () => {
@@ -91,7 +91,7 @@ describe("computed columns in the grid configuration", () => {
 
   it("names the field and the position of a formula it refuses", () => {
     const { findings } = parseGridConfig({ ...base, columns: [{ attr: "x", formula: "bikes + eval(1)" }] });
-    expect(findings).toEqual([{ path: "/columns/0/formula", message: '"eval(" calls a function, and a formula calls none (at character 9)' }]);
+    expect(findings).toEqual([{ path: "/columns/0/formula", message: '"eval(" is a function, which a formula cannot use: write attribute names, numbers and + - * / only (at character 9)' }]);
   });
 
   it("refuses a computed column that reads itself or is edited", () => {

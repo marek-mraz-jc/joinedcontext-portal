@@ -215,7 +215,7 @@ mod formula {
                 Token::Name(name) => {
                     if self.is_op("(") {
                         return Err((
-                            format!("\"{name}(\" calls a function, and a formula calls none"),
+                            format!("\"{name}(\" is a function, which a formula cannot use: write attribute names, numbers and + - * / only"),
                             at,
                         ));
                     }
