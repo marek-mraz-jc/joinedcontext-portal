@@ -321,7 +321,7 @@ impl Path {
 
     /// Whether a turn on `path` is offered `tool`: the path's own (AG-89), or on no path every
     /// tool but the steps only a path's workbench takes, so the free turn keeps its 4k tokens
-    /// (AG-72; [`WORKBENCH_STEPS`] belong to IntegratePipeline).
+    /// (AG-72; `WORKBENCH_STEPS` belong to IntegratePipeline).
     pub fn offers(path: Option<Self>, tool: &str) -> bool {
         path.map_or(!WORKBENCH_STEPS.contains(&tool), |path| path.allows(tool))
     }
