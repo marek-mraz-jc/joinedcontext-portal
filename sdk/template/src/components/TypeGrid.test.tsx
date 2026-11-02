@@ -63,6 +63,15 @@ describe("TypeGrid", () => {
     expect(screen.queryByText("The query this asks")).toBeNull();
   });
 
+  it("names each cell by its column for the phone's card, with no swipe cue", async () => {
+    shown(undefined, undefined, SCHEMA);
+    const grid = await screen.findByRole("grid");
+    const cell = (await within(grid).findByText("4")).closest("td");
+    expect(cell).toHaveAttribute("data-label", "Bikes");
+    expect(grid.closest(".jc-type-grid")).not.toBeNull();
+    expect(screen.queryByText(/swipe/i)).toBeNull();
+  });
+
   it("filters by the name it leads with, not by the id", async () => {
     shown(undefined, undefined, SCHEMA);
     const grid = await screen.findByRole("grid");
