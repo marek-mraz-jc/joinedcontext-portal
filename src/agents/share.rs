@@ -1267,12 +1267,17 @@ mod tests {
             "Event"
         );
 
-        // A calendar mapped by hand stands: `ical` is listed already and nothing is drawn.
+        // A calendar mapped by hand stands: `ical` is listed already, so no preset is asked for.
         let mut all = endpoints();
         all[0]["spec"]["enabledRepresentations"] = json!(["ngsi-ld", "ical"]);
         let mapped = json!([{ "name": "meetings", "sources": [{ "type": "CouncilMeeting" }] }]);
         all[0]["spec"]["representations"] = json!({ "ical": mapped });
-        let kept = add(&all, &["CouncilMeeting"]).expect("edits");
+        let kept = super::edit(
+            &all,
+            &edit_of(json!({ "name": "helsinki-kpi", "addRepresentations": ["csv"] })),
+            |_| vec!["CouncilMeeting".to_owned()],
+        )
+        .expect("edits");
         assert_eq!(kept.endpoint["spec"]["representations"]["ical"], mapped);
     }
 
