@@ -22,6 +22,7 @@ import {
   SortPanel,
 } from "../src/components/entities/GridToolbar";
 import type { Aggregation, SortKey } from "../src/components/entities/GridToolbar";
+import { viewerWriteFindings } from "./pageChecks";
 
 const L = en.spaces.toolbar;
 const FIELDS = [
@@ -34,7 +35,9 @@ const FIELDS = [
 function wrap(node: React.ReactNode) {
   return render(
     <I18nextProvider i18n={i18n}>
-      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>{node}</QueryClientProvider>
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <main>{node}</main>
+      </QueryClientProvider>
     </I18nextProvider>,
   );
 }
@@ -74,6 +77,8 @@ describe("SortPanel", () => {
     wrap(<Sorts seen={seen} />);
     expect(screen.getByText(L.sortEmpty)).toBeInTheDocument();
     expect(screen.getByText(L.sortHint)).toBeInTheDocument();
+    // A key only orders the rows in hand: the walker does not read it as a viewer's write.
+    expect(viewerWriteFindings(false)).toEqual([]);
     const add = screen.getByRole("button", { name: L.sortAdd });
     await user.click(add);
     await user.click(add);
@@ -101,6 +106,8 @@ describe("GroupPanel", () => {
     const seen: string[][] = [];
     wrap(<Groups seen={seen} />);
     expect(screen.getByText(L.groupEmpty)).toBeInTheDocument();
+    // A group field only arranges the rows in hand, as a sort key does.
+    expect(viewerWriteFindings(false)).toEqual([]);
     for (let n = 0; n < 3; n += 1) await user.click(screen.getByRole("button", { name: L.groupAdd }));
     expect(seen.at(-1)).toEqual(["name", "city", "seats"]);
     expect(screen.getByRole("button", { name: L.groupAdd })).toHaveAttribute("aria-disabled", "true");
