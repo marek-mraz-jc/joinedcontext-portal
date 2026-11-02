@@ -1248,7 +1248,7 @@
   expect: 'Portal assistant: ui navigate + open_form prefilled, nothing submitted; Claude: MCP App diff view or a Portal link'
   deny: 'UI action tries to submit -> not possible (no such tool)'
   script:
-    # Claude's half: a plan's diff names where the person opens that change in the Portal. The
+    # Claude's half: a read and a plan's diff name where the person opens the object in the Portal. The
     # Portal assistant's half (jc_ui_open_form and jc_ui_show_diff opening the pipeline editor
     # prefilled, nothing saved) runs in the browser and is proven in
     # src/agents/oneshot/connector_turn.rs and ui/e2e/assistant_ui_actions.spec.ts (T-5959). The
@@ -1257,7 +1257,14 @@
     - proves: expect
       call: jc_change_plan
       args: { changes: [{ op: patch, kind: DataModel, name: bike-counter, patch: { spec: { version: 0.1.0, lifecycle: draft } } }] }
-      contains: ['"planId"', '"portal":"/projects/{project}/models?edit=bike-counter"']
+      contains: ['"planId"', '"portal":"https://portal.test/projects/{project}/models?edit=bike-counter"']
+    # Reading the object alone already names its page, with the host a client cannot guess: a
+    # viewer gets it too, since the address says no more than the read did.
+    - proves: expect
+      as: viewer
+      call: jc_resource_get
+      args: { kind: DataModel, name: bike-counter }
+      contains: ['"portal":"https://portal.test/projects/{project}/models?edit=bike-counter"']
     # No door submits a form: neither the MCP tool list nor a call names one. An apps connector
     # with no paired tab lists no UI tool either; with one it adds the five of API/14 §2.2
     # (src/mcp/connector.rs, T-5967).

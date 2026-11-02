@@ -26806,7 +26806,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "The manifest with its status",
+                  "description": "The manifest with its status, and `portal`: the address of its Portal page",
                   "type": "object"
                 }
               }
