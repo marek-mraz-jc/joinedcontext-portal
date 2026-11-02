@@ -261,7 +261,14 @@ mod tests {
 
     #[test]
     fn a_node_is_one_the_metrics_name() {
-        for ok in ["input", "output", "compute", "compute_1", "step_0", "step_12"] {
+        for ok in [
+            "input",
+            "output",
+            "compute",
+            "compute_1",
+            "step_0",
+            "step_12",
+        ] {
             assert!(is_node(ok), "{ok}");
         }
         for bad in [

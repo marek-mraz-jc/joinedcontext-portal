@@ -272,9 +272,7 @@ async fn run(
     let status = answer.status().as_u16();
     let bytes = capped_page(answer).await?;
     let body: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
-    if status == 404 {
-        super::data_query::not_admitted(caller, state, project, name)?;
-    }
+    super::data_query::not_admitted(status, caller, state, project, name)?;
     answer_of(name, status, &body, input.action, named_ids(&input))
 }
 

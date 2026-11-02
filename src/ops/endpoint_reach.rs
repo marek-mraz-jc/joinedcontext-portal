@@ -65,6 +65,25 @@ pub(super) fn not_admitted(
     ))
 }
 
+/// A plan's warning when `manifest` is an Endpoint the planning person would not reach (T-6451):
+/// three approvals later their first write would answer 404.
+pub(super) fn warn_outside(
+    answer: &mut Value,
+    state: &AppState,
+    identity: &Identity,
+    project: &str,
+    manifest: Option<&Value>,
+) {
+    let endpoint = manifest.filter(|m| m["kind"] == "Endpoint");
+    let why = endpoint.and_then(|m| not_admitted(state, identity, project, &m["spec"]));
+    let findings = answer
+        .pointer_mut("/verdict/findings")
+        .and_then(Value::as_array_mut);
+    if let (Some(message), Some(findings)) = (why, findings) {
+        findings.push(json!({ "level": "warning", "path": "spec.audience", "message": message }));
+    }
+}
+
 /// The types an Endpoint serves and its address: what a listing row carries.
 pub(super) struct Reach {
     pub(super) types: Vec<String>,
@@ -312,9 +331,8 @@ mod tests {
         with_project(&state, "other", "hel");
         with_project(&state, "far", "espoo");
         let organization = json!({ "audience": "organization" });
-        let refused = |groups: &[&str], spec: &Value| {
-            not_admitted(&state, &person(groups), "city", spec)
-        };
+        let refused =
+            |groups: &[&str], spec: &Value| not_admitted(&state, &person(groups), "city", spec);
         // T-6451: an org-admin by RoleBinding alone, in a group that is no project.
         let text = refused(&["/platform-readers"], &organization).expect("refused");
         assert!(text.contains("Organization hel"), "{text}");

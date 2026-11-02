@@ -4513,8 +4513,8 @@ output:
             spec: Box::new(helsinki_datasource_spec()),
             name: "gbfs".to_owned(),
         }];
-        let mut stream = render_merged(&spec, "p", "helsinki", &sources, &["slug".to_owned()])
-            .expect("renders");
+        let mut stream =
+            render_merged(&spec, "p", "helsinki", &sources, &["slug".to_owned()]).expect("renders");
         crate::pipeline_samples::with_taps(&mut stream, "http://portal", "p");
         let labels: Vec<&str> = stream["pipeline"]["processors"]
             .as_array()
@@ -4522,8 +4522,18 @@ output:
             .iter()
             .filter_map(|processor| processor["label"].as_str())
             .collect();
-        for label in ["compute", "tap_compute", "step_0", "compute_1", "tap_compute_1"] {
-            assert_eq!(labels.iter().filter(|l| **l == label).count(), 1, "{label}: {labels:?}");
+        for label in [
+            "compute",
+            "tap_compute",
+            "step_0",
+            "compute_1",
+            "tap_compute_1",
+        ] {
+            assert_eq!(
+                labels.iter().filter(|l| **l == label).count(),
+                1,
+                "{label}: {labels:?}"
+            );
         }
     }
 
