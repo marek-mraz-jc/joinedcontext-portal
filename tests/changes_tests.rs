@@ -3201,3 +3201,113 @@ async fn an_agent_or_service_account_never_approves_making_an_app_public() {
         assert!(!merged_66(&server).await);
     }
 }
+
+/// POSTs a rejection of change 66 as `who` (no realm role), with the forge answering the
+/// review and the close; the status, the body and whether the pull was closed.
+async fn reject_66_as(
+    server: &MockServer,
+    state: AppState,
+    who: &str,
+) -> (StatusCode, String, bool) {
+    Mock::given(method("POST"))
+        .and(path("/api/v1/repos/test-owner/test-repo/pulls/66/reviews"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+        .mount(server)
+        .await;
+    Mock::given(method("PATCH"))
+        .and(path("/api/v1/repos/test-owner/test-repo/pulls/66"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
+        .mount(server)
+        .await;
+    let config = state.config.clone();
+    let cookies = session_and_csrf_cookies(
+        &config,
+        who,
+        Some(&format!("{who}@banskabystrica.sk")),
+        None,
+        vec![],
+    );
+    let response = server::app(state)
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/v1/projects/ovzdusie/changes/chg-00000042/reject")
+                .header(header::COOKIE, cookies)
+                .header(CSRF_HEADER, TEST_CSRF_TOKEN)
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(Body::from(
+                    json!({ "reason": "proposed by mistake" }).to_string(),
+                ))
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let status = response.status();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("bytes")
+        .to_bytes();
+    let closed = server
+        .received_requests()
+        .await
+        .unwrap_or_default()
+        .iter()
+        .any(|r| r.method == "PATCH" && r.url.path().ends_with("/pulls/66"));
+    (status, String::from_utf8_lossy(&bytes).into_owned(), closed)
+}
+
+const MODEL_BRANCH: &str = "portal/create-datamodel-air-00000042";
+const MODEL_PATH: &str = "projects/ovzdusie/spaces/ovzdusie/datamodels/air.yaml";
+const MODEL_YAML: &str = "apiVersion: joinedcontext.com/v1alpha1\nkind: DataModel\nmetadata:\n  name: air\n  namespace: ovzdusie\nspec:\n  contextSpaceRef: ovzdusie\n  linkml: ./air.linkml.yaml\n  version: 1.0.1\n";
+
+/// T-6535: the proposer withdraws their own DataModel change without `approve` (closed, never
+/// merged); a person who did not propose it still needs `approve`, and the proposer still never
+/// approves it, administrator or not (PF-58).
+#[tokio::test]
+async fn the_proposer_withdraws_their_own_model_change_and_nobody_else_without_approve() {
+    let proposer = json!([{ "kinds": ["DataModel"], "verbs": ["read", "propose"] }]);
+    let (server, state) = change_of_file_by(
+        MODEL_BRANCH,
+        MODEL_PATH,
+        MODEL_YAML,
+        proposer.clone(),
+        "jana.approver@banskabystrica.sk",
+    )
+    .await;
+    let (status, body, closed) = reject_66_as(&server, state, "jana.approver").await;
+    assert_eq!(status, StatusCode::ACCEPTED, "{body}");
+    assert!(body.contains("Rejected"), "{body}");
+    assert!(closed);
+    assert!(!merged_66(&server).await);
+
+    // Not the proposer and no `approve`: refused, the pull left open.
+    let (server, state) = change_of_file_by(
+        MODEL_BRANCH,
+        MODEL_PATH,
+        MODEL_YAML,
+        proposer,
+        "eva.other@banskabystrica.sk",
+    )
+    .await;
+    let (status, body, closed) = reject_66_as(&server, state, "mallory").await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert!(!closed);
+
+    // Approving stays a second person's: the proposer holding approve and delete is refused.
+    let admin =
+        json!([{ "kinds": ["DataModel"], "verbs": ["read", "propose", "approve", "delete"] }]);
+    let (server, state) = change_of_file_by(
+        MODEL_BRANCH,
+        MODEL_PATH,
+        MODEL_YAML,
+        admin,
+        "jana.approver@banskabystrica.sk",
+    )
+    .await;
+    let (status, body) = approve_endpoint(state, None).await;
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert!(body.contains("never by its proposer"), "{body}");
+    assert!(!merged_66(&server).await);
+}
