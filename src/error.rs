@@ -426,9 +426,12 @@ mod tests {
             sqlx::Error::WorkerCrashed,
             sqlx::Error::Io(std::io::ErrorKind::ConnectionReset.into()),
         ] {
-            let (status, doc) = ApiError::from_db(&down, "preferences").into_document();
-            assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{down}");
-            assert!(doc["detail"].as_str().is_some_and(|d| d.contains("try again")));
+            // Matched, not rendered: a rendered 503 logs, and a_503_logs_its_detail captures that.
+            let answer = ApiError::from_db(&down, "preferences");
+            assert!(
+                matches!(&answer, ApiError::Unavailable(m) if m.contains("try again")),
+                "{down}: {answer:?}"
+            );
         }
         let (status, doc) =
             ApiError::from_db(&sqlx::Error::RowNotFound, "preferences").into_document();

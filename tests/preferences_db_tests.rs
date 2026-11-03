@@ -130,7 +130,9 @@ async fn a_database_that_does_not_answer_is_503_with_a_next_step() {
         .expect("a lazy pool");
     let config = Config::for_tests();
     let cookie = session_cookie(&config, "f:1:demo.steward");
-    let app = server::app(AppState::new(config, Some(pool)));
+    let mut state = AppState::new(config, None);
+    state.db = Some(pool);
+    let app = server::app(state);
 
     let (status, body) = call(&app, &cookie, Method::GET, None).await;
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
