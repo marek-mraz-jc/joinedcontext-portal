@@ -30757,8 +30757,12 @@ export interface operations {
                         createdBy?: string;
                         id: string;
                         kind?: string;
+                        /** @description The preview once a version is built */
+                        previewUrl?: string;
                         project?: string;
                         status: string;
+                        /** @description The Portal page following this run */
+                        url?: string;
                     };
                 };
             };
@@ -30878,8 +30882,12 @@ export interface operations {
                         createdBy?: string;
                         id: string;
                         kind?: string;
+                        /** @description The preview once a version is built */
+                        previewUrl?: string;
                         project?: string;
                         status: string;
+                        /** @description The Portal page following this run */
+                        url?: string;
                     };
                 };
             };
@@ -30967,8 +30975,12 @@ export interface operations {
                         createdBy?: string;
                         id: string;
                         kind?: string;
+                        /** @description The preview once a version is built */
+                        previewUrl?: string;
                         project?: string;
                         status: string;
+                        /** @description The Portal page following this run */
+                        url?: string;
                     };
                 };
             };
@@ -31067,8 +31079,12 @@ export interface operations {
                             createdBy?: string;
                             id: string;
                             kind?: string;
+                            /** @description The preview once a version is built */
+                            previewUrl?: string;
                             project?: string;
                             status: string;
+                            /** @description The Portal page following this run */
+                            url?: string;
                         }[];
                     };
                 };

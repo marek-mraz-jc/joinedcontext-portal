@@ -202,6 +202,9 @@ pub const ADMIN: &str = "admin";
 pub const RUN: &str = "jc_pipeline_run";
 /// Writes entities through one Endpoint: like [`APPLY`], it comes with the `writes` switch alone.
 pub const DATA_WRITE: &str = crate::ops::data_write::NAME;
+/// Starts the builder on an App: it spends the person's quota and writes a branch, so like
+/// [`APPLY`] it comes with the `writes` switch alone, to a connector whose segments reach App.
+pub const BUILD: &str = "jc_run_create";
 
 /// Whether `segment` is one a connector may name.
 pub fn is_segment(segment: &str) -> bool {
@@ -572,6 +575,7 @@ impl Ceiling {
                 && (op.name != RUN
                     || p.kinds.is_none()
                     || verbs_allow(p.verbs_for("Pipeline"), ConnectorVerb::Run))
+                && (op.name != BUILD || policy_builds(p, args))
         };
         if self.each().into_iter().any(fits) {
             Ok(())
@@ -1168,6 +1172,9 @@ impl Connector {
             let space = space_of("Endpoint", name);
             return self.may_change(project, "Endpoint", name, space.as_deref(), true);
         }
+        if op.name == BUILD {
+            return self.may_build(project, args);
+        }
         // A plan or an apply names its objects per change; the operation holds each one to
         // the scope with `may_change` (T-5956).
         if self.whole(project) || matches!(op.name, "jc_schema_get" | PLAN | APPLY | REVERT) {
@@ -1196,6 +1203,18 @@ impl Connector {
                 self.named(project)
             )),
         }
+    }
+
+    /// A build's half of [`Self::admits`] (T-6487): `create` on the App and `write` on an item of
+    /// the whole project. No scope item narrows to an App, and that item also reaches every
+    /// Endpoint the run reads, so a narrowed connector starts no build.
+    fn may_build(&self, project: &str, args: &Value) -> Result<(), String> {
+        let name = args
+            .get("appName")
+            .and_then(Value::as_str)
+            .ok_or("jc_run_create names the App: appName")?;
+        self.may_verb("App", name, ConnectorVerb::Create)?;
+        self.may_change(project, "App", name, None, true)
     }
 
     /// Whether a call in `project` with `args` may answer the attributes the model marks
@@ -1259,12 +1278,40 @@ pub(crate) fn change_space(now: Option<&Value>, next: Option<&Value>) -> Option<
 }
 
 /// The writing tools a `writes` connector adds to its segments' tools, by the kinds they reach:
-/// a run to one reaching Pipeline, and the entity write to one reaching Endpoint, whose Policy
-/// then decides each entity (T-6389).
+/// a run to one reaching Pipeline, the entity write to one reaching Endpoint, whose Policy then
+/// decides each entity (T-6389), and a build to one reaching App (T-6487).
 fn written(kinds: &[&str]) -> Vec<&'static str> {
     let run = kinds.contains(&"Pipeline").then_some(RUN);
     let data = kinds.contains(&"Endpoint").then_some(DATA_WRITE);
-    [APPLY].into_iter().chain(run).chain(data).collect()
+    let build = kinds.contains(&"App").then_some(BUILD);
+    [APPLY]
+        .into_iter()
+        .chain(run)
+        .chain(data)
+        .chain(build)
+        .collect()
+}
+
+/// The Endpoints a build call names, by `endpointName` and `endpointNames`.
+fn build_endpoints(args: &Value) -> Vec<&str> {
+    let one = args.get("endpointName").and_then(Value::as_str);
+    let several = args
+        .get("endpointNames")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str);
+    one.into_iter().chain(several).collect()
+}
+
+/// Whether `policy` lets a connector build: a kinds list holds `create` on App, and an Endpoints
+/// list holds each Endpoint the run would read.
+fn policy_builds(policy: &DelegationPolicySpec, args: &Value) -> bool {
+    let named = build_endpoints(args);
+    (policy.kinds.is_none() || verbs_allow(policy.verbs_for("App"), ConnectorVerb::Create))
+        && policy.endpoints.as_ref().is_none_or(|listed| {
+            !named.is_empty() && named.iter().all(|e| listed.iter().any(|l| l == e))
+        })
 }
 
 /// The tools and kinds of the segments `carries` picks.
@@ -2794,6 +2841,86 @@ pub(crate) mod tests {
         assert_eq!(change_space(Some(&bare), Some(&at("traffic"))), None);
         assert_eq!(change_space(Some(&at("traffic")), Some(&bare)), None);
         assert_eq!(change_space(None, None), None);
+    }
+
+    /// T-6487: a build comes with `writes` on a segment reaching App, and needs `write` on an
+    /// item of the whole project and `create` on App.
+    #[test]
+    fn a_build_is_held_to_writes_the_verbs_and_the_scope() {
+        let call = json!({ "appName": "todays-counters", "endpointName": "counters" });
+        let space_of = |_: &str, _: &str| None;
+        let mut c = connector(&["apps"], vec![item("doprava", None)]);
+        assert!(!c.access().names(op(BUILD)), "writes off: no build");
+        assert!(c
+            .admits(op(BUILD), "doprava", &call, &space_of)
+            .expect_err("writes off")
+            .contains("writes off"));
+        c.writes = true;
+        assert!(c.access().names(op(BUILD)));
+        assert!(c
+            .admits(op(BUILD), "doprava", &call, &space_of)
+            .expect_err("read item")
+            .contains("only reads"));
+        c.scope[0].access = ItemAccess::Write;
+        assert_eq!(c.admits(op(BUILD), "doprava", &call, &space_of), Ok(()));
+        assert!(c
+            .admits(op(BUILD), "doprava", &json!({}), &space_of)
+            .expect_err("no App named")
+            .contains("appName"));
+        c.kinds = Some(vec![KindGrant {
+            kind: "App".into(),
+            verbs: vec![ConnectorVerb::Read],
+        }]);
+        assert!(c
+            .admits(op(BUILD), "doprava", &call, &space_of)
+            .expect_err("read only on App")
+            .contains("App todays-counters"));
+        c.kinds = None;
+        // A connector narrowed to one Endpoint starts no run: a run would read past the item.
+        let mut narrowed = item("doprava", Some("counters"));
+        narrowed.access = ItemAccess::Write;
+        c.scope = vec![narrowed];
+        assert!(c
+            .admits(op(BUILD), "doprava", &call, &space_of)
+            .expect_err("narrowed")
+            .contains("does not reach App"));
+        // A segment without App offers no build, whatever the switch.
+        let mut data = connector(&["data-read"], vec![item("doprava", None)]);
+        data.writes = true;
+        assert!(!data.access().names(op(BUILD)));
+    }
+
+    /// T-6487: a policy listing Endpoints or kinds holds a build the same way: a run names its
+    /// Endpoints by other members than `endpoint`, which the ceiling read alone.
+    #[test]
+    fn a_policy_holds_a_builds_endpoints_and_its_verb() {
+        let policy = |spec: Value| -> DelegationPolicySpec {
+            serde_json::from_value(spec).expect("a policy")
+        };
+        let mut base = json!({
+            "subjects": [{ "kind": "Group", "name": "g" }],
+            "projects": ["doprava"],
+            "segments": ["apps"],
+            "writes": true,
+            "maxExpiry": "P90D",
+        });
+        let open = policy(base.clone());
+        let call = json!({ "appName": "a", "endpointName": "counters" });
+        assert!(policy_builds(&open, &call));
+        base["endpoints"] = json!(["counters"]);
+        let listed = policy(base.clone());
+        assert!(policy_builds(&listed, &call));
+        assert!(!policy_builds(
+            &listed,
+            &json!({ "appName": "a", "endpointName": "permits" })
+        ));
+        assert!(
+            !policy_builds(&listed, &json!({ "appName": "a" })),
+            "no Endpoint named"
+        );
+        base.as_object_mut().expect("object").remove("endpoints");
+        base["kinds"] = json!([{ "kind": "App", "verbs": ["read"] }]);
+        assert!(!policy_builds(&policy(base), &call));
     }
 
     /// T-5956, AG-149: a segment that proposes plans; only `writes` brings the apply, and an

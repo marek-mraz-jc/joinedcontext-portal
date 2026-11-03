@@ -27444,10 +27444,18 @@
                     "kind": {
                       "type": "string"
                     },
+                    "previewUrl": {
+                      "description": "The preview once a version is built",
+                      "type": "string"
+                    },
                     "project": {
                       "type": "string"
                     },
                     "status": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "description": "The Portal page following this run",
                       "type": "string"
                     }
                   },
@@ -27657,10 +27665,18 @@
                     "kind": {
                       "type": "string"
                     },
+                    "previewUrl": {
+                      "description": "The preview once a version is built",
+                      "type": "string"
+                    },
                     "project": {
                       "type": "string"
                     },
                     "status": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "description": "The Portal page following this run",
                       "type": "string"
                     }
                   },
@@ -27797,10 +27813,18 @@
                     "kind": {
                       "type": "string"
                     },
+                    "previewUrl": {
+                      "description": "The preview once a version is built",
+                      "type": "string"
+                    },
                     "project": {
                       "type": "string"
                     },
                     "status": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "description": "The Portal page following this run",
                       "type": "string"
                     }
                   },
@@ -27971,10 +27995,18 @@
                           "kind": {
                             "type": "string"
                           },
+                          "previewUrl": {
+                            "description": "The preview once a version is built",
+                            "type": "string"
+                          },
                           "project": {
                             "type": "string"
                           },
                           "status": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "description": "The Portal page following this run",
                             "type": "string"
                           }
                         },

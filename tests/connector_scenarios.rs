@@ -33,6 +33,7 @@ use wiremock::{Mock, MockServer, ResponseTemplate};
 
 use joinedcontext_portal::auth::csrf::{CSRF_COOKIE, CSRF_HEADER};
 use joinedcontext_portal::auth::session::EDGE_TOKEN_HEADER;
+use joinedcontext_portal::config::AgentSettings;
 use joinedcontext_portal::config::Config;
 use joinedcontext_portal::connectors;
 use joinedcontext_portal::permissions::ORG_NAMESPACE;
@@ -1465,6 +1466,15 @@ impl Harness {
         config.pipeline_runner_client_id = Some(RUNNER_CLIENT.to_owned());
         // People reach the REST routes through the edge, as in the deployment.
         config.trust_edge_token = true;
+        // A run starts and records itself here; the proxy behind it is the mock, so it builds
+        // nothing (S-39).
+        config.agent_settings = Some(AgentSettings {
+            namespace: "agents".to_owned(),
+            portal_namespace: "portal".to_owned(),
+            proxy_base: server.uri(),
+            run_ttl_secs: 600,
+            approval_ttl_secs: 600,
+        });
 
         let mirror = std::sync::Arc::new(Mirror::new());
         let names: Vec<String> = (1..=projects).map(project_of).collect();
@@ -1472,6 +1482,29 @@ impl Harness {
             seed_project(&mirror, project, &catalogue_of(&csv_url));
         }
         bind_personas(&mirror, &names);
+        mirror.upsert(envelope(
+            "AgentProfile",
+            "app-builder",
+            ORG_NAMESPACE,
+            json!({
+                "role": "builder",
+                "runtime": {
+                    "image": "ghcr.io/example/agent-server:v1",
+                    "digest": "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+                },
+                "model": { "provider": "anthropic", "name": "claude-sonnet-5", "maxTokensPerRun": 400000 },
+                "limits": {
+                    "stepsPerRun": 120,
+                    "wallClock": "PT20M",
+                    "concurrentRunsPerOrganization": 2,
+                    "requestsPerMinute": 60,
+                    "maxResponseBytes": 2097152
+                },
+                "egress": { "allowedHosts": ["registry.npmjs.org"] },
+                "tools": ["shell", "npm", "git"],
+                "workspace": { "cpu": "1", "memory": "2Gi", "ephemeralStorage": "4Gi" }
+            }),
+        ));
         let mut state = AppState::from_config(config).await.expect("state");
         state.views = Some(forge_views(&mirror, &names, &server.uri(), &token_file));
         if let Some(db) = db {
