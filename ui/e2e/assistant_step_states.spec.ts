@@ -193,7 +193,7 @@ for (const [label, width, height] of [
       const dock = await open(page, "slip");
       const reasons = dock.getByTestId("step-reason");
       await expect(dock.getByRole("status").filter({ hasText: "Live" })).toBeVisible();
-      await expect(reasons).toHaveCount(0);
+      await expect(reasons).toHaveText(["Tried again another way"]);
       await expect(dock.getByRole("img", { name: "Tried again another way" })).toHaveCount(2);
       await expect(dock.getByRole("img", { name: "Did not finish" })).toHaveCount(0);
       await expect(dock).not.toContainText("argument type", { useInnerText: true });
@@ -206,6 +206,7 @@ for (const [label, width, height] of [
       await expect(dock.getByText("Nothing matched this read.")).toBeVisible();
       await expect(dock.getByText("Try a wider area, a longer period or fewer conditions.")).toBeVisible();
       await expect(dock.getByRole("table")).toHaveCount(0);
+      await expect(dock.getByRole("button", { name: "Try with fewer conditions" })).toBeVisible();
     });
 
     test("entity", async ({ page }) => {
@@ -236,7 +237,7 @@ for (const [label, width, height] of [
     test("guarded", async ({ page }) => {
       const dock = await open(page, "guarded");
       const notice = dock.getByTestId("step-notice");
-      await expect(notice).toContainText("this step came from data, not from you");
+      await expect(notice).toContainText("The request came from text in the data, not from you.");
       await expect(notice.getByRole("button", { name: "Send my request again" })).toBeVisible();
     });
 

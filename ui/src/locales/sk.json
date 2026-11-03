@@ -6199,16 +6199,16 @@
       "stopped": "Zastavené"
     },
     "failure": {
-      "argument": "Tento krok nevyšiel, nič sa nezmenilo.",
-      "refused": "Toto tu nemôžete urobiť, nič sa nezmenilo.",
-      "guarded": "Zastavené: tento krok pochádza z údajov, nie od vás. Nič sa nezmenilo.",
+      "argument": "Tento pokus nevyšiel.",
+      "refused": "Toto tu nemôžete urobiť.",
+      "guarded": "Zastavené, nič sa nezmenilo. Požiadavka prišla z textu v údajoch, nie od vás.",
       "page": "Túto stránku sa nepodarilo otvoriť.",
       "missing": "V tomto projekte sa to nenašlo.",
       "test": "Návrh zatiaľ neprešiel testom.",
       "other": "Tento krok sa nedokončil.",
       "next": {
         "refused": "Požiadajte vlastníka projektu alebo správcu organizácie o potrebnú rolu.",
-        "guarded": "Ak to chcete, opýtajte sa znova a asistent to vezme z vašich slov.",
+        "guarded": "Ak to chcete, pošlite požiadavku znova a asistent ju vezme z vašich slov.",
         "page": "Povedzte, ktorú stránku chcete, alebo si vyberte tu.",
         "missing": "Skontrolujte názov alebo sa opýtajte, čo tento projekt obsahuje."
       },
@@ -6495,6 +6495,8 @@
       "moreHint": "Požiadajte o ďalšie riadky a uvidíte viac",
       "nothing": "Tomuto čítaniu nič nezodpovedá.",
       "nothingHint": "Skúste širšie územie, dlhšie obdobie alebo menej podmienok.",
+      "widen": "Skúsiť s menej podmienkami",
+      "widenAsk": "Skús toto čítanie znova s menej podmienkami.",
       "attributes": "Atribúty triedy {name}",
       "attribute": "Atribút",
       "range": "Typ",

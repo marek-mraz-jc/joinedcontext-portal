@@ -6199,16 +6199,16 @@
       "stopped": "Stopped"
     },
     "failure": {
-      "argument": "This step did not work, so nothing changed.",
-      "refused": "You may not do this here, so nothing changed.",
-      "guarded": "Stopped: this step came from data, not from you. Nothing changed.",
+      "argument": "This try did not work.",
+      "refused": "You may not do this here.",
+      "guarded": "Stopped, nothing changed. The request came from text in the data, not from you.",
       "page": "That page could not be opened.",
       "missing": "That was not found in this project.",
       "test": "The draft did not pass its test yet.",
       "other": "This step did not finish.",
       "next": {
         "refused": "Ask a project owner or an organization administrator for the role this needs.",
-        "guarded": "If you want this, ask again and the assistant takes it from your words.",
+        "guarded": "If you want this, send your request again and the assistant takes it from your words.",
         "page": "Say which page you want, or pick one here.",
         "missing": "Check the name, or ask what this project holds."
       },
@@ -6495,6 +6495,8 @@
       "moreHint": "Ask for the next rows to see more",
       "nothing": "Nothing matched this read.",
       "nothingHint": "Try a wider area, a longer period or fewer conditions.",
+      "widen": "Try with fewer conditions",
+      "widenAsk": "Try that read again with fewer conditions.",
       "attributes": "The attributes of {name}",
       "attribute": "Attribute",
       "range": "Type",
@@ -11356,7 +11358,7 @@
     "ended": "This tab is no longer connected: it was disconnected, another tab was connected, or the session ended. Connect it again on My connectors.",
     "dismiss": "Dismiss",
     "tool": {
-      "jc_ui_navigate": "Open a page",
+      "jc_ui_navigate": "Opened a page",
       "jc_ui_open_form": "Opened a form",
       "jc_ui_highlight": "Pointed at a field",
       "jc_ui_show_diff": "Opened a planned change",

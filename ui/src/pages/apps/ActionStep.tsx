@@ -274,7 +274,7 @@ export function ActionStep({
   onSend: (text: string) => void;
   /** How many times in a row the same step repeated; the event is the newest of them. */
   count?: number;
-  /** A `StepNotice` under the step says why, so its own row need not. */
+  /** Another line says why (a `StepNotice`, a newer try), so the step's own row need not. */
   noticed?: boolean;
   /** The assistant went past this step: it draws as a try, not as a failure. */
   retried?: boolean;
@@ -289,7 +289,7 @@ export function ActionStep({
   const label = labelOf(tool, payload, t);
   const failure = failureOf(payload);
   const reason = failed ? errorText(payload, t) : "";
-  const said = noticed || retried ? "" : failure !== null ? t(`agentRun.failure.${failure}`) : reason;
+  const said = noticed ? "" : retried ? t("agentRun.step.retried") : failure !== null ? t(`agentRun.failure.${failure}`) : reason;
   const error = payload.error === undefined ? undefined : reason;
   // An MCP refusal's output is its error again, unscrubbed.
   const output = (payload.output as { isError?: unknown } | null | undefined)?.isError === true ? undefined : payload.output;
@@ -353,7 +353,7 @@ export function ActionStep({
           <span className="shrink-0 text-fg-muted">{t("agentRun.step.duration", { ms: duration })}</span>
         ) : null}
         {said !== "" ? (
-          <span data-testid="step-reason" title={said} className={`line-clamp-3 min-w-0 basis-full font-sans ${failure === "argument" ? "text-fg-muted" : "text-danger"}`}>
+          <span data-testid="step-reason" title={said} className={`line-clamp-3 min-w-0 basis-full font-sans ${retried || failure === "argument" ? "text-fg-muted" : "text-danger"}`}>
             {said}
           </span>
         ) : null}

@@ -136,8 +136,9 @@ describe("the state of a failure", () => {
     panel([tool(1, "query_endpoint", slip), tool(2, "jc_resource_list", slip)]);
     expect(screen.getAllByRole("img", { name: en.agentRun.step.retried })).toHaveLength(1);
     const reasons = screen.getAllByTestId("step-reason");
-    expect(reasons).toHaveLength(1);
-    expect(reasons[0]).toHaveTextContent(en.agentRun.failure.argument);
+    expect(reasons).toHaveLength(2);
+    expect(reasons[0]).toHaveTextContent(en.agentRun.step.retried);
+    expect(reasons[1]).toHaveTextContent(en.agentRun.failure.argument);
   });
 
   it("draws the Portal's closing line once, as the notice, and keeps the assistant's own words", () => {
@@ -194,6 +195,17 @@ describe("the state of a failure", () => {
 });
 
 describe("the press a notice offers", () => {
+  it("offers an empty read again with fewer conditions", async () => {
+    const onSend = panel([
+      tool(1, "query_endpoint", undefined, {
+        input: { endpoint: "counters", name: "query_entities", arguments: { type: "BikeCounter" } },
+        output: { structuredContent: { entities: [] } },
+      }),
+    ]);
+    await userEvent.click(screen.getByRole("button", { name: en.assistant.query.widen }));
+    expect(onSend).toHaveBeenCalledWith(en.assistant.query.widenAsk);
+  });
+
   it("asks what the project holds when something was not found", async () => {
     const onSend = panel([tool(1, "jc_resource_get", "not found: Pipeline 'x'")]);
     await userEvent.click(screen.getByRole("button", { name: en.agentRun.failure.askHolds }));

@@ -6199,16 +6199,16 @@
       "stopped": "Angehalten"
     },
     "failure": {
-      "argument": "Dieser Schritt hat nicht geklappt, nichts wurde geändert.",
-      "refused": "Das dürfen Sie hier nicht, nichts wurde geändert.",
-      "guarded": "Gestoppt: Dieser Schritt kam aus den Daten, nicht von Ihnen. Nichts wurde geändert.",
+      "argument": "Dieser Versuch hat nicht geklappt.",
+      "refused": "Das dürfen Sie hier nicht.",
+      "guarded": "Gestoppt, nichts wurde geändert. Die Anfrage kam aus Text in den Daten, nicht von Ihnen.",
       "page": "Diese Seite ließ sich nicht öffnen.",
       "missing": "Das wurde in diesem Projekt nicht gefunden.",
       "test": "Der Entwurf hat seinen Test noch nicht bestanden.",
       "other": "Dieser Schritt wurde nicht beendet.",
       "next": {
         "refused": "Bitten Sie eine Projektleitung oder die Organisationsverwaltung um die nötige Rolle.",
-        "guarded": "Wenn Sie das möchten, fragen Sie erneut, und der Assistent nimmt es aus Ihren Worten.",
+        "guarded": "Wenn Sie das möchten, senden Sie die Anfrage erneut, und der Assistent nimmt sie aus Ihren Worten.",
         "page": "Sagen Sie, welche Seite Sie möchten, oder wählen Sie hier eine.",
         "missing": "Prüfen Sie den Namen oder fragen Sie, was dieses Projekt enthält."
       },
@@ -6495,6 +6495,8 @@
       "moreHint": "Fragen Sie nach den nächsten Zeilen, um mehr zu sehen",
       "nothing": "Nichts passt zu dieser Abfrage.",
       "nothingHint": "Versuchen Sie ein größeres Gebiet, einen längeren Zeitraum oder weniger Bedingungen.",
+      "widen": "Mit weniger Bedingungen versuchen",
+      "widenAsk": "Versuche diese Abfrage noch einmal mit weniger Bedingungen.",
       "attributes": "Die Attribute von {name}",
       "attribute": "Attribut",
       "range": "Typ",

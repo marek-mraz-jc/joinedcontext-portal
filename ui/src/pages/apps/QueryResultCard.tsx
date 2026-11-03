@@ -2,7 +2,7 @@ import { Fragment } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { parse as parseYaml } from "yaml";
-import { CodeBlock, Card, EmptyState, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
+import { Button, CodeBlock, Card, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRow } from "../../components/ui";
 import { ModelLink, TypeLink } from "../models/ModelLinks";
 
 /**
@@ -332,7 +332,16 @@ export function queryResultOf(payload: Record<string, unknown>, language?: strin
   };
 }
 
-export function QueryResultCard({ result, project }: { result: QueryResult; project?: string }): JSX.Element {
+export function QueryResultCard({
+  result,
+  project,
+  onAsk,
+}: {
+  result: QueryResult;
+  project?: string;
+  /** Sends a message for the person: what an empty read offers. */
+  onAsk?: (text: string) => void;
+}): JSX.Element {
   return (
     <Card padding="xs" data-testid="query-result" className="text-xs">
       <p className="flex flex-wrap items-baseline gap-x-2 font-medium">
@@ -341,7 +350,7 @@ export function QueryResultCard({ result, project }: { result: QueryResult; proj
           <span className="font-mono text-fg-muted">{result.argument}</span>
         ) : null}
       </p>
-      <QueryAnswer view={result.view} project={project} />
+      <QueryAnswer view={result.view} project={project} onAsk={onAsk} />
     </Card>
   );
 }
@@ -351,10 +360,28 @@ export function QueryResultCard({ result, project }: { result: QueryResult; proj
  * One answer's view. Given the `project`, a model or a type it names links to the model's page
  * (T-2766); without it (a change test's sample) the names stay text.
  */
-export function QueryAnswer({ view, project }: { view: QueryView; project?: string }): JSX.Element {
+export function QueryAnswer({
+  view,
+  project,
+  onAsk,
+}: {
+  view: QueryView;
+  project?: string;
+  onAsk?: (text: string) => void;
+}): JSX.Element {
   const { t, i18n } = useTranslation();
   return view.kind === "table" && view.total === 0 ? (
-    <EmptyState bare icon="search" title={t("assistant.query.nothing")} description={t("assistant.query.nothingHint")} />
+    <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+      <div className="min-w-0">
+        <p className="font-medium">{t("assistant.query.nothing")}</p>
+        <p className="text-fg-muted">{t("assistant.query.nothingHint")}</p>
+      </div>
+      {onAsk ? (
+        <Button size="sm" variant="secondary" onClick={() => onAsk(t("assistant.query.widenAsk"))}>
+          {t("assistant.query.widen")}
+        </Button>
+      ) : null}
+    </div>
   ) : view.kind === "table" ? (
     <div className="@container">
       {/* The shared Table, not a hand-made one: the header scope, the caption a screen reader
@@ -393,7 +420,8 @@ export function QueryAnswer({ view, project }: { view: QueryView; project?: stri
       <p className="mt-1 text-fg-muted">
         {view.total > view.rows.length ? (
           <>
-            <span>{t("assistant.query.someRows", { shown: view.rows.length, total: view.total })}</span>{" "}
+            <span>{t("assistant.query.someRows", { shown: view.rows.length, total: view.total })}</span>
+            {" · "}
             <span>{t("assistant.query.moreHint")}</span>
           </>
         ) : (

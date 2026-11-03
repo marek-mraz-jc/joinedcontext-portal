@@ -6199,16 +6199,16 @@
       "stopped": "Zastaveno"
     },
     "failure": {
-      "argument": "Tento krok nevyšel, nic se nezměnilo.",
-      "refused": "Tohle tady nemůžete udělat, nic se nezměnilo.",
-      "guarded": "Zastaveno: tento krok pochází z dat, ne od vás. Nic se nezměnilo.",
+      "argument": "Tento pokus nevyšel.",
+      "refused": "Tohle tady nemůžete udělat.",
+      "guarded": "Zastaveno, nic se nezměnilo. Požadavek přišel z textu v datech, ne od vás.",
       "page": "Tuto stránku se nepodařilo otevřít.",
       "missing": "V tomto projektu se to nenašlo.",
       "test": "Návrh zatím neprošel testem.",
       "other": "Tento krok se nedokončil.",
       "next": {
         "refused": "Požádejte vlastníka projektu nebo správce organizace o potřebnou roli.",
-        "guarded": "Pokud to chcete, zeptejte se znovu a asistent to vezme z vašich slov.",
+        "guarded": "Pokud to chcete, pošlete požadavek znovu a asistent ho vezme z vašich slov.",
         "page": "Řekněte, kterou stránku chcete, nebo si vyberte zde.",
         "missing": "Zkontrolujte název nebo se zeptejte, co tento projekt obsahuje."
       },
@@ -6495,6 +6495,8 @@
       "moreHint": "Požádejte o další řádky a uvidíte víc",
       "nothing": "Tomuto čtení nic neodpovídá.",
       "nothingHint": "Zkuste širší území, delší období nebo méně podmínek.",
+      "widen": "Zkusit s méně podmínkami",
+      "widenAsk": "Zkus toto čtení znovu s méně podmínkami.",
       "attributes": "Atributy třídy {name}",
       "attribute": "Atribut",
       "range": "Typ",

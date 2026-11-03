@@ -1059,6 +1059,17 @@
         "use_template.test.tsx"
       ]
     },
+    "src/pages/apps/QueryResultCard.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "assistant_endpoints.test.tsx",
+        "assistant_step_states.test.tsx",
+        "model_links.test.tsx",
+        "part_query_result_card.test.tsx"
+      ]
+    },
     "src/pages/apps/UseTemplate.tsx": {
       "controls": {
         "Button": 1

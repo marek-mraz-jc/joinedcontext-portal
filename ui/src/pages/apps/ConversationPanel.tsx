@@ -423,6 +423,7 @@ export function ConversationPanel({
   const answered = answeredSearches(events);
   const notices = noticesOf(events);
   const retried = retriedSteps(events);
+  const newestRetry = Math.max(...retried);
   const echoed = echoedLines(events, notices);
   const questions = openQuestions(events);
   const withdrawn = withdrawnQuestions(events);
@@ -622,8 +623,15 @@ export function ConversationPanel({
                   {followed !== null ? (
                     <ChangeFollowCard project={project} followed={followed} onOpenLink={onOpenLink} />
                   ) : null}
-                  {queried !== null ? <QueryResultCard result={queried} project={project} /> : null}
-                  <ActionStep event={event} live={live} onSend={onSend} count={count} noticed={notice !== undefined} retried={retried.has(event.seq)} />
+                  {queried !== null ? <QueryResultCard result={queried} project={project} onAsk={live ? sendAgain : undefined} /> : null}
+                  <ActionStep
+                    event={event}
+                    live={live}
+                    onSend={onSend}
+                    count={count}
+                    noticed={notice !== undefined || (retried.has(event.seq) && event.seq !== newestRetry)}
+                    retried={retried.has(event.seq)}
+                  />
                   {notice !== undefined ? (
                     <StepNotice
                       kind={notice}
