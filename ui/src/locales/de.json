@@ -11225,6 +11225,7 @@
     "home": "Zurück zum Portal"
   },
   "aiConnectors": {
+    "autonomous": { "label": "Seine Änderungen sofort in meinem Namen genehmigen", "hint": "Zum Beispiel: ein Datenmodell, ein Space oder eine Pipeline, die Claude anlegt, gilt ohne Klick. Änderungen an Zugriffen und Löschungen warten weiter auf eine Genehmigung. Erfordert Genehmigungsrechte in den Projekten, in die er schreibt.", "needsWrite": "Geben Sie dem Connector zuerst Schreibzugriff auf ein Projekt." },
     "title": "Meine KI-Konnektoren",
     "lead": "Adressen für Claude, ChatGPT oder VS Code, die nur erreichen, was Sie hier ankreuzen, und nie mehr, als Sie selbst dürfen. Jeder KI-Client meldet Sie selbst an; diese Seite zeigt kein Token.",
     "new": "Neuer KI-Konnektor",
@@ -11311,6 +11312,7 @@
       "writeNeedsApproval": "schreiben (braucht Freigabe)"
     },
     "field": {
+      "autonomous": "Autonom",
       "name": "Name",
       "segments": "Vorgaben",
       "scope": "Was er erreicht",

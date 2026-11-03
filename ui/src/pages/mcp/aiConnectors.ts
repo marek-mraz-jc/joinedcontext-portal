@@ -49,6 +49,8 @@ export interface AiConnectorForm {
   /** `YYYY-MM-DD`; the connector ends at the end of that day, UTC. */
   expires: string;
   clients: string[];
+  /** Approve each change it applies at once, as the owner (T-6552); only with a write pick. */
+  autonomous: boolean;
 }
 
 /**
@@ -125,6 +127,7 @@ export function emptyForm(options: ConnectorOptions | undefined, now: Date): AiC
     verbs: {},
     expires: lastDay(options?.ceiling.maxDays ?? 30, now),
     clients: [],
+    autonomous: false,
   };
 }
 
@@ -158,6 +161,7 @@ export function toForm(connector: AiConnector, options?: ConnectorOptions): AiCo
     verbs: connector.kinds ? heldVerbs(connector.kinds) : legacy(),
     expires: connector.expiresAt.slice(0, 10),
     clients: connector.allowedClients,
+    autonomous: connector.autonomous,
   };
 }
 
@@ -179,6 +183,7 @@ export function toRequest(form: AiConnectorForm, options?: ConnectorOptions): Ne
       .flatMap((row) => row.kinds)
       .map((kind) => ({ kind, verbs: ["read", ...verbsOf(kind).filter((verb) => form.verbs[kind]?.includes(verb))] })),
     writes: form.picks.some((pick) => pick.access === "write"),
+    autonomous: form.autonomous && form.picks.some((pick) => pick.access === "write"),
     expiresAt: `${form.expires}T23:59:59Z`,
     allowedClients: form.clients,
   };
@@ -202,7 +207,7 @@ export function refusedSection(errors: string[] | undefined, detail: string): st
   const field = errors?.[0] ?? /^([A-Za-z]+)(\[\d+\])?[.:]/.exec(detail)?.[1];
   const head = field?.replace(/\[.*$/, "");
   if (head === "writes") return "scope";
-  return head && ["name", "segments", "kinds", "scope", "expiresAt", "allowedClients"].includes(head) ? head : undefined;
+  return head && ["name", "segments", "kinds", "scope", "expiresAt", "allowedClients", "autonomous"].includes(head) ? head : undefined;
 }
 
 /** One line per scope item, as the list shows it: `helsinki`, `helsinki / Endpoint air`. */

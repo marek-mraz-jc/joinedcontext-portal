@@ -1585,7 +1585,7 @@
     "src/pages/mcp/AiConnectorsPage.tsx": {
       "controls": {
         "Button": 12,
-        "Checkbox": 5
+        "Checkbox": 6
       },
       "tests": [
         "ai_connectors.test.tsx"
