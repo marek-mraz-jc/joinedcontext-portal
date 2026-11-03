@@ -74,6 +74,16 @@ pub struct SpaceCompleteOutput {
     pub propose_ready: bool,
     pub lane: Lane,
     pub change: Option<Change>,
+    /// This space already serves this model, so there is nothing to propose: the rows of the
+    /// same file load straight away.
+    pub already_live: bool,
+}
+
+/// What the same file met when it came back: a retry or a second attach opens nothing new.
+enum Standing {
+    Nothing,
+    Open(Box<Change>),
+    Live,
 }
 
 pub fn input_schema() -> Value {
@@ -125,9 +135,10 @@ pub fn output_schema() -> Value {
             "drafts": { "type": "array", "items": { "type": "object" } },
             "proposeReady": { "type": "boolean" },
             "lane": { "type": "string" },
-            "change": { "type": ["object", "null"] }
+            "change": { "type": ["object", "null"] },
+            "alreadyLive": { "type": "boolean" }
         },
-        "required": ["space", "found", "drafts", "proposeReady", "lane"]
+        "required": ["space", "found", "drafts", "proposeReady", "lane", "alreadyLive"]
     })
 }
 
@@ -957,16 +968,35 @@ pub async fn run(
         drafts.push(checked);
     }
 
-    let propose_ready = !drafts.is_empty()
+    let lane = riskiest_lane(&drafts);
+
+    // One at a time per space: a retry waits for the proposal it repeats, then finds it open.
+    let forge = state.forge_for(project);
+    let _one_proposal = match forge.as_ref().filter(|_| input.propose) {
+        Some(gitea) => Some(crate::api::mutate::turn(gitea, &change_branch(&space_name)).await),
+        None => None,
+    };
+    let standing = standing_of(
+        state,
+        project,
+        &space_name,
+        (model_linkml_text.as_deref(), input.upload),
+        (lane, drafts.len(), input.propose),
+    )
+    .await?;
+    let already_live = matches!(standing, Standing::Live);
+
+    let propose_ready = !already_live
+        && !drafts.is_empty()
         && drafts.iter().all(|d| {
             d.verdict
                 .as_ref()
                 .is_some_and(|v| v.is_fresh_for(&d.manifest))
         });
 
-    let lane = riskiest_lane(&drafts);
-
-    let change = if input.propose {
+    let change = if let Standing::Open(open) = standing {
+        Some(*open)
+    } else if input.propose && !already_live {
         if !propose_ready {
             let failing_check = failing_check(&drafts);
             // The draft and the field a person opens in Drafts to fix it (T-5109); never the
@@ -1009,9 +1039,89 @@ pub async fn run(
         propose_ready,
         lane,
         change,
+        already_live,
     };
 
     Ok(serde_json::to_value(out)?)
+}
+
+/// The branch name a space's creating Change starts with, its digest after the dash.
+fn change_branch(space: &str) -> String {
+    format!("portal/create-contextspace-{space}")
+}
+
+/// Whether `branch` is the creating Change of `space` and of no longer name that starts with it.
+fn creates_space(branch: &str, space: &str) -> bool {
+    branch
+        .strip_prefix(&change_branch(space))
+        .and_then(|rest| rest.strip_prefix('-'))
+        .and_then(|rest| rest.split('_').next())
+        .is_some_and(|hash| hash.len() == 8 && hash.bytes().all(|b| b.is_ascii_hexdigit()))
+}
+
+/// What already stands for this model in this space: the open Change that holds it, or the space
+/// that serves it with the grant its rows need. Compared by the model's text, because the rest
+/// of a bundle (a minted slug, a version) differs from one run to the next. A *different* model
+/// while a Change is open is refused when proposed: the approver reads one Change per space.
+async fn standing_of(
+    state: &AppState,
+    project: &str,
+    space: &str,
+    (model, upload): (Option<&str>, bool),
+    (lane, files, propose): (Lane, usize, bool),
+) -> Result<Standing, OpError> {
+    let (Some(model), Some(gitea)) = (model, state.forge_for(project)) else {
+        return Ok(Standing::Nothing);
+    };
+    let path = format!("projects/{project}/spaces/{space}/datamodels/{space}.linkml.yaml");
+    let holds = |file: Option<crate::git::RepoFile>| file.is_some_and(|f| f.content == model);
+    let open = gitea
+        .list_pull_requests("open")
+        .await
+        .map_err(ApiError::from)?
+        .into_iter()
+        .find(|pull| creates_space(&pull.head_branch, space));
+    if let Some(pull) = open {
+        let held = gitea
+            .get_file(&path, &pull.head_branch)
+            .await
+            .map_err(ApiError::from)?;
+        if holds(held) {
+            return Ok(Standing::Open(Box::new(
+                crate::api::import::waiting_change(
+                    state,
+                    &gitea,
+                    project,
+                    lane,
+                    crate::change::PlanSummary::new(files, 0, 0),
+                    pull,
+                ),
+            )));
+        }
+        if propose {
+            return Err(OpError::Api(ApiError::Conflict(format!(
+                "a change is already open on this space: chg-{:08x}; approve or reject it first",
+                pull.number
+            ))));
+        }
+        return Ok(Standing::Nothing);
+    }
+    let serves = state.mirror.get(project, "ContextSpace", space).is_some()
+        && (!upload
+            || state
+                .mirror
+                .get(project, "Policy", &format!("{space}-upload"))
+                .is_some());
+    if !serves {
+        return Ok(Standing::Nothing);
+    }
+    let main = gitea.default_branch().await.map_err(ApiError::from)?;
+    let held = gitea.get_file(&path, &main).await.map_err(ApiError::from)?;
+    Ok(if holds(held) {
+        Standing::Live
+    } else {
+        Standing::Nothing
+    })
 }
 
 /// The LinkML of the space's model: the file the person gave, else inferred from the sample

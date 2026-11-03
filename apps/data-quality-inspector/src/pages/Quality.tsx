@@ -34,7 +34,7 @@ export function completenessBarOption(types: TypeQuality[], _lang: Lang): Record
   if (types.length === 0) return null;
   const tokens = currentTokens();
   return {
-    grid: { left: 48, right: 16, top: 24, bottom: 64 },
+    grid: { left: 48, right: 16, top: 24, bottom: 8, containLabel: true },
     tooltip: {
       trigger: "axis",
       formatter: (params: unknown) => {
@@ -47,7 +47,7 @@ export function completenessBarOption(types: TypeQuality[], _lang: Lang): Record
     xAxis: {
       type: "category",
       data: types.map((t) => t.type),
-      axisLabel: { interval: 0, rotate: types.length > 5 ? 35 : 0 },
+      axisLabel: { interval: 0, rotate: types.length > 5 || window.innerWidth < 640 ? 35 : 0 },
     },
     yAxis: {
       type: "value",
@@ -292,6 +292,9 @@ export function Quality({ lang }: { lang: Lang }): React.JSX.Element {
               <div key={tName} className="jc-tile app-tile-error">
                 <span className="jc-tile-label">{tName}</span>
                 <span className="app-tile-err-msg">{t(lang, "typeReadError")}</span>
+                <button type="button" className="app-tile-retry" onClick={reload}>
+                  {t(lang, "retry")}
+                </button>
               </div>
             ))}
           </div>
@@ -423,16 +426,16 @@ export function Quality({ lang }: { lang: Lang }): React.JSX.Element {
                         <tbody>
                           {selectedQuality.findings.slice(0, 200).map((f, idx) => (
                             <tr key={`${f.entity}-${f.attribute}-${f.rule}-${idx}`}>
-                              <td>
+                              <td data-label={t(lang, "id")}>
                                 <button type="button" className="app-open" title={f.entity} onClick={() => select({ id: f.entity, type: selectedType })}>
                                   <code>{localId(f.entity)}</code>
                                 </button>
                               </td>
-                              <td>
+                              <td data-label={t(lang, "attribute")}>
                                 <code>{f.attribute}</code>
                               </td>
-                              <td>{formatRule(f.rule, f.detail, lang)}</td>
-                              <td>
+                              <td data-label={t(lang, "failedRule")}>{formatRule(f.rule, f.detail, lang)}</td>
+                              <td data-label={t(lang, "state")}>
                                 {(() => {
                                   const done = resolutions.byFinding.get(findingKey(f.entity, f.attribute));
                                   const id = localId(f.entity);

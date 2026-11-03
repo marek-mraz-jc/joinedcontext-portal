@@ -3361,7 +3361,7 @@ export interface paths {
         put?: never;
         /**
          * Check A KPI Over Several Sources
-         * @description Checks a v1alpha2 Pipeline draft with one kpi step by jc-core's admission rules (PL-102, PL-103), with each attribute's unit from its space's model, and says of each source whether the pipeline's account may read it. `preview: true` also computes the indicator on each source Endpoint's current page, read as the person (PL-105). Needs propose on Pipeline in the project, from a person's session; a source in a space the caller may not read is named as unknown. Changes no data.
+         * @description Checks a v1alpha2 Pipeline draft with one kpi step by jc-core's admission rules (PL-102, PL-103), with each attribute's unit from its space's model, and says of each source whether the pipeline's account may read it. `preview: true` also computes the indicator on each source Endpoint's current page, read as the person (PL-105), and a `prev` term on its history (PL-117). Needs propose on Pipeline in the project, from a person's session; a source in a space the caller may not read is named as unknown. Changes no data.
          */
         post: operations["check_kpi"];
         delete?: never;
@@ -4209,7 +4209,7 @@ export interface paths {
         put?: never;
         /**
          * Compute KPI
-         * @description Folds an attribute over context entities and renders a KeyPerformanceIndicator entity
+         * @description Folds an attribute over an Endpoint or rows into a KeyPerformanceIndicator entity
          */
         post: operations["jc_kpi_compute"];
         delete?: never;
@@ -4249,7 +4249,7 @@ export interface paths {
         put?: never;
         /**
          * List Project Members
-         * @description People with a role in this project: user id for a RoleBinding, name, roles
+         * @description Project members: user id, name, roles and the RoleBinding of each role
          */
         post: operations["jc_member_list"];
         delete?: never;
@@ -7848,8 +7848,10 @@ export interface components {
             receivedAt: string;
             topic: string;
         };
-        /** @description The catalogue index Model Tools caches and refreshes daily (DM-12). */
+        /** @description The catalogue index: the mirror's, or the one Model Tools caches and refreshes daily (DM-12). */
         Catalogue: {
+            /** @description The models the mirror could not convert, each with its finding. */
+            failed?: components["schemas"]["CatalogueFailure"][];
             /** @description When the cache was last filled from the catalogue. */
             refreshedAt?: string | null;
             /**
@@ -7974,6 +7976,13 @@ export interface components {
             theme: components["schemas"]["CatalogueFacetValue"][];
             year: components["schemas"]["CatalogueFacetValue"][];
         };
+        /** @description A catalogue model the mirror could not convert, listed instead of offered half broken. */
+        CatalogueFailure: {
+            /** @description Why it did not convert, in the converter's words. */
+            finding: string;
+            /** @description The catalogue identifier. */
+            id: string;
+        };
         /** @description One located entity: its id, its geometry and its key attributes as text. */
         CatalogueFeature: {
             geometry: Record<string, never>;
@@ -8031,6 +8040,8 @@ export interface components {
         CatalogueModel: {
             /** @description Attribute names, so the wizard can search by attribute without fetching the model. */
             attributes?: string[];
+            /** @description The upstream commit the model was converted from (DM-08), where the mirror answers. */
+            commit?: string | null;
             description?: string | null;
             /** @description The catalogue identifier, `dataModel.Environment/AirQualityObserved`. */
             id: string;
@@ -8495,17 +8506,12 @@ export interface components {
             verbs: string[];
         };
         /**
-         * @description What one connector may spend (T-5968): its own calls a minute, calls at once and answer size.
-         *     The person's own budget (`PERSON_LIMITS`) holds across all their connectors and `/api/v1/mcp`
-         *     together, so a second connector adds no calls. Counted on the verified token's subject and the
-         *     connector id from the path, never on a header.
+         * @description What one connector may spend (T-5968): calls at once and answer size; calls a minute have no
+         *     limit (owner 2026-11-02, T-6484). The person's own budget (`PERSON_LIMITS`) holds across all
+         *     their connectors and `/api/v1/mcp` together, so a second connector adds no parallel calls.
+         *     Counted on the verified token's subject and the connector id from the path, never on a header.
          */
         ConnectorLimits: {
-            /**
-             * Format: int32
-             * @description Tool calls a minute; the call past it answers 429 with `Retry-After`.
-             */
-            callsPerMinute: number;
             /**
              * Format: int32
              * @description Calls answered at once; the next answers 429 until one ends.
@@ -9674,10 +9680,10 @@ export interface components {
         KpiPreview: {
             /**
              * @description Why nothing is computed: a division by zero, an average over nothing, a source that did
-             *     not answer (PL-104).
+             *     not answer (PL-104), no history for a `prev` term (PL-117).
              */
             problem?: string | null;
-            /** @description The rows each source's page held, at most 100. */
+            /** @description The rows each source's page held, at most 100; a read back goes by `parking@P7D`. */
             rows: {
                 [key: string]: number;
             };
@@ -9699,7 +9705,8 @@ export interface components {
             name: string;
             /**
              * @description Whether the pipeline's account reads the source's type through the Endpoint now: a
-             *     Policy grants it, or the Endpoint is public (PL-55, PL-90).
+             *     Policy grants it, its history too for a `prev` term, or the Endpoint is public (PL-55,
+             *     PL-90, PL-117).
              */
             readable: boolean;
         };
@@ -10172,7 +10179,7 @@ export interface components {
          * @description What the pipeline asks to do through the Endpoint.
          * @enum {string}
          */
-        Operations: "read" | "write";
+        Operations: "read" | "write" | "history";
         OrganizationLimits: {
             entries: components["schemas"]["LimitEntry"][];
             projects: components["schemas"]["ProjectQuota"][];
@@ -26599,9 +26606,9 @@ export interface operations {
                         /** @description Requests a minute per caller */
                         requestsPerMinute: number;
                     };
-                    /** @description Formats served; ngsi-ld and csv when absent */
-                    representations?: ("ngsi-ld" | "csv" | "mcp" | "ogc-features" | "sta")[];
-                    /** @description The endpoint's title as people read it */
+                    /** @description Default ngsi-ld, csv */
+                    representations?: ("ngsi-ld" | "mcp" | "csv" | "ogc-features" | "sta" | "odata" | "websocket" | "ical")[];
+                    /** @description The endpoint's title */
                     title?: string;
                 };
             };
@@ -27090,11 +27097,13 @@ export interface operations {
                     agg: "avg" | "sum" | "count" | "min" | "max";
                     /** @description The attribute folded; ignored by count */
                     attribute?: string;
+                    /** @description The Endpoint read as you; or rows */
+                    endpoint?: string;
                     /** @description The indicator, its URN's {localId} */
                     name: string;
                     /** @description An NGSI-LD q narrowing the entities read */
                     q?: string;
-                    /** @description Entities the caller already holds, to compute over */
+                    /** @description Entities to fold; or endpoint */
                     rows?: Record<string, never>[];
                     /** @description The indicator's title as people read it */
                     title?: string;
@@ -27310,6 +27319,16 @@ export interface operations {
                 content: {
                     "application/json": {
                         members: {
+                            /** @description The RoleBindings behind the roles. To remove the member, delete a binding by name with jc_change_plan where subjects is 1 and no group is named; else take the member out of its subjects, or out of the Group */
+                            bindings: {
+                                /** @description The RoleBinding's metadata.name */
+                                binding: string;
+                                /** @description The Group that carries this member, where the binding names one */
+                                group?: string;
+                                role: string;
+                                /** @description Subjects the binding names: deleting it removes them all */
+                                subjects: number;
+                            }[];
                             name: string | null;
                             roles: string[];
                             /** @description The subject a RoleBinding names: put it in a RoleBinding's subjects as { user: ... } */
@@ -30748,8 +30767,12 @@ export interface operations {
                         createdBy?: string;
                         id: string;
                         kind?: string;
+                        /** @description The preview once a version is built */
+                        previewUrl?: string;
                         project?: string;
                         status: string;
+                        /** @description The Portal page following this run */
+                        url?: string;
                     };
                 };
             };
@@ -30869,8 +30892,12 @@ export interface operations {
                         createdBy?: string;
                         id: string;
                         kind?: string;
+                        /** @description The preview once a version is built */
+                        previewUrl?: string;
                         project?: string;
                         status: string;
+                        /** @description The Portal page following this run */
+                        url?: string;
                     };
                 };
             };
@@ -30958,8 +30985,12 @@ export interface operations {
                         createdBy?: string;
                         id: string;
                         kind?: string;
+                        /** @description The preview once a version is built */
+                        previewUrl?: string;
                         project?: string;
                         status: string;
+                        /** @description The Portal page following this run */
+                        url?: string;
                     };
                 };
             };
@@ -31058,8 +31089,12 @@ export interface operations {
                             createdBy?: string;
                             id: string;
                             kind?: string;
+                            /** @description The preview once a version is built */
+                            previewUrl?: string;
                             project?: string;
                             status: string;
+                            /** @description The Portal page following this run */
+                            url?: string;
                         }[];
                     };
                 };
@@ -31448,6 +31483,7 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        alreadyLive: boolean;
                         change?: Record<string, never> | null;
                         drafts: Record<string, never>[];
                         found: string[];

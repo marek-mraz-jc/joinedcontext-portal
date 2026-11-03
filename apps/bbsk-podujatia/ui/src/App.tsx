@@ -13,7 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Map as MapLibreMap } from "maplibre-gl";
 import type { GeoJSONSource } from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { AppShell, Card, Empty, endpointSource, Loading, Page, SourceError, styleFor, Tabs, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
+import { AppShell, Card, Empty, endpointSource, Loading, Page, Problem, SourceError, styleFor, Tabs, transportFor, useClient, useEntitySelection } from "@joinedcontext/sdk";
 import type { EntitySource } from "@joinedcontext/sdk";
 import {
   apiOrigin,
@@ -52,7 +52,7 @@ const PER_DAY = 3;
 export type Loaded =
   | { status: "loading" }
   | { status: "ready"; events: EventItem[]; truncated: boolean }
-  | { status: "failed"; reason: string };
+  | { status: "failed"; reason: string; denied: boolean };
 
 /** The endpoint of the events space: the one the Portal lists for it, else the App's own. */
 export function useEndpoint(): { slug: string; name?: string } | null {
@@ -65,6 +65,11 @@ export function useEndpoint(): { slug: string; name?: string } | null {
 function reasonOf(cause: unknown): string {
   if (cause instanceof SourceError) return cause.message;
   return cause instanceof Error ? cause.message : String(cause);
+}
+
+/** A refusal: asking again never grants a right, so it offers no retry (T-4912). */
+function deniedBy(cause: unknown): boolean {
+  return cause instanceof SourceError && (cause.status === 401 || cause.status === 403);
 }
 
 /** Every event, page by page up to `MOST`, soonest first; a row without a name or a start is left out. */
@@ -81,11 +86,12 @@ export async function loadEvents(source: EntitySource, locale: string): Promise<
   return { status: "ready", events: events.sort(bySoonest), truncated: true };
 }
 
-function useEvents(): Loaded | null {
+function useEvents(): { loaded: Loaded | null; reload: () => void } {
   const { config } = useClient();
   const slug = useEndpoint()?.slug ?? null;
   const language = config.language ?? "sk";
   const [loaded, setLoaded] = useState<Loaded | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const source = useMemo(
     () => (slug ? endpointSource(slug, transportFor(config), language) : null),
     // `config` is the document the Portal served once; the slug and the language are what change.
@@ -98,16 +104,16 @@ function useEvents(): Loaded | null {
     let live = true;
     setLoaded({ status: "loading" });
     loadEvents(source, language.slice(0, 2))
-      .catch((cause: unknown): Loaded => ({ status: "failed", reason: reasonOf(cause) }))
+      .catch((cause: unknown): Loaded => ({ status: "failed", reason: reasonOf(cause), denied: deniedBy(cause) }))
       .then((result) => {
         if (live) setLoaded(result);
       });
     return () => {
       live = false;
     };
-  }, [source, language]);
+  }, [source, language, attempt]);
 
-  return source ? loaded : null;
+  return { loaded: source ? loaded : null, reload: () => setAttempt((n) => n + 1) };
 }
 
 /** When an event takes place, in Slovak time, as a person reads it. */
@@ -129,7 +135,7 @@ export default function App() {
 function Dashboard() {
   const { config } = useClient();
   const s = stringsFor(config.language);
-  const loaded = useEvents();
+  const { loaded, reload } = useEvents();
   const endpoint = useEndpoint();
   const { selected, select } = useEntitySelection();
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
@@ -152,9 +158,7 @@ function Dashboard() {
     loaded.status === "loading" ? (
       <Loading label={s.loading} />
     ) : loaded.status === "failed" ? (
-      <p role="alert" className="failed">
-        {s.refused(loaded.reason)}
-      </p>
+      <Problem error={new Error(s.refused(loaded.reason))} onRetry={loaded.denied ? undefined : reload} />
     ) : all.length === 0 ? (
       <Empty>{s.noEvents}</Empty>
     ) : (

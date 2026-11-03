@@ -213,6 +213,11 @@ export async function goSignedIn(
   // An anonymous `/` is the public catalogue (T-5627), which never bounces to /login: the sign-in
   // starts at /login, which returns to `/` once signed in, where a person keeps their home (T-6192).
   const home = url.startsWith("/") && new URL(url, "http://portal").pathname === "/";
+  const refused: string[] = [];
+  const onResponse = (response: Response) => {
+    if (response.status() >= 400) refused.push(`${response.status()} ${new URL(response.url()).pathname}`);
+  };
+  page.on("response", onResponse);
   await page.goto(home ? `/login?redirect_to=${encodeURIComponent(url)}` : url, { waitUntil: "load" });
   let redirected = false;
   for (let step = 0; step < 4; step += 1) {
@@ -247,7 +252,26 @@ export async function goSignedIn(
     await page.waitForTimeout(BOOT_RETRY.waitMs);
     await page.reload({ waitUntil: "load" });
   }
-  await expect(ready(page)).toBeVisible({ timeout: 60_000 });
+  try {
+    await expect(ready(page)).toBeVisible({ timeout: 60_000 });
+  } catch (error) {
+    throw new Error(`${await stoppedAt(page, refused)}: ${String(error)}`, { cause: error });
+  } finally {
+    page.off("response", onResponse);
+  }
+}
+
+/**
+ * Where a sign-in stood when the Portal never came ready (T-6510): the walker runs without a trace,
+ * and the task filed from "expect(locator).toBeVisible() failed" could not tell Keycloak, an edge
+ * refusal or a Portal error page apart. The address carries no query: Keycloak's holds its state.
+ */
+export async function stoppedAt(page: Page, refused: string[]): Promise<string> {
+  const { origin, pathname } = new URL(page.url());
+  const title = await page.title().catch(() => "");
+  const text = await page.locator("body").innerText({ timeout: 2_000 }).catch(() => "");
+  const answers = [...new Set(refused)].slice(0, 5).join(", ");
+  return `sign-in stopped on ${origin}${pathname} (title "${title}", text "${text.replace(/\s+/g, " ").trim().slice(0, 100)}", ${refused.length} answers >= 400${answers ? `: ${answers}` : ""})`;
 }
 
 /**

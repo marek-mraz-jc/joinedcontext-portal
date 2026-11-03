@@ -4,6 +4,7 @@
 // through `access` (prop or `source.access`), every visible string through `labels`. Nothing here
 // imports outside the SDK (tests/grid_boundary.test.ts); the root entry re-exports the same names.
 export { EntityGrid } from "../grid/EntityGrid";
+export * from "../grid/parts";
 export type { EntityGridProps } from "../grid/EntityGrid";
 export { DEFAULT_LABELS, readableName, useEntityGrid } from "../grid/useEntityGrid";
 export type { ColumnLayout, GridLabels, GridLabelsInput, GridState, MetaKey, UseEntityGridOptions, VisibleColumn } from "../grid/useEntityGrid";

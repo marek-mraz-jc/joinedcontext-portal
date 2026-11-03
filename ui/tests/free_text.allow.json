@@ -105,7 +105,11 @@
       "class": "FREE",
       "reason": "the published attributes are ticked in the list above it; this box names one the schema does not publish yet (T-1767), shape-checked (T-4947 decided)"
     },
-    "src/pages/inbox/InboxPage.tsx :: For red lane, type the resource name to confirm:": {
+    "src/components/ChangeNotice.tsx :: Type the name to confirm": {
+      "class": "FREE",
+      "reason": "typing the name is the confirmation itself"
+    },
+    "src/pages/inbox/InboxPage.tsx :: To confirm, type this name:": {
       "class": "FREE",
       "reason": "typing the name is the confirmation itself"
     },
@@ -116,6 +120,10 @@
     "src/pages/models/LinkmlVisualEditor.tsx :: Find a type": {
       "class": "FREE",
       "reason": "a search box: the text filters the model's own type list in the rail, nothing is written"
+    },
+    "src/pages/models/NameField.tsx :: (no label)": {
+      "class": "FREE",
+      "reason": "the new name of a type, field, enumeration or stored value of the model open in the editor; its label comes from the caller and the operation refuses a name already taken"
     },
     "src/pages/models/LinkmlVisualEditor.tsx :: New type": {
       "class": "FREE",

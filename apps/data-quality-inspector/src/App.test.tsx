@@ -402,6 +402,22 @@ describe("data-quality-inspector", () => {
     expect(await screen.findByRole("table", { name: "Failing entities" })).toBeInTheDocument();
   });
 
+  it("offers Retry on the tile of a type it could not read", async () => {
+    const client = stubClient({ entities: ENTITIES, schema: STUB_SCHEMA, access: ACCESS }, { appName: "data-quality-inspector" });
+    const all = client.entities.all.bind(client.entities);
+    let refuse = true;
+    client.entities.all = (async (type: string, query?: Parameters<typeof all>[1]) => {
+      if (refuse && type === "Event") throw "Event service unavailable";
+      return all(type, query);
+    }) as typeof client.entities.all;
+    show(client);
+    const retry = await screen.findByRole("button", { name: "Retry" });
+    refuse = false;
+    fireEvent.click(retry);
+    expect(await screen.findByRole("button", { name: /^Event: \d+ entities/i })).toBeInTheDocument();
+    expect(screen.queryByText("Data could not be read.")).toBeNull();
+  });
+
   it("ignores a language it does not speak", async () => {
     show();
     const language = await screen.findByRole("combobox", { name: "Language" });
@@ -440,6 +456,14 @@ describe("data-quality-inspector", () => {
     show(undefined, runInspector, server);
     const user = userEvent.setup();
     const trend = await screen.findByRole("table", { name: "Quality over time: the runs the server keeps" });
+    // A phone lays each cell out with its column's name beside it (components.css).
+    expect([...trend.querySelectorAll("tbody tr:first-child td")].map((cell) => cell.getAttribute("data-label"))).toEqual([
+      "Entities",
+      "Complete",
+      "Valid",
+      "Findings",
+      "Full report",
+    ]);
     expect(within(trend).getAllByRole("row").map((row) => row.textContent)).toEqual([
       "Run atEntitiesCompleteValidFindingsFull report",
       "21 Oct 2030, 12:00990 %50 %1Full report",

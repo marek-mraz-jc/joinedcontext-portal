@@ -2,6 +2,9 @@
 
 use super::*;
 
+/// jc-core's words for a manifest its kind cannot read: an unknown field, a wrong type.
+const NOT_PARSED: &str = "manifest does not parse";
+
 /// What the kind's page opens on: the resource a change touches (`?edit=`), or the draft of a new
 /// one, which the form loads by its name (`?draft=`, AG-45).
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1031,11 +1034,19 @@ impl Driver {
                 }),
             )
             .await?;
+            if let Some(reason) = self.schema_reply(info.kind, &findings, &manifest).await? {
+                return Ok(Worked::Again(reason));
+            }
+            let prose =
+                format!("The change to '{name}' does not pass the platform's check: {findings}");
+            if last && opening == Opening::Create {
+                return self.open_the_form(info.kind, &prose, route).await;
+            }
             return self
                 .again(
                     last,
                     format!("error: the platform's check refuses the change: {findings}; the changed manifest was {manifest}"),
-                    format!("The change to '{name}' does not pass the platform's check: {findings}"),
+                    prose,
                 )
                 .await;
         }
@@ -1320,6 +1331,65 @@ impl Driver {
         ))
     }
 
+    /// A manifest the kind's own parser refused goes back with that kind's schema, once a turn and
+    /// on the last draft too: the model guessed the fields, and another guess costs a draft. The
+    /// schema reaches this prompt only here (T-5948); `None` for any other refusal (T-6488).
+    async fn schema_reply(
+        &self,
+        kind: &str,
+        findings: &str,
+        manifest: &Value,
+    ) -> Result<Option<String>, String> {
+        if !findings.contains(NOT_PARSED) {
+            return Ok(None);
+        }
+        let first = self
+            .schema_read
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .insert(kind.to_owned());
+        if !first {
+            return Ok(None);
+        }
+        let started = std::time::Instant::now();
+        let Ok(schema) = crate::ops::schemas::schema_of(kind, None) else {
+            return Ok(None);
+        };
+        self.event(
+            "tool",
+            json!({
+                "tool": crate::ops::schemas::GET,
+                "status": "ok",
+                "durationMs": u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX),
+                "input": { "kind": kind },
+                "output": { "kind": kind },
+            }),
+        )
+        .await?;
+        Ok(Some(format!(
+            "error: the platform's check refuses the change: {findings}; the manifest was \
+             {manifest}; the schema of {kind}, read for you: {schema}; call change_resource again \
+             with only the fields this schema names"
+        )))
+    }
+
+    /// A new resource the model could not draft ends on its kind's page, where the person finishes
+    /// it in the form; nothing was kept (AG-45, T-6488).
+    async fn open_the_form(
+        &self,
+        kind: &str,
+        prose: &str,
+        route: String,
+    ) -> Result<Worked, String> {
+        let prose = format!(
+            "{prose}\n\nNothing was saved. Create it in the form on [the {kind} page]({route}); \
+             a key or password goes in the form's secret field, never in this chat."
+        );
+        self.thought(&prose).await?;
+        self.event("navigate", json!({ "route": route })).await?;
+        Ok(Worked::Done(prose))
+    }
+
     /// What goes back to the model while drafts are left, or the person's answer on the last one.
     pub(super) async fn again(
         &self,
@@ -1381,6 +1451,20 @@ impl Driver {
             .collect()
     }
 
+    /// The entity types `endpoint` serves, from its space's compiled model.
+    fn served_types(&self, endpoint: &Value) -> Vec<String> {
+        crate::resource::reference_name(&endpoint["spec"]["contextSpaceRef"])
+            .map(|space| {
+                crate::api::access_requests::served_types(
+                    &self.state,
+                    &self.project,
+                    space,
+                    endpoint,
+                )
+            })
+            .unwrap_or_default()
+    }
+
     /// The `edit_endpoint` call of the earlier prompt, still read for one release (EP-72, AG-77):
     /// the edit becomes the endpoint's changed manifest and opens like a `change_resource` change.
     pub(super) async fn edit_endpoint(
@@ -1412,7 +1496,9 @@ impl Driver {
         if let Err(reason) = self.may_change("Endpoint", Verb::Propose) {
             return self.refused(TOOL, started, input, reason).await;
         }
-        let edit = match share::edit(&self.project_endpoints(), &params) {
+        let edit = match share::edit(&self.project_endpoints(), &params, |endpoint| {
+            self.served_types(endpoint)
+        }) {
             Ok(edit) => edit,
             Err(reason) => {
                 self.event("tool", failed(&input, &reason)).await?;
@@ -1922,6 +2008,30 @@ mod new_dashboard_tests {
             })
     }
 
+    /// What `share::edit` draws a calendar over: the space's model, narrowed by the projection.
+    #[tokio::test]
+    async fn an_endpoint_serves_the_classes_of_its_space_model() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        state
+            .model_schemas
+            .replace(std::collections::HashMap::from([(
+                ("helsinki".to_owned(), "bikes".to_owned()),
+                Arc::new(crate::pipeline_validation::ModelSchema::compile(
+                    "bikes",
+                    "1.0.0",
+                    &json!({ "definitions": { "BikeCounter": { "properties": {} } } }),
+                    &["BikeCounter".to_owned()],
+                    false,
+                )),
+            )]));
+        let driver = Driver::for_tests(state, "helsinki");
+        let served =
+            |space: &str| driver.served_types(&json!({ "spec": { "contextSpaceRef": space } }));
+        assert_eq!(served("bikes"), ["BikeCounter"]);
+        assert!(served("no-model").is_empty(), "no model, no type");
+        assert!(driver.served_types(&json!({ "spec": {} })).is_empty());
+    }
+
     /// T-2553, UI-18, UI-19: a public dashboard over new public layers passes the platform's check.
     #[tokio::test]
     async fn a_public_dashboard_over_new_public_layers_is_drafted() {
@@ -2332,5 +2442,191 @@ mod model_create_tests {
             .await
             .unwrap_or_default()
             .is_empty());
+    }
+}
+
+#[cfg(test)]
+mod unparsed_tests {
+    //! T-6488 (S-14, S-51): a manifest the kind's parser refuses brings the kind's schema back once
+    //! and a create the model cannot draft ends on the form, the pasted key kept out of it.
+
+    use super::*;
+    use crate::agents::change::ChangeResource;
+    use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+    use crate::state::AppState;
+
+    const KEY: &str = "abc123pastedkey456";
+
+    fn steward() -> (Driver, AppState) {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let mut driver = Driver::for_tests(state.clone(), "helsinki");
+        driver.identity.roles = vec![state.config.bootstrap_admins.clone()];
+        let operations: Vec<&str> = crate::ops::registry().iter().map(|op| op.name).collect();
+        driver.access = crate::agents::access::Access::from_spec(&json!({ "access": {
+            "operations": operations,
+            "kinds": [
+                { "kind": "DataSource", "verbs": ["read", "propose"] },
+                { "kind": "Endpoint", "verbs": ["read", "propose"] },
+            ],
+        } }));
+        (driver, state)
+    }
+
+    fn source(spec: Value) -> ChangeResource {
+        ChangeResource {
+            kind: "DataSource".into(),
+            name: "counters-api".into(),
+            create: true,
+            patch: Some(json!({ "spec": spec })),
+            ..Default::default()
+        }
+    }
+
+    fn with_http(extra: Value) -> Value {
+        let mut http = json!({ "url": "https://counters.invalid/data.csv" });
+        crate::plan::merge_patch(&mut http, &extra);
+        json!({ "type": "http", "http": http })
+    }
+
+    async fn logged(state: &AppState, kind: &str) -> Vec<Value> {
+        state
+            .agents
+            .events_since("test-run", 0)
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|event| event.kind == kind)
+            .map(|event| event.payload)
+            .collect()
+    }
+
+    async fn call(driver: &Driver, params: ChangeResource, last: bool) -> Worked {
+        driver
+            .change_resource(Ok(params), "", last)
+            .await
+            .expect("no event failed")
+    }
+
+    #[tokio::test]
+    async fn the_first_parse_refusal_brings_the_schema_even_on_the_last_draft() {
+        let (driver, state) = steward();
+        let guess = || source(with_http(json!({})));
+        let wrong = || {
+            let mut params = guess();
+            params.patch = Some(json!({ "spec": {
+                "type": "http",
+                "http": { "url": "https://counters.invalid/data.csv" },
+                "secrets": [{ "header": "X-Api-Key", "name": "counters-api-key" }],
+            } }));
+            params
+        };
+
+        let Worked::Again(reason) = call(&driver, wrong(), true).await else {
+            panic!("the schema goes back instead of ending the turn");
+        };
+        assert!(reason.contains("manifest does not parse"), "{reason}");
+        assert!(reason.contains("authorization"), "the schema: {reason}");
+        assert!(reason.len() < 16_000, "a turn's worth: {}", reason.len());
+        let tools = logged(&state, "tool").await;
+        assert_eq!(tools.len(), 2, "the refusal and the read: {tools:?}");
+        assert_eq!(tools[1]["tool"], crate::ops::schemas::GET);
+        assert_eq!(tools[1]["input"]["kind"], "DataSource");
+
+        // Once: the second refusal on the last draft ends on the form with its link.
+        let Worked::Done(prose) = call(&driver, wrong(), true).await else {
+            panic!("the schema goes back once");
+        };
+        let route = "/projects/helsinki/datasources";
+        assert!(prose.contains(&format!("]({route}")), "{prose}");
+        let opened = logged(&state, "navigate").await;
+        assert_eq!(opened.len(), 1);
+        assert!(opened[0]["route"]
+            .as_str()
+            .is_some_and(|r| r.contains(route)));
+        assert!(logged(&state, "tool").await.len() == 3, "no second read");
+
+        // A later turn reads it again, and another kind reads its own at once.
+        driver.schema_read.lock().expect("lock").clear();
+        assert!(matches!(
+            call(&driver, wrong(), true).await,
+            Worked::Again(_)
+        ));
+    }
+
+    #[tokio::test]
+    async fn another_refusal_brings_no_schema() {
+        let (driver, state) = steward();
+        let Worked::Again(reason) = call(&driver, source(json!({ "type": "http" })), false).await
+        else {
+            panic!("the refusal goes back");
+        };
+        assert!(!reason.contains("read for you"), "{reason}");
+        let read = logged(&state, "tool").await;
+        assert!(read.iter().all(|e| e["tool"] != crate::ops::schemas::GET));
+
+        // That refusal spent nothing: the first parse refusal still reads the schema.
+        let guess = source(json!({ "type": "http", "guess": true }));
+        let Worked::Again(reason) = call(&driver, guess, true).await else {
+            panic!("the schema goes back");
+        };
+        assert!(reason.contains("read for you"), "{reason}");
+    }
+
+    #[tokio::test]
+    async fn the_named_header_opens_the_form_and_a_pasted_key_opens_nothing() {
+        let (driver, state) = steward();
+        let named = source(with_http(json!({ "authorization": {
+            "header": "X-Api-Key",
+            "headerRef": { "name": "counters-api-key" },
+        } })));
+        assert!(matches!(call(&driver, named, false).await, Worked::Done(_)));
+        assert_eq!(logged(&state, "navigate").await.len(), 1, "the form opened");
+
+        let (driver, state) = steward();
+        let pasted = source(with_http(json!({ "headers": { "X-Api-Key": KEY } })));
+        let worked = call(&driver, pasted, true).await;
+        let (Worked::Done(answer) | Worked::Again(answer)) = worked;
+        assert!(!answer.contains(KEY), "{answer}");
+        let draft = state.drafts.get("helsinki", "DataSource", "counters-api");
+        assert!(
+            draft.await.ok().flatten().is_none(),
+            "no draft holds the key"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_hidden_attribute_reaches_the_change_after_a_guess() {
+        let (driver, state) = steward();
+        state.mirror.upsert(ResourceEnvelope {
+            api_version: API_VERSION.into(),
+            kind: "Endpoint".into(),
+            metadata: ObjectMeta {
+                name: "counters".into(),
+                namespace: Some("helsinki".into()),
+                ..Default::default()
+            },
+            spec: json!({ "contextSpaceRef": "air", "slug": "abcdefghijklmnopqrstuvwxyz", "audience": "public" }),
+            status: None,
+        });
+        let patch = |projection: Value| ChangeResource {
+            kind: "Endpoint".into(),
+            name: "counters".into(),
+            patch: Some(json!({ "spec": { "projection": projection } })),
+            ..Default::default()
+        };
+        let guess = patch(json!({ "exclude": ["ownerEmail"] }));
+        let Worked::Again(reason) = call(&driver, guess, false).await else {
+            panic!("the guess goes back");
+        };
+        assert!(reason.contains("hiddenAttributes"), "{reason}");
+        let named = patch(json!({ "hiddenAttributes": ["ownerEmail"] }));
+        let _ = call(&driver, named, true).await;
+        let tools = logged(&state, "tool").await;
+        let parsed = !tools.last().is_some_and(|t| {
+            t["error"]
+                .as_str()
+                .is_some_and(|error| error.contains(NOT_PARSED))
+        });
+        assert!(parsed, "{tools:?}");
     }
 }

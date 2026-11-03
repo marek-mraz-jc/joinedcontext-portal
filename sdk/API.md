@@ -182,6 +182,7 @@ Exports of what is shown (AP-66) and the browser download of the result.
 ### Entity grid (UI-64, UI-71, SDK-29)
 ```ts
 function EntityGrid(props: EntityGridProps): JSX.Element
+function useGridView(props: EntityGridProps): GridView
 function useEntityGrid(options: UseEntityGridOptions): { rows, columns, total, loading, error, state, labels, cellOf, toggleMeta, setOffset, setSort, moveActive, getGridProps, getHeaderProps, getRowProps, getCellProps, reload }
 function parseGridConfig(raw: unknown): { config?: ResolvedGridConfig; findings: ConfigFinding[] }
 const gridConfigSchema: JSONSchema // published as grid.config.schema.json
@@ -219,18 +220,20 @@ const DEFAULT_COMPARE_LABELS: CompareLabels
 ```
 One spreadsheet-like grid of one entity type (`role="grid"`): an id column pinned, each cell read by its kind (a number in `locale` with its unit, local time, a point as lat, lon, a relationship as a chip), per column an icon and a menu (sort, filter, hide, rename, resize, move; the `observedAt`, unit, `datasetId`, `createdAt`, `modifiedAt` columns under Details). The config is data (`{ source, type, columns, entityTimestamps, filters, pageSize, mode, editableAttrs, history, compareWith, density, rowActions }`); `parseGridConfig` refuses unknown keys with JSON paths and fills defaults. Props: `config`, `source`, `labels` (every visible string; English defaults), `state` + `onStateChange` (controlled per key), `renderers` by attribute name, cell kind or `id`, `onOpenRelationship`, `onRows` (the rows shown and their offset), `onQuery` (the filters' `q` and `idPattern`, for a host that saves a view), `hidden` + `onHide`, `layout` + `onLayout` (`{ order, width, labels }`), `locale`, `rowTone` (a row's tone and reason, as a named swatch), `toolbar`, `empty`, `rules` (`ValueRule` per attribute: a pending value that breaks it is marked with the reason and holds Review back), `classNames`. `useEntityGrid` is the same without markup. Values render as text.
 
-The header's second row filters at the endpoint (UI-66, EP-07): per column the operators its content allows (contains/is/is not/is empty/has a value for text, comparisons and between for numbers and dates, the id by pattern, a metadata column on `attr.observedAt`), composed into one `;`-joined `q`, shown under the grid with a copy button and an "edit as text" switch. The footer carries the endpoint's own `NGSILD-Results-Count`, and nothing when a narrowed answer carried none (R22). In `mode: "edit"` the columns of `editableAttrs` take a typed value which is marked, counted, reviewed as a batch with one `observedAt` choice, and applied one `PATCH …/attrs` per entity through the source's `patch`; a refused entity keeps its cell and the endpoint's own sentence. A source without `patch` has no edit mode, one without `history` no history.
+The header's second row filters at the endpoint (UI-66, EP-07): per column the operators its content allows, composed into one `;`-joined `q`, shown under the grid with a copy button and an "edit as text" switch. The footer carries the endpoint's own `NGSILD-Results-Count`, and nothing when a narrowed answer carried none (R22). In `mode: "edit"` the columns of `editableAttrs` take a typed value, reviewed as a batch with one `observedAt` choice and applied one `PATCH …/attrs` per entity through the source's `patch`; a refused entity keeps its cell and the endpoint's own sentence. A source without `patch` has no edit mode, one without `history` no history.
 
-`EntityHistory` shows one attribute's temporal answer: a numeric series as a line in the first chart colour and a table of every value. `heading` is the panel's heading in the App's words (the default is the title and the attribute; the entity's id is never shown), `locale` the language times and numbers are written in (the page's by default) and `fractionDigits` the attribute's precision (2 by default). Copy as CSV keeps the raw values.
+`EntityHistory` shows one attribute's temporal answer by what it holds, with a table of every value; `views` replaces a kind's picture. `heading` names the panel, `locale` the language of times and numbers, `fractionDigits` the precision (2 by default). Copy as CSV keeps the raw values.
 
-`EntityCompare` puts a space and an endpoint side by side (UI-69, EP-61): the right side is asked for the left's ids, and `marks` paints on the left what the right does not answer. Both sides are view mode with the person's own session.
+A subset of the grid: `const view = useGridView(props)`, then `<GridFrame view={view}>` around any of `GridTable`, `GridPager`, `GridMapPanel`, `GridDetail`, `GridNotices`, `GridStatus`, `GridQueryBox`, `GridReview`, each with `view={view}`. `RowDetail` takes `tabs`; `AttributeView` shows one attribute.
+
+`EntityCompare` puts a space and an endpoint side by side (UI-69, EP-61): the right side is asked for the left's ids, and `marks` paints on the left what the right does not answer.
 ```ts
 function endpointSource(slug: string, transport: Transport, language?: string): EntitySource
 function spaceSource(space: string, transport: Transport, language?: string): EntitySource
 function sourceFor(source: { kind: "endpoint"; slug } | { kind: "space"; space }, transport: Transport, language?: string): EntitySource
 function fixtureSource(entities: object[], language?: string): EntitySource
 function idChunks(ids: string[], maxChars?: number): string[][]
-function transportFor(config: JcConfig): Transport // e.g. transportFor(jc().config)
+function transportFor(config: JcConfig): Transport
 function originTransport(fetchImpl?: typeof fetch, doc?: Document): Transport // a host page's own: same origin, the person's session and CSRF header
 class SourceError extends Error { status: number }
 function historyOf(body: unknown, attr: string): HistoryPoint[]
@@ -272,7 +275,7 @@ geometry is edited in `GeoEditor`, reviewed ("Point moved 38 m") and applied by 
 `coordinates` + `geoproperty`.
 
 ### Dashboard
-`<Dashboard config={parseDashboardConfig(raw).config!} source={source} />`, `raw` = `src/dashboard.json`: `{ grid, filters?: [{ attr, op, value }], colour?: { attr, bands: [{ below?, tone, label }] }, chart?: { x, y, agg }, kpis?: [{ label, agg, attr?, where? }] }`.
+`<Dashboard config={parseDashboardConfig(raw).config!} source={endpointSource(useEndpoint()!.slug, transportFor(useClient().config))} />`, `raw` = `src/dashboard.json`: `{ grid: { source: { kind: "endpoint", slug }, type, columns, pageSize? }, filters?: [{ attr, op, value }], colour?: { attr, bands: [{ below?, tone, label }] }, chart?: { x, y, agg }, kpis?: [{ label, agg, attr?, where? }] }`.
 
 ### Geometry: view and edit (UI-72, SDK-29)
 ```ts

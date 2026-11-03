@@ -24,7 +24,7 @@ const CONNECTOR = {
   expiresAt: new Date(Date.now() + 10 * 24 * 3600_000).toISOString(),
   allowedClients: ["mcp-local"],
   clientIsBoundary: false,
-  limits: { callsPerMinute: 60, parallelCalls: 4, resultBytes: 1048576 },
+  limits: { parallelCalls: 4, resultBytes: 1048576 },
   state: "active",
   createdAt: "2026-10-28T12:00:00Z",
   lastUsedAt: null,
@@ -164,5 +164,32 @@ describe("Connect this tab (T-5967)", () => {
     });
     expect(await screen.findByText(/This tab is no longer connected/)).toBeInTheDocument();
     expect(sessionStorage.getItem("jc.pairedTab")).toBeNull();
+  }, 20_000);
+
+  it("reads the open page again when the connector's client made a call, and runs no action for it", async () => {
+    sessionStorage.setItem("jc.pairedTab", JSON.stringify({ connector: ID, name: CONNECTOR.name, tab: TAB }));
+    const { requests } = renderAt("/ai-connectors");
+    await waitFor(() => expect(FakeSource.opened.length).toBeGreaterThan(0));
+    const reads = () => requests.filter((r) => r.path === "/api/v1/connectors").length;
+    await waitFor(() => expect(reads()).toBeGreaterThan(0), { timeout: 10_000 });
+    const before = reads();
+    const source = FakeSource.opened.at(-1);
+    act(() => {
+      source?.send({ frame: "refresh", payload: {}, tool: "jc_change_plan" });
+      source?.send({ frame: "refresh", payload: {}, tool: "jc_change_get" });
+    });
+    await waitFor(() => expect(reads()).toBe(before + 1), { timeout: 5_000 });
+    expect(screen.queryByText(/jc_change_plan/)).not.toBeInTheDocument();
+  }, 20_000);
+
+  it("keeps the pairing while the page unloads: the browser closes the stream, the next page listens", async () => {
+    sessionStorage.setItem("jc.pairedTab", JSON.stringify({ connector: ID, name: CONNECTOR.name, tab: "tab-of-the-reload" }));
+    renderAt("/ai-connectors");
+    await waitFor(() => expect(FakeSource.opened.length).toBeGreaterThan(0));
+    const source = FakeSource.opened.at(-1);
+    source?.close();
+    source?.onerror?.();
+    expect(sessionStorage.getItem("jc.pairedTab")).not.toBeNull();
+    expect(screen.queryByText(/This tab is no longer connected/)).not.toBeInTheDocument();
   }, 20_000);
 });

@@ -121,6 +121,7 @@ export function EntityMap({
   const map = useRef<MapLibreMap | null>(null);
   const overlayRef = useRef<MapboxOverlay | null>(null);
   const [ready, setReady] = useState(false);
+  const [drawable, setDrawable] = useState(true);
   const fitted = useRef(false);
 
   const onSelectRef = useRef(onSelect);
@@ -178,13 +179,19 @@ export function EntityMap({
 
     void mapWorkerReady().then(() => {
       if (gone || !container.current || map.current) return;
-      instance = new MapLibreMap({
-        container: container.current,
-        style: styleFor(effectiveBasemap),
-        center: [0, 0],
-        zoom: 1,
-        canvasContextAttributes: { preserveDrawingBuffer: true },
-      });
+      try {
+        instance = new MapLibreMap({
+          container: container.current,
+          style: styleFor(effectiveBasemap),
+          center: [0, 0],
+          zoom: 1,
+          canvasContextAttributes: { preserveDrawingBuffer: true },
+        });
+      } catch {
+        // A browser or a test without WebGL2: MapLibre throws here, and unhandled that fails the build.
+        setDrawable(false);
+        return;
+      }
       map.current = instance;
 
       instance.on("error", (event) => {
@@ -352,6 +359,7 @@ export function EntityMap({
     <div className="jc-map" style={height === undefined ? undefined : { height }}>
       <div className="jc-map-canvas" ref={container} data-testid="jc-map" role="application" aria-label={i18n.t("map.label")} />
       {!effectiveBasemap && <span className="jc-map-notice">{NO_BASEMAP}</span>}
+      {!drawable && <span className="jc-map-notice" role="status">{i18n.t("map.noWebgl")}</span>}
       {color && ext && ext[1] > ext[0] && (
         <div className="jc-map-legend" role="img" aria-label={i18n.t("map.legend", { attr: color, min: format(ext[0]), max: format(ext[1]) })}>
           <span className="jc-map-legend-name">{color}</span>
