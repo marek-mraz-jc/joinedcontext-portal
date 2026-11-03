@@ -6,7 +6,7 @@
 import { useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { refName } from "../../api/manifest";
+import { localized, refName } from "../../api/manifest";
 import type { Manifest } from "../../api/manifest";
 import { AttributePicker } from "../../components/pickers/AttributePicker";
 import { TypePicker } from "../../components/pickers/TypePicker";
@@ -30,7 +30,7 @@ export interface RecipeGalleryProps {
 }
 
 export function RecipeGallery({ project, orgDomain, dataSources, endpoints, targets, onUse, onSeveralSources, children }: RecipeGalleryProps): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [picked, setPicked] = useState<Recipe | null>(null);
   const [source, setSource] = useState("");
   const [target, setTarget] = useState("");
@@ -38,7 +38,8 @@ export function RecipeGallery({ project, orgDomain, dataSources, endpoints, targ
   const [attribute, setAttribute] = useState("");
   const [problem, setProblem] = useState<RecipeProblem | null>(null);
   const errors = (field: RecipeProblem) => (problem === field ? [t(`pipelines.recipe.problem.${field}`)] : undefined);
-  const sources = picked?.source === "endpoint" ? endpoints : dataSources;
+  // An App's own Endpoint (app-*) is the App's door, never a pipeline's source (T-6572).
+  const sources = picked?.source === "endpoint" ? endpoints.filter((one) => !one.metadata.name.startsWith("app-")) : dataSources;
   // The KPI reads an Endpoint: its space's model lists the types and their numbers.
   const sourceSpace = refName(endpoints.find((one) => one.metadata.name === source)?.spec.contextSpaceRef) || undefined;
 
@@ -98,7 +99,7 @@ export function RecipeGallery({ project, orgDomain, dataSources, endpoints, targ
               <option value="">{t("pipelines.recipe.choose")}</option>
               {sources.map((one) => (
                 <option key={one.metadata.name} value={one.metadata.name}>
-                  {one.metadata.name}
+                  {sourceLabel(one, i18n.language)}
                 </option>
               ))}
             </Select>
@@ -181,4 +182,11 @@ export function RecipeGallery({ project, orgDomain, dataSources, endpoints, targ
       {children}
     </details>
   );
+}
+
+/** A source by its title and its name, so two feeds of one publisher read apart (T-6572). */
+export function sourceLabel(source: Manifest, language: string): string {
+  const name = source.metadata.name;
+  const title = localized(source.metadata.title, language, name);
+  return title === name ? name : `${title} (${name})`;
 }

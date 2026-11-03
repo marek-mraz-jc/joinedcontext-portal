@@ -130,6 +130,7 @@ fn reading(
         text: Some(String::new()),
         url: None,
         format: SampleFormat::Text,
+        records: None,
     };
     let mut config =
         harness(&probe, &sample, capture).map_err(|e| ApiError::Internal(e.to_string()))?;

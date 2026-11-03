@@ -3,6 +3,7 @@
  * needs and turned into the DataSource form of an existing type. No new kind: a CSV file, a REST
  * API, a CKAN resource and a WFS layer are all `http`, a GTFS Realtime feed is `gtfs-rt`.
  */
+import { RECORDS_PATH } from "../../schemas/kinds";
 import type { TypedDataSourceType } from "../../schemas/kinds";
 
 export type TemplateId = "csv" | "json" | "ckan" | "wfs" | "gtfs-rt";
@@ -12,11 +13,13 @@ export interface Template {
   type: TypedDataSourceType;
   /** The WFS template also names the layer; every template asks for an address. */
   asksLayer: boolean;
+  /** The JSON template may name the array its records sit in (T-6572). */
+  asksRecords?: boolean;
 }
 
 export const TEMPLATES: Template[] = [
   { id: "csv", type: "http", asksLayer: false },
-  { id: "json", type: "http", asksLayer: false },
+  { id: "json", type: "http", asksLayer: false, asksRecords: true },
   { id: "ckan", type: "http", asksLayer: false },
   { id: "wfs", type: "http", asksLayer: true },
   { id: "gtfs-rt", type: "gtfs-rt", asksLayer: false },
@@ -27,10 +30,11 @@ export interface TemplateValues {
   name: string;
   url: string;
   layer?: string;
+  records?: string;
 }
 
 /** Why an address does not fit the template, as a key under `datasources.template.problem`. */
-export type TemplateProblem = "name" | "url" | "ckanDataset" | "layer";
+export type TemplateProblem = "name" | "url" | "ckanDataset" | "layer" | "records";
 
 const DNS1123 = /^[a-z0-9]([-a-z0-9]*[a-z0-9])?$/;
 
@@ -46,6 +50,8 @@ export function problemOf(template: Template, values: TemplateValues): TemplateP
   if (url.protocol !== "https:" && url.protocol !== "http:") return "url";
   if (template.id === "ckan" && /\/dataset\/[^/]+\/?$/.test(url.pathname)) return "ckanDataset";
   if (template.asksLayer && !isGetFeature(url) && !(values.layer ?? "").trim()) return "layer";
+  const records = (values.records ?? "").trim();
+  if (template.asksRecords && records !== "" && !new RegExp(RECORDS_PATH).test(records)) return "records";
   return undefined;
 }
 
@@ -100,5 +106,6 @@ export function fromTemplate(template: Template, values: TemplateValues): { type
     return { type: "gtfs-rt", form: { name, gtfsRt: { url: values.url.trim(), feed: "vehiclePositions" } } };
   }
   const url = template.asksLayer ? wfsUrl(values.url, values.layer ?? "") : values.url.trim();
-  return { type: "http", form: { name, http: { url, verb: "GET" } } };
+  const records = template.asksRecords ? (values.records ?? "").trim() : "";
+  return { type: "http", form: { name, http: records ? { url, verb: "GET", records } : { url, verb: "GET" } } };
 }

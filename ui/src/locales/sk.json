@@ -2365,7 +2365,9 @@
       "brokerRef": "Broker platformy",
       "brokerRefHelp": "MQTT broker tohto projektu. Pipeline ho číta cez interný listener platformy, takže nepotrebuje URL ani prihlasovacie údaje. Nechajte prázdne pre externý broker.",
       "broker": "Broker",
-      "externalBroker": "Externý broker (URL a secret nižšie)"
+      "externalBroker": "Externý broker (URL a secret nižšie)",
+      "records": "Záznamy sú v",
+      "recordsHelp": "Pre JSON odpoveď, ktorá má záznamy v poli, cesta k nemu, napríklad data.stations; každá položka je jeden záznam. Prázdne pole číta celú odpoveď ako jeden záznam."
     },
     "probe": {
       "title": "Jedno stiahnutie feedu",
@@ -2434,7 +2436,8 @@
         "name": "Zadajte názov z malých písmen, číslic a pomlčiek, najviac 63 znakov.",
         "url": "Zadajte celú adresu začínajúcu na https:// alebo http://.",
         "ckanDataset": "Toto je stránka datasetu, nie súbor. Otvorte na nej zdroj CSV alebo JSON a skopírujte jeho adresu na stiahnutie.",
-        "layer": "Zadajte vrstvu, ktorú čítať, alebo adresu súboru GeoJSON."
+        "layer": "Zadajte vrstvu, ktorú čítať, alebo adresu súboru GeoJSON.",
+        "records": "Zadajte cestu ako názvy spojené bodkami, napr. data.stations."
       }
     },
     "test": {

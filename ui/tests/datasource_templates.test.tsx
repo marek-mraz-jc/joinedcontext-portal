@@ -88,4 +88,31 @@ describe("the template gallery", () => {
       http: { url: wfsUrl("https://gis.example.org/parky-wfs", "mesto:parky"), verb: "GET" },
     });
   });
+
+  it("asks a JSON API for the array its records sit in, refuses a path that is not names, and hands it over (T-6572)", async () => {
+    const user = userEvent.setup();
+    const onUse = vi.fn();
+    render(
+      <I18nextProvider i18n={i18n}>
+        <TemplateGallery onUse={onUse} />
+      </I18nextProvider>,
+    );
+    const json = en.datasources.template.json;
+    await user.click(screen.getByRole("button", { name: (name) => name.startsWith(json.title) }));
+    await user.type(screen.getByLabelText(new RegExp(json.url)), "https://gbfs.example.org/gbfs/station_information.json");
+    const records = screen.getByRole("textbox", { name: en.datasources.field.records });
+    expect(screen.getByText(en.datasources.field.recordsHelp)).toBeInTheDocument();
+    await user.type(records, "data stations");
+    await user.click(screen.getByRole("button", { name: en.datasources.template.use }));
+    expect(screen.getByText(en.datasources.template.problem.records)).toBeInTheDocument();
+    expect(onUse).not.toHaveBeenCalled();
+
+    await user.clear(records);
+    await user.type(records, "data.stations");
+    await user.click(screen.getByRole("button", { name: en.datasources.template.use }));
+    expect(onUse).toHaveBeenCalledWith("http", {
+      name: "station-information",
+      http: { url: "https://gbfs.example.org/gbfs/station_information.json", verb: "GET", records: "data.stations" },
+    });
+  });
 });

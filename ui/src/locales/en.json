@@ -2384,7 +2384,9 @@
       "brokerRef": "Platform broker",
       "brokerRefHelp": "An MQTT broker of this project. The pipeline reads it on the platform's internal listener, so it needs no URL and no credential. Leave it empty to read an external broker.",
       "broker": "Broker",
-      "externalBroker": "External broker (URL and secret below)"
+      "externalBroker": "External broker (URL and secret below)",
+      "records": "Records are in",
+      "recordsHelp": "For a JSON answer that holds its records in an array, the path to it, for example data.stations; each item becomes one record. Leave empty to read the whole answer as one record."
     },
     "probe": {
       "title": "One fetch of the feed",
@@ -2434,7 +2436,8 @@
         "name": "Give a name of lowercase letters, digits and hyphens, at most 63 characters.",
         "url": "Give a full address starting with https:// or http://.",
         "ckanDataset": "This is the dataset page, not a file. Open the CSV or JSON resource on it and copy its download address.",
-        "layer": "Name the layer to read, or give the address of a GeoJSON file."
+        "layer": "Name the layer to read, or give the address of a GeoJSON file.",
+        "records": "Give the path as names joined by dots, for example data.stations."
       }
     },
     "test": {

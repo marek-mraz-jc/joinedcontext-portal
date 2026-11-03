@@ -2365,7 +2365,9 @@
       "brokerRef": "Plattform-Broker",
       "brokerRefHelp": "Ein MQTT-Broker dieses Projekts. Die Pipeline liest ihn über den internen Listener der Plattform, ohne URL und ohne Zugangsdaten. Leer lassen, um einen externen Broker zu lesen.",
       "broker": "Broker",
-      "externalBroker": "Externer Broker (URL und Secret unten)"
+      "externalBroker": "Externer Broker (URL und Secret unten)",
+      "records": "Datensätze stehen in",
+      "recordsHelp": "Bei einer JSON-Antwort mit den Datensätzen in einem Array der Pfad dorthin, zum Beispiel data.stations; jedes Element wird ein Datensatz. Leer gelassen wird die ganze Antwort ein Datensatz."
     },
     "probe": {
       "title": "Ein Abruf des Feeds",
@@ -2434,7 +2436,8 @@
         "name": "Geben Sie einen Namen aus Kleinbuchstaben, Ziffern und Bindestrichen an, höchstens 63 Zeichen.",
         "url": "Geben Sie eine vollständige Adresse an, die mit https:// oder http:// beginnt.",
         "ckanDataset": "Das ist die Datensatzseite, keine Datei. Öffnen Sie dort die CSV- oder JSON-Ressource und kopieren Sie ihre Download-Adresse.",
-        "layer": "Nennen Sie den zu lesenden Layer oder geben Sie die Adresse einer GeoJSON-Datei an."
+        "layer": "Nennen Sie den zu lesenden Layer oder geben Sie die Adresse einer GeoJSON-Datei an.",
+        "records": "Geben Sie den Pfad als durch Punkte verbundene Namen an, zum Beispiel data.stations."
       }
     },
     "test": {

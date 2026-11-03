@@ -22,6 +22,7 @@ export function TemplateGallery({ onUse }: TemplateGalleryProps): JSX.Element {
   const [picked, setPicked] = useState<Template | null>(null);
   const [url, setUrl] = useState("");
   const [layer, setLayer] = useState("");
+  const [records, setRecords] = useState("");
   const [name, setName] = useState("");
   const [named, setNamed] = useState(false);
   const [problem, setProblem] = useState<TemplateProblem | null>(null);
@@ -31,7 +32,7 @@ export function TemplateGallery({ onUse }: TemplateGalleryProps): JSX.Element {
 
   const use = () => {
     if (!picked) return;
-    const values = { name: shownName, url, layer };
+    const values = { name: shownName, url, layer, records };
     const found = problemOf(picked, values);
     setProblem(found ?? null);
     if (found) return;
@@ -84,6 +85,24 @@ export function TemplateGallery({ onUse }: TemplateGalleryProps): JSX.Element {
               errors={errorsFor("layer")}
             >
               <Input id="template-layer" value={layer} onChange={(e) => setLayer(e.target.value)} />
+            </Field>
+          ) : null}
+          {picked.asksRecords ? (
+            <Field
+              id="template-records"
+              label={t("datasources.field.records")}
+              help={t("datasources.field.recordsHelp")}
+              errors={errorsFor("records")}
+            >
+              <Input
+                id="template-records"
+                placeholder="data.stations"
+                value={records}
+                onChange={(e) => {
+                  setRecords(e.target.value);
+                  if (problem === "records") setProblem(null);
+                }}
+              />
             </Field>
           ) : null}
           <Field
