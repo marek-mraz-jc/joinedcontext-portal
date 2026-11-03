@@ -701,10 +701,15 @@
           "float": "Desatinné číslo",
           "boolean": "Áno alebo nie",
           "date": "Dátum",
-          "datetime": "Dátum a čas"
+          "datetime": "Dátum a čas",
+          "GeoProperty": "Miesto"
         }
       },
-      "spaceHint": "Existujúci priestor na doplnenie alebo názov nového, napríklad mestske-garaze."
+      "spaceHint": "Existujúci priestor na doplnenie alebo názov nového, napríklad mestske-garaze.",
+      "diagram": {
+        "title": "Dátový model {type}",
+        "hint": "Každý rámček je typ, každý riadok atribút s druhom hodnoty, ktorý sme vyčítali z vášho súboru."
+      }
     },
     "segment": "v identifikátoroch entít: {segment}",
     "quality": {
@@ -1173,6 +1178,13 @@
       "lead": "Vyberte CSV alebo Excel. Portál navrhne štandardný typ pre jeho stĺpce a navrhne priestor s vaším právom zapisovať; po schválení zapíšete riadky.",
       "choose": "Vybrať súbor CSV alebo zošit Excel (.xlsx)",
       "chooseHint": "CSV, TSV alebo Excel (.xlsx) do 50 MB, prvý riadok sú názvy stĺpcov. Príklad: garaze.xlsx so stĺpcami name, lat, lon.",
+      "chooseButton": "Vybrať súbor",
+      "steps": {
+        "title": "Čo z tohto súboru vznikne",
+        "model": "Dátový model: jeden typ, každý stĺpec atribút s druhom hodnoty.",
+        "space": "Kontextový priestor s Endpointom na čítanie, navrhnutý ako jedna zmena na schválenie.",
+        "rows": "Jeho riadky, zapísané do priestoru po schválení zmeny."
+      },
       "reading": "Čítam {name} a porovnávam jeho stĺpce s typmi Smart Data Models…",
       "type": "Čo riadky sú",
       "noMatch": "Žiadny typ Smart Data Models nepomenúva dosť týchto stĺpcov: súbor dostane vlastný model.",

@@ -727,8 +727,9 @@ function valueOf(text: string, slot: ImportSlot, mark?: "." | ","): unknown | Er
     return number;
   }
   if (range === "boolean") {
-    const key = text.toLowerCase();
-    if (["true", "1", "yes", "ano", "kyllä", "ja"].includes(key)) return true;
+    // `áno` is `ano` once folded: a Slovak sheet's yes is no misspelt one (T-6567).
+    const key = normalized(text);
+    if (["true", "1", "yes", "ano", "kylla", "ja"].includes(key)) return true;
     if (["false", "0", "no", "nie", "ne", "ei", "nein"].includes(key)) return false;
     return new Error(`${slot.name}: \`${text}\` is not yes or no`);
   }

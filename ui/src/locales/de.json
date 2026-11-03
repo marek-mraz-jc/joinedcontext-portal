@@ -701,10 +701,15 @@
           "float": "Dezimalzahl",
           "boolean": "Ja oder nein",
           "date": "Datum",
-          "datetime": "Datum und Uhrzeit"
+          "datetime": "Datum und Uhrzeit",
+          "GeoProperty": "Ort"
         }
       },
-      "spaceHint": "Ein bestehender Bereich zum Ergänzen oder der Name eines neuen, zum Beispiel stadt-garagen."
+      "spaceHint": "Ein bestehender Bereich zum Ergänzen oder der Name eines neuen, zum Beispiel stadt-garagen.",
+      "diagram": {
+        "title": "Das Datenmodell {type}",
+        "hint": "Jeder Kasten ist ein Typ, jede Zeile ein Attribut mit der Art des Werts, gelesen aus Ihrer Datei."
+      }
     },
     "segment": "in Entitäts-IDs: {segment}",
     "quality": {
@@ -1173,6 +1178,13 @@
       "lead": "Wählen Sie eine CSV- oder Excel-Datei. Das Portal schlägt einen Standardtyp für ihre Spalten vor und beantragt den Raum mit Ihrem Schreibrecht; nach der Freigabe schreiben Sie die Zeilen.",
       "choose": "CSV-Datei oder Excel-Arbeitsmappe (.xlsx) wählen",
       "chooseHint": "CSV, TSV oder Excel (.xlsx) bis 50 MB, die erste Zeile sind die Spaltennamen. Beispiel: garagen.xlsx mit den Spalten name, lat, lon.",
+      "chooseButton": "Datei auswählen",
+      "steps": {
+        "title": "Was aus dieser Datei wird",
+        "model": "Ein Datenmodell: ein Typ, jede Spalte ein Attribut mit der Art ihres Werts.",
+        "space": "Ein Context Space mit einem Endpoint, der ihn liest, als eine Änderung zur Freigabe vorgeschlagen.",
+        "rows": "Seine Zeilen, in den Space geschrieben, sobald die Änderung freigegeben ist."
+      },
       "reading": "{name} wird gelesen und seine Spalten mit den Smart-Data-Models-Typen abgeglichen…",
       "type": "Was die Zeilen sind",
       "noMatch": "Kein Smart-Data-Models-Typ benennt genug dieser Spalten: Die Datei bekommt ein eigenes Modell.",

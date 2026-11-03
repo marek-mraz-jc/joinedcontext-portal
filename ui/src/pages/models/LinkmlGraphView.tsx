@@ -262,9 +262,9 @@ export function fitRow(name: string, type: string): [string, string] {
  * What a row says its value is: a reference names its class and how many, a list says `[]`, a
  * value object lists the fields it holds inside the entity (T-4829).
  */
-function typeText(row: GraphRow): string {
+function typeText(row: GraphRow, typeWord: (type: string) => string = (type) => type): string {
   if (row.key === "fk") return `→ ${row.type} ${row.multiplicity ?? ""}`.trimEnd();
-  const type = row.inline ? `{ ${row.inline.join(", ")} }` : row.type;
+  const type = row.inline ? `{ ${row.inline.join(", ")} }` : typeWord(row.type);
   return row.multivalued ? `${type}[]` : type;
 }
 
@@ -292,6 +292,7 @@ export function LinkmlGraphView({
   only,
   selected,
   toolbarEnd,
+  typeWord,
 }: {
   source: string;
   /** The sources of the models this one imports, by import name: their classes are drawn too. */
@@ -326,6 +327,8 @@ export function LinkmlGraphView({
   selected?: string;
   /** Ends the toolbar row: the model page's Open full screen (T-6146). */
   toolbarEnd?: ReactNode;
+  /** A type in the words of a person who never wrote LinkML: `integer` as "Whole number" (T-6567). */
+  typeWord?: (type: string) => string;
 }): JSX.Element {
   const { t } = useTranslation();
   const [zoom, setZoom] = useState(ZOOM.natural);
@@ -606,7 +609,7 @@ export function LinkmlGraphView({
   const servedRow = (node: Placed, row: GraphRow) => highlight?.get(node.name)?.has(row.name);
   const rowTip = (row: GraphRow) =>
     [
-      t(`models.graph.row.${row.key ?? "plain"}`, { name: row.name, type: typeText(row) }),
+      t(`models.graph.row.${row.key ?? "plain"}`, { name: row.name, type: typeText(row, typeWord) }),
       row.required ? t("models.canvas.required") : "",
       row.personal ? t("models.canvas.personal") : "",
     ]
@@ -950,6 +953,7 @@ export function LinkmlGraphView({
                           x={node.x}
                           y={node.y + BOX.header + index * BOX.row + 4}
                           tip={rowTip(row)}
+                          typeWord={typeWord}
                         />
                       ))
                     : node.slots.map((slot, index) => (
@@ -1195,9 +1199,9 @@ function Multiplicity({ at, value }: { at: Point; value?: string }): JSX.Element
  * solid one for the key, a dashed one for a reference) and never by colour, the slot's name, and
  * its type at the right edge. The tooltip says the whole row when either half was cut.
  */
-function SlotRow({ row, x, y, tip, served }: { row: GraphRow; x: number; y: number; tip: string; served?: boolean }): JSX.Element {
+function SlotRow({ row, x, y, tip, served, typeWord }: { row: GraphRow; x: number; y: number; tip: string; served?: boolean; typeWord?: (type: string) => string }): JSX.Element {
   const nameAt = x + BOX.padding + BOX.tagWidth + 4;
-  const [nameText, typeShown] = fitRow(row.name, typeText(row));
+  const [nameText, typeShown] = fitRow(row.name, typeText(row, typeWord));
   // Under the Endpoints overlay a served attribute is in the primary colour, the others fade.
   return (
     <g

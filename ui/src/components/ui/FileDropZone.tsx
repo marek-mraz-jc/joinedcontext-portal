@@ -17,6 +17,10 @@ export interface FileDropZoneProps {
   onFiles: (files: File[]) => void;
   /** Under the hint: what was taken. */
   children?: ReactNode;
+  /** Above the trigger: what the file will become, on a page whose first step it is. */
+  intro?: ReactNode;
+  /** The trigger as the page's primary action, for a page with nothing else to do yet. */
+  primary?: boolean;
 }
 
 /**
@@ -32,6 +36,8 @@ export function FileDropZone({
   multiple,
   onFiles,
   children,
+  intro,
+  primary = false,
 }: FileDropZoneProps): React.JSX.Element {
   const [over, setOver] = useState(false);
   return (
@@ -55,8 +61,9 @@ export function FileDropZone({
         }
       }}
     >
+      {intro}
       <FilePicker label={label} accept={accept} multiple={multiple} onFiles={onFiles}>
-        <span className={buttonClass("secondary", "md", "cursor-pointer")}>{button}</span>
+        <span className={buttonClass(primary ? "primary" : "secondary", "md", "cursor-pointer")}>{button}</span>
       </FilePicker>
       {hint ? <p className="text-caption text-fg-muted">{hint}</p> : null}
       {children}

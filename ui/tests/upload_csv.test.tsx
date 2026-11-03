@@ -111,8 +111,8 @@ describe("Upload CSV", () => {
     expect(catalogue?.url.searchParams.get("subject")?.split(",")).toHaveLength(8);
 
     await user.click(screen.getByRole("button", { name: "Propose the change" }));
-    await screen.findByText(/write the rows into parking as OffStreetParking/);
-    const op = calls.find((c) => c.url.pathname.endsWith("/ops/jc_space_complete"))?.body as Record<string, unknown>;
+    await screen.findByText(/rows into parking as OffStreetParking/);
+    const op = calls.find((c) => c.url.pathname.endsWith("/ops/jc_space_complete") && (c.body as { propose?: boolean }).propose)?.body as Record<string, unknown>;
     expect(op).toMatchObject({ space: "parking", typeName: "OffStreetParking", upload: true, propose: true });
     expect((op.files as { name: string }[]).map((f) => f.name)).toEqual(["garages.csv", "OffStreetParking.linkml.yaml"]);
 
@@ -151,8 +151,8 @@ describe("Upload CSV", () => {
     expect(await screen.findByRole("radio", { name: /OffStreetParking/ })).toBeChecked();
 
     await user.click(screen.getByRole("button", { name: "Propose the change" }));
-    await screen.findByText(/write the rows into parking as OffStreetParking/);
-    const op = calls.find((c) => c.url.pathname.endsWith("/ops/jc_space_complete"))?.body as { files: { name: string; content: string }[] };
+    await screen.findByText(/rows into parking as OffStreetParking/);
+    const op = calls.find((c) => c.url.pathname.endsWith("/ops/jc_space_complete") && (c.body as { propose?: boolean }).propose)?.body as { files: { name: string; content: string }[] };
     expect(op.files[0]).toEqual({
       name: "Garages.csv",
       content: "name,totalSpotNumber,availableSpotNumber,lat,lon\r\nKamppi,500,120,60.17,24.93\r\n,10,2,60.1,24.9\r\n",
@@ -166,12 +166,38 @@ describe("Upload CSV", () => {
     server();
     const user = userEvent.setup();
     page("");
-    await user.upload(screen.getByLabelText("Choose a CSV file or an Excel workbook (.xlsx)"), new File([CSV], "garages.csv", { type: "text/csv" }));
+    await user.upload(screen.getByLabelText("Choose a CSV file or an Excel workbook (.xlsx)"), new File([CSV], "__.csv", { type: "text/csv" }));
     expect(await screen.findByText("Columns: name, totalSpotNumber, availableSpotNumber, lat, lon")).toBeInTheDocument();
     expect(screen.getAllByText("Choose a Context Space to propose.").find((line) => line.tagName === "P")).toBeVisible();
     expect(screen.getByText(/An existing space, or a new name in lower case/)).toBeInTheDocument();
     await user.click(screen.getByRole("radio", { name: "My own model" }));
     expect(screen.getAllByText("Choose a type, or write your own type name.").find((line) => line.tagName === "P")).toBeVisible();
+  });
+
+  it("names the space and the type after the sheet, draws the drafted model and proposes in one click (T-6567)", async () => {
+    const drafted = "id: https://example.org/models/DetskeIhriska\nname: DetskeIhriska\nimports: [linkml:types, ngsi-ld-core]\nclasses:\n  DetskeIhriska:\n    is_a: Entity\n    slots: [Nazov, Bezbarierove]\nslots:\n  Nazov: { range: string }\n  Bezbarierove: { range: boolean }\n";
+    const calls = server({
+      catalogue: async () => Response.json({ subjects: [] }),
+      op: () => Response.json({ space: "detske-ihriska", found: [], drafts: [{ kind: "DataModel", name: "detske-ihriska", manifest: { spec: { source: drafted } } }], proposeReady: true, lane: "yellow", change: null }),
+    });
+    const user = userEvent.setup();
+    page("");
+    expect(screen.getByText("What this file becomes")).toBeInTheDocument();
+    const file = xlsxFile("priklad.xlsx", { "Detské ihriská": [["Názov", "Zemepisná šírka", "Zemepisná dĺžka", "Bezbariérové"], ["Tulská", 48.73, 19.12, "áno"]] });
+    await user.upload(screen.getByLabelText("Choose a CSV file or an Excel workbook (.xlsx)"), file);
+
+    expect(await screen.findByLabelText("Type name")).toHaveValue("DetskeIhriska");
+    expect(screen.queryByText("What this file becomes")).toBeNull();
+    const diagram = await screen.findByTestId("drafted-model", {}, { timeout: 3_000 });
+    expect(diagram).toHaveTextContent("The data model DetskeIhriska");
+    expect(diagram).toHaveTextContent("Yes or no");
+    expect(diagram).toHaveTextContent("Place");
+    const dry = calls.find((c) => c.url.pathname.endsWith("/ops/jc_space_complete"))?.body;
+    expect(dry).toMatchObject({ space: "detske-ihriska", typeName: "DetskeIhriska", propose: false });
+
+    await user.click(screen.getByRole("button", { name: "Propose the change" }));
+    await screen.findByText(/rows into detske-ihriska as DetskeIhriska/);
+    expect(calls.filter((c) => (c.body as { propose?: boolean } | undefined)?.propose === true)).toHaveLength(1);
   });
 
   it("says who can change it when the space refuses the write (JC1-41)", async () => {
@@ -259,6 +285,7 @@ describe("Upload CSV", () => {
     await user.upload(screen.getByLabelText("Choose a CSV file or an Excel workbook (.xlsx)"), new File(["foo,bar\n1,2\n"], "notes.csv"));
     await screen.findByText(/No Smart Data Models type names enough/);
     const propose = screen.getByRole("button", { name: "Propose the change" });
+    await user.clear(screen.getByLabelText("Type name"));
     await user.type(screen.getByLabelText("Type name"), "lowercase");
     expect(propose).toHaveAttribute("aria-disabled", "true");
     await user.clear(screen.getByLabelText("Type name"));
@@ -266,7 +293,7 @@ describe("Upload CSV", () => {
     await user.click(propose);
     expect(await screen.findByRole("alert")).toHaveTextContent("no right to propose");
     expect(calls.some((c) => c.url.pathname === "/api/v1/tools/import-sdm")).toBe(false);
-    const op = calls.find((c) => c.url.pathname.endsWith("/ops/jc_space_complete"))?.body as { files: unknown[] };
+    const op = calls.find((c) => c.url.pathname.endsWith("/ops/jc_space_complete") && (c.body as { propose?: boolean }).propose)?.body as { files: unknown[] };
     expect(op.files).toHaveLength(1);
   });
 

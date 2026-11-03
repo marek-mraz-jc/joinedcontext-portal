@@ -2147,7 +2147,6 @@
         "Button": 3
       },
       "tests": [
-        "model_review.test.ts",
         "space_complete.test.tsx"
       ]
     },
@@ -2197,7 +2196,6 @@
     "src/pages/spaces/UploadCsv.tsx": {
       "controls": {
         "Button": 1,
-        "FilePicker": 1,
         "RadioGroup": 1
       },
       "tests": [
