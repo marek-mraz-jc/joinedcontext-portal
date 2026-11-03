@@ -586,13 +586,14 @@ export function ArrayFieldItemTemplate(props: ArrayFieldItemTemplateProps): Reac
     <div
       className={clsx(
         "flex gap-2",
-        boxed && "rounded-md border border-border bg-surface p-2",
+        boxed && "rounded-md border border-border bg-surface p-2 max-sm:flex-col",
         "items-start",
       )}
     >
-      <div className="min-w-0 flex-1 [&>div]:gap-1">{children}</div>
+      <div className={clsx("min-w-0 flex-1 [&>div]:gap-1", boxed && "max-sm:w-full")}>{children}</div>
       {hasToolbar && !buttonsProps.disabled && !buttonsProps.readonly ? (
-        <div data-testid="item-buttons" className="flex h-control shrink-0 items-center gap-1">
+        // At a phone's width a boxed entry's buttons go under it, or they take a third of its line.
+        <div data-testid="item-buttons" className={clsx("flex h-control shrink-0 items-center gap-1", boxed && "max-sm:self-end")}>
           <ArrayFieldItemButtonsTemplate {...buttonsProps} uiSchema={uiSchema} registry={registry} />
         </div>
       ) : null}

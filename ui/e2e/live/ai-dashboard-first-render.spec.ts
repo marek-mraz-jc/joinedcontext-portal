@@ -11,6 +11,7 @@
  * one phone take in one Playwright run, clock in the frame: prompt, first dashboard, two edits asked
  * of the assistant. Each take writes <take>.webm, <take>.json (times, the empty count beside a
  * direct NGSI-LD count of the same minute, the conversation) and <take>-conversation.png.
+ * `AI_DASHBOARD_FILM=1` ends a take at the first dashboard (T-6493): one paid run, no edits.
  *
  * Every wait is on the thing the step needs, never on the network going idle (T-2452).
  */
@@ -34,6 +35,7 @@ const PAINTED = 0.25;
 /** A type no bike Endpoint serves: the App's grant lacks it. */
 const DENIED_PROMPT = "List the air quality stations of the city with their PM10 values";
 const VIDEO = process.env.AI_DASHBOARD_VIDEO;
+const FILM = process.env.AI_DASHBOARD_FILM === "1";
 const FILTER_LABEL = "Only empty stations";
 const COLUMN_LABEL = "Free dock share";
 const FILTER_EDIT = `On the first page, add a checkbox "${FILTER_LABEL}" above the map: when ticked, the page shows only stations with 0 available bikes.`;
@@ -71,6 +73,9 @@ interface Measured {
   sampleLost: boolean;
   preview: string;
   note: string;
+  /** Direct NGSI-LD counts of the minute the first render was shot, beside the App's own text. */
+  direct: { slug: string; total: number | null; empty: number | null; noReading: number | null } | null;
+  firstRenderText: string;
 }
 
 const results: Measured[] = [];
@@ -135,10 +140,18 @@ async function generate(page: Page, name: string, prompt: string, label: string,
   return { id, pressed };
 }
 
-/** One shot at 1440 and 400 px, back at 1440 afterwards. */
+/**
+ * One shot at 1440 and 400 px, back at 1440 afterwards. At 400 px the open dock covers the page, so
+ * a built preview is shot with the dock hidden and in view, as a person reaches it (T-6493).
+ */
 async function both(page: Page, label: string, state: string): Promise<void> {
   for (const width of [1440, 400]) {
     await page.setViewportSize({ width, height: 900 });
+    const pane = page.locator("iframe").first();
+    if (width === 400 && (await pane.count())) {
+      await page.getByRole("button", { name: "Hide the assistant" }).click();
+      await pane.scrollIntoViewIfNeeded();
+    }
     await shot(page, { area: "ai-dashboard", route: `/projects/${PROJECT}/apps`, state: `${label}-${state}`, who: "steward", lang: "en" }, DIR);
   }
   await page.setViewportSize({ width: 1440, height: 900 });
@@ -193,6 +206,8 @@ for (let round = 1; round <= RUNS; round += 1) {
     // line is not a dashboard yet, and neither is an empty one (T-6441).
     let firstRenderS: number | null = null;
     let note = "";
+    let direct: Measured["direct"] = null;
+    let firstRenderText = "";
     try {
       await expect(preview.locator(MAP)).toBeVisible({ timeout: 300_000 });
       // A basemap paints before the rows land (run 7 of T-6441): the template's tiles hold "…" until they do.
@@ -200,6 +215,14 @@ for (let round = 1; round <= RUNS; round += 1) {
       await expect(preview.getByText("…", { exact: true })).toHaveCount(0, { timeout: 120_000 });
       await expect.poll(() => paintedPixels(preview), { timeout: 120_000 }).toBeGreaterThanOrEqual(PAINTED);
       firstRenderS = (Date.now() - pressed) / 1000;
+      const { slug } = JSON.parse((await preview.locator("#jc-config").textContent()) ?? "{}") as { slug: string };
+      direct = {
+        slug,
+        total: await directCount(page, slug),
+        empty: await directCount(page, slug, "availableBikeNumber==0"),
+        noReading: await directCount(page, slug, "!availableBikeNumber"),
+      };
+      firstRenderText = await preview.locator("body").innerText();
       await both(page, label, "first-render");
     } catch (error) {
       note = String(error).split("\n")[0] ?? "";
@@ -238,6 +261,8 @@ for (let round = 1; round <= RUNS; round += 1) {
       sampleLost: events.some((event) => event.kind === "thought" && String(event.payload.text).startsWith("No sample of")),
       preview: new URL(page.url()).pathname,
       note,
+      direct,
+      firstRenderText,
     });
     await cancel(page, id);
     await context.close();
@@ -346,6 +371,10 @@ for (const { take, viewport } of TAKES) {
         firstRenderText: await preview.locator("body").innerText(),
       });
       await page.screenshot({ path: join(dir, `${take}-first-render.png`) });
+      if (FILM) {
+        await page.waitForTimeout(5_000);
+        return;
+      }
       await expect(page.getByTestId("run-progress").filter({ hasText: "Waiting for you" })).toBeVisible({ timeout: 420_000 });
       report.waitingS = (Date.now() - pressed) / 1000;
       await edit(page, FILTER_EDIT, FILTER_LABEL);
