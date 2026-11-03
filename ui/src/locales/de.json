@@ -8624,7 +8624,8 @@
     },
     "federationIdentity": {
       "serviceAccount": "Das Dienstkonto des Projekts",
-      "caller": "Die fragende Person"
+      "caller": "Die fragende Person",
+      "anonymous": "Niemand: eine öffentliche Adresse anderswo"
     },
     "appSource": {
       "path": "Ein Ordner des Konfigurations-Repositorys",

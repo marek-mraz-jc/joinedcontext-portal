@@ -8624,7 +8624,8 @@
     },
     "federationIdentity": {
       "serviceAccount": "Servisný účet projektu",
-      "caller": "Osoba, ktorá sa pýta"
+      "caller": "Osoba, ktorá sa pýta",
+      "anonymous": "Nikto: verejná adresa inde"
     },
     "appSource": {
       "path": "Priečinok konfiguračného repozitára",

@@ -101,10 +101,10 @@ spec:
         de: Die Basis-URL der NGSI-LD-API des anderen Brokers, ohne /ngsi-ld/v1, das der Broker selbst anhängt.
     federation.identity:
       help:
-        en: Forward as a service account of this platform, or pass on the caller's own token rewritten for the source.
-        sk: Preposielať ako servisný účet tejto platformy, alebo odovzdať vlastný token volajúceho prepísaný pre zdroj.
-        cs: Přeposílat jako servisní účet této platformy, nebo předat vlastní token volajícího přepsaný pro zdroj.
-        de: Als Dienstkonto dieser Plattform weiterleiten oder das eigene Token des Aufrufers für die Quelle umschreiben.
+        en: Forward as a service account of this platform, pass on the caller's own token rewritten for the source, or, for a public https address elsewhere, forward no credential (anonymous).
+        sk: Preposielať ako servisný účet tejto platformy, odovzdať vlastný token volajúceho prepísaný pre zdroj, alebo pre verejnú https adresu inde neposlať žiadne prihlásenie (anonymne).
+        cs: Přeposílat jako servisní účet této platformy, předat vlastní token volajícího přepsaný pro zdroj, nebo pro veřejnou https adresu jinde neposlat žádné přihlášení (anonymně).
+        de: Als Dienstkonto dieser Plattform weiterleiten, das eigene Token des Aufrufers für die Quelle umschreiben oder bei einer öffentlichen https-Adresse anderswo keine Anmeldung mitsenden (anonym).
     federation.serviceAccountRef:
       help:
         en: The service account the platform forwards as; required when forwarding as a service account.

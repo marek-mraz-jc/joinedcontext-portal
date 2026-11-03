@@ -2414,7 +2414,14 @@ export type RegistrationTarget = (typeof REGISTRATION_TARGETS)[number];
 export const REGISTRATION_MODES = ["inclusive", "exclusive", "auxiliary", "redirect"] as const;
 
 /** Which identity a forwarded request carries (PF-48). */
-export const FEDERATION_IDENTITIES = ["serviceAccount", "caller"] as const;
+export const FEDERATION_IDENTITIES = ["serviceAccount", "caller", "anonymous"] as const;
+
+/** The identities a target can use: `anonymous` reaches only an address elsewhere (T-6545). */
+export function federationIdentities(target: RegistrationTarget): readonly string[] {
+  return target === "endpoint"
+    ? FEDERATION_IDENTITIES
+    : FEDERATION_IDENTITIES.filter((identity) => identity !== "anonymous");
+}
 
 /** An RFC 3339 instant with seconds and an offset, which is what jc-core's `DateTime<Utc>` reads. */
 export const INSTANT_PATTERN =
@@ -2532,7 +2539,7 @@ export function registrationSchema(
           identity: {
             type: "string",
             title: t("registrations.field.identity"),
-            ...words(t, "choice.federationIdentity", FEDERATION_IDENTITIES),
+            ...words(t, "choice.federationIdentity", federationIdentities(target)),
             default: "serviceAccount",
           },
           serviceAccountRef: {
@@ -2557,6 +2564,14 @@ export function registrationSchema(
         pattern: INSTANT_PATTERN,
       },
     },
+    // jc-core sends nothing to an anonymous source, so it refuses one reached over plain http
+    // (T-6545): refused at the field rather than by the API afterwards.
+    if: {
+      required: ["federation"],
+      properties: { federation: { required: ["identity"], properties: { identity: { const: "anonymous" } } } },
+    },
+    // HTTPS_URL_PATTERN, so the refusal says "starting with https://" (errorMessages.ts).
+    then: { properties: { endpoint: { pattern: HTTPS_URL_PATTERN } } },
   };
 }
 

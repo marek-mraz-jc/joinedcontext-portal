@@ -2,7 +2,7 @@ import React from "react";
 import type { ReactNode } from "react";
 import Form from "@rjsf/core";
 import validator from "./validator";
-import { TranslatableString, deepEquals, englishStringTranslator } from "@rjsf/utils";
+import { TranslatableString, deepEquals, englishStringTranslator, retrieveSchema } from "@rjsf/utils";
 import type { ErrorSchema, RJSFSchema, RJSFValidationError } from "@rjsf/utils";
 import { useTranslation } from "react-i18next";
 import { requiredProgress } from "./uischema";
@@ -153,12 +153,15 @@ export function SchemaForm<T>(props: SchemaFormProps<T>): React.JSX.Element {
 
   const transformErrors = React.useCallback(
     (errors: RJSFValidationError[]): RJSFValidationError[] => {
+      // rjsf validates the schema resolved for the data (an `if`/`then` merged into the field,
+      // T-6545), so an error's path is read against that schema, not the one written.
+      const resolved = retrieveSchema(validator, schema as RJSFSchema, schema as RJSFSchema, held ?? shown) as JsonSchema;
       return errors.map((error) => ({
         ...error,
-        message: t(errorMessageKey(error, schema)),
+        message: t(errorMessageKey(error, resolved)),
       }));
     },
-    [t, schema],
+    [t, schema, held, shown],
   );
 
   return (

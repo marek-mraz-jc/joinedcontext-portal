@@ -17,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import { SchemaForm } from "../src/components/forms/SchemaForm";
 import validator from "../src/components/forms/validator";
+import { errorMessageKey } from "../src/components/forms/errorMessages";
 import { registrationSchema, registrationUiSchema } from "../src/schemas/kinds";
 import type { RegistrationTarget } from "../src/schemas/kinds";
 import {
@@ -365,5 +366,39 @@ describe("the registrations page", () => {
     expect(within(targets).getByRole("radio", { name: new RegExp(en.registrations.targetKind.endpoint) })).toBeChecked();
     expect(await within(dialog).findByLabelText(new RegExp(en.registrations.field.endpoint))).toBeInTheDocument();
     expect(within(dialog).queryByLabelText(new RegExp(`^${en.registrations.field.endpointRef}\\b`))).not.toBeInTheDocument();
+  });
+});
+
+describe("the anonymous identity (T-6545, PF-48)", () => {
+  const anonymous = (endpoint: string) => ({
+    ...FILLED,
+    endpointRef: undefined,
+    endpoint,
+    federation: { identity: "anonymous" },
+  });
+
+  it("is offered only for an address elsewhere, because jc-core refuses it for an Endpoint here", () => {
+    const identities = (target: RegistrationTarget) =>
+      (
+        (registrationSchema(t, target).properties?.federation as { properties: Record<string, { oneOf?: { const: string }[]; enum?: string[] }> })
+          .properties.identity
+      );
+    const values = (target: RegistrationTarget) => {
+      const field = identities(target);
+      return field.oneOf?.map((option) => option.const) ?? field.enum ?? [];
+    };
+    expect(values("endpoint")).toContain("anonymous");
+    expect(values("endpointRef")).not.toContain("anonymous");
+    expect(refusedAt(refusals({ ...FILLED, federation: { identity: "anonymous" } }), "federation.identity")).toBe(true);
+  });
+
+  it("reaches only an https address, and needs no service account", () => {
+    expect(refusals(anonymous("https://api.smartcity.joinedcontext.com/api/endpoint/x"), "endpoint")).toBe("");
+    expect(refusedAt(refusals(anonymous("http://api.example.org"), "endpoint"), "endpoint")).toBe(true);
+    const schema = registrationSchema(t, "endpoint", ["ovzdusie"]);
+    const error = validator
+      .validateFormData(anonymous("http://api.example.org"), schema)
+      .errors.find((found) => found.property?.endsWith("endpoint"));
+    expect(error && errorMessageKey(error, schema)).toBe("form.httpsUrl");
   });
 });
