@@ -1692,7 +1692,7 @@ pub async fn get_sample(
     get,
     path = "/api/v1/catalogue/datasets/{name}/map",
     summary = "Map a Catalogue Dataset",
-    description = "Up to 1000 located entities of the dataset's first model class, read anonymously through its public Endpoint, with the key attributes its popups show (EP-82, T-5628). A dataset without locations answers no features.",
+    description = "Up to 1000 located entities of the first model class the dataset's Endpoint serves, read anonymously through its public Endpoint, with the key attributes its popups show (EP-82, T-5628). A dataset without locations answers no features.",
     tag = "ckan",
     params(("name" = String, Path, description = "The dataset's name in the catalogue"), MapQuery),
     responses(
@@ -1719,15 +1719,14 @@ pub(crate) async fn get_map(
         let (_, classes, linkml) = model_source(&state, &project, &endpoint.spec)
             .await
             .ok_or_else(no_map)?;
-        let class = classes.into_iter().next().ok_or_else(no_map)?;
-        let (total, entities) = located(&gateway_endpoint(&state, &slug), &class)
-            .await
-            .map_err(|reason| {
-                tracing::warn!(dataset = %name, %reason, "catalogue map failed");
-                ApiError::Unavailable(format!(
-                    "The endpoint of dataset '{name}' did not answer; try again in a minute."
-                ))
-            })?;
+        let gateway = gateway_endpoint(&state, &slug);
+        let class = mapped_class(classes, &served(&gateway).await).ok_or_else(no_map)?;
+        let (total, entities) = located(&gateway, &class).await.map_err(|reason| {
+            tracing::warn!(dataset = %name, %reason, "catalogue map failed");
+            ApiError::Unavailable(format!(
+                "The endpoint of dataset '{name}' did not answer; try again in a minute."
+            ))
+        })?;
         let view: Option<jc_core::display_order::Display> =
             serde_json::from_value(endpoint.spec["display"][&class].clone()).ok();
         let mut map = map_of(&class, &entities, linkml.as_deref(), view.as_ref(), &lang);
@@ -1749,6 +1748,42 @@ fn map_lang(lang: Option<String>) -> Result<String, ApiError> {
         )));
     }
     Ok(lang)
+}
+
+/// The class a dataset's map draws: the first model class its Endpoint serves. A space model
+/// holds every class of the space while an Endpoint's Policy narrows it to one slice, so the first
+/// model class drew an empty map for every Endpoint but the first (T-6539). The model's first
+/// class stays when the Endpoint lists none it knows.
+fn mapped_class(classes: Vec<String>, served: &[String]) -> Option<String> {
+    classes
+        .iter()
+        .find(|class| served.contains(class))
+        .or(classes.first())
+        .cloned()
+}
+
+/// The types the Endpoint at `endpoint` lists to an anonymous reader; empty when it did not answer.
+async fn served(endpoint: &str) -> Vec<String> {
+    let Ok(response) = HTTP
+        .get(format!("{endpoint}ngsi-ld/v1/types"))
+        .header(header::ACCEPT, "application/json")
+        .send()
+        .await
+    else {
+        return Vec::new();
+    };
+    let list: Value = match response.error_for_status() {
+        Ok(ok) => crate::capped::json(ok, crate::capped::ANSWER_BYTES)
+            .await
+            .unwrap_or_default(),
+        Err(_) => return Vec::new(),
+    };
+    list["typeList"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|name| name.as_str().map(str::to_owned))
+        .collect()
 }
 
 /// Up to [`MAP_ROWS`] keyValues entities of `class` from the Endpoint at `endpoint`, read
@@ -2605,6 +2640,51 @@ classes:
             .await
             .expect("a failure is not kept");
         assert_eq!(builds.load(std::sync::atomic::Ordering::SeqCst), 3);
+    }
+
+    #[test]
+    fn a_map_draws_the_first_class_its_endpoint_serves() {
+        let classes = || {
+            vec![
+                "AirQualityObserved".to_owned(),
+                "StreetFurniture".to_owned(),
+            ]
+        };
+        assert_eq!(
+            mapped_class(classes(), &["StreetFurniture".to_owned()]).as_deref(),
+            Some("StreetFurniture"),
+            "the space model's first class is not the Endpoint's"
+        );
+        assert_eq!(
+            mapped_class(classes(), &[]).as_deref(),
+            Some("AirQualityObserved"),
+            "an Endpoint that lists nothing keeps the model's first class"
+        );
+        assert_eq!(mapped_class(Vec::new(), &["Tree".to_owned()]), None);
+    }
+
+    #[tokio::test]
+    async fn the_served_types_are_the_endpoints_type_list() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let gateway = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/ngsi-ld/v1/types"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "urn:ngsi-ld:EntityTypeList:1",
+                "type": "EntityTypeList",
+                "typeList": ["StreetFurniture"]
+            })))
+            .mount(&gateway)
+            .await;
+        assert_eq!(
+            served(&format!("{}/", gateway.uri())).await,
+            vec!["StreetFurniture"]
+        );
+        assert!(
+            served("http://localhost:9/").await.is_empty(),
+            "no answer serves nothing"
+        );
     }
 
     #[tokio::test]
