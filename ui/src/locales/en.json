@@ -273,6 +273,7 @@
     "withdrawTitle": "Withdraw your change?",
     "withdrawLead": "The change closes without being merged; nothing it proposes is applied.",
     "withdrawConfirm": "Withdraw the change",
+    "withdrawn": "You withdrew this change. It was closed without merging, and your reason is on its record.",
     "withdrawReason": "Why are you withdrawing it?",
     "withdrawReasonHint": "Recorded on the change, for example: proposed the wrong model version.",
     "rejectCancel": "Cancel",

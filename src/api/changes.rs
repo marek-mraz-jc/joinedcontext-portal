@@ -3013,6 +3013,10 @@ pub async fn reject_change_for(
     reason: Option<&str>,
 ) -> Result<Change, ApiError> {
     refuse_bearer_decision(identity)?;
+    let approves = may_approve_anything(state, identity, project);
+    if approves.is_ok() {
+        crate::auth::session::require_second_factor(identity, &state.config)?;
+    }
     // A caller without `approve` learns nothing about the change unless it turns out theirs.
     let hide = |found: ApiError| {
         may_approve_anything(state, identity, project)
@@ -3041,8 +3045,7 @@ pub async fn reject_change_for(
     // of approval does not hold it open (T-6535). Anyone else rejects with `approve` (PF-50).
     let withdrawn = proposed_by(gitea, &pr, identity).await;
     if !withdrawn {
-        may_approve_anything(state, identity, project)?;
-        crate::auth::session::require_second_factor(identity, &state.config)?;
+        approves?;
         may_approve(state, identity, project, &data)?;
     }
 

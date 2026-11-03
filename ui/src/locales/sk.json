@@ -273,6 +273,7 @@
     "withdrawTitle": "Stiahnuť vašu zmenu?",
     "withdrawLead": "Zmena sa zatvorí bez zlúčenia; nič z návrhu sa nepoužije.",
     "withdrawConfirm": "Stiahnuť zmenu",
+    "withdrawn": "Túto zmenu ste stiahli. Zatvorila sa bez zlúčenia a váš dôvod je v jej zázname.",
     "withdrawReason": "Prečo ju sťahujete?",
     "withdrawReasonHint": "Zapíše sa pri zmene, napríklad: navrhol som zlú verziu modelu.",
     "rejectCancel": "Zrušiť",

@@ -391,6 +391,7 @@ describe("approval actions", () => {
     await waitFor(() => expect(posts(fetchMock)).toHaveLength(1));
     expect(posts(fetchMock)[0].url).toContain("/changes/chg-1a2b3c4d/reject");
     await expect(posts(fetchMock)[0].clone().json()).resolves.toEqual({ reason: "Wrong version" });
+    expect(await screen.findByText(en.approvals.withdrawn)).toBeInTheDocument();
   });
 
   it("lets an administrator of the kind approve their own proposal, and says so (PF-58)", async () => {

@@ -340,6 +340,12 @@ export function ApprovalDetailPage({
         </Alert>
       ) : null}
 
+      {own && rejectMutation.isSuccess ? (
+        <Alert role="status" tone="info">
+          {t("approvals.withdrawn")}
+        </Alert>
+      ) : null}
+
       {actionError ? (
         <Alert role="alert" tone="danger">
           {actionError}

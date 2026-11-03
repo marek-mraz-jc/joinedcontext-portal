@@ -179,7 +179,7 @@ test.describe("approvals", () => {
       await dialog.getByLabel("Why are you withdrawing it?").fill("Proposed the wrong model version");
       await shot(`withdraw-dialog-${width}.png`);
       await dialog.getByRole("button", { name: "Withdraw the change" }).click();
-      await expect(page.getByText("Rejected").first()).toBeVisible();
+      await expect(page.getByText("You withdrew this change.", { exact: false })).toBeVisible();
       await shot(`withdraw-done-${width}.png`);
     }
     expect(rejects.map((body) => JSON.parse(body))).toEqual([

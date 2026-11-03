@@ -273,6 +273,7 @@
     "withdrawTitle": "Ihre Änderung zurückziehen?",
     "withdrawLead": "Die Änderung wird ohne Zusammenführen geschlossen; nichts davon wird angewendet.",
     "withdrawConfirm": "Änderung zurückziehen",
+    "withdrawn": "Sie haben diese Änderung zurückgezogen. Sie wurde ohne Zusammenführen geschlossen, Ihr Grund steht in ihrem Verlauf.",
     "withdrawReason": "Warum ziehen Sie sie zurück?",
     "withdrawReasonHint": "Wird an der Änderung vermerkt, zum Beispiel: falsche Modellversion vorgeschlagen.",
     "rejectCancel": "Abbrechen",
