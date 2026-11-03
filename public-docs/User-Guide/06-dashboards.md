@@ -4,6 +4,7 @@ title: Dashboards & Geospatial Visualization
 description: Building map dashboards and layers over the endpoints of a project, and exploring the entities behind them.
 routes:
   - /projects/$project/dashboards
+  - /projects/$project/grafana
   - /projects/$project/explore
 ---
 
@@ -102,6 +103,10 @@ Type into the assistant composer:
 `Show me bike stations with available bikes in the helsinki space`
 
 The assistant executes the query and navigates to `/projects/helsinki/explore?space=helsinki&endpoint=helsinki-bikes&type=BikeHireDockingStation&q=availableBikeNumber>0` with the grid filtered to matching records.
+
+## 5. Save a chart to Grafana
+
+Open **Grafana** in the project's menu, choose an Endpoint, a type, an attribute and a visualization, give it a name and press **Save to Grafana**. **Open in Grafana** shows it in the project's folder. A person sees a panel's data only where their own rights reach, so a colleague with fewer rights can get an empty panel.
 
 ## Related
 
