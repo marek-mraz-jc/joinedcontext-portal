@@ -110,6 +110,71 @@ pub struct NewLayer {
     pub spec: Value,
 }
 
+/// Words by which a person asks for a Role that changes nothing (T-6534), English and Slovak,
+/// matched in the lower-cased request. ponytail: a fixed phrase list, a model-read intent when a
+/// third language needs it.
+const NO_WRITES: [&str; 11] = [
+    "no write",
+    "without writ",
+    "read-only",
+    "read only",
+    "only read",
+    "bez zápis",
+    "bez zapis",
+    "len na čítanie",
+    "iba na čítanie",
+    "len čítať",
+    "iba čítať",
+];
+
+/// Why a Role draft grants more than the person asked for, if it does (T-6534, walk S-28): the
+/// person said no writes, and a rule holds a verb other than `read`. Propose opens changes,
+/// approve merges them and delete removes manifests: each is a write, so the draft goes back
+/// to the model, which says what the ask needs and asks the person instead of granting it.
+pub fn wider_than_asked(call: &ChangeResource, asked: &str) -> Option<String> {
+    if call.kind.trim() != "Role" || call.delete {
+        return None;
+    }
+    let asked = asked.to_lowercase();
+    if !NO_WRITES.iter().any(|words| asked.contains(words)) {
+        return None;
+    }
+    let rules = call.patch.as_ref()?.pointer("/spec/rules")?.as_array()?;
+    let mut writes: Vec<String> = rules
+        .iter()
+        .flat_map(|rule| {
+            let kinds = rule["kinds"]
+                .as_array()
+                .map(|kinds| {
+                    kinds
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
+                .unwrap_or_default();
+            rule["verbs"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .filter(|verb| *verb != "read")
+                .map(move |verb| format!("{verb} on {kinds}"))
+        })
+        .collect();
+    if writes.is_empty() {
+        return None;
+    }
+    writes.dedup();
+    Some(format!(
+        "the person asked for no writes, and this Role grants {}: propose opens changes, approve \
+         merges them and delete removes manifests, so each is a write. Draft the Role with read \
+         rules only, and say plainly what the rest of the ask needs (running a pipeline needs \
+         propose and approve on Pipeline, both writes) and ask the person whether to grant it",
+        writes.join("; ")
+    ))
+}
+
 /// A manifest of this project's `kind`, as a new resource is written.
 pub fn manifest(kind: &str, project: &str, name: &str, spec: Value) -> Value {
     json!({
@@ -461,6 +526,54 @@ mod tests {
                 .count(),
             MAX_NEXT
         );
+    }
+
+    fn role(rules: Value) -> ChangeResource {
+        ChangeResource {
+            kind: "Role".into(),
+            name: "analyst".into(),
+            patch: Some(json!({ "spec": { "rules": rules } })),
+            create: true,
+            ..ChangeResource::default()
+        }
+    }
+
+    /// T-6534, walk S-28: "no writes" with "run pipelines" drafted Pipeline propose + approve;
+    /// that Role goes back with each write it grants, and a read-only one passes.
+    #[test]
+    fn a_role_with_writes_is_refused_when_the_person_asked_for_none() {
+        let asked = "Create a role Analyst: read all Endpoints, run pipelines, no writes.";
+        let walked = role(json!([
+            { "kinds": ["Endpoint"], "verbs": ["read"] },
+            { "kinds": ["Pipeline"], "verbs": ["propose", "approve"] }
+        ]));
+        let reason = wider_than_asked(&walked, asked).expect("refused");
+        assert!(
+            reason.contains("propose on Pipeline; approve on Pipeline"),
+            "{reason}"
+        );
+        assert!(reason.contains("ask the person"), "{reason}");
+        let read_only = role(json!([
+            { "kinds": ["Endpoint", "Pipeline"], "verbs": ["read"] }
+        ]));
+        assert_eq!(wider_than_asked(&read_only, asked), None);
+        // The same writes asked for in words pass, as does a Slovak "read only" Role without them.
+        assert_eq!(
+            wider_than_asked(&walked, "Create a role Operator that runs pipelines"),
+            None
+        );
+        assert!(wider_than_asked(&walked, "Rola Analytik, len na čítanie").is_some());
+        // Another kind and a removal are not a Role's grants.
+        let pipeline = ChangeResource {
+            kind: "Pipeline".into(),
+            ..walked.clone()
+        };
+        assert_eq!(wider_than_asked(&pipeline, asked), None);
+        let removal = ChangeResource {
+            delete: true,
+            ..walked
+        };
+        assert_eq!(wider_than_asked(&removal, asked), None);
     }
 
     /// T-6489, walk S-28: a Role is drafted with its rules, and the empty form the model asked
