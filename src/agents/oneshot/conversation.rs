@@ -434,7 +434,7 @@ impl Driver {
                     .as_ref()
                     .ok()
                     .and_then(|c| serde_json::to_value(c).ok());
-                match self.change_resource(call, &answer, last).await? {
+                match self.change_asked(call, text, &answer, last).await? {
                     Worked::Done(prose) => return Ok(prose),
                     Worked::Again(reason) => {
                         drafts += 1;
@@ -1049,7 +1049,10 @@ change_resource that ContextSpace; a patch replaces the whole list, so keep its 
         }
         if creatable.contains(&"Role") {
             shapes.push_str(
-                "- **Role**: `{\"rules\": [{\"kinds\": [\"Endpoint\"], \"verbs\":                  [\"read\"]}]}`, verbs from read, propose, approve, delete. Running a pipeline                  takes propose and approve on Pipeline; say so when the person asked for no                  writes.\n",
+                "- **Role**: `{\"rules\": [{\"kinds\": [\"Endpoint\"], \"verbs\": \
+                 [\"read\"]}]}`, verbs from read, propose, approve, delete. Running a pipeline \
+                 takes propose and approve on Pipeline, both writes: when the person asked for \
+                 no writes, draft read only and ask.\n",
             );
         }
         if creatable.contains(&"DataSource") {
