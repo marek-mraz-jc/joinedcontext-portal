@@ -698,7 +698,9 @@ mod tests {
         let server = wiremock::MockServer::start().await;
         Mock::given(method("GET"))
             .and(path("/api/datasources"))
-            .respond_with(ResponseTemplate::new(200).set_body_string(" ".repeat(MAX_ANSWER + 1)))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_string(format!("[{}]", " ".repeat(MAX_ANSWER))),
+            )
             .mount(&server)
             .await;
         let config = config(&server);
