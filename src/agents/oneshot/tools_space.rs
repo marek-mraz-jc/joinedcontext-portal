@@ -477,10 +477,12 @@ impl Driver {
             None => json!({ "ok": false, "untested": "jc_pipeline_test is not registered" }),
         };
 
+        let (verdict, awaits) = without_awaited(verdict, &plan);
         // A red test the model can act on goes back to it; a test that could not run at all (no
         // runner) is shown on the card, as before.
         let red = verdict.get("ok").and_then(Value::as_bool) == Some(false)
-            && verdict.get("untested").is_none();
+            && verdict.get("untested").is_none()
+            && !awaits;
         if red {
             let findings = findings_of(&verdict);
             let reason = format!(
@@ -702,6 +704,37 @@ impl Driver {
     }
 }
 
+/// The verdict without what it says of the indicator space's Endpoint drafted beside the
+/// pipeline, which exists once both are approved, and whether that was all it found: every test
+/// said so of a new space (T-6532, live walk T-6490 S-36). What else it finds stays red.
+fn without_awaited(mut verdict: Value, plan: &kpi_pipeline::Plan) -> (Value, bool) {
+    let awaited = plan
+        .space_drafts
+        .iter()
+        .any(|d| d.kind == "Endpoint" && d.name == plan.target_endpoint);
+    let Some(found) = verdict
+        .get_mut("findings")
+        .and_then(Value::as_array_mut)
+        .filter(|_| awaited)
+    else {
+        return (verdict, false);
+    };
+    let before = found.len();
+    found.retain(|f| {
+        !f.get("message")
+            .and_then(Value::as_str)
+            .is_some_and(|m| crate::record_check::awaits_endpoint(m, &plan.target_endpoint))
+    });
+    let awaits = found.len() < before && found.is_empty();
+    if awaits {
+        verdict["awaits"] = json!(format!(
+            "Endpoint {} is drafted with the pipeline: its write is checked once both are approved",
+            plan.target_endpoint
+        ));
+    }
+    (verdict, awaits)
+}
+
 /// Drops `trace` from every draft's verdict of a `space_complete` output (T-0891).
 fn without_traces(output: &mut Value) {
     if let Some(drafts) = output.get_mut("drafts").and_then(Value::as_array_mut) {
@@ -813,6 +846,61 @@ mod tests {
             "attribute": "availableBikeNumber", "agg": "avg", "every": "15m"
         }))
         .expect("a call")
+    }
+
+    /// T-6532 (live walk T-6490, S-36): an indicator space drafted with the pipeline has no
+    /// Endpoint yet, and the test saying so kept every such draft red. Those findings go, for that
+    /// Endpoint only, and the verdict says its write is checked once both are approved; any other
+    /// finding keeps the draft red.
+    #[test]
+    fn an_endpoint_drafted_with_the_pipeline_does_not_turn_its_test_red() {
+        let endpoints = [json!({
+            "metadata": { "name": "helsinki-all" },
+            "spec": { "contextSpaceRef": "helsinki", "slug": "allslug" }
+        })];
+        let spaces = ["helsinki".to_owned()];
+        let world = crate::agents::kpi_pipeline::World {
+            project: "helsinki",
+            org_domain: "hel.fi",
+            endpoints: &endpoints,
+            spaces: &spaces,
+            policies: &[],
+            run_endpoint: Some("helsinki-all"),
+            new_slug: "newslug",
+        };
+        let mut call = bikes();
+        call.target_space = Some("helsinki-bikes-kpi".into());
+        let plan = crate::agents::kpi_pipeline::plan(&call, &world).expect("a plan");
+        assert_eq!(plan.target_endpoint, "helsinki-bikes-kpi");
+        let not_there = |endpoint: &str| {
+            vec![
+                json!({ "path": "records[0]", "message": format!("endpoint: Endpoint {endpoint} is not in this project") }),
+                json!({ "path": "records[0]", "message": format!("endpoint: Endpoint {endpoint} has no view on the broker yet: the reconciler has not read it; test again once it has") }),
+            ]
+        };
+        let (verdict, awaits) = super::without_awaited(
+            json!({ "ok": false, "findings": not_there("helsinki-bikes-kpi") }),
+            &plan,
+        );
+        assert!(awaits, "{verdict}");
+        assert_eq!(verdict["findings"], json!([]));
+        assert!(
+            verdict["awaits"]
+                .as_str()
+                .is_some_and(|a| a.contains("helsinki-bikes-kpi")),
+            "{verdict}"
+        );
+        let mut more = not_there("helsinki-bikes-kpi");
+        more.push(json!({ "path": "records[0].kpiValue", "message": "kpiValue: not a number" }));
+        let (verdict, awaits) =
+            super::without_awaited(json!({ "ok": false, "findings": more }), &plan);
+        assert!(!awaits);
+        assert_eq!(verdict["findings"].as_array().map(Vec::len), Some(1));
+        let (verdict, awaits) = super::without_awaited(
+            json!({ "ok": false, "findings": not_there("someone-else") }),
+            &plan,
+        );
+        assert!(!awaits && verdict.get("awaits").is_none(), "{verdict}");
     }
 
     /// JC1-29: a source page that cannot be read fails the step; the pipeline is never tested
