@@ -232,7 +232,6 @@ fn readable_for_edit(endpoint: &Value, name: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// The manifests for `params` in `project`, or the first reason they cannot be rendered.
 /// Refuses an `entityTypes` entry the space's data model has no class for, naming the class and
 /// the classes there are (T-6530). A space whose model lists no classes yet is not judged here.
 pub fn check_types(params: &ProposeEndpoint, classes: &[String]) -> Result<(), String> {
@@ -254,6 +253,7 @@ pub fn check_types(params: &ProposeEndpoint, classes: &[String]) -> Result<(), S
     }
 }
 
+/// The manifests for `params` in `project`, or the first reason they cannot be rendered.
 pub fn render(
     project: &str,
     params: &ProposeEndpoint,

@@ -574,9 +574,6 @@ pub async fn execute_propose_endpoint(
     if !is_dns1123(project) {
         return Err(ApiError::NotFound(format!("project '{project}' not found")));
     }
-    let classes =
-        crate::ops::endpoint_reach::space_classes(state, project, params.context_space.trim());
-    share::check_types(&params, &classes).map_err(ApiError::BadRequest)?;
     let proposal = share::render(project, &params, &declared_groups(state, project))
         .map_err(ApiError::BadRequest)?;
     crate::permissions::for_request(state, identity, project).check(
@@ -584,6 +581,10 @@ pub async fn execute_propose_endpoint(
         Verb::Propose,
         Some(&proposal.endpoint),
     )?;
+    // After the permission check: the refusal names the space model's classes.
+    let classes =
+        crate::ops::endpoint_reach::space_classes(state, project, params.context_space.trim());
+    share::check_types(&params, &classes).map_err(ApiError::BadRequest)?;
     Ok(proposal)
 }
 
@@ -1293,6 +1294,19 @@ mod tests {
             !matches!(&other, Err(crate::error::ApiError::BadRequest(_))),
             "{:?}",
             other.err()
+        );
+        // A person who may not propose an Endpoint here learns nothing about the model.
+        let outsider = super::execute_propose_endpoint(
+            &person(&["/other"]),
+            &state,
+            "city",
+            ask(json!(["Event"])),
+        )
+        .await;
+        assert!(
+            matches!(&outsider, Err(crate::error::ApiError::Denied(_))),
+            "{:?}",
+            outsider.err()
         );
     }
 
