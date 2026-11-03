@@ -893,6 +893,7 @@ mod tests {
             text: Some("{\"id\":\"1\"}".into()),
             url: None,
             format: SampleFormat::Json,
+            records: None,
         };
         let config = harnessed(
             &mirror,
