@@ -60,7 +60,7 @@ export async function visits(page: Page, who: string): Promise<Visit[]> {
     { route: "/organization/$tab/$", address: "/organization/people/new" },
     { route: "/organization/$tab/$", address: "/organization/groups/new" },
     ...[
-      "home", "inbox", "workspaces", "activity", "health", "approvals", "access", "settings", "models", "explore", "ckan", "mcp", "federation", "import", "assistant", "shared",
+      "home", "inbox", "workspaces", "activity", "grafana", "health", "approvals", "access", "settings", "models", "explore", "ckan", "mcp", "federation", "import", "assistant", "shared",
       // The knowledge pages, back since T-5328 linked every source row and gave the refused
       // conversations page its purpose line.
       "knowledge", "knowledge/conversations",

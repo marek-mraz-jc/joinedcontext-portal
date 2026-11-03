@@ -20,6 +20,8 @@ export const NAV_SECTIONS = [
   { plural: "mqttbrokers", labelKey: "nav.mqttbrokers", icon: "datasources" },
   { plural: "pipelines", labelKey: "nav.pipelines", icon: "pipelines" },
   { plural: "dashboards", labelKey: "nav.dashboards", icon: "dashboards" },
+  // A person's charts over an Endpoint, saved into the project's Grafana folder (T-6509).
+  { plural: "grafana", labelKey: "nav.grafana", icon: "dashboards" },
   { plural: "apps", labelKey: "nav.apps", icon: "apps" },
   // Where this project's resources are copied or mirrored from; the page that adds one is the
   // only way into it, so it needs an entry of its own (MF-27, T-0790).
