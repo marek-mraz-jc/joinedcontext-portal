@@ -363,9 +363,35 @@ describe("approval actions", () => {
       await screen.findByRole("button", { name: en.approvals.approve }),
       en.approvals.ownProposal,
     );
-    expectDenied(screen.getByRole("button", { name: en.approvals.reject }), en.approvals.ownProposal);
+    // Withdrawing is still theirs: closing never merges (T-6535).
+    expect(screen.getByRole("button", { name: en.approvals.withdraw })).toBeEnabled();
+    expect(screen.queryByRole("button", { name: en.approvals.reject })).toBeNull();
     await userEvent.click(screen.getByRole("button", { name: en.approvals.approve }));
     expect(posts(fetchMock)).toHaveLength(0);
+  });
+
+  it("lets the proposer withdraw their own model change without approve, and approve stays shut (T-6535)", async () => {
+    const fetchMock = renderDetail({
+      identity: { ...APPROVER, roles: ["portal-viewer"] },
+      change: proposal({
+        author: { name: "Jana Kováčová", email: APPROVER.email },
+        summary: { key: "change.summary.update", params: { kind: "DataModel", name: "air", fields: 1 } },
+        files: [{ path: "projects/banskabystrica/spaces/air/datamodels/air.yaml", kind: "DataModel", operation: "Update", lane: "yellow", fields: [] }],
+      }),
+    });
+
+    expectDenied(await screen.findByRole("button", { name: en.approvals.approve }), en.approvals.needsRole);
+    const withdraw = screen.getByRole("button", { name: en.approvals.withdraw });
+    expect(withdraw).toBeEnabled();
+    await userEvent.click(withdraw);
+    const dialog = await screen.findByRole("dialog", { name: en.approvals.withdrawTitle });
+    expect(within(dialog).getByText(en.approvals.withdrawReasonHint)).toBeInTheDocument();
+    await userEvent.type(within(dialog).getByLabelText(en.approvals.withdrawReason), "Wrong version");
+    await userEvent.click(within(dialog).getByRole("button", { name: en.approvals.withdrawConfirm }));
+    await waitFor(() => expect(posts(fetchMock)).toHaveLength(1));
+    expect(posts(fetchMock)[0].url).toContain("/changes/chg-1a2b3c4d/reject");
+    await expect(posts(fetchMock)[0].clone().json()).resolves.toEqual({ reason: "Wrong version" });
+    expect(await screen.findByText(en.approvals.withdrawn)).toBeInTheDocument();
   });
 
   it("lets an administrator of the kind approve their own proposal, and says so (PF-58)", async () => {

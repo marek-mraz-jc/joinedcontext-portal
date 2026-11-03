@@ -25,10 +25,14 @@ pub(super) struct RegistryCall {
 /// refused if the model asks for one anyway.
 pub(super) fn opens_a_change(name: &str) -> Option<&'static str> {
     match name {
-        "jc_resource_delete" | "jc_project_delete" => Some(
+        "jc_resource_delete" | "jc_project_delete" | "jc_syncsource_detach" => Some(
             "open the removal with change_resource and `delete: true`; the person types the name \
              there and proposes it",
         ),
+        // T-6533: a sync proposes what it finds as Changes of its own.
+        "jc_syncsource_sync" => {
+            Some("the person starts it with Sync now on the SyncSource's page; open that page")
+        }
         _ if name.ends_with("_propose") || name == crate::connectors::APPLY => Some(
             "draft it with change_resource — `create: true` for a resource that does not exist \
              yet, a `patch` for one that does — and the kind's form opens filled for the person to \
@@ -1535,6 +1539,8 @@ mod tests {
                 "jc_resource_propose",
                 "jc_resource_delete",
                 "jc_project_delete",
+                "jc_syncsource_sync",
+                "jc_syncsource_detach",
                 "jc_workspace_propose",
                 "jc_change_apply",
             ],
@@ -1552,6 +1558,7 @@ mod tests {
             "jc_resource_get",
             "jc_change_list",
             "jc_workspace_open",
+            "jc_syncsource_pause",
         ] {
             assert!(
                 opens_a_change(kept).is_none(),
