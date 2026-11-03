@@ -12,6 +12,7 @@ interface MapOptions {
 }
 
 const mapInstances: any[] = [];
+let mapRefused = false;
 let loadHandler: (() => void) | undefined;
 const clickHandlers: Record<string, (e: any) => void> = {};
 
@@ -28,6 +29,7 @@ vi.mock("maplibre-gl", () => {
     remove = vi.fn();
 
     constructor(public options: MapOptions) {
+      if (mapRefused) throw new Error("WebGL2 is required to display this map");
       mapInstances.push(this);
     }
 
@@ -169,6 +171,19 @@ describe("EntityMap component and helpers", () => {
 
     clickHandlers["jc-points"]?.({ features: [{ properties: { id: "urn:ngsi-ld:Station:002" } }] });
     expect(onSelect).toHaveBeenCalledWith(STATIONS[1]);
+  });
+
+  it("says the map cannot be drawn where WebGL2 is missing, instead of an unhandled error that fails the build", async () => {
+    mapRefused = true;
+    const client = stubClient({ entities: STATIONS });
+    render(
+      <JcProvider client={client}>
+        <EntityMap rows={STATIONS} location="location" />
+      </JcProvider>,
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent("WebGL2 is off");
+    expect(mapInstances).toHaveLength(0);
+    mapRefused = false;
   });
 
   it("says the data has no locations instead of 0 on the map, and labels rows by name, never by URN", async () => {

@@ -750,6 +750,47 @@ test("the sandbox runs the version's tests and reports the one that fails", { sk
   assert.match(result.failures[0].message, /expected 1 to be 3/);
 });
 
+// T-6429: Publish opened on "97 passed" and the build lane then refused the version. The sandbox
+// fails on what the lane fails on: a type error, and an error vitest caught outside any test.
+const typed = !existsSync(join(store, ".bin", "tsc")) && "tsc is not linked";
+const TSCONFIG = JSON.stringify({ compilerOptions: { strict: true, noEmit: true, module: "ESNext", moduleResolution: "bundler", target: "ES2022", types: [] }, include: ["src/sum.ts"] });
+const PASSING = { "src/sum.test.ts": 'import { expect, test } from "vitest";\ntest("adds", () => expect(1 + 1).toBe(2));\n' };
+
+test("the sandbox fails a version the type check refuses and names the line", { skip: typed }, () => {
+  const { input, work } = project({ ...PASSING, "tsconfig.json": TSCONFIG, "src/sum.ts": 'export const name = "a";\nexport const size: number = name.category;\n' });
+  const result = lane.testProject(input, work, { store });
+  assert.equal(result.outcome, "failed", JSON.stringify(result));
+  assert.equal(result.passed, 1);
+  assert.equal(result.failures[0].file, "src/sum.ts");
+  assert.equal(result.failures[0].name, "(type error at line 2)");
+  assert.match(result.failures[0].message, /TS2339: Property 'category' does not exist/);
+});
+
+test("the sandbox passes a version that type checks", { skip: typed }, () => {
+  const { input, work } = project({ ...PASSING, "tsconfig.json": TSCONFIG, "src/sum.ts": "export const size: number = 1;\n" });
+  assert.equal(lane.testProject(input, work, { store }).outcome, "passed");
+});
+
+test("the sandbox fails a version whose tests pass beside an unhandled rejection", { skip: !existsSync(join(store, ".bin", "vitest")) && "vitest is not linked" }, () => {
+  const { input, work } = project({
+    "src/sum.test.ts": 'import { expect, test } from "vitest";\ntest("adds", async () => {\n  void Promise.reject(new Error("WebGL2 is required"));\n  await new Promise((done) => setTimeout(done, 50));\n  expect(1).toBe(1);\n});\n',
+  });
+  const result = lane.testProject(input, work, { store });
+  assert.equal(result.outcome, "failed", JSON.stringify(result));
+  assert.equal(result.passed, 1);
+  assert.equal(result.failures[0].name, "(an error outside the tests)");
+  assert.match(result.failures[0].message, /WebGL2 is required/);
+});
+
+test("tsc's output is one failure per error, its detail lines kept, and a silent failure still fails", () => {
+  const two = lane.typeSummary("\u001b[31msrc/a.tsx(3,1): error TS2322: Type 'a' is not 'b'.\n  Detail line.\nsrc/b.ts(9,2): error TS2304: Cannot find name 'c'.\n", "", 2);
+  assert.equal(two.failed, 2);
+  assert.equal(two.failures[1].file, "src/b.ts");
+  assert.match(two.failures[0].message, /Detail line/);
+  assert.equal(lane.typeSummary("", "", 0).outcome, "passed");
+  assert.equal(lane.typeSummary("error TS5083: Cannot read file", "", 1).failures[0].name, "(the type check did not run)");
+});
+
 test("the sandbox says when the tests pass, and when they could not run", { skip: !existsSync(join(store, ".bin", "vitest")) && "vitest is not linked" }, () => {
   const ok = project({ "src/sum.test.ts": 'import { expect, test } from "vitest";\ntest("adds", () => expect(1 + 1).toBe(2));\n' });
   assert.equal(lane.testProject(ok.input, ok.work, { store }).outcome, "passed");

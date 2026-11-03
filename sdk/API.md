@@ -233,7 +233,7 @@ function spaceSource(space: string, transport: Transport, language?: string): En
 function sourceFor(source: { kind: "endpoint"; slug } | { kind: "space"; space }, transport: Transport, language?: string): EntitySource
 function fixtureSource(entities: object[], language?: string): EntitySource
 function idChunks(ids: string[], maxChars?: number): string[][]
-function transportFor(config: JcConfig): Transport // e.g. transportFor(jc().config)
+function transportFor(config: JcConfig): Transport
 function originTransport(fetchImpl?: typeof fetch, doc?: Document): Transport // a host page's own: same origin, the person's session and CSRF header
 class SourceError extends Error { status: number }
 function historyOf(body: unknown, attr: string): HistoryPoint[]
@@ -275,7 +275,7 @@ geometry is edited in `GeoEditor`, reviewed ("Point moved 38 m") and applied by 
 `coordinates` + `geoproperty`.
 
 ### Dashboard
-`<Dashboard config={parseDashboardConfig(raw).config!} source={source} />`, `raw` = `src/dashboard.json`: `{ grid, filters?: [{ attr, op, value }], colour?: { attr, bands: [{ below?, tone, label }] }, chart?: { x, y, agg }, kpis?: [{ label, agg, attr?, where? }] }`.
+`<Dashboard config={parseDashboardConfig(raw).config!} source={endpointSource(useEndpoint()!.slug, transportFor(useClient().config))} />`, `raw` = `src/dashboard.json`: `{ grid: { source: { kind: "endpoint", slug }, type, columns, pageSize? }, filters?: [{ attr, op, value }], colour?: { attr, bands: [{ below?, tone, label }] }, chart?: { x, y, agg }, kpis?: [{ label, agg, attr?, where? }] }`.
 
 ### Geometry: view and edit (UI-72, SDK-29)
 ```ts
