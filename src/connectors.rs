@@ -1851,7 +1851,8 @@ fn record((id, owner, name, grant, created_at, last_used_at, revoked_at): Row) -
 }
 
 fn db_error(err: sqlx::Error) -> ApiError {
-    ApiError::Internal(format!("the connector store failed: {err}"))
+    tracing::error!(error = %err, "the connector store failed");
+    ApiError::from_db(&err, "connector")
 }
 
 fn full(owner_has: usize) -> Result<(), ApiError> {

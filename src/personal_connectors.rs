@@ -97,6 +97,11 @@ pub fn without_held(mut row: Value) -> Value {
     row
 }
 
+/// Whether a stored row still holds old connectors to move.
+pub fn holds_old(row: &Value) -> bool {
+    row.get(KEY).is_some()
+}
+
 /// One old connector kept aside, with why it did not move.
 fn aside(old: &Old, reason: &str) -> Value {
     json!({ "name": old.name, "select": old.select, "reason": reason })
@@ -285,7 +290,7 @@ fn refused(new: &NewConnector, ceiling: &Ceiling) -> Option<String> {
 
 fn db_error(err: sqlx::Error) -> ApiError {
     tracing::error!(error = %err, "moving personal connectors: database call failed");
-    ApiError::Internal("the preferences database did not answer".into())
+    ApiError::from_db(&err, "preferences")
 }
 
 /// Moves the signed-in person's old connectors into the store and drops them from their
