@@ -712,12 +712,12 @@ export function CreateDialog({
   const create = useMutation({
     mutationFn: async () => {
       const request = toRequest(current, options.data);
-      const { segments, scope, kinds, writes, expiresAt, allowedClients } = request;
+      const { segments, scope, kinds, writes, autonomous, expiresAt, allowedClients } = request;
       return stored
         ? unwrap(
             await api.PATCH("/api/v1/connectors/{id}", {
               params: { path: { id: stored.id } },
-              body: { segments, scope, kinds, writes, expiresAt, allowedClients },
+              body: { segments, scope, kinds, writes, autonomous, expiresAt, allowedClients },
             }),
           )
         : unwrap(await api.POST("/api/v1/connectors", { body: request }));
@@ -809,6 +809,20 @@ export function CreateDialog({
             <ScopeTree options={options.data} form={current} onChange={(picks) => set({ picks })} />
             {errorsOf("scope") ? <Alert tone="danger">{errorsOf("scope")?.[0]}</Alert> : null}
           </fieldset>
+          {readsOnly ? null : (
+            <fieldset className="flex flex-col gap-1">
+              <legend className="text-body font-semibold">{t("aiConnectors.field.autonomous")}</legend>
+              <Checkbox
+                label={t("aiConnectors.autonomous.label")}
+                hint={t("aiConnectors.autonomous.hint")}
+                checked={current.autonomous && current.picks.some((pick) => pick.access === "write")}
+                disabled={!current.picks.some((pick) => pick.access === "write")}
+                disabledReason={t("aiConnectors.autonomous.needsWrite")}
+                onChange={(event) => set({ autonomous: event.target.checked })}
+              />
+              {errorsOf("autonomous") ? <Alert tone="danger">{errorsOf("autonomous")?.[0]}</Alert> : null}
+            </fieldset>
+          )}
           <Field
             id="ai-connector-expires"
             label={t("aiConnectors.field.expires")}

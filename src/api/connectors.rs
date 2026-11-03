@@ -204,6 +204,9 @@ pub struct ConnectorPatch {
     pub kinds: Option<Vec<connectors::KindGrant>>,
     #[serde(default)]
     pub writes: Option<bool>,
+    /// Approve each applied change at once as the owner (T-6552), e.g. `true`.
+    #[serde(default)]
+    pub autonomous: Option<bool>,
     /// RFC 3339, e.g. `2026-11-27T00:00:00Z`.
     #[serde(default)]
     #[schema(value_type = Option<String>, format = DateTime)]
@@ -256,6 +259,41 @@ fn in_the_portal(state: &AppState, identity: &Identity) -> Result<(), ApiError> 
         return Err(ApiError::Denied(
             "a client's token manages no connector; do it signed in to the Portal (AG-151)".into(),
         ));
+    }
+    Ok(())
+}
+
+/// An autonomous connector (T-6552) writes, and its owner may approve changes in every project
+/// it writes: its approvals are theirs. `Err` is the 422 or 403 naming `autonomous`.
+pub fn may_be_autonomous(
+    state: &AppState,
+    identity: &Identity,
+    new: &NewConnector,
+) -> Result<(), ApiError> {
+    if !new.autonomous {
+        return Ok(());
+    }
+    if !new.writes {
+        return Err(ApiError::Unprocessable {
+            detail: "autonomous: a connector approves only what it writes; turn writes on first"
+                .into(),
+            errors: vec!["autonomous".into()],
+        });
+    }
+    crate::auth::session::require_second_factor(identity, &state.config)?;
+    let written = new
+        .scope
+        .iter()
+        .filter(|item| item.access == connectors::ItemAccess::Write);
+    for item in written {
+        crate::api::changes::may_approve_anything(state, identity, &item.project).map_err(
+            |_| {
+                ApiError::Denied(format!(
+                    "autonomous: you may not approve changes in project {}, so a connector of yours cannot approve them for you",
+                    item.project
+                ))
+            },
+        )?;
     }
     Ok(())
 }
@@ -599,6 +637,7 @@ pub async fn create_connector(
     let ceiling = Ceiling::of(&state.mirror, identity);
     let above = connectors::validate(&new, &ceiling, chrono::Utc::now())?;
     reachable(&state, &user.0, &headers, &new).await?;
+    may_be_autonomous(&state, identity, &new)?;
     match params.dry_run.as_deref() {
         None => {}
         Some("All") => {
@@ -685,6 +724,7 @@ pub async fn edit_connector(
         scope: patch.scope.unwrap_or(current.scope),
         kinds: patch.kinds.or(current.kinds),
         writes: patch.writes.unwrap_or(current.writes),
+        autonomous: patch.autonomous.unwrap_or(current.autonomous),
         expires_at: patch.expires_at.unwrap_or(current.expires_at),
         allowed_clients: patch.allowed_clients.unwrap_or(current.allowed_clients),
     };
@@ -698,6 +738,7 @@ pub async fn edit_connector(
         chrono::Utc::now(),
     )?;
     reachable(&state, &user.0, &headers, &new).await?;
+    may_be_autonomous(&state, identity, &new)?;
     let approval = current
         .approval
         .filter(|_| !above.is_empty() && above.iter().all(|l| current.above_ceiling.contains(l)));
@@ -1304,6 +1345,7 @@ mod tests {
                 verbs,
             }]),
             writes,
+            autonomous: false,
             expires_at: chrono::Utc::now(),
             allowed_clients: vec![],
         };

@@ -11225,6 +11225,7 @@
     "home": "Zpět na portál"
   },
   "aiConnectors": {
+    "autonomous": { "label": "Schvalovat jeho změny hned, mým jménem", "hint": "Například datový model, prostor nebo pipeline, které Claude vytvoří, platí bez kliknutí. Změny přístupů a mazání stále čekají na schvalovatele. Vyžaduje právo schvalovat v projektech, do kterých zapisuje.", "needsWrite": "Nejprve dejte konektoru přístup k zápisu do projektu." },
     "title": "Moje AI konektory",
     "lead": "Adresy pro Claude, ChatGPT nebo VS Code, které sahají jen na to, co zde zaškrtnete, a nikdy na víc, než smíte vy sami. Každý AI klient vás přihlásí sám; tato stránka neukazuje žádný token.",
     "new": "Nový AI konektor",
@@ -11311,6 +11312,7 @@
       "writeNeedsApproval": "zápis (vyžaduje schválení)"
     },
     "field": {
+      "autonomous": "Autonomní režim",
       "name": "Název",
       "segments": "Předvolby",
       "scope": "Na co sahá",

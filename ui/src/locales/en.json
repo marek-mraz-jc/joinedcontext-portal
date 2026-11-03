@@ -11225,6 +11225,7 @@
     "home": "Back to the Portal"
   },
   "aiConnectors": {
+    "autonomous": { "label": "Approve its changes at once, as me", "hint": "For example: a data model, space or pipeline Claude creates is live without a click. Changes to who has access, and deletions, still wait for an approver. Needs approve rights in the projects it writes.", "needsWrite": "Give the connector write access to a project first." },
     "title": "My AI connectors",
     "lead": "Addresses for Claude, ChatGPT or VS Code that reach only what you tick here, and never more than you may do yourself. Each AI client signs you in itself; this page shows no token.",
     "new": "New AI connector",
@@ -11311,6 +11312,7 @@
       "writeNeedsApproval": "write (needs approval)"
     },
     "field": {
+      "autonomous": "Autonomous",
       "name": "Name",
       "segments": "Presets",
       "scope": "What it reaches",

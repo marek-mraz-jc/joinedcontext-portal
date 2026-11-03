@@ -8203,6 +8203,8 @@ export interface components {
             by: string;
             /** @description The rejecter's reason, when they gave one. */
             reason?: string | null;
+            /** @description The connector an autonomous approval came through (T-6552), e.g. `doprava-in-claude`. */
+            via?: string | null;
         };
         /**
          * @description One file of the merge request behind a change (T-0861, MF-21, CC-63).
@@ -8522,6 +8524,8 @@ export interface components {
             aboveCeiling?: string[];
             allowedClients: string[];
             approval?: null | components["schemas"]["ConnectorApproval"];
+            /** @description Whether the changes it applies are approved at once as its owner (T-6552). */
+            autonomous: boolean;
             /**
              * @description Whether the allowed clients bind the connector (claude.ai, ChatGPT) or only say whom it
              *     is meant for (Claude Code, `mcp-local`): AG-153.
@@ -8623,6 +8627,8 @@ export interface components {
         /** @description The fields of a connector its owner may change (JSON merge patch, API/14 §2); the name stays. */
         ConnectorPatch: {
             allowedClients?: string[] | null;
+            /** @description Approve each applied change at once as the owner (T-6552), e.g. `true`. */
+            autonomous?: boolean | null;
             /**
              * Format: date-time
              * @description RFC 3339, e.g. `2026-11-27T00:00:00Z`.
@@ -10075,6 +10081,12 @@ export interface components {
         NewConnector: {
             /** @description OAuth client ids the connector answers, e.g. a CIMD URL `https://claude.ai/oauth/mcp-client-metadata`. */
             allowedClients?: string[];
+            /**
+             * @description Each change the connector applies is approved at once as its owner (T-6552), e.g. `true`;
+             *     needs `writes` and approve rights in every project it writes. Access changes, public
+             *     publications and deletions still wait for a click. Default `false`.
+             */
+            autonomous?: boolean;
             /**
              * Format: date-time
              * @description RFC 3339, e.g. `2026-11-27T00:00:00Z`.
