@@ -146,7 +146,7 @@ function AppHeading({ project, name }: { project: string; name: string }): JSX.E
     <div className="space-y-2">
       <PageHeader
         title={localized(app.data.metadata.title, i18n.language, "") || appDisplayName({ appName: name })}
-        description={localized(app.data.metadata.description, i18n.language, "") || undefined}
+        description={localized(app.data.metadata.description, i18n.language, "") || t("apps.pagePurpose")}
       />
       <p className="flex flex-wrap items-center gap-2 text-caption text-fg-muted">
         <LifecycleBadge kind="appLifecycle" value={spec.lifecycle ?? "draft"} />

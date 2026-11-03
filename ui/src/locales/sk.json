@@ -4802,6 +4802,7 @@
   "apps": {
     "title": "Aplikácie",
     "subtitle": "Aplikácie postavené pre tento projekt. Náhľad beží nad sandboxovým priestorom, publikovanie je merge request.",
+    "pagePurpose": "Otvorte túto aplikáciu, sledujte jej zostavenia a vyberte jej služby.",
     "empty": "Tento projekt zatiaľ nemá žiadne aplikácie. Stlačte „Vygenerovať vlastnú aplikáciu“, vyberte endpoint, z ktorého číta, a opíšte ju: builder ju napíše a otvorí merge request na kontrolu.",
     "visibility": "Viditeľné pre {visibility}",
     "dataNeeds": "Číta {types} v {spaces}",

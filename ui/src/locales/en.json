@@ -4802,6 +4802,7 @@
   "apps": {
     "title": "Applications",
     "subtitle": "Apps built for this project. A preview runs against a sandbox space; publishing is a merge request.",
+    "pagePurpose": "Open this application, follow its builds and choose its services.",
     "empty": "This project has no applications yet. Press \"Generate your own app\", pick the endpoint it reads and describe it: the builder writes it and opens a merge request for review.",
     "visibility": "Visible to {visibility}",
     "dataNeeds": "Reads {types} in {spaces}",
