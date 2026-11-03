@@ -44,7 +44,7 @@ const CSRF: &str = "test-csrf-token-assistant-evals";
 const PROJECT: &str = "helsinki";
 
 /// The queued pipeline `pipeline--run-now` runs.
-const QUEUED_PIPELINE: &str = "citybikes-gbfs";
+const QUEUED_PIPELINE: &str = "traffic-messages";
 
 /// Recordings missing on 2026-09-25, when the conversations were written and no live pass had
 /// run yet. It only ever falls: the commit that adds a recording lowers it.
@@ -57,7 +57,7 @@ const UNRECORDED_CASES_ON_2026_10_06: usize = 5;
 /// Workflows the matrix gained after 2026-09-25, each still owing its first recording, with the
 /// task that added it. They are counted apart, so the 23 of that day can still only fall; an entry
 /// goes the moment its recording lands, and the guard below refuses one that is recorded.
-const UNRECORDED_LATER: [(&str, &str); 8] = [
+const UNRECORDED_LATER: [(&str, &str); 7] = [
     ("knowledge", "T-3057"),
     ("navigation", "T-3238"),
     ("feedback", "T-3272"),
@@ -65,15 +65,11 @@ const UNRECORDED_LATER: [(&str, &str); 8] = [
     ("pipeline-access", "T-4863"),
     ("mqttbroker", "T-4880"),
     ("endpoint-access", "T-5615"),
-    ("connector", "T-5950"),
 ];
 
 /// Case conversations added after 2026-10-06, each owing its recording with the task that added
 /// it, counted apart like [`UNRECORDED_LATER`].
-const UNRECORDED_CASES_LATER: [(&str, &str); 2] = [
-    ("connector--revoke", "T-6482"),
-    ("pipeline--run-now", "T-6482"),
-];
+const UNRECORDED_CASES_LATER: [(&str, &str); 0] = [];
 
 /// What separates a workflow from its case in a conversation's file name.
 const CASE: &str = "--";
@@ -841,7 +837,7 @@ async fn a_question_the_portal_asks_replays_through_the_models_call() {
         kind: kind.to_owned(),
         payload,
     };
-    let message = "Run pipeline citybikes-gbfs now.";
+    let message = "Run pipeline traffic-messages now.";
     let input = json!({ "name": QUEUED_PIPELINE });
     let call = json!({ "tool": "jc_pipeline_run", "input": input, "status": "ok" });
     let script = rebuild(
@@ -850,7 +846,7 @@ async fn a_question_the_portal_asks_replays_through_the_models_call() {
             event("question", json!({ "step": "run-now", "options": [] })),
             event(
                 "thought",
-                json!({ "text": "Run pipeline citybikes-gbfs now?" }),
+                json!({ "text": "Run pipeline traffic-messages now?" }),
             ),
             event(
                 "answer",
@@ -859,7 +855,7 @@ async fn a_question_the_portal_asks_replays_through_the_models_call() {
             event("tool", call),
             event(
                 "thought",
-                json!({ "text": "Pipeline citybikes-gbfs is queued." }),
+                json!({ "text": "Pipeline traffic-messages is queued." }),
             ),
         ],
     );
