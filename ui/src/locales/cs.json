@@ -8636,7 +8636,8 @@
     },
     "federationIdentity": {
       "serviceAccount": "Servisní účet projektu",
-      "caller": "Osoba, která se ptá"
+      "caller": "Osoba, která se ptá",
+      "anonymous": "Nikdo: veřejná adresa jinde"
     },
     "appSource": {
       "path": "Složka konfiguračního repozitáře",

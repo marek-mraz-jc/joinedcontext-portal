@@ -8636,7 +8636,8 @@
     },
     "federationIdentity": {
       "serviceAccount": "The project's service account",
-      "caller": "The person who asks"
+      "caller": "The person who asks",
+      "anonymous": "Nobody: a public address elsewhere"
     },
     "appSource": {
       "path": "A folder of the configuration repository",
