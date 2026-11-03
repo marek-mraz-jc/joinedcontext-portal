@@ -2420,7 +2420,12 @@ pub async fn approve_change_for(
     }
     merges_after(id, &awaited_changes(state, gitea, &pr, project).await?)?;
 
-    let author = human_author(gitea, &pr).await;
+    // A forge blip must not make a proposer a stranger to their own Change: only a head the
+    // forge says is not there falls back to who opened the merge request.
+    let author = match head_author(gitea, &pr).await {
+        Err(GitError::NotFound) => poster(&pr),
+        read => read?,
+    };
     let is_author = match (&author.email, &identity.email) {
         (Some(pr_email), Some(user_email)) if !pr_email.trim().is_empty() => {
             pr_email.eq_ignore_ascii_case(user_email.trim())
@@ -4032,6 +4037,80 @@ mod tests {
         .await
         .unwrap_err();
         assert!(matches!(err_self, ApiError::SelfApproval(_)));
+    }
+
+    /// The forge account that opened a Portal branch is never its author, and an author who
+    /// cannot be read is no stranger: the approval stops (PF-58).
+    #[tokio::test]
+    async fn a_proposer_is_read_from_the_head_commit_and_an_unread_one_stops_the_approval() {
+        for (commits, self_approval) in
+            [(author_commit(), true), (ResponseTemplate::new(500), false)]
+        {
+            let server = MockServer::start().await;
+            let client = GiteaClient::new(
+                server.uri().parse().unwrap(),
+                "test-owner",
+                "test-repo",
+                "token-xyz",
+            )
+            .unwrap();
+            let state = AppState::new(Config::for_tests(), None).with_gitea(Arc::new(client));
+            Mock::given(method("GET"))
+                .and(path("/api/v1/repos/test-owner/test-repo/pulls/1"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                    "number": 1, "html_url": "https://gitea.example.sk/pulls/1", "state": "open",
+                    "title": "create ContextSpace mobility",
+                    "head": { "ref": "portal/create-contextspace-mobility-12345678", "sha": "head-1" },
+                    "base": { "ref": "main", "sha": "base-1" },
+                    "created_at": "2026-09-06T09:14:22Z",
+                    "user": { "login": "jc-portal", "full_name": "jc-portal", "email": "jc-portal@noreply.invalid" }
+                })))
+                .mount(&server)
+                .await;
+            let manifest = "apiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata:\n  name: mobility\n  namespace: ovzdusie\nspec:\n  dataModelRef:\n    kind: DataModel\n    name: mobility\n";
+            let b64 = base64::engine::Engine::encode(
+                &base64::engine::general_purpose::STANDARD,
+                manifest.as_bytes(),
+            );
+            Mock::given(method("GET"))
+                .and(path("/api/v1/repos/test-owner/test-repo/contents/projects/ovzdusie/spaces/mobility/space.yaml"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "sha": "blob-1", "content": b64 })))
+                .mount(&server)
+                .await;
+            Mock::given(method("GET"))
+                .and(path("/api/v1/repos/test-owner/test-repo/pulls/1/files"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(json!([
+                    { "filename": "projects/ovzdusie/spaces/mobility/space.yaml", "status": "added" }
+                ])))
+                .mount(&server)
+                .await;
+            Mock::given(method("GET"))
+                .and(path("/api/v1/repos/test-owner/test-repo/commits"))
+                .respond_with(commits)
+                .mount(&server)
+                .await;
+            let proposer = test_user("jana@example.sk", vec!["portal-approver"]);
+            let refused = approve_change(
+                proposer,
+                State(state),
+                Path(("ovzdusie".into(), "chg-00000001".into())),
+                Bytes::new(),
+            )
+            .await
+            .unwrap_err();
+            assert_eq!(
+                matches!(refused, ApiError::SelfApproval(_)),
+                self_approval,
+                "{refused:?}"
+            );
+            let merged = server
+                .received_requests()
+                .await
+                .unwrap()
+                .iter()
+                .any(|r| r.url.path().ends_with("/merge"));
+            assert!(!merged);
+        }
     }
 
     /// PF-13: a Red-lane change, every deletion among them, is approved only with its name typed

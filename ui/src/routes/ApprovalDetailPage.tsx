@@ -4,10 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useDecision } from "../api/decision";
 import { Link } from "@tanstack/react-router";
-import { approvalStanding, changedKind } from "../api/approval";
+import { approvalStanding, changedKind, expectedNameOf } from "../api/approval";
 import { usePermissions } from "../api/permissions";
 import { api, queryKeys, unwrap } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
+import { ConfirmName } from "../components/ChangeNotice";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { PlanDiffViewer } from "../components/diff/PlanDiffViewer";
 import { ProposedViaBadge, ProposedViaHint } from "../components/ProposedViaBadge";
@@ -21,10 +22,10 @@ import {
   Dialog,
   ExternalLink,
   Field,
-  Input,
   PageHeader,
   Skeleton,
   Textarea,
+  safeHref,
 } from "../components/ui";
 import { ResourcePageFailed } from "../components/ui/PageState";
 
@@ -49,14 +50,6 @@ const OPERATION_LABEL: Record<ChangeFile["operation"], string> = {
   Delete: "approvals.diffRemoved",
 };
 
-/**
- * The word a red-lane approval has to be typed back. It is the resource name the summary
- * names, which is exactly what the API compares `confirm` against (CC-19, CC-39).
- */
-function computeExpectedName(proposal: ChangeProposal): string {
-  const params = proposal.summary.params as Record<string, unknown>;
-  return typeof params.name === "string" ? params.name : proposal.metadata.name;
-}
 
 
 /** The combined states the forge reports for a commit (CC-90). */
@@ -107,7 +100,7 @@ export function ApprovalDetailPage({
   }
 
   const isRedLane = proposal?.status.lane === "red";
-  const expectedName = proposal ? computeExpectedName(proposal) : "";
+  const expectedName = proposal ? expectedNameOf(proposal) : "";
   const confirmMatches = !isRedLane || confirmInput.trim() === expectedName;
 
   // Approve on the change's kind, and on someone else's change unless the caller administers
@@ -262,7 +255,7 @@ export function ApprovalDetailPage({
                 href={proposal.status.mergeRequest}
                 className="text-primary-soft-fg [overflow-wrap:anywhere]"
               >
-                {proposal.status.mergeRequest}
+                {safeHref(proposal.status.mergeRequest) ? t("approvals.openMergeRequest") : proposal.status.mergeRequest}
               </ExternalLink>
             </dd>
           </div>
@@ -350,105 +343,94 @@ export function ApprovalDetailPage({
         </Alert>
       ) : null}
 
-      <section aria-labelledby="actions-heading" className="space-y-4 rounded border border-border p-4">
-        <h2 id="actions-heading" className="sr-only">
-          {t("approvals.actions")}
-        </h2>
+      {isPendingApproval ? (
+        <section aria-labelledby="actions-heading" className="space-y-4 rounded border border-border p-4">
+          <h2 id="actions-heading" className="sr-only">
+            {t("approvals.actions")}
+          </h2>
 
-        {isRedLane && isPendingApproval ? (
-          <Field
-            id="confirm-resource-name"
-            label={t("approvals.confirmLabel")}
-            description={
-              <>
-                {t("approvals.confirmPrompt")}{" "}
-                <span className="font-mono font-semibold">{expectedName}</span>
-              </>
-            }
-          >
-            <Input
-              id="confirm-resource-name"
+          {isRedLane && isPendingApproval ? (
+            <ConfirmName
+              expected={expectedName}
               value={confirmInput}
-              onChange={(e) => setConfirmInput(e.target.value)}
-              placeholder={expectedName}
+              onChange={setConfirmInput}
               disabled={!canAct}
-                  title={disabledReason ?? (isMutating ? t("app.busyReason") : undefined)}
-              className="max-w-sm"
+              title={disabledReason ?? (isMutating ? t("app.busyReason") : undefined)}
             />
-          </Field>
-        ) : null}
+          ) : null}
 
-        {standing.ownAsAdministrator && isPendingApproval ? (
-          <p role="note" className="text-sm text-fg-muted">
-            {t("approvals.ownAsAdministrator", { kind: changedKind(proposal) })}
-          </p>
-        ) : null}
+          {standing.ownAsAdministrator && isPendingApproval ? (
+            <p role="note" className="text-sm text-fg-muted">
+              {t("approvals.ownAsAdministrator", { kind: changedKind(proposal) })}
+            </p>
+          ) : null}
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Button
-            variant="primary"
-            disabled={!canApprove}
-            disabledReason={approveReason ?? undefined}
-            loading={approveMutation.isPending}
-            onClick={() => approveMutation.mutate(isRedLane ? confirmInput : undefined)}
-          >
-            {approveMutation.isPending ? t("approvals.approving") : t("approvals.approve")}
-          </Button>
-
-          <Button
-            variant="danger"
-            disabled={!canReject}
-            // The same sentence the Approve button carries when a role or the authorship is
-            // what refuses the action; a phase that simply has nothing to reject says nothing,
-            // because that is not a refusal (UI-44).
-            disabledReason={disabledReason ?? undefined}
-            loading={rejectMutation.isPending}
-            onClick={() => setRejecting(true)}
-          >
-            {rejectMutation.isPending ? t("approvals.rejecting") : t("approvals.reject")}
-          </Button>
-          <Dialog
-            open={rejecting}
-            onOpenChange={setRejecting}
-            title={t("approvals.rejectTitle")}
-            description={t("approvals.rejectLead")}
-            closeLabel={t("approvals.rejectCancel")}
-            footer={
-              <>
-                <Button onClick={() => setRejecting(false)}>{t("approvals.rejectCancel")}</Button>
-                <Button
-                  variant="danger"
-                  disabled={rejectReason.trim() === ""}
-                disabledReason={t("approvals.reasonFirst")}
-                  loading={rejectMutation.isPending}
-                  onClick={() => {
-                    setRejecting(false);
-                    rejectMutation.mutate(rejectReason);
-                  }}
-                >
-                  {t("approvals.rejectConfirm")}
-                </Button>
-              </>
-            }
-          >
-            <Field
-              id={rejectReasonId}
-              label={t("approvals.rejectReason")}
-              help={t("approvals.rejectReasonHint")}
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="primary"
+              disabled={!canApprove}
+              disabledReason={approveReason ?? undefined}
+              loading={approveMutation.isPending}
+              onClick={() => approveMutation.mutate(isRedLane ? confirmInput : undefined)}
             >
-              <Textarea
-                id={rejectReasonId}
-                rows={3}
-                maxLength={2000}
-                required
-                value={rejectReason}
-                onChange={(event) => setRejectReason(event.target.value)}
-              />
-            </Field>
-          </Dialog>
+              {approveMutation.isPending ? t("approvals.approving") : t("approvals.approve")}
+            </Button>
 
-        </div>
-      </section>
+            <Button
+              variant="danger"
+              disabled={!canReject}
+              // The same sentence the Approve button carries when a role or the authorship is
+              // what refuses the action; a phase that simply has nothing to reject says nothing,
+              // because that is not a refusal (UI-44).
+              disabledReason={disabledReason ?? undefined}
+              loading={rejectMutation.isPending}
+              onClick={() => setRejecting(true)}
+            >
+              {rejectMutation.isPending ? t("approvals.rejecting") : t("approvals.reject")}
+            </Button>
+            <Dialog
+              open={rejecting}
+              onOpenChange={setRejecting}
+              title={t("approvals.rejectTitle")}
+              description={t("approvals.rejectLead")}
+              closeLabel={t("approvals.rejectCancel")}
+              footer={
+                <>
+                  <Button onClick={() => setRejecting(false)}>{t("approvals.rejectCancel")}</Button>
+                  <Button
+                    variant="danger"
+                    disabled={rejectReason.trim() === ""}
+                  disabledReason={t("approvals.reasonFirst")}
+                    loading={rejectMutation.isPending}
+                    onClick={() => {
+                      setRejecting(false);
+                      rejectMutation.mutate(rejectReason);
+                    }}
+                  >
+                    {t("approvals.rejectConfirm")}
+                  </Button>
+                </>
+              }
+            >
+              <Field
+                id={rejectReasonId}
+                label={t("approvals.rejectReason")}
+                help={t("approvals.rejectReasonHint")}
+              >
+                <Textarea
+                  id={rejectReasonId}
+                  rows={3}
+                  maxLength={2000}
+                  required
+                  value={rejectReason}
+                  onChange={(event) => setRejectReason(event.target.value)}
+                />
+              </Field>
+            </Dialog>
+
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

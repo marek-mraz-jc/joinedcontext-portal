@@ -665,7 +665,7 @@ Response: `202 Accepted`
 Error responses:
 
 - `400 Bad Request`: Returned if `continues` references a run ID that does not exist or references a run whose `kind` is not `"conversation"`.
-- `403 Forbidden`: Returned if the authenticated caller lacks the required assistant permission in the project (the `propose` verb on the `App` resource kind).
+- `403 Forbidden`: Returned if the authenticated caller lacks the required assistant permission in the project (the `propose` verb on any resource kind; a person who may only read starts no conversation and spends no model calls, AG-67).
 - `409 Conflict`: Returned when posting an instruction to a run that has reached a terminal state (`cancelled`, `expired`, `failed`, or completed). To resume dialogue, clients must invoke this route with `continues: <runId>`.
 
 ### Paths

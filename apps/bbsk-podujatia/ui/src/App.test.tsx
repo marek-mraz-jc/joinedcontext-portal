@@ -262,12 +262,19 @@ describe("the events dashboard", () => {
 
   it("says why the events could not be loaded, refused or offline", async () => {
     show({ fail: true });
-    expect(await screen.findByRole("alert")).toHaveTextContent("the policy does not grant this type");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("the policy does not grant this type");
+    // Asking again never grants a right.
+    expect(within(alert).queryByRole("button")).toBeNull();
   });
 
   it("says the reason of a request that fails on its way", async () => {
     show({ fail: new TypeError("offline") });
-    expect(await screen.findByRole("alert")).toHaveTextContent("offline");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("offline");
+    vi.stubGlobal("fetch", vi.fn(async (path: string) => new Response(JSON.stringify(answer(new URL(path, "http://portal.test"), EVENTS)), { status: 200, headers: { "content-type": "application/json" } })));
+    fireEvent.click(within(alert).getByRole("button"));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   });
 
   it("holds at most five thousand events and says the rest are cut off", async () => {

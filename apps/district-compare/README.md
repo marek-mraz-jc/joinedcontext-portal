@@ -20,11 +20,11 @@ A `wasm` App (AP-142, AP-148): React on the joinedcontext App SDK for the page, 
 - `wasm/` is the crate: `geo.rs` (point-in-polygon, geometry area in km², bounding boxes, representative coordinate extraction) and `lib.rs` (`compare`: JSON in, JSON out, computing district aggregates, per-km² rates, rankings, and points falling outside districts).
 - `src/compare.worker.ts` loads the module once and answers each call; `src/compare.ts` is the page's side of it.
 - Reads `AdministrativeArea` (`divisionLevel = "district"`), `Event`, `BikeHireDockingStation`, `Alert`, and `AirQualityObserved` in the Context Space `helsinki`.
-- `server/` is the server component (`wasm32-wasip2`, on `jc-app-sdk`), reusing `wasm/` without wasm-bindgen. Once a day on Helsinki's calendar it reads the same five types through the App's own Endpoint with the reader's token, runs the same comparison and keeps every district's figures for that day in its table `district_metrics` (`migrations/`), so a district has a history; it also writes the boundaries it compared against as `boundaries/districts.geojson`, with `boundaries/LICENCE.txt` (CC BY 4.0, City of Helsinki, HRI package helsingin-piirijako), under the App's storage prefix. The page shows the selected districts' days for the chosen measure and downloads both files through presigned URLs.
+- `server/` is the server component (`wasm32-wasip2`, on `jc-app-sdk`), reusing `wasm/` without wasm-bindgen. Each hour until it has today's figures, on Helsinki's calendar, the job `keep-metrics` reads the same five types through the App's own Endpoint as the App's job principal, runs the same comparison and keeps every district's figures for that day in its table `district_metrics` (`migrations/`), so a district has a history; it also writes the boundaries it compared against as `boundaries/districts.geojson`, with `boundaries/LICENCE.txt` (CC BY 4.0, City of Helsinki, HRI package helsingin-piirijako), under the App's storage prefix. The page shows the selected districts' days for the chosen measure and downloads both files through presigned URLs.
 
 | Route | What it does |
 |---|---|
-| `GET /apps/district-compare/api/metrics?codes=101,102` | the kept days of up to six districts, the newest first |
+| `GET /apps/district-compare/api/metrics?codes=101,102` | the kept days of up to six districts, the newest first; `stale` until the job kept today's |
 | `GET /apps/district-compare/api/boundaries` | URLs to download the boundaries and their licence from |
 
 ## Roles and history

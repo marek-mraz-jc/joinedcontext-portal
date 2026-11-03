@@ -83,6 +83,15 @@ export function isOwn(callerEmail: string | null | undefined, change: { author: 
 }
 
 /**
+ * The resource name a red change's approver types back: the plan's own `params.name`, else the
+ * change id. The same value the API compares `confirm` against (CC-19, CC-39).
+ */
+export function expectedNameOf(change: { metadata: { name: string }; summary: { params: unknown } }): string {
+  const params = change.summary.params as Record<string, unknown>;
+  return typeof params.name === "string" ? params.name : change.metadata.name;
+}
+
+/**
  * What the approval rules say about the caller and one change (CC-34, PF-50, PF-58): an approver of
  * the kind may approve someone else's change, and their own only when they may also delete that
  * kind. A convenience for the button; the API decides on its own.

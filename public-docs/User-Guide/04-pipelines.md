@@ -12,7 +12,7 @@ routes:
 
 # Pipelines & Ingestion
 
-A pipeline reads a data source and writes entities into a context space. This guide explains how to declare a data source, build the pipeline that reads it, test the mapping on a sample before anything is proposed, set up a whole feed from the flow gallery, and see whether a pipeline is running. It is written for data stewards, integration engineers and pipeline operators.
+A pipeline reads a data source and writes entities into a context space. This guide explains how to declare a data source, build the pipeline that reads it, test the mapping on a sample before anything is proposed, set up a whole feed from a ready-made set-up, and see whether a pipeline is running. It is written for data stewards, integration engineers and pipeline operators.
 
 Every pipeline change follows the change approval flow: you configure the source or pipeline, test the mapping or probe the feed, click **Propose change**, and an approver reviews and merges the proposal in Approvals before execution begins.
 
@@ -116,17 +116,19 @@ The assistant populates the KPI preset in the studio, compiles the indicator for
 
 #### By hand
 
-1. Navigate to **Flows** at `/projects/helsinki/flows`.
-2. Browse the blueprint gallery. Check the review risk chip (**Approved automatically**, **One approver**, or **Full approval**).
-3. Click **Set up** on a card (such as an MQTT sensor ingestion blueprint).
-4. Fill in the parameters generated from the blueprint schema (such as broker address, target space, and model).
-5. Click **Create**.
+1. Navigate to **Data sources** at `/projects/helsinki/datasources`.
+2. Under **Ready-made set-ups**, read the cards: a GBFS city-bike feed, a JSON feed polled into a Context Space, an MQTT feed. Each shows its review lane (**Approved automatically**, **One approver**, or **Full approval**). The section lists only the set-ups your role may run; with none, it is absent.
+3. Click **Set up** on a card.
+4. Fill in the parameters generated from the blueprint schema (such as the feed address, the poll period and the Endpoint the flow writes through).
+5. Click **Propose change**. **Back to data sources** leaves without writing anything.
 6. The platform expands the blueprint into manifests and opens a change proposal.
 7. In `/projects/helsinki/approvals`, an approver approves the proposal.
 
+An application from a prompt starts from **Applications** with **New application**. The old address `/projects/helsinki/flows` opens the project's home.
+
 #### By asking the assistant
 
-The assistant can guide you to `/projects/helsinki/flows` and recommend blueprints matching your data source, but parameter forms must be submitted and reviewed by you.
+The assistant can recommend blueprints matching your data source and start one with the `jc_flow_start` tool, but parameter forms must be submitted and reviewed by you.
 
 ## 6. Pausing, Resuming, and Stream Health
 

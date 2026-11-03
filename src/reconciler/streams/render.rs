@@ -432,6 +432,25 @@ pub fn endpoint_source_url(
     ))
 }
 
+/// The Temporal API read of a kpi source one period back (PL-117): the source's own type and
+/// filters, the attributes the `prev` terms fold, and each entity's newest reading at that time.
+/// The time is taken per request in the run; a period reaches this far only through jc-core's
+/// check, so the text is a duration and nothing else.
+fn earlier_source_url(
+    source_slug: &str,
+    query: &jc_core::kinds::pipeline::SourceQuery,
+    read: &jc_core::kpi_join::Earlier,
+) -> Result<String, RenderError> {
+    let mut query = query.clone();
+    query.attrs.clone_from(&read.attrs);
+    let url = endpoint_source_url(source_slug, &query)?;
+    Ok(format!(
+        "{}&timerel=before&lastN=1&timeAt=${{! now().ts_sub_iso8601(\"{}\").ts_format(\"2006-01-02T15:04:05Z\", \"UTC\") }}",
+        url.replacen("/ngsi-ld/v1/entities?", "/ngsi-ld/v1/temporal/entities?", 1),
+        read.period
+    ))
+}
+
 /// The runner's cache in which an on-change stream keeps the hash of the last page it passed
 /// (PL-51); the runner declares it per project as `cache_label` makes it (T-5337).
 pub const CHANGE_CACHE: &str = "pipeline_changes";
@@ -520,6 +539,7 @@ pub fn render_endpoint_stream(
         stream_key,
         source_slug,
         source_is_public,
+        None,
     )?;
 
     let bloblang = first_compute(pipeline)
@@ -676,6 +696,7 @@ fn endpoint_input(
     stream_key: &str,
     source_slug: &str,
     source_is_public: bool,
+    earlier: Option<&jc_core::kpi_join::Earlier>,
 ) -> Result<(Value, Vec<Value>), RenderError> {
     let query = source
         .and_then(|s| s.query.as_ref())
@@ -718,7 +739,10 @@ fn endpoint_input(
             }
         }
     }
-    let source_url = endpoint_source_url(source_slug, &query)?;
+    let source_url = match earlier {
+        Some(read) => earlier_source_url(source_slug, &query, read)?,
+        None => endpoint_source_url(source_slug, &query)?,
+    };
 
     // Each tick is one run of the pipeline's log (PL-62).
     let input = serde_json::json!({
@@ -899,13 +923,15 @@ pub enum ResolvedSource {
 }
 
 /// Whether a pipeline needs the general renderer (PL-53): more than one source or output, a
-/// processor step, or more than one step. Everything else renders through [`render_stream`]
+/// processor step, more than one step, or a kpi step, whose reads back are inputs too (PL-117).
+/// Everything else renders through [`render_stream`]
 /// or [`render_endpoint_stream`], so a `v1alpha1` pipeline renders the bytes it always did.
 pub fn is_merged(spec: &PipelineSpec) -> bool {
     let steps = spec.steps();
     spec.sources().len() > 1
         || spec.outputs().len() > 1
         || steps.len() > 1
+        || kpi_step(spec).is_some()
         || steps.iter().any(|step| matches!(step, Step::Processor(_)))
 }
 
@@ -1035,13 +1061,17 @@ fn merged_input(
                 &format!("{project}/{name}#{at}"),
                 slug,
                 *public,
+                None,
             )?,
         };
         let processors = match kpi {
-            Some(_) => kpi_source(source, processors)?,
+            Some(_) => kpi_source(source, processors, None)?,
             None => processors,
         };
         inputs.push(with_processors(input, processors));
+    }
+    if let Some(kpi) = kpi {
+        inputs.extend(kpi_earlier_inputs(pipeline, name, project, sources, kpi)?);
     }
     let count = inputs.len();
     match count {
@@ -1062,6 +1092,46 @@ fn merged_input(
     }
 }
 
+/// One input per read back of a kpi formula (PL-117), each with its source's Endpoint and token.
+fn kpi_earlier_inputs(
+    pipeline: &PipelineSpec,
+    name: &str,
+    project: &str,
+    sources: &[ResolvedSource],
+    kpi: &jc_core::kpi_join::KpiStep,
+) -> Result<Vec<Value>, RenderError> {
+    let expr = jc_core::kpi_join::parse(&kpi.formula)
+        .map_err(|err| RenderError::Custom(err.to_string()))?;
+    let mut inputs = Vec::new();
+    for read in jc_core::kpi_join::earlier_reads(&expr) {
+        for resolved in sources {
+            let ResolvedSource::Endpoint {
+                source,
+                slug,
+                public,
+            } = resolved
+            else {
+                continue;
+            };
+            if source.name.as_deref() != Some(read.input.as_str()) {
+                continue;
+            }
+            let (input, processors) = endpoint_input(
+                pipeline,
+                project,
+                Some(source),
+                &format!("{project}/{name}#{}", read.page()),
+                slug,
+                *public,
+                Some(&read),
+            )?;
+            let processors = kpi_source(resolved, processors, Some(&read))?;
+            inputs.push(with_processors(input, processors));
+        }
+    }
+    Ok(inputs)
+}
+
 /// How long the broker waits for every source's page of a kpi run before it folds what came;
 /// a source still silent then is the run's problem (PL-104).
 const KPI_GATHER: &str = "120s";
@@ -1079,10 +1149,12 @@ fn kpi_step(pipeline: &PipelineSpec) -> Option<&jc_core::kpi_join::KpiStep> {
 
 /// A kpi source's processors (PL-104): its read keeps the error instead of dropping the page,
 /// and the page is wrapped with the source's name for the broker's batch. The error loses every
-/// URL query, as the run log's source failure does (T-4428).
+/// URL query, as the run log's source failure does (T-4428). `earlier` is a read one period back
+/// of this source (PL-117), its page named apart and an empty one meaning no history.
 fn kpi_source(
     source: &ResolvedSource,
     mut processors: Vec<Value>,
+    earlier: Option<&jc_core::kpi_join::Earlier>,
 ) -> Result<Vec<Value>, RenderError> {
     let ResolvedSource::Endpoint { source, .. } = source else {
         return Err(RenderError::Custom(
@@ -1097,12 +1169,16 @@ fn kpi_source(
     let name = source.name.as_deref().ok_or_else(|| {
         RenderError::Custom("each source of a kpi step has a name (PL-102)".to_owned())
     })?;
+    let (page, empty) = match earlier {
+        Some(read) => (read.page(), jc_core::kpi_join::no_history(&read.period)),
+        None => (name.to_owned(), EMPTY_KPI_SOURCE.to_owned()),
+    };
     processors.retain(|p| p.get("mutation").and_then(Value::as_str) != Some(DROP_ERRORED));
     processors.push(serde_json::json!({ "catch": [{ "mapping": r#"root = { "jc_kpi_error": error().or("the source refused the request").re_replace_all("""\?[^'"\s]*""", "") }"# }] }));
     processors.push(serde_json::json!({ "mapping": format!(
-        r#"root = if this.type() == "array" && this.length() == 0 {{ {{ "jc_kpi_error": "{EMPTY_KPI_SOURCE}" }} }} else {{ this }}"#
+        r#"root = if this.type() == "array" && this.length() == 0 {{ {{ "jc_kpi_error": "{empty}" }} }} else {{ this }}"#
     ) }));
-    processors.push(serde_json::json!({ "mapping": jc_core::kpi_join::wrap_mapping(name) }));
+    processors.push(serde_json::json!({ "mapping": jc_core::kpi_join::wrap_mapping(&page) }));
     Ok(processors)
 }
 

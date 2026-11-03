@@ -30,6 +30,9 @@ pub const MAX_REASON: usize = 500;
 pub enum Operations {
     Read,
     Write,
+    // A read and its history: what a KPI's `prev` term reads (PL-117). A plain comment: a doc
+    // comment on one variant turns the schema's enum into a oneOf.
+    History,
 }
 
 impl Operations {
@@ -37,14 +40,15 @@ impl Operations {
         match self {
             Self::Read => "read",
             Self::Write => "write",
+            Self::History => "history",
         }
     }
 
     fn parse(text: &str) -> Self {
-        if text == "write" {
-            Self::Write
-        } else {
-            Self::Read
+        match text {
+            "write" => Self::Write,
+            "history" => Self::History,
+            _ => Self::Read,
         }
     }
 
@@ -53,6 +57,8 @@ impl Operations {
     pub fn policy_operations(self) -> Value {
         match self {
             Self::Read => json!(["retrieveOps"]),
+            // The retrieve group holds no temporal row (CIM 009 Table 4.20-2).
+            Self::History => json!(["retrieveOps", "queryTemporal"]),
             Self::Write => json!(["upsertBatch", "createBatch", "queryBatch"]),
         }
     }

@@ -67,7 +67,7 @@ fn endpoint_propose_input_schema() -> Value {
         "properties": {
             "contextSpace": text("The ContextSpace served", NAME),
             "name": text("The endpoint's name (DNS-1123)", NAME),
-            "title": text("The endpoint's title as people read it", TITLE),
+            "title": text("The endpoint's title", TITLE),
             "audience": {
                 "type": "string",
                 "description": "Who may read it",
@@ -76,8 +76,8 @@ fn endpoint_propose_input_schema() -> Value {
             "allowedProjects": texts("With project-list: the projects that may read", NAME),
             "representations": {
                 "type": "array",
-                "description": "Formats served; ngsi-ld and csv when absent",
-                "items": { "type": "string", "enum": crate::agents::share::REPRESENTATIONS }
+                "description": "Default ngsi-ld, csv",
+                "items": { "type": "string", "enum": crate::agents::share::known_representations() }
             },
             "hiddenAttributes": texts("Attributes the endpoint never returns", TERM),
             "entityTypes": texts("The entity types it serves", TERM),

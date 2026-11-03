@@ -229,6 +229,7 @@
     "created": "Erstellt",
     "lane": "Risikostufe",
     "phase": "Phase",
+    "openMergeRequest": "Merge-Request öffnen",
     "mergeRequest": "Merge-Request",
     "repository": "Repository",
     "approve": "Freigeben",
@@ -240,8 +241,8 @@
     "ownProposal": "Sie können Ihren eigenen Vorschlag nicht freigeben oder ablehnen.",
     "ownAccessChange": "Zugriffsänderungen brauchen eine zweite Person: Ihre eigene Änderung an Rollen, Gruppen oder Dienstkonten genehmigt eine andere Administratorin oder ein anderer Administrator.",
     "ownModelChange": "Eine Änderung am Datenmodell braucht eine zweite Person: Ihre eigene Änderung an einem Modell genehmigt eine andere Administratorin oder ein anderer Administrator.",
-    "confirmPrompt": "Für die rote Stufe geben Sie zur Bestätigung den Ressourcennamen ein:",
-    "confirmLabel": "Ressourcenname zur Bestätigung",
+    "confirmPrompt": "Zur Bestätigung diesen Namen eingeben:",
+    "confirmLabel": "Zur Bestätigung den Namen eingeben",
     "diffAdded": "Hinzugefügt",
     "diffChanged": "Geändert",
     "diffRemoved": "Entfernt",
@@ -465,7 +466,9 @@
     "accepted": "Als Änderung vorgeschlagen:",
     "review": "In Freigaben öffnen",
     "approvedAsProposed": "Beim Vorschlagen genehmigt, wird angewendet:",
-    "open": "Änderung öffnen"
+    "open": "Änderung öffnen",
+    "waitingApprover": "Wartet auf Genehmigung",
+    "whoApproves": "Als Nächstes entscheidet eine andere Person mit Genehmigungsrecht in diesem Projekt. Sie findet es unter Genehmigungen, und diese Ansicht aktualisiert sich selbst."
   },
   "resourceDelete": {
     "title": "{name} entfernen",
@@ -671,11 +674,28 @@
       "files": "Dateien",
       "dropHint": "Dateien hierher ziehen oder auswählen",
       "action": "Vervollständigen",
+      "checkFile": "Datei prüfen",
+      "fileGiven": "Datei: {name}",
       "proposeAll": "Alles vorschlagen",
       "open": "Öffnen",
       "noDrafts": "Noch keine Entwürfe vervollständigt.",
       "needInput": "Geben Sie eine Endpunkt-URL ein oder fügen Sie eine Datei hinzu.",
-      "filesHint": "Eine Probe der Daten als CSV, Excel (.xlsx), JSON oder GeoJSON, mit Manifesten, README oder .env, die die Quelle beschreiben; zusammen bis 10 MB. Beispiel: stationen.xlsx."
+      "filesHint": "Eine Probe der Daten als CSV, Excel (.xlsx), JSON oder GeoJSON, mit Manifesten, README oder .env, die die Quelle beschreiben; zusammen bis 10 MB. Beispiel: stationen.xlsx.",
+      "review": {
+        "title": "Vorgeschlagenes Datenmodell {type}: {count, plural, one {# Attribut} other {# Attribute}}",
+        "hint": "Vergleichen Sie jeden Typ mit dem Wert aus Ihrer Datei. Hat der Entwurf eine Spalte falsch gelesen, ändern Sie den Typ hier, zum Beispiel soll eine als Zahl gelesene Postleitzahl Text sein.",
+        "sample": "Beispiel aus der Datei: {value}",
+        "noSample": "Kein Wert in der Datei",
+        "range": {
+          "string": "Text",
+          "integer": "Ganzzahl",
+          "float": "Dezimalzahl",
+          "boolean": "Ja oder nein",
+          "date": "Datum",
+          "datetime": "Datum und Uhrzeit"
+        }
+      },
+      "spaceHint": "Ein bestehender Bereich zum Ergänzen oder der Name eines neuen, zum Beispiel stadt-garagen."
     },
     "segment": "in Entitäts-IDs: {segment}",
     "quality": {
@@ -1164,10 +1184,10 @@
       "noSlots": "Das vorgeschlagene Modell deklariert für diesen Typ keine Felder: Es gibt nichts zu schreiben.",
       "write": "{count, plural, =0 {Nichts zu schreiben} one {# Zeile schreiben} other {# Zeilen schreiben}}",
       "done": "{written, plural, =0 {Keine Zeile geschrieben} one {# Zeile geschrieben} other {# Zeilen geschrieben}}, {refused, plural, =0 {keine abgelehnt.} other {# abgelehnt.}}",
-      "preview": "Vorschau der ersten {count, plural, one {# Entität} other {# Entitäten}} als NGSI-LD",
+      "preview": "Vorschau der ersten {count, plural, one {# Entität} other {# Entitäten}} wie gespeichert",
       "firstRefusal": "Zeile {row}: {reason}",
       "liveNow": "Die Änderung ist live. Schreiben Sie die Zeilen als {type} in {space}. Dieselbe Datei erneut zu schreiben aktualisiert dieselben Entitäten.",
-      "goingLive": "Freigegeben. In einigen Minuten ist sie live und diese Schaltfläche wird von selbst aktiv; bleiben Sie auf dieser Seite.",
+      "goingLive": "Genehmigt. Es geht innerhalb einer Minute live und diese Schaltfläche wird von selbst freigegeben; bleiben Sie hier.",
       "openSpace": "Raum öffnen"
     },
     "toolbar": {
@@ -3277,7 +3297,8 @@
       "operationsLegend": "Was die Pipeline dort tut",
       "operations": {
         "read": "Lesen",
-        "write": "Schreiben"
+        "write": "Schreiben",
+        "history": "Lesen und Historie"
       },
       "types": "Typen und Attribute",
       "typesHelp": "Nennen Sie jeden Entitätstyp und jedes Attribut, das die Pipeline braucht. Eine Anfrage fragt nie nach allen.",
@@ -3497,7 +3518,7 @@
     },
     "kpiEditor": {
       "title": "Neue Kennzahl aus mehreren Quellen",
-      "lead": "Wählen Sie zwei bis fünf Endpunkte, legen Sie fest, wie ihre Zeilen zusammenkommen und was berechnet wird. Jedes Feld wird beim Tippen geprüft; die Vorschau berechnet den Wert aus dem, was die Endpunkte jetzt liefern. Geschrieben wird erst, wenn die Änderung genehmigt ist.",
+      "lead": "Wählen Sie die Quellen, legen Sie fest, wie ihre Zeilen zusammenkommen und was berechnet wird. Geschrieben wird erst, wenn die Änderung genehmigt ist.",
       "name": "Name der Kennzahl",
       "titleField": "Titel",
       "sources": "Quellen",
@@ -3521,7 +3542,8 @@
       "joinHint": {
         "time": "Eine Kennzahl je Lauf über alle Zeilen, die jede Quelle lieferte.",
         "area": "Eine Kennzahl je Gebietswert, den jede Quelle hat; sein Kürzel wird an den Namen angehängt.",
-        "entity": "Eine Kennzahl je Entität, die jede Quelle nennt; ihr Kürzel wird an den Namen angehängt."
+        "entity": "Eine Kennzahl je Entität, die jede Quelle nennt; ihr Kürzel wird an den Namen angehängt.",
+        "change": "Alle Zeilen des Laufs: eine Änderung ist ein Wert über die ganze Quelle."
       },
       "key": {
         "area": "Gebietsattribut",
@@ -3535,7 +3557,8 @@
         "sum": "Summe der Zahl der ersten Quelle",
         "average": "Durchschnitt der Zahl der ersten Quelle",
         "share": "Anteil: erste Summe geteilt durch zweite Summe",
-        "per": "Erste Summe je Zeile der zweiten Quelle"
+        "per": "Erste Summe je Zeile der zweiten Quelle",
+        "change": "Änderung seit letzter Woche"
       },
       "writes": "Die Formel, die daraus entsteht: {formula}",
       "advanced": "Erweitert: Formel eingeben",
@@ -3553,6 +3576,7 @@
       "runPreview": "Jetzt berechnen",
       "previewing": "Wird berechnet…",
       "previewHint": "Liest bis zu 100 Zeilen jeder Quelle so, wie Sie sie sehen, und berechnet {formula}.",
+      "previewHintChange": "Liest bis zu 100 Zeilen der Quelle so, wie Sie sie sehen, jetzt und vor einer Woche, und berechnet die Differenz.",
       "partial": "Die Vorschau endete bei {rows} Zeilen einer Quelle, dieser Wert ist also nicht endgültig: Ein Lauf liest alle Zeilen.",
       "noKeys": "Kein Schlüssel kommt in jeder Quelle vor, daher würde jetzt keine Kennzahl geschrieben.",
       "indicator": "Kennzahl",
@@ -3579,9 +3603,13 @@
         "target": "Der Endpunkt des Kennzahlenraums, über den geschrieben wird, zum Beispiel kpi-writer.",
         "formula": "sum, avg, min, max von input.attribute und count(input), mit + - * / und Klammern, zum Beispiel sum(parking.occupiedSpotNumber) / count(stops).",
         "areaKey": "Das Attribut mit Name oder Code des Gebiets in dieser Quelle, zum Beispiel district.",
-        "entityKey": "id für die Entität selbst oder die Beziehung, die sie nennt, zum Beispiel refParkingSite."
+        "entityKey": "id für die Entität selbst oder die Beziehung, die sie nennt, zum Beispiel refParkingSite.",
+        "change": "Liest die Historie dieser Quelle: eine Quelle genügt, und der Bereich muss diese Zahl eine Woche lang aufbewahrt haben. Bis dahin schreibt ein Lauf nichts und nennt den Grund."
       },
-      "previewFirst": "Die Vorschau läuft, sobald jedes Feld ohne Problem geprüft ist."
+      "previewFirst": "Die Vorschau läuft, sobald jedes Feld ohne Problem geprüft ist.",
+      "rowsBack": "{name}, vor {period}: {count} Zeilen",
+      "rowsWeekBack": "{name} vor einer Woche: {count} Zeilen",
+      "noPreviewYet": "Noch kein Wert: Berechnen Sie ihn über die Schaltfläche."
     }
   },
   "dashboards": {

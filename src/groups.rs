@@ -223,6 +223,47 @@ fn project_binding(state: &AppState, identity: &Identity, manifest: &Value) -> O
     })
 }
 
+/// What `identity` may do when removing `name` of `kind` from `project`: their permissions there,
+/// and at the organization's namespace a binding scoped to one project, or to a context space of
+/// it, also goes by whoever may delete `RoleBinding` in that project (S-32, PF-52): the revoke
+/// beside `project_binding`'s grant. Approval stays the organization's.
+pub fn for_removal(
+    state: &AppState,
+    identity: &Identity,
+    project: &str,
+    kind: &str,
+    name: &str,
+) -> Effective {
+    let mut effective = crate::permissions::for_request(state, identity, project);
+    if project == ORG_NAMESPACE && kind == "RoleBinding" && !effective.may(kind, Verb::Delete) {
+        effective
+            .grants
+            .extend(project_unbinding(state, identity, name));
+    }
+    effective
+}
+
+fn project_unbinding(state: &AppState, identity: &Identity, name: &str) -> Option<Grant> {
+    let held = state.mirror.get(ORG_NAMESPACE, "RoleBinding", name)?;
+    let project = crate::permissions::binding_project(&state.mirror, &held.spec)?;
+    let target = serde_json::to_value(&held).ok()?;
+    crate::permissions::for_request(state, identity, &project)
+        .check("RoleBinding", Verb::Delete, Some(&target))
+        .ok()?;
+    Some(Grant {
+        role: "delete on RoleBinding".to_owned(),
+        binding: format!("delete on RoleBinding in project {project} (PF-52)"),
+        scope: format!("project:{project}"),
+        space: None,
+        organization: None,
+        rule: Rule {
+            kinds: vec!["RoleBinding".to_owned()],
+            verbs: vec![Verb::Read, Verb::Delete],
+            constraints: Vec::new(),
+        },
+    })
+}
+
 /// Whether `manifest` equals the stored Group except in `spec.members` (and `status`).
 fn only_members_differ(held: &crate::resource::ResourceEnvelope, manifest: &Value) -> bool {
     let without_members = |value: Value| {
@@ -672,5 +713,69 @@ mod tests {
             &reader,
             &binding_write("eva-doprava", json!({ "project": "doprava" }))
         ));
+    }
+
+    /// S-32, PF-52: whoever may delete RoleBinding in a project removes a binding scoped to it or
+    /// to one of its spaces; a binding of another project, of the organization or one that is not
+    /// there grants nothing, and propose alone removes nothing.
+    #[test]
+    fn a_project_admin_unbinds_inside_their_project_and_nowhere_else() {
+        let may_remove = |state: &AppState, name: &str| {
+            for_removal(
+                state,
+                &who("jana@hel.fi"),
+                ORG_NAMESPACE,
+                "RoleBinding",
+                name,
+            )
+            .may("RoleBinding", Verb::Delete)
+        };
+        let admin = with_role(
+            "doprava",
+            json!({ "kinds": ["RoleBinding"], "verbs": ["delete"] }),
+        );
+        admin.mirror.upsert(manifest(
+            "ContextSpace",
+            ObjectMeta::new("parking", "doprava"),
+            json!({}),
+        ));
+        for (name, scope) in [
+            ("eva-doprava", json!({ "project": "doprava" })),
+            ("eva-parking", json!({ "contextSpace": "parking" })),
+            ("eva-ovzdusie", json!({ "project": "ovzdusie" })),
+            ("eva-org", json!({ "organization": "hel" })),
+        ] {
+            admin.mirror.upsert(manifest(
+                "RoleBinding",
+                ObjectMeta::new(name, ORG_NAMESPACE),
+                json!({ "subjects": [{ "user": "eva@hel.fi" }], "role": "app-role", "scope": scope }),
+            ));
+        }
+        assert!(may_remove(&admin, "eva-doprava"));
+        assert!(may_remove(&admin, "eva-parking"));
+        assert!(!may_remove(&admin, "eva-ovzdusie"));
+        assert!(!may_remove(&admin, "eva-org"));
+        assert!(!may_remove(&admin, "absent"));
+        // Nobody without delete in the project removes it.
+        let stranger = who("petra@hel.fi");
+        let removal = for_removal(
+            &admin,
+            &stranger,
+            ORG_NAMESPACE,
+            "RoleBinding",
+            "eva-doprava",
+        );
+        assert!(!removal.may("RoleBinding", Verb::Delete));
+        let proposer = with_role(
+            "doprava",
+            json!({ "kinds": ["RoleBinding"], "verbs": ["propose"] }),
+        );
+        proposer.mirror.upsert(manifest(
+            "RoleBinding",
+            ObjectMeta::new("eva-doprava", ORG_NAMESPACE),
+            json!({ "subjects": [{ "user": "eva@hel.fi" }], "role": "app-role",
+                    "scope": { "project": "doprava" } }),
+        ));
+        assert!(!may_remove(&proposer, "eva-doprava"));
     }
 }

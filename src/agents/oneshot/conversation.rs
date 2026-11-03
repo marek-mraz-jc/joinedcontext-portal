@@ -204,6 +204,10 @@ impl Driver {
         if let Some(segment) = self.capabilities().and_then(|chosen| chosen.segment) {
             return Box::pin(self.connector_turn(conversation, text, &segment)).await;
         }
+        self.schema_read
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clear();
         // No search runs before the model: it calls search_catalog itself when the question
         // needs one, in the person's own words and language (JC1-10).
         let base = self.conversation_pack(conversation, text, None);
@@ -1053,8 +1057,9 @@ change_resource that ContextSpace; a patch replaces the whole list, so keep its 
                 "- **DataSource**: `{\"type\": \"http\", \"http\": {\"url\": \"<the address>\", \
                  \"verb\": \"GET\"}}` for a feed read over HTTP. The platform fetches that URL \
                  once before the form opens, so a URL that answers nothing comes back to you. A \
-                 credential is never written here: a source that needs one carries a `secretRef` \
-                 and the person fills it in the form.\n",
+                 credential is never written here: a source that needs one carries \
+                 `\"authorization\": {\"header\": \"X-Api-Key\", \"headerRef\": {\"name\": \
+                 \"<secret name>\"}}` in `http`, and the person stores the value in the form.\n",
             );
         }
         let sources = self.names_of("DataSource");

@@ -762,10 +762,15 @@ fn unresolved(manifests: &[ResourceEnvelope], state: &AppState, project: &str) -
             if inside.contains(&(kind.clone(), name.clone())) {
                 continue;
             }
-            if state
-                .mirror
-                .get(namespace_for(&kind, project), &kind, &name)
-                .is_some()
+            // A kind that lives in either place resolves in the project first, then the
+            // organization: a project's own DataModel is no missing reference.
+            let homes = resource::by_kind(&kind).map_or_else(
+                || vec![namespace_for(&kind, project).to_owned()],
+                |info| resource::homes(info, project),
+            );
+            if homes
+                .iter()
+                .any(|home| state.mirror.get(home, &kind, &name).is_some())
             {
                 continue;
             }
@@ -1566,14 +1571,25 @@ pub async fn propose_files(
     let pull = gitea
         .create_pull_request(&branch, &default_branch, &title, &body)
         .await?;
-    let change = Change::new(
+    Ok(waiting_change(state, gitea, project, lane, summary, pull))
+}
+
+/// The open merge request `pull` as the Change a person follows.
+pub(crate) fn waiting_change(
+    state: &AppState,
+    gitea: &crate::git::GiteaClient,
+    project: &str,
+    lane: Lane,
+    summary: crate::change::PlanSummary,
+    pull: crate::git::PullRequest,
+) -> Change {
+    Change::new(
         crate::api::changes::change_meta(state, gitea, pull.number, project),
         ChangeStatus::new(lane, ChangePhase::PendingApproval, summary)
             .in_repository(&pull.repository)
             .proposed_through(&pull.body)
             .with_merge_request(pull.url),
-    );
-    Ok(change)
+    )
 }
 
 /// What the bundle index says each of its files hashes to, against what arrived (MF-42).

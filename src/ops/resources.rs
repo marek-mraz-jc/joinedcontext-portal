@@ -182,7 +182,10 @@ fn get_input_schema() -> Value {
 }
 
 fn get_output_schema() -> Value {
-    json!({ "type": "object", "description": "The manifest with its status" })
+    json!({
+        "type": "object",
+        "description": "The manifest with its status, and `portal`: the address of its Portal page"
+    })
 }
 
 fn delete_input_schema() -> Value {
@@ -408,6 +411,25 @@ async fn list(
     Ok(json!({ "items": items }))
 }
 
+/// A read object as `jc_resource_get` answers it: its manifest and where a person opens it
+/// (T-6486, S-41). The address names only the kind, project and name the caller just read.
+fn held(
+    state: &AppState,
+    project: &str,
+    info: &crate::resource::KindInfo,
+    envelope: &crate::resource::ResourceEnvelope,
+) -> Result<Value, OpError> {
+    let route = crate::agents::change::object_route(
+        project,
+        info.kind,
+        info.plural,
+        &envelope.metadata.name,
+    );
+    let mut answer = serde_json::to_value(envelope)?;
+    answer["portal"] = json!(crate::agents::change::address(&state.config, &route));
+    Ok(answer)
+}
+
 async fn get(
     caller: &Caller,
     state: &AppState,
@@ -435,7 +457,7 @@ async fn get(
         Some(envelope) if info.kind == "Endpoint" => {
             let access =
                 super::endpoint_reach::reach(state, project, &envelope).detail(state, &envelope);
-            let mut answer = serde_json::to_value(&envelope)?;
+            let mut answer = held(state, project, info, &envelope)?;
             answer["access"] = access;
             if input.writers {
                 answer["writers"] =
@@ -443,7 +465,7 @@ async fn get(
             }
             Ok(answer)
         }
-        Some(envelope) => Ok(serde_json::to_value(envelope)?),
+        Some(envelope) => held(state, project, info, &envelope),
         None => {
             // The names it could have been are every name of every place this kind lives in,
             // so a caller who asked in the project is told about the organization's too.
