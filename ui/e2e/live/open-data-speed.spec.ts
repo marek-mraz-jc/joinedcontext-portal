@@ -166,6 +166,9 @@ async function pages(browser: Browser): Promise<{ path: string; dataset: boolean
   return out;
 }
 
+// One test of an hour: a trace of every load would outgrow the disk, and the HAR names the requests.
+test.use({ trace: "off", video: "off", screenshot: "off" });
+
 test("the open data portal draws its card, grid and map in time", async ({ browser }) => {
   test.setTimeout(4 * 60 * 60 * 1000);
   mkdirSync(join(OUT, "har"), { recursive: true });
