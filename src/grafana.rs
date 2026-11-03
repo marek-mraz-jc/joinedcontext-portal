@@ -511,6 +511,11 @@ pub async fn push(
     Ok(true)
 }
 
+/// The space an Endpoint lives in; a manifest names it by a bare or a typed reference.
+pub(crate) fn space_of(endpoint: &crate::resource::ResourceEnvelope) -> &str {
+    crate::resource::reference_name(&endpoint.spec["contextSpaceRef"]).unwrap_or_default()
+}
+
 /// Puts one visualization back when Grafana lost it. An Endpoint since removed stays out.
 async fn restore(
     state: &AppState,
@@ -531,10 +536,7 @@ async fn restore(
         slug: endpoint.spec["slug"].as_str().unwrap_or_default(),
         public: endpoint.spec["audience"] == "public",
     };
-    let space = endpoint.spec["contextSpaceRef"]
-        .as_str()
-        .unwrap_or_default();
-    if push(state, client, org, row, &source, space).await? {
+    if push(state, client, org, row, &source, space_of(&endpoint)).await? {
         tracing::info!(uid = %row.uid(), project = %row.project, "a visualization was put back in Grafana");
     }
     Ok(())

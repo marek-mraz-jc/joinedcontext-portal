@@ -14,7 +14,7 @@ use utoipa::{IntoParams, ToSchema};
 
 use crate::auth::{CurrentUser, Identity};
 use crate::error::{ApiError, ProblemDetails};
-use crate::grafana::{self, Client, Kind, Source, Visualization};
+use crate::grafana::{self, space_of, Client, Kind, Source, Visualization};
 use crate::permissions::Effective;
 use crate::resource::ResourceEnvelope;
 use crate::state::AppState;
@@ -160,12 +160,6 @@ fn title_of_endpoint(endpoint: &ResourceEnvelope) -> String {
 
 fn slug_of(endpoint: &ResourceEnvelope) -> &str {
     endpoint.spec["slug"].as_str().unwrap_or_default()
-}
-
-fn space_of(endpoint: &ResourceEnvelope) -> &str {
-    endpoint.spec["contextSpaceRef"]
-        .as_str()
-        .unwrap_or_default()
 }
 
 /// An Endpoint of the project the caller may read.
@@ -714,7 +708,7 @@ mod tests {
     ) -> Result<Json<GrafanaOptions>, ApiError> {
         let asked = OptionsAsked {
             endpoint: endpoint.map(str::to_owned),
-            entity_type: None
+            entity_type: None,
         };
         grafana_options(
             user,
