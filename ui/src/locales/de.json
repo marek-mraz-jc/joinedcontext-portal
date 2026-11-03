@@ -11148,6 +11148,7 @@
         "noSchedule": "keine Pipeline verspricht für diese Daten einen Zeitplan",
         "onTime": "{fresh} von {total} Quellen sind pünktlich",
         "late": "{late} von {total} Quellen sind verspätet; die neueste Beobachtung ist vom {newest}",
+        "lateUnread": "{late} von {total} Quellen sind verspätet; noch keine hat eine Beobachtung geliefert",
         "noRequired": "das Modell markiert kein Feld als Pflichtfeld",
         "complete": "{complete} von {fields} Pflichtfeldern sind in jeder Entität gefüllt",
         "valid": "{valid} von {checked} Entitäten entsprechen dem Modell",

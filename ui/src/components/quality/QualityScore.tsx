@@ -9,7 +9,7 @@ type Said = components["schemas"]["DatasetScoreText"];
 
 /** The message keys the server sends (`SAY` in `src/dataset_score.rs`), each under `quality.score.say`. */
 export const SAID = [
-  "notMeasured", "noSchedule", "onTime", "late", "noRequired", "complete", "valid", "linksUp",
+  "notMeasured", "noSchedule", "onTime", "late", "lateUnread", "noRequired", "complete", "valid", "linksUp",
   "fixLate", "fixFailing", "fixSilent", "fixMissing", "fixInvalid", "fixLink",
 ] as const;
 

@@ -76,6 +76,19 @@ describe("the quality score", () => {
     expect(screen.getByText("words from the server")).toBeInTheDocument();
   });
 
+  // T-6565: a feed with no reading yet says so in words, in the reader's language, never "from never".
+  it("a_late_feed_without_a_reading_says_none_has_arrived", async () => {
+    const unread = said("lateUnread", "1 of 1 feeds are late; none has delivered an observation yet", { late: "1", total: "1" });
+    const score = { ...SCORE, parts: [{ part: "freshness" as const, score: 0, reason: unread }] };
+    const { unmount } = withQueries(<QualityScore score={score} />);
+    expect(screen.getByText("1 of 1 feeds are late; none has delivered an observation yet")).toBeInTheDocument();
+    expect(screen.queryByText(/never/)).toBeNull();
+    unmount();
+    await i18n.changeLanguage("sk");
+    withQueries(<QualityScore score={score} />);
+    expect(screen.getByText("1 z 1 zdrojov mešká; žiadny zatiaľ nedodal pozorovanie")).toBeInTheDocument();
+  });
+
   it("grades_by_number", () => {
     expect([toneOf(undefined), toneOf(49), toneOf(50), toneOf(80)]).toEqual(["neutral", "danger", "warning", "success"]);
   });
