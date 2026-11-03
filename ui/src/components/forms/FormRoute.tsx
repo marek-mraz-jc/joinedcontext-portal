@@ -295,6 +295,52 @@ export function FormFrame({
 }
 
 /**
+ * Whether the reads of the page at this form address have answered. Decided in an effect, which runs
+ * after the children's: an editor registers in its own effect once the reads have answered, and a
+ * verdict taken in that render said "cannot be opened" for a moment, an alert a screen reader
+ * announced on the way to every form (T-3423). The effect records it once the commit is done, when
+ * every registration of that commit has been counted.
+ */
+function useFormReads(formKey: string | null): { settled: boolean; readFailed: boolean } {
+  const fetching = useIsFetching();
+  // A read with nothing to show yet. A refresh of what the page holds (a poll, an invalidation)
+  // drops no verdict: the page went behind the skeleton for it, its h1 with it (T-6525, UI-16).
+  const reading = useIsFetching({ predicate: (query) => query.state.data === undefined });
+  const queryClient = useQueryClient();
+  const [settledFor, setSettledFor] = useState<string | null>(null);
+  // A read the page needed failed (a server error, a lost connection): the page says so itself
+  // with its Retry, and "no create form here" would be a second, wrong story (T-4165).
+  const [readFailed, setReadFailed] = useState(false);
+  useEffect(() => {
+    // After this commit, the children's registrations included; a later change drops the verdict.
+    let live = true;
+    queueMicrotask(() => {
+      if (!live) return;
+      if (reading > 0) {
+        setSettledFor(null);
+        setReadFailed(false);
+      } else if (fetching === 0) {
+        setSettledFor(formKey);
+        setReadFailed(
+          queryClient
+            .getQueryCache()
+            .findAll({ type: "active" })
+            .some((query) => {
+              if (query.state.status !== "error") return false;
+              const kind = failureKind(query.state.error);
+              return kind === "server" || kind === "network";
+            }),
+        );
+      }
+    });
+    return () => {
+      live = false;
+    };
+  }, [fetching, reading, formKey, queryClient]);
+  return { settled: reading === 0 && settledFor === formKey, readFailed };
+}
+
+/**
  * The list page and the slot its forms are drawn in. With a form in the address the list is
  * hidden (and out of the accessibility tree) while the form stands in its place; with a form in
  * the address that nothing opened (a name that is not there, a kind with no such form, an edit
@@ -323,8 +369,6 @@ export function FormRouteHost({
   const [slot, setSlot] = useState<HTMLDivElement | null>(null);
   const [open, setOpen] = useState(0);
   const [notice, setNotice] = useState<ReactNode>(null);
-  const fetching = useIsFetching();
-  const queryClient = useQueryClient();
   // What had the focus when a form opened over the list, given it back once the list is shown.
   // Taken as the form is asked for, while the control that asked still holds the focus: once
   // the list is hidden a browser moves the focus off it.
@@ -377,39 +421,10 @@ export function FormRouteHost({
   );
 
   const showing = open > 0;
-  // The address names a form, the page's reads have answered, and nothing opened it. Decided in an
-  // effect, which runs after the children's: an editor registers in its own effect once the reads
-  // have answered, and a verdict taken in that render said "cannot be opened" for a moment, an
-  // alert a screen reader announced on the way to every form (T-3423). The effect records it once
-  // the commit is done, when every registration of that commit has been counted.
+  // The address names a form, the page's reads have answered, and nothing opened it.
   const formKey = form === null ? null : form.mode === "new" ? "new" : `edit:${form.name}`;
-  const [settledFor, setSettledFor] = useState<string | null>(null);
-  // A read the page needed failed (a server error, a lost connection): the page says so itself
-  // with its Retry, and "no create form here" would be a second, wrong story (T-4165).
-  const [readFailed, setReadFailed] = useState(false);
-  useEffect(() => {
-    // After this commit, the children's registrations included; a later change drops the verdict.
-    let live = true;
-    queueMicrotask(() => {
-      if (!live) return;
-      setSettledFor(fetching === 0 ? formKey : null);
-      setReadFailed(
-        fetching === 0 &&
-          queryClient
-            .getQueryCache()
-            .findAll({ type: "active" })
-            .some((query) => {
-              if (query.state.status !== "error") return false;
-              const kind = failureKind(query.state.error);
-              return kind === "server" || kind === "network";
-            }),
-      );
-    });
-    return () => {
-      live = false;
-    };
-  }, [fetching, formKey, queryClient]);
-  const unopened = form !== null && !showing && !readFailed && fetching === 0 && settledFor === formKey;
+  const { settled, readFailed } = useFormReads(formKey);
+  const unopened = form !== null && !showing && !readFailed && settled;
   // The last form closed, by its back control, its Cancel, a saved proposal or a page that
   // dropped its editor: the address leaves the form too, so a reload or the back button does
   // not land on a form that is no longer there. (The browser's back button leaves the address

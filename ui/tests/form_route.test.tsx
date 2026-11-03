@@ -208,6 +208,36 @@ describe("a kind's forms at their own addresses", () => {
     expect(await screen.findByRole("heading", { level: 1, name: en.policies.title })).toBeInTheDocument();
   });
 
+  // T-6525, UI-16: a shell read refreshes data the page already holds a moment after every load (the
+  // Endpoint list on dev). The whole page went behind the skeleton for that refresh, its h1 with it.
+  it("keeps the page and its heading while a read it already holds refreshes", async () => {
+    let release = () => {};
+    let held = false;
+    const rendered = await renderRoute({
+      path: `${LIST}/no-such-policy/edit`,
+      answer: (path, request) => {
+        if (held && path.endsWith("/policies")) {
+          return new Promise<Response>((resolve) => {
+            release = () => resolve(jsonResponse(list([POLICY])));
+          });
+        }
+        return answer(path, request);
+      },
+    });
+    await screen.findByRole("alert");
+
+    held = true;
+    await act(async () => {
+      void rendered.client.invalidateQueries();
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    });
+
+    expect(screen.getByRole("heading", { level: 1, name: en.policies.title })).toBeVisible();
+    expect(screen.getByRole("alert")).toHaveTextContent(en.form.notOpen.replace("{name}", "no-such-policy"));
+    expect(screen.queryByText(en.form.opening)).not.toBeInTheDocument();
+    await act(async () => release());
+  });
+
   // T-3241, UI-91: every item has its bare address; a kind with no page of its own opens its form.
   it("opens a kind with no page of its own on its form at the item's bare address", async () => {
     await open(`${LIST}/open-read`);
