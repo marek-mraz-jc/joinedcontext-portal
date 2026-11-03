@@ -60,12 +60,12 @@ describe("the space pages that create for a viewer", () => {
   it("shows the reason on the upload page in place of its file picker", async () => {
     await renderRoute({ path: "/projects/helsinki/spaces/upload", permissions: VIEWER });
     expect((await screen.findByText(en.form.mayNotCreate)).closest("[role=status]")).not.toBeNull();
-    expect(screen.queryByText(en.spaces.upload.choose)).toBeNull();
+    expect(screen.queryByText(en.spaces.upload.chooseButton)).toBeNull();
   });
 
   it("keeps the upload page for a role that may propose a space", async () => {
     await renderRoute({ path: "/projects/helsinki/spaces/upload", permissions: SPACE_EDITOR });
-    expect(await screen.findByText(en.spaces.upload.choose)).toBeInTheDocument();
+    expect(await screen.findByText(en.spaces.upload.chooseButton)).toBeInTheDocument();
     expect(screen.queryByText(en.form.mayNotCreate)).toBeNull();
   });
 });
