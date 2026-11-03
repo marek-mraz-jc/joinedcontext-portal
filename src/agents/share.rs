@@ -17,13 +17,13 @@ use jc_core::kinds::{Preset as IcalPreset, Representation, PRESET_TYPES};
 /// The representations a share may name: every jc-core `Representation` but `feed`, which an
 /// Endpoint serves from its outputs and never lists (EP-150). The retired files are not among
 /// them (T-4600).
-pub static REPRESENTATIONS: LazyLock<Vec<&'static str>> = LazyLock::new(|| {
+pub fn known_representations() -> Vec<&'static str> {
     Representation::ALL
         .iter()
         .filter(|r| **r != Representation::Feed)
         .map(Representation::as_str)
         .collect()
-});
+}
 const AUDIENCES: [&str; 3] = ["project-list", "organization", "public"];
 /// Requests a minute a caller may set, for a share and for an edit alike: one field, one bound.
 pub const MAX_REQUESTS_PER_MINUTE: u32 = 100_000;
@@ -354,13 +354,14 @@ pub fn render(
                 .collect(),
         )
     };
+    let known = known_representations();
     if let Some(bad) = representations
         .iter()
-        .find(|r| !REPRESENTATIONS.contains(&r.as_str()))
+        .find(|r| !known.contains(&r.as_str()))
     {
         return Err(format!(
             "representation '{bad}' is not one of {}",
-            REPRESENTATIONS.join(", ")
+            known.join(", ")
         ));
     }
     if let Some(bad) = params.hidden_attributes.iter().find(|a| !is_identifier(a)) {
@@ -773,21 +774,22 @@ pub fn edit(
 
     let before: Vec<String> =
         serde_json::from_value(spec["enabledRepresentations"].clone()).unwrap_or_default();
+    let known = known_representations();
     if let Some(bad) = params
         .add_representations
         .iter()
         .chain(&params.remove_representations)
-        .find(|r| !REPRESENTATIONS.contains(&r.trim()))
+        .find(|r| !known.contains(&r.trim()))
     {
         return Err(format!(
             "representation '{bad}' is not one of {}",
-            REPRESENTATIONS.join(", ")
+            known.join(", ")
         ));
     }
     let mut representations: Vec<String> = before
         .iter()
         // A retired file a manifest still names goes with the edit (T-4600).
-        .filter(|r| REPRESENTATIONS.contains(&r.as_str()))
+        .filter(|r| known.contains(&r.as_str()))
         .filter(|r| {
             !params
                 .remove_representations
