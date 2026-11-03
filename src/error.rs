@@ -215,6 +215,31 @@ impl IntoResponse for ApiError {
 }
 
 impl ApiError {
+    /// A failed database call as an answer. No connection in time, a lost connection or a server
+    /// restarting is a dependency down, 503 with a next step; the rest is our bug (T-6520). The
+    /// caller logs `err`: the DSN, the SQL and the driver's wording stay out of the answer (TS-09).
+    pub fn from_db(err: &sqlx::Error, database: &str) -> Self {
+        let down = match err {
+            sqlx::Error::PoolTimedOut
+            | sqlx::Error::PoolClosed
+            | sqlx::Error::WorkerCrashed
+            | sqlx::Error::Io(_)
+            | sqlx::Error::Tls(_) => true,
+            // Class 57P: shutting down, starting up. 53300: too many connections.
+            sqlx::Error::Database(db) => db
+                .code()
+                .is_some_and(|code| code.starts_with("57P") || code == "53300"),
+            _ => false,
+        };
+        if down {
+            Self::Unavailable(format!(
+                "the {database} database did not answer; try again in a minute"
+            ))
+        } else {
+            Self::Internal(format!("the {database} database call failed"))
+        }
+    }
+
     /// The answer's status and document: the problem a REST door answers and an
     /// MCP tool error carries as its structured content, so both read alike (AG-146, T-5949).
     pub fn into_document(self) -> (StatusCode, serde_json::Value) {
@@ -392,6 +417,24 @@ pub fn type_uri(slug: &str) -> String {
 mod tests {
     use super::*;
     use http_body_util::BodyExt;
+
+    #[test]
+    fn a_database_that_is_down_is_503_and_a_broken_call_500() {
+        for down in [
+            sqlx::Error::PoolTimedOut,
+            sqlx::Error::PoolClosed,
+            sqlx::Error::WorkerCrashed,
+            sqlx::Error::Io(std::io::ErrorKind::ConnectionReset.into()),
+        ] {
+            let (status, doc) = ApiError::from_db(&down, "preferences").into_document();
+            assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{down}");
+            assert!(doc["detail"].as_str().is_some_and(|d| d.contains("try again")));
+        }
+        let (status, doc) =
+            ApiError::from_db(&sqlx::Error::RowNotFound, "preferences").into_document();
+        assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+        assert!(!doc.to_string().contains("no rows"), "{doc}");
+    }
 
     #[tokio::test]
     async fn status_codes_and_content_type() {

@@ -115,6 +115,34 @@ async fn without_a_database_the_routes_answer_503() {
     assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
 }
 
+/// T-6520: the walker met a 500 here while dev's database was short of connections. A pool that
+/// hands out no connection is a dependency down: 503 with a next step, on every door of this file.
+#[tokio::test]
+async fn a_database_that_does_not_answer_is_503_with_a_next_step() {
+    let closed = std::net::TcpListener::bind("127.0.0.1:0")
+        .expect("bind")
+        .local_addr()
+        .expect("address")
+        .port();
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .acquire_timeout(std::time::Duration::from_millis(200))
+        .connect_lazy(&format!("postgres://portal@127.0.0.1:{closed}/portal"))
+        .expect("a lazy pool");
+    let config = Config::for_tests();
+    let cookie = session_cookie(&config, "f:1:demo.steward");
+    let app = server::app(AppState::new(config, Some(pool)));
+
+    let (status, body) = call(&app, &cookie, Method::GET, None).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE, "{body}");
+    assert_eq!(body["status"], 503);
+    let detail = body["detail"].as_str().unwrap_or_default();
+    assert!(detail.contains("try again"), "{detail}");
+    assert!(!detail.contains("127.0.0.1"), "{detail}");
+
+    let (status, _) = call(&app, &cookie, Method::PUT, Some(json!({ "theme": "dark" }))).await;
+    assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+}
+
 #[tokio::test]
 async fn anonymous_calls_are_401_before_the_database_is_asked() {
     let app = server::app(AppState::new(Config::for_tests(), None));
