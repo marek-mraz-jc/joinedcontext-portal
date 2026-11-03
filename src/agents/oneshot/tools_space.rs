@@ -615,7 +615,14 @@ impl Driver {
                 .await;
         }
         let known = crate::api::assistant::declared_groups(&self.state, &self.project);
-        match share::render(&self.project, &params, &known) {
+        let classes = crate::ops::endpoint_reach::space_classes(
+            &self.state,
+            &self.project,
+            params.context_space.trim(),
+        );
+        match share::check_types(&params, &classes)
+            .and_then(|()| share::render(&self.project, &params, &known))
+        {
             Ok(proposal) => {
                 let output = serde_json::to_value(&proposal).unwrap_or(Value::Null);
                 self.event(
