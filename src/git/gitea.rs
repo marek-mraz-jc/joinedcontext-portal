@@ -2107,11 +2107,15 @@ impl GiteaClient {
         path: &str,
         limit: usize,
     ) -> Result<Vec<Commit>, GitError> {
-        // The project's own root in a project repository is the whole repository (CC-87).
-        let root = self
-            .mount
-            .as_deref()
-            .is_some_and(|mount| path.trim_matches('/') == mount.trim_end_matches('/'));
+        // No path, or the project's own root in a project repository, is the whole repository
+        // (CC-87). Who wrote a Change is read this way, so an empty answer here is a proposer
+        // nobody recognises at the approval (PF-58).
+        let wanted = path.trim_matches('/');
+        let root = wanted.is_empty()
+            || self
+                .mount
+                .as_deref()
+                .is_some_and(|mount| wanted == mount.trim_end_matches('/'));
         let path = if root {
             String::new()
         } else {
@@ -2590,6 +2594,36 @@ mod project_repository_tests {
         )
         .expect("client")
         .for_project("ovzdusie-repo", "ovzdusie")
+    }
+
+    /// PF-58: a Change's head commit is read with no path; in a project repository that is the
+    /// whole repository, not a path outside it, or its proposer reads as the Portal's account.
+    #[tokio::test]
+    async fn a_project_repository_lists_its_head_commit_for_no_path() {
+        let forge = wiremock::MockServer::start().await;
+        wiremock::Mock::given(wiremock::matchers::method("GET"))
+            .and(wiremock::matchers::path(
+                "/api/v1/repos/joinedcontext/ovzdusie-repo/commits",
+            ))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(serde_json::json!([{
+                "sha": "head-1",
+                "commit": { "message": "m", "author": { "name": "Jana", "email": "jana@hel.fi", "date": "" } }
+            }])))
+            .mount(&forge)
+            .await;
+        let client = GiteaClient::new(
+            forge.uri().parse().expect("url"),
+            "joinedcontext",
+            "configuration",
+            "t",
+        )
+        .expect("client")
+        .for_project("ovzdusie-repo", "ovzdusie");
+        let commits = client.list_commits("head-1", "", 1).await.expect("commits");
+        assert_eq!(
+            commits.first().and_then(|c| c.email.as_deref()),
+            Some("jana@hel.fi")
+        );
     }
 
     /// CC-87: a project repository is spoken to in render paths; one outside the project is not

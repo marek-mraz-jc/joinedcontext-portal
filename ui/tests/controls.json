@@ -12,7 +12,7 @@
     "src/assistant/AssistantDock.tsx": {
       "controls": {
         "button": 1,
-        "Button": 13
+        "Button": 14
       },
       "tests": [
         "agent_run.test.tsx",
@@ -2126,6 +2126,7 @@
         "Button": 3
       },
       "tests": [
+        "model_review.test.ts",
         "space_complete.test.tsx"
       ]
     },
@@ -2465,6 +2466,14 @@
       },
       "tests": [
         "space_usage_info.test.tsx"
+      ]
+    },
+    "src/components/ChangeNotice.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "part_change_notice.test.tsx"
       ]
     }
   }

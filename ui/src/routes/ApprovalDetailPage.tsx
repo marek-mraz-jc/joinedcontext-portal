@@ -4,10 +4,11 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useDecision } from "../api/decision";
 import { Link } from "@tanstack/react-router";
-import { approvalStanding, changedKind } from "../api/approval";
+import { approvalStanding, changedKind, expectedNameOf } from "../api/approval";
 import { usePermissions } from "../api/permissions";
 import { api, queryKeys, unwrap } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
+import { ConfirmName } from "../components/ChangeNotice";
 import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { PlanDiffViewer } from "../components/diff/PlanDiffViewer";
 import { ProposedViaBadge, ProposedViaHint } from "../components/ProposedViaBadge";
@@ -21,7 +22,6 @@ import {
   Dialog,
   ExternalLink,
   Field,
-  Input,
   PageHeader,
   Skeleton,
   Textarea,
@@ -50,14 +50,6 @@ const OPERATION_LABEL: Record<ChangeFile["operation"], string> = {
   Delete: "approvals.diffRemoved",
 };
 
-/**
- * The word a red-lane approval has to be typed back. It is the resource name the summary
- * names, which is exactly what the API compares `confirm` against (CC-19, CC-39).
- */
-function computeExpectedName(proposal: ChangeProposal): string {
-  const params = proposal.summary.params as Record<string, unknown>;
-  return typeof params.name === "string" ? params.name : proposal.metadata.name;
-}
 
 
 /** The combined states the forge reports for a commit (CC-90). */
@@ -108,7 +100,7 @@ export function ApprovalDetailPage({
   }
 
   const isRedLane = proposal?.status.lane === "red";
-  const expectedName = proposal ? computeExpectedName(proposal) : "";
+  const expectedName = proposal ? expectedNameOf(proposal) : "";
   const confirmMatches = !isRedLane || confirmInput.trim() === expectedName;
 
   // Approve on the change's kind, and on someone else's change unless the caller administers
@@ -358,26 +350,13 @@ export function ApprovalDetailPage({
           </h2>
 
           {isRedLane && isPendingApproval ? (
-            <Field
-              id="confirm-resource-name"
-              label={t("approvals.confirmLabel")}
-              description={
-                <>
-                  {t("approvals.confirmPrompt")}{" "}
-                  <span className="font-mono font-semibold">{expectedName}</span>
-                </>
-              }
-            >
-              <Input
-                id="confirm-resource-name"
-                value={confirmInput}
-                onChange={(e) => setConfirmInput(e.target.value)}
-                placeholder={expectedName}
-                disabled={!canAct}
-                    title={disabledReason ?? (isMutating ? t("app.busyReason") : undefined)}
-                className="max-w-sm"
-              />
-            </Field>
+            <ConfirmName
+              expected={expectedName}
+              value={confirmInput}
+              onChange={setConfirmInput}
+              disabled={!canAct}
+              title={disabledReason ?? (isMutating ? t("app.busyReason") : undefined)}
+            />
           ) : null}
 
           {standing.ownAsAdministrator && isPendingApproval ? (
