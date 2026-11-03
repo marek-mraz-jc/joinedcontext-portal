@@ -523,6 +523,41 @@ mod tests {
         );
     }
 
+    /// T-6548: every pipeline's stream carries its space's stage, so the stage must grow with
+    /// the model, not with its classes times the model. Each class here reaches one of 30 large
+    /// definitions; a class schema holding all of them rendered 30 copies of the model into each
+    /// stream, and Portal 1d71dc7 climbed past its 1536Mi limit at start once the seeded models'
+    /// JSON Schemas were staged.
+    #[test]
+    fn the_stage_text_grows_with_the_model_not_with_its_classes_times_the_model() {
+        let classes: Vec<String> = (0..30).map(|i| format!("Class{i}")).collect();
+        let mut definitions = serde_json::Map::new();
+        for (i, class) in classes.iter().enumerate() {
+            let values: Vec<String> = (0..200).map(|v| format!("code-{i}-{v}")).collect();
+            definitions.insert(
+                format!("Codes{i}"),
+                json!({ "type": "string", "enum": values }),
+            );
+            definitions.insert(
+                class.clone(),
+                json!({ "properties": { "code": {
+                    "$ref": format!("#/definitions/Codes{i}"), "x-ngsi-ld-kind": "Property"
+                } } }),
+            );
+        }
+        let schema = json!({ "definitions": definitions });
+        let model = ModelSchema::compile("codes", "1.0.0", &schema, &classes, false);
+        let staged = stage(&model)
+            .iter()
+            .map(|p| p.to_string().len())
+            .sum::<usize>();
+        let whole = schema.to_string().len();
+        assert!(
+            staged < 3 * whole,
+            "the stage is {staged} bytes for a model of {whole}: each class carries the whole model"
+        );
+    }
+
     fn write(dir: &Path, rel: &str, body: &str) {
         let path = dir.join(rel);
         std::fs::create_dir_all(path.parent().expect("a parent")).expect("mkdir");

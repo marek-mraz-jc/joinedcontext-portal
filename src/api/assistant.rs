@@ -581,6 +581,10 @@ pub async fn execute_propose_endpoint(
         Verb::Propose,
         Some(&proposal.endpoint),
     )?;
+    // After the permission check: the refusal names the space model's classes.
+    let classes =
+        crate::ops::endpoint_reach::space_classes(state, project, params.context_space.trim());
+    share::check_types(&params, &classes).map_err(ApiError::BadRequest)?;
     Ok(proposal)
 }
 
@@ -1246,6 +1250,68 @@ mod tests {
             groups: groups.iter().map(|g| (*g).to_owned()).collect(),
             second_factor: false,
         }
+    }
+
+    /// S-37 (T-6530): an Endpoint over a type the space's data model lacks is refused before any
+    /// draft, naming the type and the model's classes; a type the model has is drafted.
+    #[tokio::test]
+    async fn an_endpoint_over_a_class_the_space_model_lacks_is_refused_naming_it() {
+        let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
+        state.mirror.upsert(envelope(
+            "ContextSpace",
+            "city",
+            "doprava",
+            json!({ "dataModelRef": { "kind": "DataModel", "name": "bike-counter" } }),
+        ));
+        state.mirror.upsert(envelope(
+            "DataModel",
+            "city",
+            "bike-counter",
+            json!({ "classes": ["BikeCounter"] }),
+        ));
+        let ask = |types: serde_json::Value| -> crate::agents::share::ProposeEndpoint {
+            serde_json::from_value(json!({
+                "contextSpace": "doprava", "name": "city-events", "audience": "public",
+                "entityTypes": types
+            }))
+            .expect("params")
+        };
+        let steward = person(&[state.config.bootstrap_admins.as_str()]);
+        let refused =
+            super::execute_propose_endpoint(&steward, &state, "city", ask(json!(["Event"])))
+                .await
+                .expect_err("refused");
+        let text = refused.to_string();
+        assert!(
+            text.contains("'Event' is no class of the data model of space 'doprava'")
+                && text.contains("its classes are BikeCounter"),
+            "{text}"
+        );
+        let other =
+            super::execute_propose_endpoint(&steward, &state, "city", ask(json!(["BikeCounter"])))
+                .await;
+        assert!(
+            !matches!(&other, Err(crate::error::ApiError::BadRequest(_))),
+            "{:?}",
+            other.err()
+        );
+        // A person who may not propose an Endpoint here learns nothing about the model.
+        let outsider = super::execute_propose_endpoint(
+            &crate::auth::session::Identity {
+                subject: "f:1:outsider".into(),
+                username: "outsider".into(),
+                ..person(&[])
+            },
+            &state,
+            "city",
+            ask(json!(["Event"])),
+        )
+        .await;
+        assert!(
+            matches!(&outsider, Err(crate::error::ApiError::Denied(_))),
+            "{:?}",
+            outsider.err()
+        );
     }
 
     /// Helsinki references two Banská Bystrica Endpoints (one admits Helsinki, one names only

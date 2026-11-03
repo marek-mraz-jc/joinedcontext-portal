@@ -1062,8 +1062,9 @@ change_resource that ContextSpace; a patch replaces the whole list, so keep its 
         let mut shapes = String::new();
         if creatable.contains(&"ContextSpace") {
             shapes.push_str(
-                "- **ContextSpace**: `{\"defaultLocale\": \"en\", \"isSandbox\": false}`. Nothing \
-                 else; its data models, endpoints and policies come afterwards.\n",
+                "- **ContextSpace**: `{\"defaultLocale\": \"en\", \"isSandbox\": false}`, plus \
+                 any history asked for: `\"retention\": [{\"entityType\": \"BikeCounter\", \
+                 \"history\": \"P365D\"}]`. Its models, endpoints and policies come later.\n",
             );
         }
         if creatable.contains(&"Role") {
@@ -1177,7 +1178,10 @@ patch, applied in order:
 The other operations are `addClass` {name, is_a: "Entity"}, `removeClass` {name}, `renameClass`
 {name, to}, `attachSlot` and `detachSlot` {class, slot}, and `setSlot` {name, field, value} for
 `range`, `required`, `multivalued` or `description`. A range is `string`, `integer`, `float`,
-`boolean`, `date`, `datetime`, `uri` or a class of the model. A relationship is two ends in one
+`boolean`, `date`, `datetime`, `uri`, a class or an enum of the model. Values a slot takes from a
+list are an enum first: "direction (enum in, out)" is `addEnum` {name: "DirectionEnum"}, then
+`addEnumValue` {enum: "DirectionEnum", value} for `in` and for `out`, then `addSlot` with range
+`DirectionEnum`. A relationship is two ends in one
 `addRelationship` {from, to, name, inverse, cardinality, required, inverseRequired, onDelete}:
 "a school has many users, a user belongs to one school" is from `School` to `User`, `one-to-many`,
 name `users`, inverse `school`, `inverseRequired: true`; the others are `one-to-one`, `many-to-one`,
