@@ -42,6 +42,8 @@ interface Times {
   grid: number | null | "none" | "absent";
   map: number | null | "none";
   slowest: { card?: Slowest; grid?: Slowest; map?: Slowest };
+  /** Answers the edge rate-limited (429) during the visit: such a visit times the limit, not the page. */
+  limited: number;
 }
 
 /** The data rows of the SDK grid, never its spacer or group rows. */
@@ -79,6 +81,10 @@ async function visit(page: Page, name: string): Promise<Times> {
   const finished: { url: string; start: number; end: number }[] = [];
   let started = 0;
   let mapFeatures: number | undefined;
+  let limited = 0;
+  const onLimited = (response: import("@playwright/test").Response) => {
+    if (response.status() === 429) limited++;
+  };
   const onFinished = (request: Request) => {
     const timing = request.timing();
     if (timing.startTime > 0 && timing.responseEnd >= 0) {
@@ -96,9 +102,10 @@ async function visit(page: Page, name: string): Promise<Times> {
   };
   page.on("requestfinished", onFinished);
   page.on("response", onMap);
+  page.on("response", onLimited);
   started = Date.now();
   const since = () => Date.now() - started;
-  const times: Times = { card: null, grid: null, map: null, slowest: {} };
+  const times: Times = { card: null, grid: null, map: null, slowest: {}, limited: 0 };
   try {
     await page.goto(`/catalogue/${encodeURIComponent(name)}?lang=en`, { waitUntil: "commit" });
     const card = page.getByRole("heading", { level: 1 }).waitFor({ timeout: WAIT }).then(() => (times.card = since()), () => undefined);
@@ -144,7 +151,9 @@ async function visit(page: Page, name: string): Promise<Times> {
   } finally {
     page.off("requestfinished", onFinished);
     page.off("response", onMap);
+    page.off("response", onLimited);
   }
+  times.limited = limited;
   for (const key of ["card", "grid", "map"] as const) {
     const at = times[key];
     if (typeof at === "number") times.slowest[key] = slowestBefore(finished, at);
@@ -159,7 +168,13 @@ async function measure(browser: Browser, width: number, publisher: string, name:
   const page = await context.newPage();
   try {
     for (const run of ["cold", "warm"] as const) {
-      const times = await visit(page, name);
+      let times = await visit(page, name);
+      // The edge allows each client address 300 Portal-host requests a minute, shared with every
+      // other run from the same host: a visit it refused is waited out and taken again.
+      for (let again = 0; times.limited > 0 && again < 3; again++) {
+        await page.waitForTimeout(30_000);
+        times = await visit(page, name);
+      }
       const row = { at: new Date().toISOString(), base: test.info().project.use.baseURL, width, run, publisher, name, ...times };
       if (OUT) appendFileSync(OUT, `${JSON.stringify(row)}\n`);
       console.log(JSON.stringify(row));
