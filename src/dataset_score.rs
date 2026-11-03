@@ -16,7 +16,7 @@
 //! pipeline name and no fix, since a projection may hide a field and the pipelines are the
 //! project's. Values never reach a score at all: it is built from counts.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use serde::{Deserialize, Serialize};
 use utoipa::ToSchema;
@@ -48,6 +48,7 @@ const SAY: &[(&str, &str)] = &[
     ("noSchedule", "no pipeline promises a schedule for this data"),
     ("onTime", "{fresh} of {total} feeds are on schedule"),
     ("late", "{late} of {total} feeds are late; the newest observation is from {newest}"),
+    ("lateUnread", "{late} of {total} feeds are late; none has delivered an observation yet"),
     ("noRequired", "the model marks no field required"),
     ("complete", "{complete} of {fields} required fields are filled in every entity"),
     ("valid", "{valid} of {checked} entities follow the model"),
@@ -120,6 +121,14 @@ pub struct Inputs<'a> {
     pub checks: &'a [Check],
     /// The Endpoint's name.
     pub endpoint: &'a str,
+    /// The entity types the Endpoint serves; `None` serves every type of its space.
+    pub types: Option<&'a BTreeSet<String>>,
+}
+
+impl Inputs<'_> {
+    fn serves(&self, entity_type: &str) -> bool {
+        self.types.is_none_or(|types| types.contains(entity_type))
+    }
 }
 
 fn rfc3339(at: chrono::DateTime<chrono::Utc>) -> String {
@@ -150,7 +159,7 @@ fn freshness(inputs: &Inputs) -> ScorePart {
     let rows: Vec<_> = report
         .freshness
         .iter()
-        .filter(|row| row.state != FreshState::Untargeted)
+        .filter(|row| row.state != FreshState::Untargeted && inputs.serves(&row.entity_type))
         .collect();
     if rows.is_empty() {
         return ScorePart {
@@ -205,19 +214,18 @@ fn freshness(inputs: &Inputs) -> ScorePart {
             &[("fresh", fresh.to_string()), ("total", total.to_string())],
         )
     } else {
-        let newest = rows
-            .iter()
-            .filter_map(|row| row.newest)
-            .max()
-            .map_or_else(|| "never".to_owned(), rfc3339);
-        Text::say(
-            "late",
-            &[
-                ("late", late.to_string()),
-                ("total", total.to_string()),
-                ("newest", newest),
-            ],
-        )
+        let counts = [("late", late.to_string()), ("total", total.to_string())];
+        match rows.iter().filter_map(|row| row.newest).max() {
+            Some(newest) => Text::say(
+                "late",
+                &[
+                    counts[0].clone(),
+                    counts[1].clone(),
+                    ("newest", rfc3339(newest)),
+                ],
+            ),
+            None => Text::say("lateUnread", &counts),
+        }
     };
     ScorePart {
         part: Part::Freshness,
@@ -234,7 +242,11 @@ fn completeness(inputs: &Inputs) -> ScorePart {
     };
     // (type, field, present, count) of every required field of a type the run found.
     let mut fields = Vec::new();
-    for kind in report.types.iter().filter(|kind| kind.count > 0) {
+    for kind in report
+        .types
+        .iter()
+        .filter(|kind| kind.count > 0 && inputs.serves(&kind.entity_type))
+    {
         for field in inputs.required.get(&kind.entity_type).into_iter().flatten() {
             let present = kind
                 .attributes
@@ -436,6 +448,68 @@ pub fn required(
         .collect()
 }
 
+/// The entity types `spec` (an Endpoint's) serves: the `entityTypes` it lists, else the types its
+/// granting Policies name (`policyRef`/`policyRefs`, else every Policy of `space`); `None` when
+/// one of those Policies names no type, so the whole space is served.
+fn served_types(
+    policies: &[crate::resource::ResourceEnvelope],
+    space: &str,
+    spec: &serde_json::Value,
+) -> Option<BTreeSet<String>> {
+    let strings = |value: &serde_json::Value| -> Vec<String> {
+        value
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter_map(|item| item.as_str().map(str::to_owned))
+            .collect()
+    };
+    let listed = strings(&spec["entityTypes"]);
+    if !listed.is_empty() {
+        return Some(listed.into_iter().collect());
+    }
+    let refs: Vec<String> = spec["policyRef"]
+        .as_str()
+        .map(|one| vec![one.to_owned()])
+        .unwrap_or_else(|| strings(&spec["policyRefs"]))
+        .iter()
+        .map(|urn| urn.rsplit(':').next().unwrap_or(urn).to_owned())
+        .collect();
+    let grants = policies
+        .iter()
+        .filter(|policy| {
+            crate::resource::reference_name(&policy.spec["contextSpaceRef"]) == Some(space)
+        })
+        .filter(|policy| refs.is_empty() || refs.contains(&policy.metadata.name))
+        // a Policy is one rule or its `rules[]`, never both (PolicySpec::check_shape)
+        .flat_map(|policy| match policy.spec["rules"].as_array() {
+            Some(rules) => rules.iter().collect::<Vec<_>>(),
+            None => vec![&policy.spec],
+        })
+        .filter(|grant| {
+            !grant["effect"]
+                .as_str()
+                .is_some_and(|e| e.starts_with("prohibit"))
+        });
+    let mut types = BTreeSet::new();
+    let mut any = false;
+    for grant in grants {
+        any = true;
+        let named: Vec<&str> = grant["information"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .flat_map(|info| info["entities"].as_array().into_iter().flatten())
+            .filter_map(|entity| entity["type"].as_str())
+            .collect();
+        if named.is_empty() {
+            return None;
+        }
+        types.extend(named.into_iter().map(str::to_owned));
+    }
+    any.then_some(types)
+}
+
 /// The score of a Context-Space-backed Endpoint from what this Portal holds now: the space's
 /// daily report, its model and the project's health checks.
 pub async fn of_endpoint(
@@ -455,6 +529,11 @@ pub async fn of_endpoint(
         .and_then(|space| state.model_schemas.get(project, space))
         .map(|schema| required(&schema, &hidden))
         .unwrap_or_default();
+    let policies = state
+        .mirror
+        .list(project, "Policy", &crate::store::ListOptions::default())
+        .items;
+    let types = space.and_then(|space| served_types(&policies, space, &endpoint.spec));
     let checks = state
         .health_log
         .current(project, chrono::Utc::now())
@@ -468,6 +547,7 @@ pub async fn of_endpoint(
         required: &required_fields,
         checks: &checks,
         endpoint: &endpoint.metadata.name,
+        types: types.as_ref(),
     })
 }
 
@@ -566,6 +646,7 @@ mod tests {
             required: &required_fields(),
             checks,
             endpoint: "weather",
+            types: None,
         })
     }
 
@@ -632,6 +713,116 @@ mod tests {
         let untargeted = scored(Some(&report), &[]);
         assert_eq!(part(&untargeted, Part::Freshness).score, None);
         assert_eq!(part(&untargeted, Part::Freshness).reason.code, "noSchedule");
+    }
+
+    // T-6565: a space's other feed, stale, does not lower the Endpoint whose own type is fresh.
+    #[test]
+    fn another_types_stale_feed_does_not_lower_an_endpoint_whose_type_is_fresh() {
+        let mut report = report();
+        report.freshness.push(Freshness {
+            pipeline: "parking".into(),
+            entity_type: "ParkingSpot".into(),
+            newest: None,
+            target_seconds: Some(300),
+            state: FreshState::Stale,
+            paused: false,
+        });
+        let space_wide = scored(Some(&report), &[]);
+        assert_eq!(part(&space_wide, Part::Freshness).score, Some(50));
+
+        let weather = BTreeSet::from(["WeatherObserved".to_owned()]);
+        let own = score(&Inputs {
+            report: Some(&report),
+            required: &required_fields(),
+            checks: &[],
+            endpoint: "weather",
+            types: Some(&weather),
+        });
+        let freshness = part(&own, Part::Freshness);
+        assert_eq!(freshness.score, Some(100));
+        assert_eq!(freshness.reason.code, "onTime");
+        assert_eq!(freshness.reason.args["total"], "1");
+    }
+
+    // T-6565: a late feed with no reading yet says so in words, never "from never".
+    #[test]
+    fn a_late_feed_without_any_reading_says_none_has_arrived() {
+        let mut report = report();
+        report.freshness[0].state = FreshState::Stale;
+        report.freshness[0].newest = None;
+        let score = scored(Some(&report), &[]);
+        let reason = &part(&score, Part::Freshness).reason;
+        assert_eq!(reason.code, "lateUnread");
+        assert!(!reason.args.contains_key("newest"));
+        assert_eq!(
+            reason.text,
+            "1 of 1 feeds are late; none has delivered an observation yet"
+        );
+    }
+
+    #[test]
+    fn an_endpoint_serves_its_listed_types_else_its_bound_policies_types() {
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        let policy = |name: &str, spec: serde_json::Value| ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: "Policy".to_owned(),
+            metadata: ObjectMeta::new(name, "barcelona"),
+            spec,
+            status: None,
+        };
+        let policies = [
+            policy(
+                "public-charging",
+                serde_json::json!({
+                    "contextSpaceRef": { "kind": "ContextSpace", "name": "barcelona" },
+                    "information": [{ "entities": [{ "type": "EVChargingStation" }] }],
+                }),
+            ),
+            policy(
+                "steward",
+                serde_json::json!({
+                    "contextSpaceRef": "barcelona",
+                    "rules": [{ "information": [{ "entities": [{ "type": "ParkingSpot" }] }] }],
+                }),
+            ),
+            policy(
+                "no-parking",
+                serde_json::json!({
+                    "contextSpaceRef": "barcelona",
+                    "effect": "prohibit",
+                }),
+            ),
+        ];
+        let set = |names: &[&str]| Some(names.iter().map(|n| (*n).to_owned()).collect());
+        let served = |spec: serde_json::Value| served_types(&policies, "barcelona", &spec);
+        assert_eq!(
+            served(
+                serde_json::json!({ "policyRef": "urn:ngsi-ld:Policy:barcelona.cat:barcelona:public-charging" })
+            ),
+            set(&["EVChargingStation"])
+        );
+        assert_eq!(
+            served(serde_json::json!({})),
+            set(&["EVChargingStation", "ParkingSpot"])
+        );
+        assert_eq!(
+            served(
+                serde_json::json!({ "entityTypes": ["Bus"], "policyRef": "urn:ngsi-ld:Policy:public-charging" })
+            ),
+            set(&["Bus"])
+        );
+        assert_eq!(
+            served(serde_json::json!({ "policyRefs": ["urn:ngsi-ld:Policy:gone"] })),
+            None
+        );
+        let open = [policy(
+            "all",
+            serde_json::json!({ "contextSpaceRef": "barcelona" }),
+        )];
+        assert_eq!(
+            served_types(&open, "barcelona", &serde_json::json!({})),
+            None
+        );
     }
 
     #[test]
@@ -709,6 +900,7 @@ mod tests {
             required: &required,
             checks: &[],
             endpoint: "weather",
+            types: None,
         })
     }
 

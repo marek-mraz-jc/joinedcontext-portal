@@ -11148,6 +11148,7 @@
         "noSchedule": "žádná pipeline pro tato data neslibuje harmonogram",
         "onTime": "{fresh} z {total} zdrojů je včas",
         "late": "{late} z {total} zdrojů se zpožďuje; nejnovější pozorování je z {newest}",
+        "lateUnread": "{late} z {total} zdrojů se zpožďuje; žádný zatím nedodal pozorování",
         "noRequired": "model neoznačuje žádné pole jako povinné",
         "complete": "{complete} z {fields} povinných polí je vyplněno v každé entitě",
         "valid": "{valid} z {checked} entit odpovídá modelu",
