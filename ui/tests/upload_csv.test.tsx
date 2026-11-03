@@ -187,6 +187,8 @@ describe("Upload CSV", () => {
     await user.upload(screen.getByLabelText("Choose a CSV file or an Excel workbook (.xlsx)"), file);
 
     expect(await screen.findByLabelText("Type name")).toHaveValue("DetskeIhriska");
+    expect(screen.getByText(/None of the Smart Data Models types fits these columns/)).toBeInTheDocument();
+    expect(screen.queryByRole("radio")).toBeNull();
     expect(screen.queryByText("What this file becomes")).toBeNull();
     const diagram = await screen.findByTestId("drafted-model", {}, { timeout: 3_000 });
     expect(diagram).toHaveTextContent("The data model DetskeIhriska");
@@ -283,7 +285,7 @@ describe("Upload CSV", () => {
     const user = userEvent.setup();
     page("notes");
     await user.upload(screen.getByLabelText("Choose a CSV file or an Excel workbook (.xlsx)"), new File(["foo,bar\n1,2\n"], "notes.csv"));
-    await screen.findByText(/No Smart Data Models type names enough/);
+    await screen.findByText(/None of the Smart Data Models types fits/);
     const propose = screen.getByRole("button", { name: "Propose the change" });
     await user.clear(screen.getByLabelText("Type name"));
     await user.type(screen.getByLabelText("Type name"), "lowercase");
