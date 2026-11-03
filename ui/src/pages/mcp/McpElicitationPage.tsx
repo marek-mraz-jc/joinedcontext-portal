@@ -59,15 +59,27 @@ function McpDecision<Q extends Asked>({
   }
   if (question.isError) {
     if (question.error instanceof ApiError && question.error.status === 404) {
+      // The client's call used up the question this person answered here: say what they answered,
+      // not that it is gone (a paired tab re-reads its page after every call, T-6501).
+      const answered = decide.data?.decision;
       return (
         <section aria-label={title} className="space-y-6">
           {header}
-          <EmptyState
-            heading={2}
-            icon="inbox"
-            title={t("mcpElicitation.gone")}
-            description={t("mcpElicitation.goneHint")}
-          />
+          {answered ? (
+            <Alert
+              tone={answered === "accept" ? "success" : "info"}
+              title={t(answered === "accept" ? "mcpElicitation.accepted" : "mcpElicitation.declined")}
+            >
+              {t("mcpElicitation.backToClient")}
+            </Alert>
+          ) : (
+            <EmptyState
+              heading={2}
+              icon="inbox"
+              title={t("mcpElicitation.gone")}
+              description={t("mcpElicitation.goneHint")}
+            />
+          )}
           {home}
         </section>
       );
