@@ -701,10 +701,15 @@
           "float": "Desetinné číslo",
           "boolean": "Ano nebo ne",
           "date": "Datum",
-          "datetime": "Datum a čas"
+          "datetime": "Datum a čas",
+          "GeoProperty": "Místo"
         }
       },
-      "spaceHint": "Existující prostor k doplnění nebo název nového, například mestske-garaze."
+      "spaceHint": "Existující prostor k doplnění nebo název nového, například mestske-garaze.",
+      "diagram": {
+        "title": "Datový model {type}",
+        "hint": "Každý rámeček je typ, každý řádek atribut s druhem hodnoty, který jsme vyčetli z vašeho souboru."
+      }
     },
     "segment": "v identifikátorech entit: {segment}",
     "quality": {
@@ -1173,6 +1178,13 @@
       "lead": "Vyberte CSV nebo Excel. Portál navrhne standardní typ pro jeho sloupce a navrhne prostor s vaším právem zapisovat; po schválení zapíšete řádky.",
       "choose": "Vybrat soubor CSV nebo sešit Excel (.xlsx)",
       "chooseHint": "CSV, TSV nebo Excel (.xlsx) do 50 MB, první řádek jsou názvy sloupců. Příklad: garaze.xlsx se sloupci name, lat, lon.",
+      "chooseButton": "Vybrat soubor",
+      "steps": {
+        "title": "Co z tohoto souboru vznikne",
+        "model": "Datový model: jeden typ, každý sloupec atribut s druhem hodnoty.",
+        "space": "Kontextový prostor s Endpointem pro čtení, navržený jako jedna změna ke schválení.",
+        "rows": "Jeho řádky, zapsané do prostoru po schválení změny."
+      },
       "reading": "Čtu {name} a porovnávám jeho sloupce s typy Smart Data Models…",
       "type": "Co řádky jsou",
       "noMatch": "Žádný typ Smart Data Models nepojmenovává dost těchto sloupců: soubor dostane vlastní model.",

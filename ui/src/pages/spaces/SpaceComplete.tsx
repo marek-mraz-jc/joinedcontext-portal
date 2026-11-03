@@ -14,7 +14,8 @@ import { parse as parseYaml } from "yaml";
 import { Alert, Badge, Button, Card, Field, FileDropZone, Icon, Input, PageHeader } from "../../components/ui";
 import type { IconName } from "../../components/ui";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
-import { MAX_FILES_BYTES, SAMPLE_BYTES, sampleOf, typeNameOf } from "./csvUpload";
+import { MAX_FILES_BYTES, SAMPLE_BYTES, sampleOf, spaceNameOf, tableNameOf, typeNameOf } from "./csvUpload";
+import { DraftedModel } from "./DraftedModel";
 import { csvOf, MAX_ROWS, parseCsv, readSheets, sheetFileName, unreadableText } from "./importRows";
 import type { Sheet, Table } from "./importRows";
 import { LoadRows } from "./LoadRows";
@@ -129,13 +130,13 @@ function summaryOf(draft: CompletedDraft, t: Translate): string | null {
 }
 
 /** The one table these files are, with the name it travels under; none when they are anything else. */
-function rowsOf(files: { name: string; content: string }[], books: { name: string; sheets: Sheet[]; sheet: string }[]): { name: string; table: Table } | undefined {
+function rowsOf(files: { name: string; content: string }[], books: { name: string; sheets: Sheet[]; sheet: string }[]): { name: string; title: string; table: Table } | undefined {
   if (files.length + books.length !== 1) return undefined;
   const book = books[0];
   const sheet = book?.sheets.find((s) => s.name === book.sheet);
-  if (book && sheet) return { name: sheetFileName(book.name, book.sheets, sheet), table: sheet.table };
+  if (book && sheet) return { name: sheetFileName(book.name, book.sheets, sheet), title: tableNameOf(book.name, sheet.name), table: sheet.table };
   const file = files[0];
-  return file?.name.toLowerCase().endsWith(".csv") ? { name: file.name, table: parseCsv(file.content) } : undefined;
+  return file?.name.toLowerCase().endsWith(".csv") ? { name: file.name, title: tableNameOf(file.name), table: parseCsv(file.content) } : undefined;
 }
 
 /** The model the op drafted: the type its rows take and the LinkML that checks them. */
@@ -186,12 +187,6 @@ function Drafts({ folded, count, children }: { folded: boolean; count: number; c
       <div className="mt-2">{list}</div>
     </details>
   );
-}
-
-/** A name for the space a dropped file makes: its stem as a DNS-1123 label, the person may change it. */
-export function spaceNameOf(fileName: string): string {
-  const stem = fileName.replace(/\.[^.]*$/, "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
-  return stem.replace(/[^a-z0-9]+/g, "-").slice(0, 40).replace(/^-+|-+$/g, "");
 }
 
 /** One draft: what it is, whether its check passed, and the way to its own page (AG-73). */
@@ -301,6 +296,10 @@ export function CompleteFlow({ project, file, inDock = false }: {
         }),
       );
       setBooks(read);
+      // A sheet says what its rows are better than a file name does: the space is named after it
+      // while the person has not named it themselves (T-6567).
+      const named = read.length === 1 && selected.length === 1 ? spaceNameOf(tableNameOf(read[0].name, read[0].sheet)) : "";
+      if (named) setSpaceName((now) => (now.trim() === "" || now === spaceNameOf(read[0].name) ? named : now));
       setFiles(await Promise.all(selected.filter((f) => !workbook(f)).map(async (f) => ({ name: f.name, content: await f.text() }))));
     } catch (err: unknown) {
       setBooks([]);
@@ -364,7 +363,7 @@ export function CompleteFlow({ project, file, inDock = false }: {
       }
       if (rows) {
         payload.upload = true;
-        payload.typeName = typeNameOf(rows.name);
+        payload.typeName = typeNameOf(rows.title);
       }
 
       const answer = await callOperation(project, "jc_space_complete", payload);
@@ -445,7 +444,10 @@ export function CompleteFlow({ project, file, inDock = false }: {
         ))}
         {rows ? <RowsRead rows={rows} name={chosen[0]} oneSheet={(books[0]?.sheets.length ?? 0) < 2} /> : null}
         {rows && model && result && !result.change && !result.alreadyLive ? (
-          <ModelReview project={project} space={result.space} type={model.type} source={corrected ?? model.source} table={rows.table} onCorrect={setCorrected} />
+          <div className={inDock ? "flex flex-col gap-4" : "grid gap-4 lg:grid-cols-2"}>
+            <ModelReview project={project} space={result.space} type={model.type} source={corrected ?? model.source} table={rows.table} onCorrect={setCorrected} />
+            <DraftedModel source={corrected ?? model.source} type={model.type} table={rows.table} />
+          </div>
         ) : null}
 
         {/* The attributes above can outgrow the dock: the next step stays in view. */}

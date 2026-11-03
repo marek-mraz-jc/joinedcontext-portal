@@ -4,7 +4,7 @@
  * proposes the model, the space, its Endpoint and the person's write grant as one Change, and once
  * that Change is live {@link LoadRows} upserts the rows through the gateway with the person's own session.
  */
-import { useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import type { JSX } from "react";
 import { useTranslation } from "react-i18next";
 import { api, unwrap } from "../../api/client";
@@ -12,8 +12,9 @@ import { callOperation } from "../../api/operations";
 import type { Change } from "../../api/manifest";
 import { ResourceNamePicker } from "../../components/pickers/ResourceNamePicker";
 import { usePermissions } from "../../api/permissions";
-import { Alert, Button, Card, Field, FilePicker, Input, PageHeader, RadioGroup } from "../../components/ui";
-import { CITY_SUBJECTS, SAMPLE_BYTES, modelsOf, rankModels, sampleOf, uploadInput } from "./csvUpload";
+import { Alert, Button, Card, Field, FileDropZone, Input, PageHeader, RadioGroup } from "../../components/ui";
+import { CITY_SUBJECTS, SAMPLE_BYTES, modelsOf, rankModels, sampleOf, spaceNameOf, tableNameOf, typeNameOf, uploadInput } from "./csvUpload";
+import { DraftedModel } from "./DraftedModel";
 import type { CatalogueModel, SdmMatch } from "./csvUpload";
 import { csvOf, decodeAs, MAX_ROWS, readSheets, sheetFileName, unreadableText } from "./importRows";
 import type { Sheet, Table } from "./importRows";
@@ -41,6 +42,33 @@ function sheetRead(read: Omit<Read, "sheet" | "table" | "fileName" | "sample" | 
   };
 }
 type Proposed = { space: string; type: string; source: string | undefined; change: Change | null };
+type Completed = { space: string; drafts: { kind: string; manifest: { spec?: { source?: unknown } } }[]; change?: Change | null };
+
+/** The LinkML of the model the op drafted, when it drafted one. */
+function draftedSource(out: Completed): string | undefined {
+  const drafted = out.drafts.find((d) => d.kind === "DataModel")?.manifest.spec?.source;
+  return typeof drafted === "string" ? drafted : undefined;
+}
+
+/** A Smart Data Models type as LinkML, the model a chosen match proposes. */
+async function sdmLinkml(model: string): Promise<string | undefined> {
+  return ((await unwrap(await api.POST("/api/v1/tools/import-sdm", { body: { model } }))) as { linkml?: string }).linkml;
+}
+
+/** What the page does with the file, before one is chosen (T-6567). */
+function Steps(): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-body font-semibold text-fg">{t("spaces.upload.steps.title")}</p>
+      <ol className="flex list-decimal flex-col gap-1 pl-5 text-body text-fg-muted">
+        <li>{t("spaces.upload.steps.model")}</li>
+        <li>{t("spaces.upload.steps.space")}</li>
+        <li>{t("spaces.upload.steps.rows")}</li>
+      </ol>
+    </div>
+  );
+}
 
 export function UploadCsv({ project, space: given = "" }: { project: string; space?: string }): JSX.Element {
   const { t } = useTranslation();
@@ -87,6 +115,10 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
       const taken = sheetRead({ sheets, name: file.name, models }, first, sample);
       setRead(taken);
       setChoice(taken.matches[0]?.model.id ?? "");
+      // Both names are suggested from the table, so one click proposes; the person may change them.
+      const title = tableNameOf(file.name, first.name);
+      setOwnType(typeNameOf(title) ?? "");
+      setSpace((now) => (now.trim() === "" ? spaceNameOf(title) : now));
     } catch (error) {
       setProblem(unreadableText(t, error));
     } finally {
@@ -101,6 +133,7 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
     const taken = sheetRead(read, sheet, undefined);
     setRead(taken);
     setChoice(taken.matches[0]?.model.id ?? "");
+    if (ownType === (typeNameOf(tableNameOf(read.name, read.sheet)) ?? "")) setOwnType(typeNameOf(tableNameOf(read.name, name)) ?? "");
   };
 
   const match = read?.matches.find((m) => m.model.id === choice);
@@ -108,14 +141,33 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
   const ready = read !== null && space.trim() !== "" && TYPE_NAME.test(typeName);
   const missing = read === null || ready ? undefined : !TYPE_NAME.test(typeName) ? t("spaces.upload.missingType") : t("spaces.upload.missingSpace");
 
+  // The model is drafted as the person reads the form, without proposing, so its picture stands
+  // beside the columns before Propose (T-6567). A draft for another input is not shown.
+  const [draft, setDraft] = useState<{ key: string; source: string } | null>(null);
+  const draftKey = read && ready && !proposed ? [read.fileName, read.sheet, match?.model.id ?? "", typeName, space.trim()].join("\n") : "";
+  const drawDraft = useEffectEvent(async (key: string) => {
+    if (!read) return;
+    const linkml = match ? await sdmLinkml(match.model.id) : undefined;
+    const answer = await callOperation(project, "jc_space_complete", {
+      ...uploadInput({ space: space.trim(), fileName: read.fileName, sample: read.sample, typeName, linkml }),
+      propose: false,
+    });
+    const source = linkml ?? (answer.ok ? draftedSource(answer.output as Completed) : undefined);
+    if (source !== undefined) setDraft({ key, source });
+  });
+  useEffect(() => {
+    if (draftKey === "") return;
+    // A pause in typing, not every key, asks for a draft.
+    const timer = window.setTimeout(() => void drawDraft(draftKey).catch(() => undefined), 400);
+    return () => window.clearTimeout(timer);
+  }, [draftKey]);
+
   const propose = async () => {
     if (!read || !ready) return;
     setBusy(true);
     setProblem(null);
     try {
-      const linkml = match
-        ? ((await unwrap(await api.POST("/api/v1/tools/import-sdm", { body: { model: match.model.id } }))) as { linkml?: string }).linkml
-        : undefined;
+      const linkml = match ? await sdmLinkml(match.model.id) : undefined;
       const answer = await callOperation(
         project,
         "jc_space_complete",
@@ -125,9 +177,8 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
         setProblem(answer.reason ?? `HTTP ${answer.status}`);
         return;
       }
-      const out = answer.output as { space: string; drafts: { kind: string; manifest: { spec?: { source?: unknown } } }[]; change?: Change | null };
-      const drafted = out.drafts.find((d) => d.kind === "DataModel")?.manifest.spec?.source;
-      setProposed({ space: out.space, type: typeName, source: linkml ?? (typeof drafted === "string" ? drafted : undefined), change: out.change ?? null });
+      const out = answer.output as Completed;
+      setProposed({ space: out.space, type: typeName, source: linkml ?? draftedSource(out), change: out.change ?? null });
     } catch (error) {
       setProblem(reason(error));
     } finally {
@@ -156,14 +207,15 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
         </Alert>
       ) : null}
       <Card className="flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <FilePicker label={t("spaces.upload.choose")} accept=".csv,.tsv,.txt,.xlsx" onFile={(file) => void choose(file)}>
-            <span className="inline-flex items-center rounded-md border border-dashed border-border px-4 py-3 text-body">
-              {t("spaces.upload.choose")}
-            </span>
-          </FilePicker>
-          <p className="text-caption text-fg-muted">{t("spaces.upload.chooseHint")}</p>
-        </div>
+        <FileDropZone
+          label={t("spaces.upload.choose")}
+          button={t("spaces.upload.chooseButton")}
+          hint={t("spaces.upload.chooseHint")}
+          accept=".csv,.tsv,.txt,.xlsx"
+          primary={read === null}
+          intro={read === null && reading === null ? <Steps /> : undefined}
+          onFiles={(files) => void choose(files[0])}
+        />
         {reading ? (
           <p role="status" className="text-body text-fg-muted">
             {t("spaces.upload.reading", { name: reading })}
@@ -199,7 +251,7 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
           />
           {choice === "" ? (
             <Field id="upload-own-type" label={t("spaces.upload.ownType")} help={t("spaces.upload.ownTypeHint")}>
-              <Input id="upload-own-type" value={ownType} onChange={(e) => setOwnType(e.target.value)} placeholder="ParkingGarage" />
+              <Input id="upload-own-type" value={ownType} onChange={(e) => setOwnType(e.target.value)} />
             </Field>
           ) : null}
           <Field id="upload-space" label={t("spaces.upload.space")} help={t("spaces.upload.spaceHint")}>
@@ -216,7 +268,17 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
           ) : null}
         </Card>
       ) : null}
+      {read && !proposed && draft?.key === draftKey ? (
+        <Card>
+          <DraftedModel source={draft.source} type={typeName} table={read.table} />
+        </Card>
+      ) : null}
       {proposed && read ? <LoadRows project={project} space={proposed.space} type={proposed.type} source={proposed.source} table={read.table} change={proposed.change} /> : null}
+      {proposed && read ? (
+        <Card>
+          <DraftedModel source={proposed.source} type={proposed.type} table={read.table} />
+        </Card>
+      ) : null}
     </div>
   );
 }

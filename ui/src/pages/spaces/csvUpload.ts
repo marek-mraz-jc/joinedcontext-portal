@@ -115,6 +115,18 @@ export function typeNameOf(fileName: string): string | undefined {
   return /^[A-Z][A-Za-z0-9]{0,62}$/.test(name) && name !== "Entity" ? name : undefined;
 }
 
+/** What a table is called: a workbook sheet's own name unless it is a default one, else the file's stem. */
+export function tableNameOf(fileName: string, sheet?: string): string {
+  const own = fileName.toLowerCase().endsWith(".xlsx") ? (sheet?.trim() ?? "") : "";
+  return own && !/^(sheet|list|h[aá]rok|taulukko|tabelle|blatt|feuil)\s*\d*$/iu.test(own) ? own : fileName.replace(/\.[^.]+$/, "");
+}
+
+/** A name for the space a table makes: its name as a DNS-1123 label, the person may change it. */
+export function spaceNameOf(name: string): string {
+  const stem = name.replace(/\.(csv|tsv|txt|xlsx|json|geojson)$/i, "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  return stem.replace(/[^a-z0-9]+/g, "-").slice(0, 40).replace(/^-+|-+$/g, "");
+}
+
 /** The head of a CSV no longer than `max` UTF-8 bytes, cut after a whole line. */
 export function sampleOf(text: string, max = SAMPLE_BYTES): string {
   const bytes = new TextEncoder().encode(text);

@@ -287,6 +287,13 @@ describe("mapping and checking", () => {
     });
   });
 
+  it("reads a Slovak yes and no, accents and all (T-6567)", () => {
+    const table = parseCsv("id,name,open\ns1,Tulská,áno\ns2,Mládežnícka,Nie\n");
+    const { entities, rejected } = toEntities(table, { id: "id", name: "name", open: "open" }, SLOTS, TARGET);
+    expect(rejected).toEqual([]);
+    expect(entities.map((one) => (one.entity.open as { value: unknown }).value)).toEqual([true, false]);
+  });
+
   it("refuses a row for every reason at once, an id of another space and a repeated id, and mints the rest", () => {
     const table = parseCsv(
       "id,name,bikes,status\n" +

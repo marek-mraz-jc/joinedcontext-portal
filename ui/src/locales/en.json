@@ -701,10 +701,15 @@
           "float": "Decimal number",
           "boolean": "Yes or no",
           "date": "Date",
-          "datetime": "Date and time"
+          "datetime": "Date and time",
+          "GeoProperty": "Place"
         }
       },
-      "spaceHint": "An existing space to complete, or the name of a new one, for example city-garages."
+      "spaceHint": "An existing space to complete, or the name of a new one, for example city-garages.",
+      "diagram": {
+        "title": "The data model {type}",
+        "hint": "Each box is a type, each line an attribute with the kind of value it holds, read from your file."
+      }
     },
     "segment": "in entity ids: {segment}",
     "quality": {
@@ -1173,6 +1178,13 @@
       "lead": "Choose a CSV or Excel file. The Portal suggests a standard type for its columns and proposes the space with your right to write; once that is approved, you write the rows.",
       "choose": "Choose a CSV file or an Excel workbook (.xlsx)",
       "chooseHint": "CSV, TSV or Excel (.xlsx), up to 50 MB, its first row the column names. Example: garages.xlsx with the columns name, lat, lon.",
+      "chooseButton": "Choose file",
+      "steps": {
+        "title": "What this file becomes",
+        "model": "A data model: one type, each column an attribute with the kind of value it holds.",
+        "space": "A Context Space with an Endpoint that reads it, proposed as one change for approval.",
+        "rows": "Its rows, written into the space once the change is approved."
+      },
       "reading": "Reading {name} and matching its columns against the Smart Data Models types…",
       "type": "What the rows are",
       "noMatch": "No Smart Data Models type names enough of these columns: the file gets its own model.",
