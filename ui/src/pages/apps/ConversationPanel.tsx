@@ -8,7 +8,7 @@ import { AppBuildCard, appBuildOf } from "./AppBuildCard";
 import type { JsonSchema } from "../../components/forms/types";
 import { Alert, Button, EmptyState, ExternalLink, Textarea } from "../../components/ui";
 import { openQuestions, TERMINAL_STATES, withdrawnQuestions } from "./useAgentRun";
-import { ActionStep, noticesOf, repeatedSlips, StepNotice } from "./ActionStep";
+import { ActionStep, echoedLines, noticesOf, retriedSteps, StepNotice } from "./ActionStep";
 import { CatalogCards, catalogDatasetsOf, catalogItemsOf } from "./CatalogCards";
 import { ChangeFollowCard, followedChangeOf } from "./ChangeFollowCard";
 import { ChangeTestCard, changeTestOf } from "./ChangeTestCard";
@@ -422,7 +422,8 @@ export function ConversationPanel({
   const progress = progressOf(events);
   const answered = answeredSearches(events);
   const notices = noticesOf(events);
-  const slips = repeatedSlips(events);
+  const retried = retriedSteps(events);
+  const echoed = echoedLines(events, notices);
   const questions = openQuestions(events);
   const withdrawn = withdrawnQuestions(events);
   const titles = new Map(
@@ -576,6 +577,9 @@ export function ConversationPanel({
               );
             }
             const { event, count } = row;
+            if (echoed.has(event.seq)) {
+              return null;
+            }
             const speaker = speakerOf(event.kind);
             if (event.kind === "tool") {
               // What the assistant found is drawn as cards above the step itself (UI-46), when
@@ -619,7 +623,7 @@ export function ConversationPanel({
                     <ChangeFollowCard project={project} followed={followed} onOpenLink={onOpenLink} />
                   ) : null}
                   {queried !== null ? <QueryResultCard result={queried} project={project} /> : null}
-                  <ActionStep event={event} live={live} onSend={onSend} count={count} noticed={notice !== undefined || slips.has(event.seq)} />
+                  <ActionStep event={event} live={live} onSend={onSend} count={count} noticed={notice !== undefined} retried={retried.has(event.seq)} />
                   {notice !== undefined ? (
                     <StepNotice
                       kind={notice}

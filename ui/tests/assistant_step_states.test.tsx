@@ -10,7 +10,7 @@ import { I18nextProvider } from "react-i18next";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
-import { ActionStep, failureOf, noticesOf, repeatedSlips, scrubbed, StepNotice } from "../src/pages/apps/ActionStep";
+import { ActionStep, echoedLines, failureOf, noticesOf, retriedSteps, scrubbed, StepNotice } from "../src/pages/apps/ActionStep";
 import { ConversationPanel } from "../src/pages/apps/ConversationPanel";
 import { QueryAnswer, queryResultOf, viewOf, whenOf } from "../src/pages/apps/QueryResultCard";
 import type { RunEvent } from "../src/pages/apps/useAgentRun";
@@ -130,12 +130,31 @@ describe("the state of a failure", () => {
     expect(noticesOf([tool(1, "query_endpoint", "error: argument attrs: takes 1 to 100 items")]).size).toBe(0);
   });
 
-  it("says a series of slips once, on the newest", () => {
+  it("draws a slip the assistant went past as a try, and the last one as what failed", () => {
     const slip = "error: argument type: takes 1 to 50 items";
-    const events = [tool(1, "query_endpoint", slip), tool(2, "jc_resource_list", slip), tool(3, "query_endpoint", slip)];
-    expect([...repeatedSlips(events)]).toEqual([1, 2]);
+    expect([...retriedSteps([tool(1, "query_endpoint", slip), tool(2, "query_endpoint")])]).toEqual([1]);
+    panel([tool(1, "query_endpoint", slip), tool(2, "jc_resource_list", slip)]);
+    expect(screen.getAllByRole("img", { name: en.agentRun.step.retried })).toHaveLength(1);
+    const reasons = screen.getAllByTestId("step-reason");
+    expect(reasons).toHaveLength(1);
+    expect(reasons[0]).toHaveTextContent(en.agentRun.failure.argument);
+  });
+
+  it("draws the Portal's closing line once, as the notice, and keeps the assistant's own words", () => {
+    const events = [
+      tool(1, "jc_ui_navigate", "the page needs a name"),
+      { seq: 2, kind: "thought", payload: { text: "That page could not be opened. Say which page you want." } } as RunEvent,
+      { seq: 3, kind: "thought", payload: { text: "The counters are on the Endpoints page." } } as RunEvent,
+    ];
+    expect([...echoedLines(events, noticesOf(events))]).toEqual([2]);
     panel(events);
-    expect(screen.getAllByTestId("step-reason")).toHaveLength(1);
+    expect(screen.getAllByText(/could not be opened/)).toHaveLength(1);
+    expect(screen.getByText("The counters are on the Endpoints page.")).toBeInTheDocument();
+  });
+
+  it("keeps the same line when no notice says it", () => {
+    const events = [{ seq: 1, kind: "thought", payload: { text: "That page could not be opened." } } as RunEvent];
+    expect(echoedLines(events, noticesOf(events)).size).toBe(0);
   });
 
   it.each([

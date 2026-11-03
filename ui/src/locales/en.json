@@ -6199,7 +6199,7 @@
       "stopped": "Stopped"
     },
     "failure": {
-      "argument": "The assistant asked in a form this step does not take, so nothing changed. It goes on another way.",
+      "argument": "This step did not work, so nothing changed.",
       "refused": "You may not do this here, so nothing changed.",
       "guarded": "Stopped: this step came from data, not from you. Nothing changed.",
       "page": "That page could not be opened.",
@@ -6212,7 +6212,7 @@
         "page": "Say which page you want, or pick one here.",
         "missing": "Check the name, or ask what this project holds."
       },
-      "askAgain": "Ask again",
+      "askAgain": "Send my request again",
       "askHolds": "Ask what it holds",
       "holds": "What does this project hold?",
       "page_spaces": "Context spaces",
@@ -6244,6 +6244,7 @@
       },
       "ok": "Succeeded",
       "failed": "Did not finish",
+      "retried": "Tried again another way",
       "duration": "{ms} ms",
       "input": "Input",
       "output": "Output",

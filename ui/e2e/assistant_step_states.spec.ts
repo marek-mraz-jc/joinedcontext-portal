@@ -151,7 +151,7 @@ async function open(page: Page, scenario: string): Promise<Locator> {
   const dock = page.getByRole("complementary", { name: "Conversation" });
   await dock.getByLabel("Ask the assistant").fill(SCENARIOS[scenario].ask);
   await dock.getByLabel("Ask the assistant").press("Enter");
-  await expect(dock.getByText(SCENARIOS[scenario].answer)).toBeVisible();
+  await expect(dock.getByTestId("run-progress")).toHaveText("Waiting for you");
   return dock;
 }
 
@@ -192,9 +192,10 @@ for (const [label, width, height] of [
     test("slip", async ({ page }) => {
       const dock = await open(page, "slip");
       const reasons = dock.getByTestId("step-reason");
-      await expect(reasons).toHaveCount(1);
       await expect(dock.getByRole("status").filter({ hasText: "Live" })).toBeVisible();
-      await expect(reasons.first()).toHaveText("The assistant asked in a form this step does not take, so nothing changed. It goes on another way.");
+      await expect(reasons).toHaveCount(0);
+      await expect(dock.getByRole("img", { name: "Tried again another way" })).toHaveCount(2);
+      await expect(dock.getByRole("img", { name: "Did not finish" })).toHaveCount(0);
       await expect(dock).not.toContainText("argument type", { useInnerText: true });
       await expect(dock).not.toContainText("jc_resource_list", { useInnerText: true });
       await expect(dock.getByTestId("step-notice")).toHaveCount(0);
@@ -228,6 +229,7 @@ for (const [label, width, height] of [
       const notice = dock.getByTestId("step-notice");
       await expect(notice).toContainText("That page could not be opened.");
       await expect(notice.getByRole("link", { name: "Data models" })).toBeVisible();
+      await expect(dock.getByText("That page could not be opened.")).toHaveCount(1);
       await expect(dock).not.toContainText("jc_ui_navigate", { useInnerText: true });
     });
 
@@ -235,7 +237,7 @@ for (const [label, width, height] of [
       const dock = await open(page, "guarded");
       const notice = dock.getByTestId("step-notice");
       await expect(notice).toContainText("this step came from data, not from you");
-      await expect(notice.getByRole("button", { name: "Ask again" })).toBeVisible();
+      await expect(notice.getByRole("button", { name: "Send my request again" })).toBeVisible();
     });
 
     test("missing", async ({ page }) => {

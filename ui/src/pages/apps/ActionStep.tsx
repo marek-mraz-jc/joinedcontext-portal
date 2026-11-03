@@ -78,10 +78,37 @@ export function noticesOf(events: RunEvent[]): Map<number, FailureKind> {
   return new Map([...standing].map(([kind, { seq }]) => [seq, kind]));
 }
 
-/** The slips a newer slip follows: a series of tries says its sentence once, on the newest. */
-export function repeatedSlips(events: RunEvent[]): Set<number> {
-  const slips = events.filter((event) => event.kind === "tool" && failureOf(event.payload) === "argument");
-  return new Set(slips.slice(0, -1).map((event) => event.seq));
+/**
+ * The slips the assistant went past: a later step worked or it tried again. Those are its way to
+ * the answer, so they draw as tries, not as failures above a good result.
+ */
+export function retriedSteps(events: RunEvent[]): Set<number> {
+  const steps = events.filter((event) => event.kind === "tool");
+  return new Set(
+    steps
+      .filter((step, at) => failureOf(step.payload) === "argument" && at < steps.length - 1)
+      .map((step) => step.seq),
+  );
+}
+
+/** The opening of the sentence the Portal itself ends such a turn with, by the state saying it. */
+const NOTICE_SAYS: [FailureKind, string][] = [
+  ["page", "That page could not be opened."],
+  ["guarded", "Nothing was changed: this step came from the data"],
+];
+
+/** The Portal's own closing lines a notice above already says: one of the two is enough. */
+export function echoedLines(events: RunEvent[], notices: Map<number, FailureKind>): Set<number> {
+  const standing = new Set(notices.values());
+  return new Set(
+    events
+      .filter(
+        ({ kind, payload }) =>
+          kind === "thought" &&
+          NOTICE_SAYS.some(([by, opening]) => standing.has(by) && String(payload.text ?? "").startsWith(opening)),
+      )
+      .map((event) => event.seq),
+  );
 }
 
 /** The pages a person is offered when the one asked for would not open. */
@@ -240,14 +267,17 @@ export function ActionStep({
   onSend,
   count = 1,
   noticed = false,
+  retried = false,
 }: {
   event: RunEvent;
   live: boolean;
   onSend: (text: string) => void;
   /** How many times in a row the same step repeated; the event is the newest of them. */
   count?: number;
-  /** Another line says why (a `StepNotice`, a newer slip), so the step's own row need not. */
+  /** A `StepNotice` under the step says why, so its own row need not. */
   noticed?: boolean;
+  /** The assistant went past this step: it draws as a try, not as a failure. */
+  retried?: boolean;
 }): JSX.Element {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -259,7 +289,7 @@ export function ActionStep({
   const label = labelOf(tool, payload, t);
   const failure = failureOf(payload);
   const reason = failed ? errorText(payload, t) : "";
-  const said = noticed ? "" : failure !== null ? t(`agentRun.failure.${failure}`) : reason;
+  const said = noticed || retried ? "" : failure !== null ? t(`agentRun.failure.${failure}`) : reason;
   const error = payload.error === undefined ? undefined : reason;
   // An MCP refusal's output is its error again, unscrubbed.
   const output = (payload.output as { isError?: unknown } | null | undefined)?.isError === true ? undefined : payload.output;
@@ -296,10 +326,10 @@ export function ActionStep({
       <summary className="flex cursor-pointer flex-wrap items-center gap-x-2 px-2 py-1 font-mono">
         <span
           role="img"
-          aria-label={failed ? t("agentRun.step.failed") : t("agentRun.step.ok")}
-          className={failed ? "text-danger" : "text-success"}
+          aria-label={t(retried ? "agentRun.step.retried" : failed ? "agentRun.step.failed" : "agentRun.step.ok")}
+          className={retried ? "text-fg-muted" : failed ? "text-danger" : "text-success"}
         >
-          {failed ? "✗" : "✓"}
+          {retried ? "↻" : failed ? "✗" : "✓"}
         </span>
         {/* A flex item that may break words shrinks to one letter per line in the dock's narrow
             column (T-0892), so the label keeps a least width and the row wraps. The reason takes a

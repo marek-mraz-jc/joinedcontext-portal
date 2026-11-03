@@ -6199,7 +6199,7 @@
       "stopped": "Zastavené"
     },
     "failure": {
-      "argument": "Asistent žiadal v tvare, ktorý tento krok neberie, nič sa nezmenilo. Pokračuje inak.",
+      "argument": "Tento krok nevyšiel, nič sa nezmenilo.",
       "refused": "Toto tu nemôžete urobiť, nič sa nezmenilo.",
       "guarded": "Zastavené: tento krok pochádza z údajov, nie od vás. Nič sa nezmenilo.",
       "page": "Túto stránku sa nepodarilo otvoriť.",
@@ -6212,7 +6212,7 @@
         "page": "Povedzte, ktorú stránku chcete, alebo si vyberte tu.",
         "missing": "Skontrolujte názov alebo sa opýtajte, čo tento projekt obsahuje."
       },
-      "askAgain": "Opýtať sa znova",
+      "askAgain": "Poslať požiadavku znova",
       "askHolds": "Opýtať sa, čo obsahuje",
       "holds": "Čo tento projekt obsahuje?",
       "page_spaces": "Kontextové priestory",
@@ -6244,6 +6244,7 @@
       },
       "ok": "Úspešný",
       "failed": "Nedokončený",
+      "retried": "Skúsené znova inak",
       "duration": "{ms} ms",
       "input": "Vstup",
       "output": "Výstup",
