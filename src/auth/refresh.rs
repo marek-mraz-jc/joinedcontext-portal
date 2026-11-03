@@ -58,7 +58,7 @@ pub async fn middleware(State(state): State<AppState>, request: Request, next: N
     let jar = PrivateCookieJar::from_headers(request.headers(), state.config.cookie_key.clone());
     // A session sealed with a key a rotation is still letting in is read here too, and the
     // refresh below re-seals it with the active one (T-0973).
-    let Some(current) = session::load_from(request.headers(), &state.config) else {
+    let Some(current) = session::load_with(request.headers(), &state) else {
         return next.run(request).await;
     };
     let now = session::now_unix();
@@ -78,7 +78,7 @@ pub async fn middleware(State(state): State<AppState>, request: Request, next: N
             let response = next.run(request).await;
             match session::store(jar, &fresh) {
                 Ok(jar) => {
-                    state.keep_id_token(&fresh);
+                    state.keep_session_claims(&fresh);
                     (jar, response).into_response()
                 }
                 Err(err) => err.into_response(),

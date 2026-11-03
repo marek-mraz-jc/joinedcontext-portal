@@ -151,12 +151,13 @@ pub struct AppState {
     /// ponytail: per-replica map; move it to the preferences database when the portal
     /// runs more than one replica (the reconciler is leader-elected, the UI is not).
     revocations: Arc<RwLock<HashMap<String, i64>>>,
-    /// Each cookie session's ID token, by `sub` and `issued_at`, with the session's end: only
-    /// the `id_token_hint` of its logout, kept out of the cookie because the realm repeats every
-    /// group in the token and a browser drops a cookie past 4096 bytes (T-6549).
-    /// ponytail: per-replica and lost on restart, where logout falls back to `client_id` and
-    /// Keycloak asks the person to confirm; move it to the database with `revocations`.
-    id_tokens: Arc<RwLock<HashMap<(String, i64), (i64, String)>>>,
+    /// What a cookie session keeps on the server, by `sub` and `issued_at` (T-6549): the ID
+    /// token (only the `id_token_hint` of its logout) and the group paths. Both grow with the
+    /// person's groups, and a browser drops a cookie past 4096 bytes.
+    /// ponytail: per-replica and lost on restart. The next request then refreshes the session,
+    /// which reads the groups from a fresh ID token, and a logout before that falls back to
+    /// `client_id` (Keycloak asks to confirm); move it to the database with `revocations`.
+    session_claims: Arc<RwLock<HashMap<(String, i64), SessionClaims>>>,
     /// The calls each key is answering right now (T-5968); a key leaves at zero.
     mcp_in_flight: Arc<Mutex<HashMap<String, u32>>>,
     /// The forge reads of the open changes, per head and base commit (T-6347).
@@ -271,7 +272,7 @@ impl AppState {
             kube: None,
             app_tests: None,
             revocations: Arc::new(RwLock::new(HashMap::new())),
-            id_tokens: Arc::default(),
+            session_claims: Arc::default(),
             mcp_in_flight: Arc::default(),
             change_reads: Default::default(),
             mcp_tasks: crate::mcp::tasks::McpTasks::new(),
@@ -1239,28 +1240,46 @@ impl AppState {
         marks
     }
 
-    /// Keeps a cookie session's ID token for its logout (T-6549); drops every ended session's.
-    pub fn keep_id_token(&self, session: &Session) {
-        if session.id_token.is_empty() {
-            return;
-        }
+    /// Keeps a cookie session's ID token and groups (T-6549) and drops every ended session's.
+    /// A refresh that brought no ID token keeps the one the session had.
+    pub fn keep_session_claims(&self, session: &Session) {
         let now = crate::auth::session::now_unix();
-        if let Ok(mut tokens) = self.id_tokens.write() {
-            tokens.retain(|_, (expires_at, _)| *expires_at > now);
-            tokens.insert(
-                (session.identity.subject.clone(), session.issued_at),
-                (session.expires_at, session.id_token.clone()),
+        let key = (session.identity.subject.clone(), session.issued_at);
+        if let Ok(mut kept) = self.session_claims.write() {
+            kept.retain(|_, claims| claims.expires_at > now);
+            let id_token = match (session.id_token.is_empty(), kept.get(&key)) {
+                (true, Some(before)) => before.id_token.clone(),
+                _ => session.id_token.clone(),
+            };
+            kept.insert(
+                key,
+                SessionClaims {
+                    expires_at: session.expires_at,
+                    id_token,
+                    groups: session.identity.groups.clone(),
+                },
             );
         }
     }
 
-    /// The ID token [`Self::keep_id_token`] kept for this session, removed: a logout uses it once.
+    /// The groups [`Self::keep_session_claims`] kept for this session; `None` when this process
+    /// holds none (a restart, another replica).
+    pub fn session_groups(&self, session: &Session) -> Option<Vec<String>> {
+        self.session_claims
+            .read()
+            .ok()?
+            .get(&(session.identity.subject.clone(), session.issued_at))
+            .map(|claims| claims.groups.clone())
+    }
+
+    /// The ID token kept for this session, removed with its groups: a logout ends the session.
     pub fn take_id_token(&self, session: &Session) -> Option<String> {
-        self.id_tokens
+        self.session_claims
             .write()
             .ok()?
             .remove(&(session.identity.subject.clone(), session.issued_at))
-            .map(|(_, token)| token)
+            .map(|claims| claims.id_token)
+            .filter(|token| !token.is_empty())
     }
 
     pub fn is_revoked(&self, session: &Session) -> bool {
@@ -1281,6 +1300,14 @@ impl AppState {
     pub fn branding(&self) -> Branding {
         Branding::load(self.config.branding_file.as_deref())
     }
+}
+
+/// A cookie session's claims kept on the server ([`AppState::keep_session_claims`]).
+struct SessionClaims {
+    /// Unix seconds the session ends; past it the entry goes.
+    expires_at: i64,
+    id_token: String,
+    groups: Vec<String>,
 }
 
 impl FromRef<AppState> for Key {
@@ -1352,10 +1379,18 @@ mod tests {
         let ended = session(now - 7200, now - 1, "ended-session-token");
         let laptop = session(now - 60, now + 3600, "laptop-token");
         let phone = session(now - 30, now + 3600, "phone-token");
-        state.keep_id_token(&ended);
-        state.keep_id_token(&laptop);
-        state.keep_id_token(&phone);
-        state.keep_id_token(&session(now - 10, now + 3600, ""));
+        state.keep_session_claims(&ended);
+        state.keep_session_claims(&laptop);
+        state.keep_session_claims(&phone);
+        state.keep_session_claims(&session(now - 10, now + 3600, ""));
+        // A refresh that brought no ID token keeps the session's, and its groups move.
+        let mut refreshed = session(now - 30, now + 7200, "");
+        refreshed.identity.groups = vec!["helsinki/editors".into()];
+        state.keep_session_claims(&refreshed);
+        assert_eq!(
+            state.session_groups(&phone),
+            Some(refreshed.identity.groups.clone())
+        );
         assert_eq!(
             state.take_id_token(&ended),
             None,

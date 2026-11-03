@@ -796,7 +796,7 @@ pub async fn callback(
     tracing::info!(subject = %session.identity.subject, "portal login");
 
     let jar = session::store(jar, &session)?;
-    state.keep_id_token(&session);
+    state.keep_session_claims(&session);
     let (cookies, _token) = csrf::issue(cookies);
     Ok((jar, cookies, Redirect::to(&flow.redirect_to)).into_response())
 }

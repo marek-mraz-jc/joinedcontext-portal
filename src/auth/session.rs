@@ -14,7 +14,7 @@ use utoipa::ToSchema;
 use crate::error::ApiError;
 use crate::state::AppState;
 
-/// Encrypted cookie holding the session; only the ID token is kept server-side (T-6549).
+/// Encrypted cookie holding the session; its ID token and groups are kept server-side (T-6549).
 ///
 /// Every Portal cookie is `__Host-` (T-4395, AP-29): an App on `{name}.apps.{domain}` can set a
 /// cookie with `Domain={domain}`, and without the prefix a planted cookie of the same name rides
@@ -162,7 +162,7 @@ pub struct Session {
     /// Kept only as `id_token_hint` for RP-initiated logout, and never in a cookie: the realm
     /// repeats every group in it, and beside the identity it pushed the session cookie past
     /// the 4096 bytes a browser keeps (T-6549). Login and refresh hand it to
-    /// `AppState::keep_id_token`; a session read from the cookie has it empty.
+    /// `AppState::keep_session_claims`; a session read from the cookie has it empty.
     #[serde(skip)]
     pub id_token: String,
     /// Unix seconds the access token stops being valid. A cookie session refreshes shortly
@@ -234,15 +234,48 @@ pub fn secure_cookie(name: &'static str, value: String, max_age_secs: i64) -> Co
 
 /// Writes the session into the encrypted jar: the identity cookie and, when the session holds
 /// one, the refresh-token cookie beside it, both living as long as the session.
+///
+/// A browser drops a cookie past 4096 bytes, and a person's group list has no bound (T-6549).
+/// When the sealed session would pass [`GROUPS_INLINE_MAX`], its groups stay out of the cookie,
+/// as the ID token always does: the caller hands both to `AppState::keep_session_claims`, and
+/// [`load_with`] joins the groups back.
 pub fn store(jar: PrivateCookieJar, session: &Session) -> Result<PrivateCookieJar, ApiError> {
-    let value = serde_json::to_string(session)
-        .map_err(|e| ApiError::Internal(format!("serialize session: {e}")))?;
+    let serialize = |sealed: &Sealed| {
+        serde_json::to_string(sealed)
+            .map_err(|e| ApiError::Internal(format!("serialize session: {e}")))
+    };
+    let mut value = serialize(&Sealed {
+        session: session.clone(),
+        groups_kept: false,
+    })?;
+    if value.len() > GROUPS_INLINE_MAX {
+        let mut session = session.clone();
+        session.identity.groups.clear();
+        value = serialize(&Sealed {
+            session,
+            groups_kept: true,
+        })?;
+    }
     let ttl = (session.expires_at - now_unix()).max(0);
     let jar = jar.add(secure_cookie(SESSION_COOKIE, value, ttl));
     Ok(match &session.refresh_token {
         Some(token) => jar.add(secure_cookie(REFRESH_COOKIE, token.clone(), ttl)),
         None => jar.remove(removal(REFRESH_COOKIE)),
     })
+}
+
+/// The longest session JSON sealed with its groups inline. Sealing adds a 12-byte nonce and a
+/// 16-byte tag, base64 grows that by a third and the `Set-Cookie` encoding turns each `/` into
+/// three bytes: 2400 bytes come out near 3350, well under the 4096 a browser keeps.
+pub const GROUPS_INLINE_MAX: usize = 2400;
+
+/// The session as the cookie carries it: `groups_kept` says its groups were left on the server.
+#[derive(Serialize, Deserialize)]
+struct Sealed {
+    #[serde(flatten)]
+    session: Session,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    groups_kept: bool,
 }
 
 /// Reads the session from the headers, with the active key or any key a rotation still lets in
@@ -255,21 +288,46 @@ pub fn load_from(
     headers: &axum::http::HeaderMap,
     config: &crate::config::Config,
 ) -> Option<Session> {
+    open_from(headers, config).map(|sealed| sealed.session)
+}
+
+fn open_from(headers: &HeaderMap, config: &crate::config::Config) -> Option<Sealed> {
     std::iter::once(&config.cookie_key)
         .chain(config.cookie_keys_previous.iter())
-        .find_map(|key| load(&PrivateCookieJar::from_headers(headers, key.clone())))
+        .find_map(|key| open(&PrivateCookieJar::from_headers(headers, key.clone())))
+}
+
+/// [`load_from`] with the groups this process kept for the session joined back (T-6549). When
+/// it kept none (a restart, another replica), the access token counts as spent: the refresh
+/// middleware then fetches a fresh ID token, which carries the groups, or ends the session.
+pub fn load_with(headers: &HeaderMap, state: &AppState) -> Option<Session> {
+    let Sealed {
+        mut session,
+        groups_kept,
+    } = open_from(headers, &state.config)?;
+    if groups_kept {
+        match state.session_groups(&session) {
+            Some(groups) => session.identity.groups = groups,
+            None => session.access_expires_at = 0,
+        }
+    }
+    Some(session)
 }
 
 /// Reads the session, ignoring an expired or unparseable one. The access token may already be
 /// past its time: that is for the refresh middleware and `CurrentUser` to decide.
 pub fn load(jar: &PrivateCookieJar) -> Option<Session> {
+    open(jar).map(|sealed| sealed.session)
+}
+
+fn open(jar: &PrivateCookieJar) -> Option<Sealed> {
     let cookie = jar.get(SESSION_COOKIE)?;
-    let mut session: Session = serde_json::from_str(cookie.value()).ok()?;
-    session.refresh_token = jar
+    let mut sealed: Sealed = serde_json::from_str(cookie.value()).ok()?;
+    sealed.session.refresh_token = jar
         .get(REFRESH_COOKIE)
         .map(|c| c.value().to_string())
         .filter(|t| !t.is_empty());
-    (!session.is_expired(now_unix())).then_some(session)
+    (!sealed.session.is_expired(now_unix())).then_some(sealed)
 }
 
 /// Removes the session cookies (sign-out and every failure path).
@@ -354,7 +412,7 @@ impl FromRequestParts<AppState> for CurrentUser {
         // cookie on this request still carries the one before it.
         let session = match parts.extensions.get::<Session>() {
             Some(refreshed) => refreshed.clone(),
-            None => load_from(&parts.headers, &state.config).ok_or(ApiError::Unauthorized)?,
+            None => load_with(&parts.headers, &state).ok_or(ApiError::Unauthorized)?,
         };
         if session.access_expired(now_unix()) || state.is_revoked(&session) {
             return Err(ApiError::Unauthorized);
@@ -889,6 +947,46 @@ mod tests {
             let pair = line.split(';').next().unwrap_or_default();
             assert!(pair.len() <= 4000, "{} bytes: {pair:.80}", pair.len());
         }
+    }
+
+    /// The groups a cookie leaves out come back from the Portal that kept them, and a Portal
+    /// that kept none (a restart) refreshes the session before it trusts it (T-6549).
+    #[test]
+    fn groups_left_on_the_server_join_the_session_or_force_a_refresh() {
+        let mut config = crate::config::Config::for_tests();
+        config.cookie_key = Key::generate();
+        let person = session_of_a_person_in_60_groups();
+        let headers = replay_cookies(
+            store(PrivateCookieJar::new(config.cookie_key.clone()), &person).expect("store"),
+        );
+        let state = AppState::new(config, None);
+
+        let restarted = load_with(&headers, &state).expect("a session");
+        assert!(restarted.identity.groups.is_empty());
+        assert!(restarted.needs_refresh(now_unix()) && restarted.access_expired(now_unix()));
+
+        state.keep_session_claims(&person);
+        let kept = load_with(&headers, &state).expect("a session");
+        assert_eq!(kept.identity.groups, person.identity.groups);
+        assert_eq!(kept.access_expires_at, person.access_expires_at);
+        assert!(
+            kept.id_token.is_empty(),
+            "the ID token never rides in the cookie"
+        );
+
+        // A small session keeps its groups inline and needs nothing from the server.
+        let mut small = sample(600);
+        small.identity.groups = vec!["helsinki/editors".into()];
+        let headers = replay_cookies(
+            store(
+                PrivateCookieJar::new(state.config.cookie_key.clone()),
+                &small,
+            )
+            .expect("store"),
+        );
+        let loaded = load_with(&headers, &state).expect("a session");
+        assert_eq!(loaded.identity.groups, small.identity.groups);
+        assert!(!loaded.access_expired(now_unix()));
     }
 
     #[test]

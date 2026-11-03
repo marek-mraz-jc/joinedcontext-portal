@@ -1691,7 +1691,7 @@ async fn logout_clears_the_cookies_without_a_session_and_hints_at_no_token() {
         let signed_in = &signed_in;
         async move {
             let state = state_behind(realm_ref, false).await;
-            state.keep_id_token(signed_in);
+            state.keep_session_claims(signed_in);
             let app = server::app(state);
             let response = app
                 .oneshot(
