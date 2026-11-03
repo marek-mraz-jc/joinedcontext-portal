@@ -1276,9 +1276,9 @@ mod tests {
             }))
             .expect("params")
         };
-        let person = person(&["/city-admins", "city"]);
+        let steward = person(&[state.config.bootstrap_admins.as_str()]);
         let refused =
-            super::execute_propose_endpoint(&person, &state, "city", ask(json!(["Event"])))
+            super::execute_propose_endpoint(&steward, &state, "city", ask(json!(["Event"])))
                 .await
                 .expect_err("refused");
         let text = refused.to_string();
@@ -1288,7 +1288,7 @@ mod tests {
             "{text}"
         );
         let other =
-            super::execute_propose_endpoint(&person, &state, "city", ask(json!(["BikeCounter"])))
+            super::execute_propose_endpoint(&steward, &state, "city", ask(json!(["BikeCounter"])))
                 .await;
         assert!(
             !matches!(&other, Err(crate::error::ApiError::BadRequest(_))),
@@ -1297,7 +1297,11 @@ mod tests {
         );
         // A person who may not propose an Endpoint here learns nothing about the model.
         let outsider = super::execute_propose_endpoint(
-            &person(&["/other"]),
+            &crate::auth::session::Identity {
+                subject: "f:1:outsider".into(),
+                username: "outsider".into(),
+                ..person(&[])
+            },
             &state,
             "city",
             ask(json!(["Event"])),
