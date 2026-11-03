@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use utoipa::ToSchema;
 
+use crate::auth::session::Identity;
 use crate::auth::CurrentUser;
 use crate::db;
 use crate::error::{ApiError, ProblemDetails};
@@ -153,6 +154,29 @@ fn db_error(err: sqlx::Error) -> ApiError {
     ApiError::from_db(&err, "preferences")
 }
 
+/// The person's stored row, its old connectors moved out first.
+async fn stored_row(
+    state: &AppState,
+    identity: &Identity,
+) -> Result<Option<serde_json::Value>, ApiError> {
+    let pool = pool(state)?;
+    // Every page load asks this and the pool holds five connections: only a row with old
+    // connectors pays a second read (T-6520).
+    let stored = db::load_preferences(pool, &identity.subject)
+        .await
+        .map_err(db_error)?;
+    if !stored
+        .as_ref()
+        .is_some_and(crate::personal_connectors::holds_old)
+    {
+        return Ok(stored);
+    }
+    crate::personal_connectors::move_one(state, identity).await?;
+    db::load_preferences(pool, &identity.subject)
+        .await
+        .map_err(db_error)
+}
+
 #[utoipa::path(
     get,
     path = "/api/v1/preferences",
@@ -169,22 +193,7 @@ pub async fn get_preferences(
     user: CurrentUser,
     State(state): State<AppState>,
 ) -> Result<Json<Preferences>, ApiError> {
-    let pool = pool(&state)?;
-    let subject = &user.0.identity.subject;
-    // Every page load asks this and the pool holds five connections: only a row with old
-    // connectors pays a second read (T-6520).
-    let mut stored = db::load_preferences(pool, subject)
-        .await
-        .map_err(db_error)?;
-    if stored
-        .as_ref()
-        .is_some_and(crate::personal_connectors::holds_old)
-    {
-        crate::personal_connectors::move_one(&state, &user.0.identity).await?;
-        stored = db::load_preferences(pool, subject)
-            .await
-            .map_err(db_error)?;
-    }
+    let stored = stored_row(&state, &user.0.identity).await?;
     // A row written by an older Portal may hold a field this one no longer knows; it is dropped
     // rather than turned into a 500 on the caller's own settings.
     // The keys only the Portal keeps (old connectors) are hidden from the person's own view.
