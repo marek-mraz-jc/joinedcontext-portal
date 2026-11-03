@@ -8871,6 +8871,7 @@
       "mapPlace": "Místo",
       "mapCount": "{count, plural, one {# místo na mapě.} few {# místa na mapě.} other {# míst na mapě.}}",
       "mapCountOf": "Mapa ukazuje prvních {shown} z {total} míst.",
+      "mapCountFirst": "Mapa ukazuje prvních {shown} míst; datová sada má víc.",
       "mapList": "{count, plural, one {Místo jako seznam} other {Místa jako seznam (#)}}",
       "mapFailed": "Mapu se nepodařilo načíst; zkuste to za chvíli znovu.",
       "says": {
