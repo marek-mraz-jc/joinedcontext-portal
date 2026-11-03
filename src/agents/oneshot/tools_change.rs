@@ -1166,6 +1166,17 @@ impl Driver {
                 "{prose}\n\nIts test is not green yet: {findings}. The form is open on it; finish                  it there and check it before you propose it."
             );
         }
+        // The rest of a request for several resources, each with its page (T-6531).
+        let steps: Vec<change::NextStep> = input
+            .get("next")
+            .and_then(|next| serde_json::from_value(next.clone()).ok())
+            .unwrap_or_default();
+        prose.push_str(&change::next_steps(
+            &self.project,
+            &steps,
+            workspace.as_deref(),
+            |kind| self.may_change(kind, Verb::Propose).is_ok(),
+        ));
         self.thought(&prose).await?;
         // A new resource opens the page on its own draft, and the form loads that draft itself:
         // handing the manifest over as the form's values as well would fill the form twice, the

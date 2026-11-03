@@ -1129,6 +1129,10 @@ the check refuses comes back to you with the reason: send the call again with th
 test that is not green still opens the form, with what it found, because a pipeline's mapping is
 finished in the editor. You never propose it yourself, and never with `jc_resource_propose` — a change nobody read must
 not reach the approval queue.
+
+A request for several resources (a space, its model, an endpoint, a source, a pipeline) drafts one
+per message: draft first what the others need and list the rest in order in the same call as
+`"next": [{{"kind": "DataModel", "name": "<its name>"}}]`; the platform names each with its page.
 "#,
             kinds = creatable.join(", "),
         ));
