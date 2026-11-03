@@ -1099,6 +1099,7 @@
       },
       "tests": [
         "action_inspector.test.tsx",
+        "assistant_step_states.test.tsx",
         "assistant_turns.test.tsx",
         "conversation_panel.test.tsx",
         "conversation_repeats.test.tsx",
