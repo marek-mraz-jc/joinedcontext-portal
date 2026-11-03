@@ -5,6 +5,18 @@ use super::*;
 /// jc-core's words for a manifest its kind cannot read: an unknown field, a wrong type.
 const NOT_PARSED: &str = "manifest does not parse";
 
+/// The operation that does what a model tried with a field the kind does not have: a SyncSource
+/// pauses through its loop's switch, never its manifest (T-6533, S-25).
+fn not_a_field(kind: &str, findings: &str) -> Option<&'static str> {
+    let switch = ["paused", "suspended", "enabled", "disabled", "active"]
+        .iter()
+        .any(|field| findings.contains(&format!("unknown field `{field}`")));
+    (kind == "SyncSource" && findings.contains(NOT_PARSED) && switch).then_some(
+        "a SyncSource has no such field: pause it, or resume it, with jc_syncsource_pause \
+         {\"name\": \"<the SyncSource>\", \"paused\": true or false}, which changes no manifest",
+    )
+}
+
 /// What the kind's page opens on: the resource a change touches (`?edit=`), or the draft of a new
 /// one, which the form loads by its name (`?draft=`, AG-45).
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -1034,6 +1046,11 @@ impl Driver {
                 }),
             )
             .await?;
+            if let Some(instead) = not_a_field(info.kind, &findings) {
+                return Ok(Worked::Again(format!(
+                    "error: the platform's check refuses the change: {findings}; {instead}"
+                )));
+            }
             if let Some(reason) = self.schema_reply(info.kind, &findings, &manifest).await? {
                 return Ok(Worked::Again(reason));
             }
@@ -1637,6 +1654,26 @@ fn first_served_type(page: &str) -> Option<String> {
         .iter()
         .find_map(Value::as_str)
         .map(str::to_owned)
+}
+
+#[cfg(test)]
+mod not_a_field_tests {
+    use super::not_a_field;
+
+    /// T-6533, S-25: the walk's invented `spec.paused` is answered with the pause operation, as
+    /// jc-core words the refusal; other kinds and other refusals keep the schema reply.
+    #[test]
+    fn a_paused_syncsource_field_names_the_pause_operation() {
+        let findings = "bad request: spec is not a valid SyncSource: manifest does not parse: \
+                        spec: unknown field `paused`, expected one of `source`, `schedule`";
+        let instead = not_a_field("SyncSource", findings).expect("the pause operation");
+        assert!(instead.contains("jc_syncsource_pause"), "{instead}");
+        assert_eq!(not_a_field("Pipeline", findings), None);
+        let other = "manifest does not parse: spec: unknown field `interval`";
+        assert_eq!(not_a_field("SyncSource", other), None);
+        let blank = "invalid schedule.interval ``: interval must be a positive number";
+        assert_eq!(not_a_field("SyncSource", blank), None);
+    }
 }
 
 #[cfg(test)]

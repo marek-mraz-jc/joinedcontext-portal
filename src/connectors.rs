@@ -167,6 +167,8 @@ pub const SEGMENTS: &[(&str, &[&str], &[&str])] = &[
             "jc_pipeline_metrics",
             "jc_pipeline_logs",
             "jc_syncsource_status",
+            // T-6533: pausing a SyncSource is its loop's switch, which changes no manifest.
+            "jc_syncsource_pause",
             "jc_change_list",
             "jc_change_get",
             "jc_change_history",
@@ -2649,7 +2651,14 @@ pub(crate) mod tests {
                 "publish",
                 &["jc_catalogue_draft", "jc_endpoint_preview"][..],
             ),
-            ("operate", &["jc_change_history", "jc_pipeline_inspect"][..]),
+            (
+                "operate",
+                &[
+                    "jc_change_history",
+                    "jc_pipeline_inspect",
+                    "jc_syncsource_pause",
+                ][..],
+            ),
         ] {
             let listed = reached(&[segment], false);
             for tool in tools {

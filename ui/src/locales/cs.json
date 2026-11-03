@@ -11327,7 +11327,7 @@
       "access": "čte role, vazby, skupiny a servisní účty",
       "publish": "čte katalog a stav CKAN",
       "apps": "čte aplikace a jejich běhy",
-      "operate": "čte aktivitu, změny a stav synchronizace",
+      "operate": "čte aktivitu, změny a stav synchronizace; pozastaví nebo obnoví zdroj synchronizace",
       "knowledge": "čte zdroje znalostí, stav jejich procházení a pasáže",
       "admin": "všechny předvolby výše"
     },

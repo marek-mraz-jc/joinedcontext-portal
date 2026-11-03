@@ -11327,7 +11327,7 @@
       "access": "číta roly, väzby, skupiny a servisné účty",
       "publish": "číta katalóg a stav CKAN",
       "apps": "číta aplikácie a ich behy",
-      "operate": "číta aktivitu, zmeny a stav synchronizácie",
+      "operate": "číta aktivitu, zmeny a stav synchronizácie; pozastaví alebo obnoví zdroj synchronizácie",
       "knowledge": "číta zdroje znalostí, stav ich prehľadávania a pasáže",
       "admin": "všetky predvoľby vyššie"
     },
