@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, fireEvent, within } from "@testing-library/react";
 import { EntityGrid } from "../src/grid/EntityGrid";
 import { parseGridConfig } from "../src/grid/config";
-import { endpointSource, fixtureSource } from "../src/grid/source";
+import { SourceError, endpointSource, fixtureSource } from "../src/grid/source";
 import { DEFAULT_LABELS, VIRTUAL_PAGE_SIZE, useEntityGrid } from "../src/grid/useEntityGrid";
 import { formatDate } from "../src/grid/cells";
 
@@ -370,6 +370,25 @@ describe("EntityGrid", () => {
     await screen.findByText(`1 loaded · ${DEFAULT_LABELS.noTotal}`);
   });
 
+  it("shows the rows when the count fails, as a count cut by the gateway's 10 s does (T-6541)", async () => {
+    // Praha Tree on dev: `count=true` answered 503 after 10 s while the rows alone took 0.2 s.
+    const config = parseGridConfig({
+      source: { kind: "fixture", name: "few" },
+      type: "BikeHireDockingStation",
+      columns: [{ attr: "name", label: "Name" }],
+      pageSize: 50,
+    }).config!;
+    const fixture = fixtureSource(bikeEntities);
+    const cut = { ...fixture, query: async (q: Parameters<typeof fixture.query>[0], page: Parameters<typeof fixture.query>[1]) => {
+      if (page.count !== false) throw new SourceError(503, "the read took longer than the 10 s a read may take");
+      return { ...(await fixture.query(q, page)), total: undefined };
+    } };
+    render(<EntityGrid config={config} source={cut} virtual />);
+    await screen.findByText("Kamppi");
+    await screen.findByText(`${bikeEntities.length} loaded · ${DEFAULT_LABELS.noTotal}`);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
   // T-3097: a scrolling grid draws the rows in sight and loads the next page as the person nears
   // the end; the footer counts what is loaded of the whole set, and the rows keep their places.
   // T-5623: the next page is asked for once the window passes 60 % of the loaded rows, and it is
@@ -397,8 +416,12 @@ describe("EntityGrid", () => {
     // The first page is the config's size; the window of the first rows is past 60 % of 50, so
     // the next, larger page is asked for at once, with no scroll.
     await screen.findByText("250 of 1000 loaded");
-    // A later page leaves the count out: the first page already has the total (T-6161).
-    expect(asked).toEqual([{ offset: 0, limit: 50 }, { offset: 50, limit: VIRTUAL_PAGE_SIZE, count: false }]);
+    // The count is a read of its own, with no rows; no page of rows asks for it (T-6161, T-6541).
+    expect(asked).toEqual([
+      { offset: 0, limit: 0, count: true },
+      { offset: 0, limit: 50, count: false },
+      { offset: 50, limit: VIRTUAL_PAGE_SIZE, count: false },
+    ]);
     expect(screen.queryByRole("button", { name: "Next" })).toBeNull();
     const drawn = () => container.querySelectorAll("tbody tr:not(.jc-grid-spacer)");
     expect(drawn().length).toBeLessThanOrEqual(50);
@@ -409,7 +432,7 @@ describe("EntityGrid", () => {
     box.scrollTop = 140 * 36;
     fireEvent.scroll(box);
     await screen.findByText("450 of 1000 loaded");
-    expect(asked[2]).toEqual({ offset: 250, limit: VIRTUAL_PAGE_SIZE, count: false });
+    expect(asked[3]).toEqual({ offset: 250, limit: VIRTUAL_PAGE_SIZE, count: false });
     // The window moved: the first drawn row is 130 rows in, and says so to a screen reader.
     expect(screen.queryByText("Station 0")).toBeNull();
     expect(drawn()[0]).toHaveAttribute("aria-rowindex", "132");
@@ -466,7 +489,8 @@ describe("EntityGrid", () => {
     fireEvent.change(screen.getByLabelText("Value: name"), { target: { value: "zz-no-such-station" } });
     await screen.findByText(DEFAULT_LABELS.empty);
     await new Promise((settle) => setTimeout(settle, 50));
-    expect(asked).toEqual([undefined, 'name[*]~="zz-no-such-station"']);
+    // Each question is asked once for its rows and once for its count (T-6541).
+    expect(asked).toEqual([undefined, undefined, 'name[*]~="zz-no-such-station"', 'name[*]~="zz-no-such-station"']);
     // The filter stays where the person can see and clear it.
     expect(screen.getByLabelText("Value: name")).toHaveValue("zz-no-such-station");
   });
