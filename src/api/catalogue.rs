@@ -1764,20 +1764,12 @@ fn mapped_class(classes: Vec<String>, served: &[String]) -> Option<String> {
 
 /// The types the Endpoint at `endpoint` lists to an anonymous reader; empty when it did not answer.
 async fn served(endpoint: &str) -> Vec<String> {
-    let Ok(response) = HTTP
-        .get(format!("{endpoint}ngsi-ld/v1/types"))
-        .header(header::ACCEPT, "application/json")
-        .send()
-        .await
-    else {
+    let Ok(response) = anonymous_read(format!("{endpoint}ngsi-ld/v1/types"), &[]).await else {
         return Vec::new();
     };
-    let list: Value = match response.error_for_status() {
-        Ok(ok) => crate::capped::json(ok, crate::capped::ANSWER_BYTES)
-            .await
-            .unwrap_or_default(),
-        Err(_) => return Vec::new(),
-    };
+    let list: Value = crate::capped::json(response, crate::capped::ANSWER_BYTES)
+        .await
+        .unwrap_or_default();
     list["typeList"]
         .as_array()
         .into_iter()
@@ -1786,17 +1778,12 @@ async fn served(endpoint: &str) -> Vec<String> {
         .collect()
 }
 
-/// Up to [`MAP_ROWS`] keyValues entities of `class` from the Endpoint at `endpoint`, read
-/// anonymously, and the count the Endpoint reports; the reason as text when it did not answer.
-async fn located(endpoint: &str, class: &str) -> Result<(Option<u64>, Vec<Value>), String> {
+/// One anonymous JSON GET of `url` on the Portal's own gateway: the only outbound call the map
+/// route makes, so its reads share one request shape; the reason as text when it did not answer.
+async fn anonymous_read(url: String, query: &[(&str, &str)]) -> Result<reqwest::Response, String> {
     let response = HTTP
-        .get(format!("{endpoint}ngsi-ld/v1/entities"))
-        .query(&[
-            ("type", class),
-            ("limit", MAP_ROWS.to_string().as_str()),
-            ("options", "keyValues"),
-            ("count", "true"),
-        ])
+        .get(url)
+        .query(query)
         .header(header::ACCEPT, "application/json")
         .send()
         .await
@@ -1804,6 +1791,23 @@ async fn located(endpoint: &str, class: &str) -> Result<(Option<u64>, Vec<Value>
     if !response.status().is_success() {
         return Err(format!("status {}", response.status()));
     }
+    Ok(response)
+}
+
+/// Up to [`MAP_ROWS`] keyValues entities of `class` from the Endpoint at `endpoint`, read
+/// anonymously, and the count the Endpoint reports; the reason as text when it did not answer.
+async fn located(endpoint: &str, class: &str) -> Result<(Option<u64>, Vec<Value>), String> {
+    let limit = MAP_ROWS.to_string();
+    let response = anonymous_read(
+        format!("{endpoint}ngsi-ld/v1/entities"),
+        &[
+            ("type", class),
+            ("limit", limit.as_str()),
+            ("options", "keyValues"),
+            ("count", "true"),
+        ],
+    )
+    .await?;
     let total = response
         .headers()
         .get("NGSILD-Results-Count")
