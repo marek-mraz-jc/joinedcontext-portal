@@ -28,6 +28,9 @@ const SWEEP: Duration = Duration::from_secs(300);
 /// A datasource uid Grafana accepts at most.
 const MAX_UID: usize = 40;
 
+/// The longest Grafana answer read: an organization or one project's datasource list.
+const MAX_ANSWER: usize = 1 << 20;
+
 /// Outside calls stop here; redirects are refused so the credentials go nowhere else.
 static HTTP: LazyLock<reqwest::Client> = LazyLock::new(|| {
     reqwest::Client::builder()
@@ -233,6 +236,17 @@ fn unreachable(what: &str, err: impl std::fmt::Display) -> ApiError {
     ))
 }
 
+/// The JSON of a Grafana answer, read up to [`MAX_ANSWER`] bytes.
+async fn json_of<T: serde::de::DeserializeOwned>(
+    answer: reqwest::Response,
+    what: &str,
+) -> Result<T, ApiError> {
+    let body = jc_core::outbound::read_capped(answer, MAX_ANSWER)
+        .await
+        .map_err(|err| unreachable(what, err))?;
+    serde_json::from_slice(&body).map_err(|err| unreachable(what, err))
+}
+
 impl<'a> Client<'a> {
     pub fn new(config: &'a GrafanaConfig) -> Self {
         Self { config }
@@ -267,7 +281,7 @@ impl<'a> Client<'a> {
         let answer = answer
             .error_for_status()
             .map_err(|err| unreachable(what, err))?;
-        let org: Value = answer.json().await.map_err(|err| unreachable(what, err))?;
+        let org: Value = json_of(answer, what).await?;
         org["id"]
             .as_i64()
             .map(Some)
@@ -283,7 +297,7 @@ impl<'a> Client<'a> {
             .await
             .and_then(reqwest::Response::error_for_status)
             .map_err(|err| unreachable(what, err))?;
-        let listed: Vec<Value> = answer.json().await.map_err(|err| unreachable(what, err))?;
+        let listed: Vec<Value> = json_of(answer, what).await?;
         Ok(listed
             .iter()
             .filter(|source| source["type"] == PLUGIN)
@@ -677,6 +691,22 @@ mod tests {
             .respond_with(ResponseTemplate::new(200).set_body_json(body))
             .mount(server)
             .await;
+    }
+
+    #[tokio::test]
+    async fn an_answer_past_the_cap_is_refused_unread() {
+        let server = wiremock::MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/datasources"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(" ".repeat(MAX_ANSWER + 1)))
+            .mount(&server)
+            .await;
+        let config = config(&server);
+        let refused = Client::new(&config).datasources(7).await;
+        assert!(
+            matches!(refused, Err(ApiError::Unavailable(_))),
+            "{refused:?}"
+        );
     }
 
     #[tokio::test]
