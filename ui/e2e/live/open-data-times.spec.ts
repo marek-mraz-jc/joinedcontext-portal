@@ -16,7 +16,7 @@ import { expect, test, type Page } from "@playwright/test";
 test.setTimeout(1_500_000);
 
 /** The model classes T-6502 found slow to count on Praha (finding 4). */
-const TYPES = ["Tree", "Garden", "GreenAsset", "NoiseZone", "RoadSegment"];
+const TYPES = (process.env.TIMES_TYPES ?? "Tree,Garden,GreenAsset,NoiseZone,RoadSegment").split(",");
 const WIDTHS = [1440, 400];
 /** The budgets of T-6541 at 1440 on a warm page. */
 const GRID_BUDGET_MS = 2_000;
@@ -49,7 +49,8 @@ async function stepTime(page: Page, started: number, wait: () => Promise<unknown
   try {
     await wait();
     return Date.now() - started;
-  } catch {
+  } catch (err) {
+    console.log(`step missing: ${String(err).split("\n")[0]}`);
     return null;
   }
 }
@@ -100,6 +101,9 @@ test("Praha's big datasets show their card, first rows and first places in time"
   for (const { name, type } of datasets) {
     for (const width of WIDTHS) {
       const context = await browser.newContext({
+        // A visitor's browser sends no run header: the live config's would make every Endpoint read
+        // from the page a CORS preflight the gateway refuses, and the grid would never load.
+        extraHTTPHeaders: {},
         viewport: { width, height: width === 400 ? 860 : 900 },
         ...(width === 1440 ? { recordHar: { path: join(dir, `${env}-${name}.har`), content: "omit" as const } } : {}),
       });
