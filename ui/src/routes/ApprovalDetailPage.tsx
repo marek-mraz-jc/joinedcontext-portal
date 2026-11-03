@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { useDecision } from "../api/decision";
 import { Link } from "@tanstack/react-router";
-import { approvalStanding, changedKind, expectedNameOf } from "../api/approval";
+import { approvalStanding, changedKind, expectedNameOf, isOwn, rejectWords } from "../api/approval";
 import { usePermissions } from "../api/permissions";
 import { api, queryKeys, unwrap } from "../api/client";
 import { useAuth } from "../auth/AuthProvider";
@@ -154,7 +154,10 @@ export function ApprovalDetailPage({
   // Why Approve is disabled, on the button itself and not only beside it (UI-44).
   const approveReason =
     disabledReason ?? (canAct && !confirmMatches ? t("approvals.confirmFirst", { name: expectedName }) : null);
-  const canReject = canAct;
+  // The proposer withdraws their own change, whoever approves it: closing never merges (T-6535).
+  const own = isOwn(identity?.email, proposal);
+  const words = rejectWords(own);
+  const canReject = own ? isPendingApproval && !isMutating : canAct;
 
   const summaryText = t(
     proposal.summary.key,
@@ -337,6 +340,12 @@ export function ApprovalDetailPage({
         </Alert>
       ) : null}
 
+      {own && rejectMutation.isSuccess ? (
+        <Alert role="status" tone="info">
+          {t("approvals.withdrawn")}
+        </Alert>
+      ) : null}
+
       {actionError ? (
         <Alert role="alert" tone="danger">
           {actionError}
@@ -382,17 +391,17 @@ export function ApprovalDetailPage({
               // The same sentence the Approve button carries when a role or the authorship is
               // what refuses the action; a phase that simply has nothing to reject says nothing,
               // because that is not a refusal (UI-44).
-              disabledReason={disabledReason ?? undefined}
+              disabledReason={own ? undefined : (disabledReason ?? undefined)}
               loading={rejectMutation.isPending}
               onClick={() => setRejecting(true)}
             >
-              {rejectMutation.isPending ? t("approvals.rejecting") : t("approvals.reject")}
+              {rejectMutation.isPending ? t(words.busy) : t(words.action)}
             </Button>
             <Dialog
               open={rejecting}
               onOpenChange={setRejecting}
-              title={t("approvals.rejectTitle")}
-              description={t("approvals.rejectLead")}
+              title={t(words.title)}
+              description={t(words.lead)}
               closeLabel={t("approvals.rejectCancel")}
               footer={
                 <>
@@ -407,15 +416,15 @@ export function ApprovalDetailPage({
                       rejectMutation.mutate(rejectReason);
                     }}
                   >
-                    {t("approvals.rejectConfirm")}
+                    {t(words.confirm)}
                   </Button>
                 </>
               }
             >
               <Field
                 id={rejectReasonId}
-                label={t("approvals.rejectReason")}
-                help={t("approvals.rejectReasonHint")}
+                label={t(words.reason)}
+                help={t(words.reasonHint)}
               >
                 <Textarea
                   id={rejectReasonId}
