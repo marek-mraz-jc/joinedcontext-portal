@@ -477,34 +477,7 @@ impl Driver {
             None => json!({ "ok": false, "untested": "jc_pipeline_test is not registered" }),
         };
 
-        // The indicator space's Endpoint drafted beside the pipeline exists once both are
-        // approved: the test's word that it is not there yet is no fault of the draft, and every
-        // test said it (T-6532, live walk T-6490 S-36). What else it finds stays red.
-        let mut verdict = verdict;
-        let awaited = plan
-            .space_drafts
-            .iter()
-            .any(|d| d.kind == "Endpoint" && d.name == plan.target_endpoint);
-        let mut awaits = false;
-        if let Some(found) = verdict
-            .get_mut("findings")
-            .and_then(Value::as_array_mut)
-            .filter(|_| awaited)
-        {
-            let before = found.len();
-            found.retain(|f| {
-                !f.get("message")
-                    .and_then(Value::as_str)
-                    .is_some_and(|m| crate::record_check::awaits_endpoint(m, &plan.target_endpoint))
-            });
-            awaits = found.len() < before && found.is_empty();
-        }
-        if awaits {
-            verdict["awaits"] = json!(format!(
-                "Endpoint {} is drafted with the pipeline: its write is checked once both are approved",
-                plan.target_endpoint
-            ));
-        }
+        let (verdict, awaits) = without_awaited(verdict, &plan);
         // A red test the model can act on goes back to it; a test that could not run at all (no
         // runner) is shown on the card, as before.
         let red = verdict.get("ok").and_then(Value::as_bool) == Some(false)
@@ -729,6 +702,37 @@ impl Driver {
             }
         }
     }
+}
+
+/// The verdict without what it says of the indicator space's Endpoint drafted beside the
+/// pipeline, which exists once both are approved, and whether that was all it found: every test
+/// said so of a new space (T-6532, live walk T-6490 S-36). What else it finds stays red.
+fn without_awaited(mut verdict: Value, plan: &kpi_pipeline::Plan) -> (Value, bool) {
+    let awaited = plan
+        .space_drafts
+        .iter()
+        .any(|d| d.kind == "Endpoint" && d.name == plan.target_endpoint);
+    let Some(found) = verdict
+        .get_mut("findings")
+        .and_then(Value::as_array_mut)
+        .filter(|_| awaited)
+    else {
+        return (verdict, false);
+    };
+    let before = found.len();
+    found.retain(|f| {
+        !f.get("message")
+            .and_then(Value::as_str)
+            .is_some_and(|m| crate::record_check::awaits_endpoint(m, &plan.target_endpoint))
+    });
+    let awaits = found.len() < before && found.is_empty();
+    if awaits {
+        verdict["awaits"] = json!(format!(
+            "Endpoint {} is drafted with the pipeline: its write is checked once both are approved",
+            plan.target_endpoint
+        ));
+    }
+    (verdict, awaits)
 }
 
 /// Drops `trace` from every draft's verdict of a `space_complete` output (T-0891).
