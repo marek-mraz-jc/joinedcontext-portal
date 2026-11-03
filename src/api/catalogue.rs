@@ -1720,7 +1720,7 @@ pub(crate) async fn get_map(
             .await
             .ok_or_else(no_map)?;
         let gateway = gateway_endpoint(&state, &slug);
-        let class = mapped_class(classes, served(&gateway).await.as_deref()).ok_or_else(no_map)?;
+        let class = mapped_class(classes, &served(&gateway).await).ok_or_else(no_map)?;
         let (total, entities) = located(&gateway, &class).await.map_err(|reason| {
             tracing::warn!(dataset = %name, %reason, "catalogue map failed");
             ApiError::Unavailable(format!(
@@ -1750,37 +1750,40 @@ fn map_lang(lang: Option<String>) -> Result<String, ApiError> {
     Ok(lang)
 }
 
-/// The entity types the Endpoint at `endpoint` serves, as its `/types` lists them: its Policy can
-/// narrow the space's model to one class (T-6540); `None` when it did not answer.
-async fn served(endpoint: &str) -> Option<Vec<String>> {
-    let response = HTTP
+/// The class a dataset's map draws: the first model class its Endpoint serves. A space model
+/// holds every class of the space while an Endpoint's Policy narrows it to one slice, so the first
+/// model class drew an empty map for every Endpoint but the first (T-6539). The model's first
+/// class stays when the Endpoint lists none it knows.
+fn mapped_class(classes: Vec<String>, served: &[String]) -> Option<String> {
+    classes
+        .iter()
+        .find(|class| served.contains(class))
+        .or(classes.first())
+        .cloned()
+}
+
+/// The types the Endpoint at `endpoint` lists to an anonymous reader; empty when it did not answer.
+async fn served(endpoint: &str) -> Vec<String> {
+    let Ok(response) = HTTP
         .get(format!("{endpoint}ngsi-ld/v1/types"))
         .header(header::ACCEPT, "application/json")
         .send()
         .await
-        .ok()?;
-    if !response.status().is_success() {
-        return None;
-    }
-    let list: Value = crate::capped::json(response, crate::capped::ANSWER_BYTES)
-        .await
-        .ok()?;
-    Some(
-        list["typeList"]
-            .as_array()?
-            .iter()
-            .filter_map(|t| t.as_str().map(str::to_owned))
-            .collect(),
-    )
-}
-
-/// The class a dataset's map draws: the first model class the Endpoint serves, else the model's
-/// first class (an Endpoint that lists no type of the model, or did not answer).
-fn mapped_class(classes: Vec<String>, served: Option<&[String]>) -> Option<String> {
-    let first = classes.first().cloned();
-    served
-        .and_then(|served| classes.into_iter().find(|class| served.contains(class)))
-        .or(first)
+    else {
+        return Vec::new();
+    };
+    let list: Value = match response.error_for_status() {
+        Ok(ok) => crate::capped::json(ok, crate::capped::ANSWER_BYTES)
+            .await
+            .unwrap_or_default(),
+        Err(_) => return Vec::new(),
+    };
+    list["typeList"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|name| name.as_str().map(str::to_owned))
+        .collect()
 }
 
 /// Up to [`MAP_ROWS`] keyValues entities of `class` from the Endpoint at `endpoint`, read
@@ -2614,60 +2617,6 @@ classes:
         }
     }
 
-    #[test]
-    fn the_map_draws_the_first_class_the_endpoint_serves() {
-        let classes = || {
-            ["OffStreetParking", "Vehicle", "TrafficFlowObserved"]
-                .map(String::from)
-                .to_vec()
-        };
-        let served = ["TrafficFlowObserved".to_owned()];
-        assert_eq!(
-            mapped_class(classes(), Some(&served)).as_deref(),
-            Some("TrafficFlowObserved"),
-            "an Endpoint whose Policy keeps one class maps that class, not the model's first"
-        );
-        assert_eq!(
-            mapped_class(classes(), Some(&[])).as_deref(),
-            Some("OffStreetParking")
-        );
-        assert_eq!(
-            mapped_class(classes(), None).as_deref(),
-            Some("OffStreetParking")
-        );
-        assert_eq!(
-            mapped_class(Vec::new(), Some(&served)),
-            None,
-            "a type outside the model is no class"
-        );
-    }
-
-    #[tokio::test]
-    async fn the_served_types_are_the_endpoints_type_list() {
-        use wiremock::matchers::{method, path};
-        use wiremock::{Mock, MockServer, ResponseTemplate};
-        let server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/ngsi-ld/v1/types"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
-                "id": "urn:ngsi-ld:EntityTypeList:1",
-                "type": "EntityTypeList",
-                "typeList": ["TrafficFlowObserved"]
-            })))
-            .mount(&server)
-            .await;
-        let base = format!("{}/", server.uri());
-        assert_eq!(
-            served(&base).await,
-            Some(vec!["TrafficFlowObserved".to_owned()])
-        );
-        assert_eq!(
-            served("http://localhost:9/").await,
-            None,
-            "a closed port lists nothing"
-        );
-    }
-
     #[tokio::test]
     async fn two_map_reads_in_the_window_build_the_map_once() {
         let builds = std::sync::atomic::AtomicUsize::new(0);
@@ -2691,6 +2640,51 @@ classes:
             .await
             .expect("a failure is not kept");
         assert_eq!(builds.load(std::sync::atomic::Ordering::SeqCst), 3);
+    }
+
+    #[test]
+    fn a_map_draws_the_first_class_its_endpoint_serves() {
+        let classes = || {
+            vec![
+                "AirQualityObserved".to_owned(),
+                "StreetFurniture".to_owned(),
+            ]
+        };
+        assert_eq!(
+            mapped_class(classes(), &["StreetFurniture".to_owned()]).as_deref(),
+            Some("StreetFurniture"),
+            "the space model's first class is not the Endpoint's"
+        );
+        assert_eq!(
+            mapped_class(classes(), &[]).as_deref(),
+            Some("AirQualityObserved"),
+            "an Endpoint that lists nothing keeps the model's first class"
+        );
+        assert_eq!(mapped_class(Vec::new(), &["Tree".to_owned()]), None);
+    }
+
+    #[tokio::test]
+    async fn the_served_types_are_the_endpoints_type_list() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+        let gateway = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/ngsi-ld/v1/types"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "id": "urn:ngsi-ld:EntityTypeList:1",
+                "type": "EntityTypeList",
+                "typeList": ["StreetFurniture"]
+            })))
+            .mount(&gateway)
+            .await;
+        assert_eq!(
+            served(&format!("{}/", gateway.uri())).await,
+            vec!["StreetFurniture"]
+        );
+        assert!(
+            served("http://localhost:9/").await.is_empty(),
+            "no answer serves nothing"
+        );
     }
 
     #[tokio::test]

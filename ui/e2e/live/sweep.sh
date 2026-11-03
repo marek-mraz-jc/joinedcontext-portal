@@ -22,8 +22,9 @@ cd "$ui" || exit 2
 # and deletes a project, whose name stays reserved for 30 days, so it is nightly too (T-2746).
 # clips_* are recording tools, run by hand with the line in T-6454: each run records videos nobody
 # reads and leaves revoked connectors on demo.editor, and they can run a branch's UI against dev.
-# open-data-times is a measuring tool run by hand (T-6540): it opens every dataset page twice.
-spending='/(excel_assistant|assistant-paths|assistant-evals|app-generated-full|build-samples|readiness-app|readiness-project|app-probe|clips_[^/]*|open-data-times)\.spec\.ts$'
+# open-data-speed times every dataset page of two publishers at two widths (about an hour of
+# anonymous reads, T-6539): a measurement run by hand with the line in its header.
+spending='/(excel_assistant|assistant-paths|assistant-evals|app-generated-full|build-samples|readiness-app|readiness-project|app-probe|open-data-speed|clips_[^/]*)\.spec\.ts$'
 # SWEEP_SKIP, an extra regex over the same paths, leaves more out: the release gate (T-5899) skips the
 # critic-* walks, which record shots for the UI critic tasks and took 1,619 s of its first hour.
 skip=${SWEEP_SKIP:-'^$'}
