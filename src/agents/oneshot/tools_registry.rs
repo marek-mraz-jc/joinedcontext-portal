@@ -190,10 +190,6 @@ answer:
 {{ "tool": "jc_ask", "arguments": {{ "question": "Which unit?", "options": ["µg/m³", "ppm"], "default": "µg/m³" }} }}
 ```
 
-```json
-{{ "tool": "jc_ask", "arguments": {{ "question": "Where can I read the stations?", "input": ["file", "url"] }} }}
-```
-
 A call that is refused answers with the reason; correct it and call again. Nothing here writes
 context data or approves anything on the person's behalf: an operation that changes the
 configuration leaves a draft or a Change for the person to approve.
