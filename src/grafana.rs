@@ -106,7 +106,16 @@ impl Visualization {
     }
 }
 
-type Row = (String, String, String, String, String, String, String, String);
+type Row = (
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+    String,
+);
 
 fn of_row(row: Row) -> Option<Visualization> {
     let (id, project, title, endpoint, entity_type, attribute, kind, created_at) = row;
@@ -233,7 +242,12 @@ impl<'a> Client<'a> {
         Self { config }
     }
 
-    fn request(&self, method: reqwest::Method, path: &str, org: Option<i64>) -> reqwest::RequestBuilder {
+    fn request(
+        &self,
+        method: reqwest::Method,
+        path: &str,
+        org: Option<i64>,
+    ) -> reqwest::RequestBuilder {
         let request = HTTP
             .request(method, format!("{}/api{path}", self.config.url))
             .basic_auth(&self.config.user, Some(&self.config.password));
@@ -254,7 +268,9 @@ impl<'a> Client<'a> {
         if answer.status() == reqwest::StatusCode::NOT_FOUND {
             return Ok(None);
         }
-        let answer = answer.error_for_status().map_err(|err| unreachable(what, err))?;
+        let answer = answer
+            .error_for_status()
+            .map_err(|err| unreachable(what, err))?;
         let org: Value = answer.json().await.map_err(|err| unreachable(what, err))?;
         org["id"]
             .as_i64()
@@ -328,7 +344,11 @@ impl<'a> Client<'a> {
     /// Whether the dashboard `uid` is in the organization.
     async fn holds(&self, org: i64, uid: &str) -> Result<bool, ApiError> {
         let answer = self
-            .request(reqwest::Method::GET, &format!("/dashboards/uid/{uid}"), Some(org))
+            .request(
+                reqwest::Method::GET,
+                &format!("/dashboards/uid/{uid}"),
+                Some(org),
+            )
             .send()
             .await
             .map_err(|err| unreachable("reading a dashboard", err))?;
@@ -342,7 +362,11 @@ impl<'a> Client<'a> {
     /// Takes the dashboard out; one already gone is fine.
     pub async fn remove(&self, org: i64, uid: &str) -> Result<(), ApiError> {
         let answer = self
-            .request(reqwest::Method::DELETE, &format!("/dashboards/uid/{uid}"), Some(org))
+            .request(
+                reqwest::Method::DELETE,
+                &format!("/dashboards/uid/{uid}"),
+                Some(org),
+            )
             .send()
             .await
             .map_err(|err| unreachable("removing the dashboard", err))?;
@@ -492,7 +516,11 @@ pub async fn push(
 }
 
 /// Puts one visualization back when Grafana lost it. An Endpoint since removed stays out.
-async fn restore(state: &AppState, client: &Client<'_>, row: &Visualization) -> Result<(), ApiError> {
+async fn restore(
+    state: &AppState,
+    client: &Client<'_>,
+    row: &Visualization,
+) -> Result<(), ApiError> {
     let Some(endpoint) = state.mirror.get(&row.project, "Endpoint", &row.endpoint) else {
         return Ok(());
     };
@@ -507,7 +535,9 @@ async fn restore(state: &AppState, client: &Client<'_>, row: &Visualization) -> 
         slug: endpoint.spec["slug"].as_str().unwrap_or_default(),
         public: endpoint.spec["audience"] == "public",
     };
-    let space = endpoint.spec["contextSpaceRef"].as_str().unwrap_or_default();
+    let space = endpoint.spec["contextSpaceRef"]
+        .as_str()
+        .unwrap_or_default();
     if push(state, client, org, row, &source, space).await? {
         tracing::info!(uid = %row.uid(), project = %row.project, "a visualization was put back in Grafana");
     }
@@ -602,13 +632,22 @@ mod tests {
         assert!(map["panels"][0]["targets"][0].get("entityName").is_none());
 
         let table = dashboard_of(&row(Kind::Table), "air", true);
-        assert_eq!(table["panels"][0]["targets"][0]["attributes"], json!(["name", "pm25"]));
-        assert_eq!(dashboard_of(&row(Kind::Stat), "air", true)["panels"][0]["type"], "stat");
+        assert_eq!(
+            table["panels"][0]["targets"][0]["attributes"],
+            json!(["name", "pm25"])
+        );
+        assert_eq!(
+            dashboard_of(&row(Kind::Stat), "air", true)["panels"][0]["type"],
+            "stat"
+        );
 
         assert_eq!(series["editable"], false);
         assert_eq!(series["uid"], "pv-ab12");
         let text = series.to_string();
-        assert!(!text.contains("oken") && !text.contains("assword"), "{text}");
+        assert!(
+            !text.contains("oken") && !text.contains("assword"),
+            "{text}"
+        );
     }
 
     #[test]

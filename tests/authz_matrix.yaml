@@ -515,11 +515,11 @@ routes:
   - route: POST /projects/{project}/grafana
     rule: "propose on Dashboard and read on the Endpoint"
     note: "a body the fixture lacks answers 400 for those the rule allows"
-    expect: [403, 403, allow, allow, 403, allow, 404, 403]
+    expect: [403, 403, 403, allow, 403, allow, 404, 403]
   - route: DELETE /projects/{project}/grafana/{id}
     rule: "propose on Dashboard"
     note: "no such row in the fixture"
-    expect: [403, 403, allow, allow, 403, allow, 404, 403]
+    expect: [403, 403, 403, allow, 403, allow, 404, 403]
   - route: GET /projects/{project}/activity
     rule: "project-read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

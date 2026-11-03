@@ -10,11 +10,13 @@ pub use crate::auth::client_auth::ClientAuth;
 /// Where the project's Grafana is and who the Portal is to it (T-6509).
 #[derive(Clone)]
 pub struct GrafanaConfig {
-    /// The server inside the cluster, with its path prefix.
+    /// The server inside the cluster, with its path prefix (`JC_PORTAL_GRAFANA_URL`).
     pub url: String,
-    /// The same server as a person's browser reaches it.
+    /// The same server as a person's browser reaches it (`JC_PORTAL_GRAFANA_PUBLIC_URL`).
     pub public_url: String,
+    /// Grafana's local administrator (`JC_PORTAL_GRAFANA_USER`).
     pub user: String,
+    /// Its password (`JC_PORTAL_GRAFANA_PASSWORD`), which leaves the Portal only to Grafana.
     pub password: String,
 }
 
@@ -2956,6 +2958,24 @@ mod tests {
         match err {
             ConfigError::Invalid { var, .. } => assert_eq!(var, "JC_PORTAL_SYNC_INTERVAL"),
         }
+    }
+
+    /// T-6509: Grafana is all four variables or none, and its password never prints.
+    #[test]
+    fn grafana_is_all_of_its_variables_or_none() {
+        let all = |name: &str| match name {
+            "JC_PORTAL_GRAFANA_URL" => Some("http://grafana:3000/grafana/".to_owned()),
+            "JC_PORTAL_GRAFANA_PUBLIC_URL" => Some("https://dev.example/grafana".to_owned()),
+            "JC_PORTAL_GRAFANA_USER" => Some("admin".to_owned()),
+            "JC_PORTAL_GRAFANA_PASSWORD" => Some("a-password".to_owned()),
+            _ => None,
+        };
+        let config = grafana_config(&all).expect("valid").expect("configured");
+        assert_eq!(config.url, "http://grafana:3000/grafana");
+        assert!(!format!("{config:?}").contains("a-password"));
+        assert!(grafana_config(&|_| None).expect("valid").is_none());
+        let half = |name: &str| all(name).filter(|_| name != "JC_PORTAL_GRAFANA_PASSWORD");
+        assert!(grafana_config(&half).is_err());
     }
 
     /// T-0411, AP-18: a Portal deploys an app only when it is told where. Guessing a namespace

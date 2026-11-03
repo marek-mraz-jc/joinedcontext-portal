@@ -25,9 +25,12 @@ const PUBLIC_SLUG: &str = "jtjnhkaau64zmzz5csmcwem52icvufy2";
 const PASSWORD: &str = "the-administrators-password";
 
 fn role(state: &AppState, name: &str, rules: Value) {
-    state
-        .mirror
-        .upsert(envelope("Role", name, ORG_NAMESPACE, json!({ "rules": rules })));
+    state.mirror.upsert(envelope(
+        "Role",
+        name,
+        ORG_NAMESPACE,
+        json!({ "rules": rules }),
+    ));
 }
 
 fn binding(state: &AppState, who: &str, role: &str, scope: Value) {
@@ -59,7 +62,12 @@ fn world(grafana: Option<&MockServer>) -> AppState {
     for (name, space, slug, audience) in [
         ("bikes-closed", "bikes", CLOSED_SLUG, "private"),
         ("bikes-open", "bikes", PUBLIC_SLUG, "public"),
-        ("air-closed", "air", "ydp6nddchg4sewmylsiclg4377mlldrj", "private"),
+        (
+            "air-closed",
+            "air",
+            "ydp6nddchg4sewmylsiclg4377mlldrj",
+            "private",
+        ),
     ] {
         state.mirror.upsert(envelope(
             "Endpoint",
@@ -77,7 +85,11 @@ fn world(grafana: Option<&MockServer>) -> AppState {
     );
     binding(&state, "vera", "reader", json!({ "project": PROJECT }));
     binding(&state, "eva", "drafter", json!({ "project": PROJECT }));
-    role(&state, "dashboards", json!([{ "kinds": ["Dashboard"], "verbs": ["propose"] }]));
+    role(
+        &state,
+        "dashboards",
+        json!([{ "kinds": ["Dashboard"], "verbs": ["propose"] }]),
+    );
     binding(&state, "zoe", "reader", json!({ "contextSpace": "bikes" }));
     binding(&state, "zoe", "dashboards", json!({ "project": PROJECT }));
     binding(&state, "ola", "drafter", json!({ "project": "bbsk" }));
@@ -108,7 +120,9 @@ async fn grafana_with_organization() -> MockServer {
     let server = MockServer::start().await;
     Mock::given(method("GET"))
         .and(path("/grafana/api/orgs/name/helsinki"))
-        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "id": 2, "name": "helsinki" })))
+        .respond_with(
+            ResponseTemplate::new(200).set_body_json(json!({ "id": 2, "name": "helsinki" })),
+        )
         .mount(&server)
         .await;
     Mock::given(method("GET"))
@@ -159,7 +173,9 @@ async fn a_project_without_grafana_says_so_and_a_save_is_refused_with_the_reason
     let page = send(&state, person("eva"), "GET", PAGE, None).await;
     assert_eq!(page.status, StatusCode::OK);
     assert_eq!(body(&page)["ready"], false);
-    assert!(body(&page)["reason"].as_str().is_some_and(|why| why.contains("not set up")));
+    assert!(body(&page)["reason"]
+        .as_str()
+        .is_some_and(|why| why.contains("not set up")));
     assert_eq!(body(&page)["mayCreate"], true);
 }
 
@@ -174,7 +190,9 @@ async fn a_project_grafana_does_not_hold_says_who_can_add_it() {
     let state = world(Some(&server));
     let page = send(&state, person("eva"), "GET", PAGE, None).await;
     assert_eq!(body(&page)["ready"], false);
-    assert!(body(&page)["reason"].as_str().is_some_and(|why| why.contains("grafana.projects")));
+    assert!(body(&page)["reason"]
+        .as_str()
+        .is_some_and(|why| why.contains("operator")));
 }
 
 #[tokio::test]
@@ -204,17 +222,38 @@ async fn the_dropdowns_offer_only_what_the_person_may_read() {
             .collect()
     };
 
-    let all = send(&state, person("eva"), "GET", &format!("{PAGE}/options"), None).await;
-    assert_eq!(names(&body(&all)), ["air-closed", "bikes-closed", "bikes-open"]);
+    let all = send(
+        &state,
+        person("eva"),
+        "GET",
+        &format!("{PAGE}/options"),
+        None,
+    )
+    .await;
+    assert_eq!(
+        names(&body(&all)),
+        ["air-closed", "bikes-closed", "bikes-open"]
+    );
     let usable: Vec<bool> = body(&all)["endpoints"]
         .as_array()
         .expect("a list")
         .iter()
         .map(|option| option["usable"] == true)
         .collect();
-    assert_eq!(usable, [false, true, true], "a closed Endpoint without a datasource is not usable");
+    assert_eq!(
+        usable,
+        [false, true, true],
+        "a closed Endpoint without a datasource is not usable"
+    );
 
-    let one_space = send(&state, person("zoe"), "GET", &format!("{PAGE}/options"), None).await;
+    let one_space = send(
+        &state,
+        person("zoe"),
+        "GET",
+        &format!("{PAGE}/options"),
+        None,
+    )
+    .await;
     assert_eq!(names(&body(&one_space)), ["bikes-closed", "bikes-open"]);
 
     let hidden = send(
@@ -245,7 +284,10 @@ async fn the_dropdowns_offer_only_what_the_person_may_read() {
             .find(|attribute| attribute["name"] == name)
             .map(|attribute| attribute["kinds"].clone())
     };
-    assert_eq!(kinds_of("availableBikeNumber"), Some(json!(["timeseries", "stat", "table"])));
+    assert_eq!(
+        kinds_of("availableBikeNumber"),
+        Some(json!(["timeseries", "stat", "table"]))
+    );
     assert_eq!(kinds_of("location"), Some(json!(["table", "map"])));
     assert_eq!(kinds_of("refOwner"), None, "a link draws nothing");
 }
@@ -274,7 +316,14 @@ async fn a_reader_may_look_and_may_not_save_or_remove() {
     assert_eq!(body(&page)["mayCreate"], false);
     let saved = send(&state, person("vera"), "POST", PAGE, Some(asked(json!({})))).await;
     assert_eq!(saved.status, StatusCode::FORBIDDEN);
-    let removed = send(&state, person("vera"), "DELETE", &format!("{PAGE}/abc"), None).await;
+    let removed = send(
+        &state,
+        person("vera"),
+        "DELETE",
+        &format!("{PAGE}/abc"),
+        None,
+    )
+    .await;
     assert_eq!(removed.status, StatusCode::FORBIDDEN);
     assert!(writes_of(&server).await.is_empty());
 }
@@ -284,28 +333,121 @@ async fn each_field_is_checked_again_on_the_save() {
     let server = grafana_with_organization().await;
     let state = world(Some(&server));
     for (who, overrides, status, field, message) in [
-        ("eva", json!({ "title": "  " }), StatusCode::UNPROCESSABLE_ENTITY, "title", "1 to 120"),
-        ("eva", json!({ "title": "x".repeat(121) }), StatusCode::UNPROCESSABLE_ENTITY, "title", "1 to 120"),
-        ("eva", json!({ "title": "ghp_0123456789abcdefghijklmnopqrstuvwxyz" }), StatusCode::UNPROCESSABLE_ENTITY, "title", "credential"),
-        ("eva", json!({ "endpoint": "no-such" }), StatusCode::FORBIDDEN, "endpoint", "choose one from the list"),
-        ("zoe", json!({ "endpoint": "air-closed" }), StatusCode::FORBIDDEN, "endpoint", "choose one from the list"),
-        ("eva", json!({ "endpoint": "air-closed" }), StatusCode::UNPROCESSABLE_ENTITY, "endpoint", "pins no data model"),
-        ("eva", json!({ "type": "Ship" }), StatusCode::UNPROCESSABLE_ENTITY, "type", "choose one from the list"),
-        ("eva", json!({ "attribute": "secretNote" }), StatusCode::UNPROCESSABLE_ENTITY, "attribute", "choose one from the list"),
-        ("eva", json!({ "attribute": "location", "kind": "stat" }), StatusCode::UNPROCESSABLE_ENTITY, "kind", "choose another kind"),
-        ("eva", json!({ "attribute": "availableBikeNumber", "kind": "map" }), StatusCode::UNPROCESSABLE_ENTITY, "kind", "choose another kind"),
-        ("eva", json!({ "attribute": "name" }), StatusCode::UNPROCESSABLE_ENTITY, "kind", "choose another kind"),
+        (
+            "eva",
+            json!({ "title": "  " }),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "title",
+            "1 to 120",
+        ),
+        (
+            "eva",
+            json!({ "title": "x".repeat(121) }),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "title",
+            "1 to 120",
+        ),
+        (
+            "eva",
+            json!({ "title": "ghp_0123456789abcdefghijklmnopqrstuvwxyz" }),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "title",
+            "credential",
+        ),
+        (
+            "eva",
+            json!({ "endpoint": "no-such" }),
+            StatusCode::FORBIDDEN,
+            "endpoint",
+            "choose one from the list",
+        ),
+        (
+            "zoe",
+            json!({ "endpoint": "air-closed" }),
+            StatusCode::FORBIDDEN,
+            "endpoint",
+            "choose one from the list",
+        ),
+        (
+            "eva",
+            json!({ "endpoint": "air-closed" }),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "endpoint",
+            "pins no data model",
+        ),
+        (
+            "eva",
+            json!({ "type": "Ship" }),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "type",
+            "choose one from the list",
+        ),
+        (
+            "eva",
+            json!({ "attribute": "secretNote" }),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "attribute",
+            "choose one from the list",
+        ),
+        (
+            "eva",
+            json!({ "attribute": "location", "kind": "stat" }),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "kind",
+            "choose another kind",
+        ),
+        (
+            "eva",
+            json!({ "attribute": "availableBikeNumber", "kind": "map" }),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "kind",
+            "choose another kind",
+        ),
+        (
+            "eva",
+            json!({ "attribute": "name" }),
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "kind",
+            "choose another kind",
+        ),
     ] {
-        let answer = send(&state, person(who), "POST", PAGE, Some(asked(overrides.clone()))).await;
+        let answer = send(
+            &state,
+            person(who),
+            "POST",
+            PAGE,
+            Some(asked(overrides.clone())),
+        )
+        .await;
         assert_eq!(answer.status, status, "{overrides}: {}", answer.text);
         let text = answer.text.clone();
-        assert!(text.contains(field) && text.contains(message), "{overrides}: {text}");
+        assert!(
+            text.contains(field) && text.contains(message),
+            "{overrides}: {text}"
+        );
     }
-    let unknown = send(&state, person("eva"), "POST", PAGE, Some(asked(json!({ "folder": "x" })))).await;
+    let unknown = send(
+        &state,
+        person("eva"),
+        "POST",
+        PAGE,
+        Some(asked(json!({ "folder": "x" }))),
+    )
+    .await;
     assert_eq!(unknown.status, StatusCode::BAD_REQUEST);
-    let kind = send(&state, person("eva"), "POST", PAGE, Some(asked(json!({ "kind": "pie" })))).await;
+    let kind = send(
+        &state,
+        person("eva"),
+        "POST",
+        PAGE,
+        Some(asked(json!({ "kind": "pie" }))),
+    )
+    .await;
     assert_eq!(kind.status, StatusCode::BAD_REQUEST);
-    assert!(writes_of(&server).await.is_empty(), "nothing reached Grafana");
+    assert!(
+        writes_of(&server).await.is_empty(),
+        "nothing reached Grafana"
+    );
 }
 
 /// The two tests below share the table.
@@ -319,8 +461,13 @@ async fn database() -> Option<sqlx::PgPool> {
         eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
         return None;
     };
-    let pool = sqlx::PgPool::connect(&url).await.expect("the test database");
-    sqlx::migrate!("./migrations").run(&pool).await.expect("migrations");
+    let pool = sqlx::PgPool::connect(&url)
+        .await
+        .expect("the test database");
+    sqlx::migrate!("./migrations")
+        .run(&pool)
+        .await
+        .expect("migrations");
     sqlx::query("DELETE FROM grafana_visualizations")
         .execute(&pool)
         .await
@@ -342,12 +489,16 @@ async fn mount_saves(server: &MockServer) {
             .await;
     }
     Mock::given(method("GET"))
-        .and(wiremock::matchers::path_regex("^/grafana/api/dashboards/uid/"))
+        .and(wiremock::matchers::path_regex(
+            "^/grafana/api/dashboards/uid/",
+        ))
         .respond_with(ResponseTemplate::new(404))
         .mount(server)
         .await;
     Mock::given(method("DELETE"))
-        .and(wiremock::matchers::path_regex("^/grafana/api/dashboards/uid/"))
+        .and(wiremock::matchers::path_regex(
+            "^/grafana/api/dashboards/uid/",
+        ))
         .respond_with(ResponseTemplate::new(200).set_body_json(json!({})))
         .mount(server)
         .await;
@@ -383,8 +534,7 @@ async fn a_save_lands_in_the_project_folder_comes_back_after_a_restart_and_can_b
     let dashboards = bodies_to(&requests, "/grafana/api/dashboards/db");
     assert_eq!(dashboards[0]["folderUid"], "project-helsinki");
     assert_eq!(
-        dashboards[0]["dashboard"]["panels"][0]["datasource"]["uid"],
-        "bikes-closed",
+        dashboards[0]["dashboard"]["panels"][0]["datasource"]["uid"], "bikes-closed",
         "a closed Endpoint reads through the datasource that forwards the person's token"
     );
     assert!(bodies_to(&requests, "/grafana/api/datasources").is_empty());
@@ -403,7 +553,14 @@ async fn a_save_lands_in_the_project_folder_comes_back_after_a_restart_and_can_b
         "the sweep puts back the dashboard Grafana lost"
     );
 
-    let removed = send(&state, person("eva"), "DELETE", &format!("{PAGE}/{id}"), None).await;
+    let removed = send(
+        &state,
+        person("eva"),
+        "DELETE",
+        &format!("{PAGE}/{id}"),
+        None,
+    )
+    .await;
     assert_eq!(removed.status, StatusCode::NO_CONTENT);
     let empty = send(&state, person("eva"), "GET", PAGE, None).await;
     assert_eq!(body(&empty)["items"], json!([]));
@@ -435,7 +592,7 @@ async fn a_public_endpoint_gets_an_anonymous_datasource_and_a_closed_one_without
     )
     .await;
     assert_eq!(closed.status, StatusCode::UNPROCESSABLE_ENTITY);
-    assert!(closed.text.clone().contains("grafana.projects"));
+    assert!(closed.text.clone().contains("operator"));
 
     let open = send(
         &state,
@@ -449,6 +606,9 @@ async fn a_public_endpoint_gets_an_anonymous_datasource_and_a_closed_one_without
     let requests = server.received_requests().await.expect("recorded");
     let sources = bodies_to(&requests, "/grafana/api/datasources");
     assert_eq!(sources.len(), 1);
-    assert_eq!(sources[0]["url"], format!("http://gateway:8080/api/endpoint/{PUBLIC_SLUG}"));
+    assert_eq!(
+        sources[0]["url"],
+        format!("http://gateway:8080/api/endpoint/{PUBLIC_SLUG}")
+    );
     assert!(sources[0]["jsonData"].get("oauthPassThru").is_none());
 }

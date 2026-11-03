@@ -12017,6 +12017,336 @@
         }
       }
     },
+    "/api/v1/projects/{project}/grafana": {
+      "get": {
+        "tags": [
+          "grafana"
+        ],
+        "summary": "List Grafana Visualizations",
+        "description": "The visualizations saved into the project's Grafana folder whose Endpoint the caller may read, and whether Grafana is ready for the project. Changes no data.",
+        "operationId": "grafana_page",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrafanaPage"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project the caller has a part in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "grafana"
+        ],
+        "summary": "Save A Grafana Visualization",
+        "description": "Saves one visualization of an Endpoint into the project's Grafana folder. Needs propose on Dashboard and read on the Endpoint. A closed Endpoint needs its datasource from the deployment; a public one gets an anonymous datasource here. A panel reads as whoever opens it.",
+        "operationId": "save_visualization",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NewVisualization"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VisualizationItem"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A body that does not parse",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not save dashboards, or may not read the Endpoint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project the caller has a part in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Grafana is not set up for the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "A field names what the page does not offer; the errors name it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Grafana or the database did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/grafana/options": {
+      "get": {
+        "tags": [
+          "grafana"
+        ],
+        "summary": "Read Grafana Form Options",
+        "description": "What the visualization form may offer the caller: the Endpoints they may read, the types of the chosen Endpoint's model and the attributes of the chosen type, each with the visualization kinds that can draw it. Changes no data.",
+        "operationId": "grafana_options",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "endpoint",
+            "in": "query",
+            "description": "The Endpoint chosen so far: the answer then lists its types.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "type",
+            "in": "query",
+            "description": "The type chosen so far: the answer then lists its attributes.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The options",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GrafanaOptions"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "An unknown query parameter",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project, or an Endpoint the caller may not read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/grafana/{id}": {
+      "delete": {
+        "tags": [
+          "grafana"
+        ],
+        "summary": "Remove A Grafana Visualization",
+        "description": "Takes one saved visualization out of the project's Grafana folder. Needs propose on Dashboard.",
+        "operationId": "remove_visualization",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "description": "The visualization",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Removed"
+          },
+          "401": {
+            "description": "Not signed in",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not change dashboards",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such project or visualization",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Grafana is not set up for the project",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Grafana or the database did not answer",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/health-checks": {
       "get": {
         "tags": [
@@ -40987,6 +41317,25 @@
           }
         }
       },
+      "AttributeOption": {
+        "type": "object",
+        "description": "One attribute and what can draw it.",
+        "required": [
+          "name",
+          "kinds"
+        ],
+        "properties": {
+          "kinds": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Kind"
+            }
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
       "AttributeQuality": {
         "type": "object",
         "description": "One attribute of one type: how many entities carry it and, for numbers, their range and the\nvalues far outside the rest.",
@@ -45041,6 +45390,35 @@
         },
         "additionalProperties": false
       },
+      "EndpointOption": {
+        "type": "object",
+        "description": "One Endpoint the caller may read.",
+        "required": [
+          "name",
+          "title",
+          "slug",
+          "public",
+          "usable"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "public": {
+            "type": "boolean"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "usable": {
+            "type": "boolean",
+            "description": "Grafana can read it: public, or its slug is in the project's datasources."
+          }
+        }
+      },
       "EndpointStandards": {
         "type": "object",
         "description": "What a public Endpoint's page shows under \"Standards\".",
@@ -46000,6 +46378,68 @@
           }
         }
       },
+      "GrafanaOptions": {
+        "type": "object",
+        "description": "What the form's dropdowns may offer this person now.",
+        "required": [
+          "endpoints",
+          "types",
+          "attributes"
+        ],
+        "properties": {
+          "attributes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttributeOption"
+            }
+          },
+          "endpoints": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EndpointOption"
+            }
+          },
+          "types": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "GrafanaPage": {
+        "type": "object",
+        "description": "The project's page.",
+        "required": [
+          "ready",
+          "mayCreate",
+          "items"
+        ],
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VisualizationItem"
+            },
+            "description": "Those whose Endpoint the caller may read, newest first."
+          },
+          "mayCreate": {
+            "type": "boolean",
+            "description": "The caller may save and remove visualizations here."
+          },
+          "ready": {
+            "type": "boolean",
+            "description": "Grafana answers and holds this project's organization."
+          },
+          "reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "What a person reads when it does not."
+          }
+        }
+      },
       "Grant": {
         "type": "object",
         "description": "One rule in force, with the binding and role it came through, so a refusal can be traced.",
@@ -46660,6 +47100,16 @@
           }
         },
         "additionalProperties": false
+      },
+      "Kind": {
+        "type": "string",
+        "description": "What a visualization draws.",
+        "enum": [
+          "timeseries",
+          "stat",
+          "table",
+          "map"
+        ]
       },
       "KpiCheckRequest": {
         "type": "object",
@@ -47560,6 +48010,35 @@
               "null"
             ],
             "description": "The grant's end, RFC 3339; none is no end."
+          }
+        },
+        "additionalProperties": false
+      },
+      "NewVisualization": {
+        "type": "object",
+        "description": "A new visualization.",
+        "required": [
+          "title",
+          "endpoint",
+          "type",
+          "attribute",
+          "kind"
+        ],
+        "properties": {
+          "attribute": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/Kind"
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
           }
         },
         "additionalProperties": false
@@ -53496,6 +53975,49 @@
               "$ref": "#/components/schemas/DataView"
             },
             "description": "The views of the space this caller sees, oldest first."
+          }
+        }
+      },
+      "VisualizationItem": {
+        "type": "object",
+        "description": "One saved visualization.",
+        "required": [
+          "id",
+          "title",
+          "endpoint",
+          "type",
+          "attribute",
+          "kind",
+          "createdAt"
+        ],
+        "properties": {
+          "attribute": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "endpoint": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/Kind"
+          },
+          "openUrl": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where it opens in Grafana; `None` until the organization is known."
+          },
+          "title": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
           }
         }
       },

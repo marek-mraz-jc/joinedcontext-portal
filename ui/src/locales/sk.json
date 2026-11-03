@@ -68,6 +68,7 @@
     "nothingToUndo": "Zatiaľ nie je čo vrátiť."
   },
   "nav": {
+    "grafana": "Grafana",
     "approvalsPending": "{count, plural, one {# zmena čaká na vaše schválenie} few {# zmeny čakajú na vaše schválenie} other {# zmien čaká na vaše schválenie}}",
     "organizationSwitch": "Prepnúť organizáciu, teraz {organization}",
     "organizationLabel": "Organizácie",
@@ -6648,6 +6649,57 @@
     },
     "timing": {
       "both": "Prvý snímok a verzia"
+    }
+  },
+  "grafana": {
+    "title": "Grafana",
+    "lead": "Zobrazte údaje z Endpointu ako graf, číslo, tabuľku alebo mapu a uložte ich do priečinka projektu v Grafane.",
+    "notReadyTitle": "Grafana pre tento projekt ešte nie je pripravená",
+    "readOnly": "Uložené vizualizácie môžete otvárať. Na ukladanie potrebujete rolu, ktorá v tomto projekte navrhuje dashboardy; požiadajte vlastníka projektu.",
+    "kind": {
+      "timeseries": "Časový rad",
+      "stat": "Číslo",
+      "table": "Tabuľka",
+      "map": "Mapa"
+    },
+    "saved": {
+      "title": "Uložené vizualizácie",
+      "reads": "{endpoint}: {type}, {attribute}",
+      "openShort": "Otvoriť v Grafane",
+      "removeShort": "Odstrániť",
+      "open": "Otvoriť {title} v Grafane",
+      "remove": "Odstrániť {title}",
+      "confirm": "Odstrániť z Grafany",
+      "keep": "Ponechať",
+      "emptyTitle": "Zatiaľ nič uložené",
+      "empty": "Vyplňte formulár vyššie a uložte prvú vizualizáciu.",
+      "emptyReader": "Keď niekto v projekte uloží vizualizáciu, zobrazí sa tu."
+    },
+    "form": {
+      "title": "Nová vizualizácia",
+      "endpoint": "Endpoint",
+      "endpointHelp": "Údaje na zobrazenie. V zozname sú Endpointy, ktoré smiete čítať, napríklad kvalita ovzdušia v Helsinkách.",
+      "type": "Typ",
+      "typeHelp": "Čo riadky predstavujú, podľa dátového modelu Endpointu, napríklad AirQualityObserved.",
+      "attribute": "Atribút",
+      "attributeHelp": "Hodnota na zobrazenie, napríklad pm25. Odkazy na iné entity sú vynechané.",
+      "kind": "Vizualizácia",
+      "kindHelp": "Časový rad a Číslo potrebujú číselnú hodnotu, Mapa potrebuje polohu. Tabuľka zoberie akúkoľvek hodnotu.",
+      "name": "Názov",
+      "nameHelp": "Zobrazí sa v Grafane, napríklad PM2.5 podľa staníc.",
+      "choose": "Vyberte…",
+      "notReachable": "Zatiaľ nie sú v Grafane: {names}. Požiadajte operátora o ich pridanie.",
+      "save": "Uložiť do Grafany",
+      "incomplete": "Najprv vyplňte všetky polia.",
+      "saved": "Vizualizácia {title} je uložená v Grafane.",
+      "openSaved": "Otvoriť",
+      "preview": "Náhľad: riadky, ktoré teraz môžete čítať",
+      "previewFailed": "Riadky sa nepodarilo prečítať.",
+      "previewNoRows": "Tento Endpoint zatiaľ nemá riadky tohto typu.",
+      "previewEmptyTitle": "Náhľad",
+      "previewEmpty": "Vyberte Endpoint, typ a atribút a uvidíte riadky, ktoré vizualizácia zobrazí.",
+      "noEndpointsTitle": "Nie je z čoho kresliť",
+      "noEndpoints": "V tomto projekte zatiaľ nesmiete čítať žiadny Endpoint. Požiadajte vlastníka projektu o prístup alebo najprv vytvorte Endpoint."
     }
   },
   "activity": {

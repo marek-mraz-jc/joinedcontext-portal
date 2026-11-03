@@ -10,6 +10,7 @@ use axum::{Json, Router};
 use chrono::{SecondsFormat, Utc};
 use jc_core::kinds::Verb;
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::auth::{CurrentUser, Identity};
@@ -103,6 +104,10 @@ pub struct GrafanaOptions {
 /// A new visualization.
 #[derive(Debug, Deserialize, ToSchema)]
 #[serde(deny_unknown_fields)]
+#[schema(example = json!({
+    "title": "PM2.5 by station", "endpoint": "helsinki-air-quality",
+    "type": "AirQualityObserved", "attribute": "pm25", "kind": "timeseries"
+}))]
 pub struct NewVisualization {
     pub title: String,
     pub endpoint: String,
@@ -147,7 +152,9 @@ fn slug_of(endpoint: &ResourceEnvelope) -> &str {
 }
 
 fn space_of(endpoint: &ResourceEnvelope) -> &str {
-    endpoint.spec["contextSpaceRef"].as_str().unwrap_or_default()
+    endpoint.spec["contextSpaceRef"]
+        .as_str()
+        .unwrap_or_default()
 }
 
 /// An Endpoint of the project the caller may read.
@@ -170,14 +177,18 @@ fn no_grafana() -> String {
 
 fn no_organization(project: &str) -> String {
     format!(
-        "Grafana has no organization for {project} yet; ask your operator to add the project to \
-         the environment's grafana.projects"
+        "Grafana has no organization for {project} yet; ask your operator to add this project to \
+         Grafana"
     )
 }
 
 /// The organization of `project`, or why there is none to write to.
 async fn organization(state: &AppState, project: &str) -> Result<i64, ApiError> {
-    let config = state.config.grafana.as_ref().ok_or_else(|| ApiError::Conflict(no_grafana()))?;
+    let config = state
+        .config
+        .grafana
+        .as_ref()
+        .ok_or_else(|| ApiError::Conflict(no_grafana()))?;
     Client::new(config)
         .organization(project)
         .await?
@@ -185,9 +196,12 @@ async fn organization(state: &AppState, project: &str) -> Result<i64, ApiError> 
 }
 
 fn item(state: &AppState, row: Visualization, org: Option<i64>) -> VisualizationItem {
-    let open_url = state.config.grafana.as_ref().zip(org).map(|(config, org)| {
-        format!("{}/d/{}?orgId={org}", config.public_url, row.uid())
-    });
+    let open_url = state
+        .config
+        .grafana
+        .as_ref()
+        .zip(org)
+        .map(|(config, org)| format!("{}/d/{}?orgId={org}", config.public_url, row.uid()));
     VisualizationItem {
         id: row.id,
         title: row.title,
@@ -213,7 +227,7 @@ fn item(state: &AppState, row: Visualization, org: Option<i64>) -> Visualization
         (status = 404, description = "No such project the caller has a part in", body = ProblemDetails),
     )
 )]
-pub async fn page(
+pub async fn grafana_page(
     user: CurrentUser,
     State(state): State<AppState>,
     Path(project): Path<String>,
@@ -276,7 +290,9 @@ async fn endpoint_options(
                     .metadata
                     .title
                     .as_ref()
-                    .and_then(|title| crate::resource::title_text(&serde_json::to_value(title).ok()?))
+                    .and_then(|title| {
+                        crate::resource::title_text(&serde_json::to_value(title).ok()?)
+                    })
                     .unwrap_or_else(|| endpoint.metadata.name.clone()),
                 slug: slug.to_owned(),
                 public: is_public(endpoint),
@@ -302,7 +318,7 @@ async fn endpoint_options(
         (status = 404, description = "No such project, or an Endpoint the caller may not read", body = ProblemDetails),
     )
 )]
-pub async fn options(
+pub async fn grafana_options(
     user: CurrentUser,
     State(state): State<AppState>,
     Path(project): Path<String>,
@@ -345,14 +361,20 @@ pub async fn options(
 /// The title as it is stored, or the refusal that names it.
 fn title_of(raw: &str) -> Result<&str, ApiError> {
     let title = raw.trim();
-    if title.is_empty() || title.chars().count() > MAX_TITLE || title.chars().any(char::is_control) {
+    if title.is_empty() || title.chars().count() > MAX_TITLE || title.chars().any(char::is_control)
+    {
         return Err(refused(
             "title",
-            format!("give a title of 1 to {MAX_TITLE} characters, for example Air quality by station"),
+            format!(
+                "give a title of 1 to {MAX_TITLE} characters, for example Air quality by station"
+            ),
         ));
     }
     if crate::secret_scan::secret_text(title) {
-        return Err(refused("title", "this title reads like a credential; choose another".into()));
+        return Err(refused(
+            "title",
+            "this title reads like a credential; choose another".into(),
+        ));
     }
     Ok(title)
 }
@@ -365,22 +387,41 @@ fn check_choice(
     new: &NewVisualization,
 ) -> Result<(), ApiError> {
     let model = state.model_schemas.get(project, space).ok_or_else(|| {
-        refused("endpoint", format!("the space {space} pins no data model, so it has nothing to draw"))
+        refused(
+            "endpoint",
+            format!("the space {space} pins no data model, so it has nothing to draw"),
+        )
     })?;
     let class = model.attributes(&new.entity_type).ok_or_else(|| {
-        refused("type", format!("{} is not a type of this Endpoint; choose one from the list", new.entity_type))
+        refused(
+            "type",
+            format!(
+                "{} is not a type of this Endpoint; choose one from the list",
+                new.entity_type
+            ),
+        )
     })?;
     let attribute = class
         .attributes
         .iter()
         .find(|attribute| attribute.name == new.attribute)
         .ok_or_else(|| {
-            refused("attribute", format!("{} has no attribute {}; choose one from the list", new.entity_type, new.attribute))
+            refused(
+                "attribute",
+                format!(
+                    "{} has no attribute {}; choose one from the list",
+                    new.entity_type, new.attribute
+                ),
+            )
         })?;
     if !new.kind.draws(attribute) {
         return Err(refused(
             "kind",
-            format!("a {} cannot draw {}; choose another kind", new.kind.as_str(), new.attribute),
+            format!(
+                "a {} cannot draw {}; choose another kind",
+                new.kind.as_str(),
+                new.attribute
+            ),
         ));
     }
     Ok(())
@@ -405,7 +446,7 @@ fn check_choice(
         (status = 503, description = "Grafana or the database did not answer", body = ProblemDetails),
     )
 )]
-pub async fn create(
+pub async fn save_visualization(
     user: CurrentUser,
     State(state): State<AppState>,
     Path(project): Path<String>,
@@ -415,19 +456,23 @@ pub async fn create(
     effective.check(KIND, Verb::Propose, None)?;
     let Json(new) = body.map_err(|err| ApiError::BadRequest(err.body_text()))?;
     let title = title_of(&new.title)?.to_owned();
-    let endpoint = readable_endpoint(&state, &effective, &project, &new.endpoint).ok_or_else(|| {
-        ApiError::Denied(format!(
+    let endpoint =
+        readable_endpoint(&state, &effective, &project, &new.endpoint).ok_or_else(|| {
+            ApiError::Denied(format!(
             "endpoint: {} is not an Endpoint of {project} you may read; choose one from the list",
             new.endpoint
         ))
-    })?;
+        })?;
     check_choice(&state, &project, space_of(&endpoint), &new)?;
-    let pool = state
-        .db
-        .as_ref()
-        .ok_or_else(|| ApiError::Unavailable("this Portal has no database to keep visualizations in".into()))?;
+    let pool = state.db.as_ref().ok_or_else(|| {
+        ApiError::Unavailable("this Portal has no database to keep visualizations in".into())
+    })?;
     let org = organization(&state, &project).await?;
-    let config = state.config.grafana.as_ref().ok_or_else(|| ApiError::Conflict(no_grafana()))?;
+    let config = state
+        .config
+        .grafana
+        .as_ref()
+        .ok_or_else(|| ApiError::Conflict(no_grafana()))?;
     let client = Client::new(config);
     let row = Visualization {
         id: grafana::new_id(),
@@ -448,8 +493,8 @@ pub async fn create(
         return Err(refused(
             "endpoint",
             format!(
-                "Grafana cannot read the closed Endpoint {} yet; ask your operator to add it to \
-                 the environment's grafana.projects, or choose another",
+                "Grafana cannot read the private Endpoint {} yet; ask your operator to add it to \
+                 this project's Grafana, or choose another",
                 new.endpoint
             ),
         ));
@@ -477,23 +522,26 @@ pub async fn create(
         (status = 503, description = "Grafana or the database did not answer", body = ProblemDetails),
     )
 )]
-pub async fn remove(
+pub async fn remove_visualization(
     user: CurrentUser,
     State(state): State<AppState>,
     Path((project, id)): Path<(String, String)>,
 ) -> Result<StatusCode, ApiError> {
     let effective = member(&state, &user.0.identity, &project)?;
     effective.check(KIND, Verb::Propose, None)?;
-    let pool = state
-        .db
-        .as_ref()
-        .ok_or_else(|| ApiError::Unavailable("this Portal has no database to keep visualizations in".into()))?;
+    let pool = state.db.as_ref().ok_or_else(|| {
+        ApiError::Unavailable("this Portal has no database to keep visualizations in".into())
+    })?;
     let row = grafana::find(pool, &project, &id)
         .await
         .map_err(stored)?
         .ok_or_else(|| ApiError::NotFound(format!("visualization {id} not found")))?;
     let org = organization(&state, &project).await?;
-    let config = state.config.grafana.as_ref().ok_or_else(|| ApiError::Conflict(no_grafana()))?;
+    let config = state
+        .config
+        .grafana
+        .as_ref()
+        .ok_or_else(|| ApiError::Conflict(no_grafana()))?;
     Client::new(config).remove(org, &row.uid()).await?;
     grafana::delete(pool, &id).await.map_err(stored)?;
     Ok(StatusCode::NO_CONTENT)
@@ -501,7 +549,13 @@ pub async fn remove(
 
 pub fn router() -> Router<AppState> {
     Router::new()
-        .route("/projects/{project}/grafana", get(page).post(create))
-        .route("/projects/{project}/grafana/options", get(options))
-        .route("/projects/{project}/grafana/{id}", delete(remove))
+        .route(
+            "/projects/{project}/grafana",
+            get(grafana_page).post(save_visualization),
+        )
+        .route("/projects/{project}/grafana/options", get(grafana_options))
+        .route(
+            "/projects/{project}/grafana/{id}",
+            delete(remove_visualization),
+        )
 }
