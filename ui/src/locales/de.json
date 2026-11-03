@@ -3278,7 +3278,8 @@
       "operationsLegend": "Was die Pipeline dort tut",
       "operations": {
         "read": "Lesen",
-        "write": "Schreiben"
+        "write": "Schreiben",
+        "history": "Lesen und Historie"
       },
       "types": "Typen und Attribute",
       "typesHelp": "Nennen Sie jeden Entitätstyp und jedes Attribut, das die Pipeline braucht. Eine Anfrage fragt nie nach allen.",
@@ -3498,7 +3499,7 @@
     },
     "kpiEditor": {
       "title": "Neue Kennzahl aus mehreren Quellen",
-      "lead": "Wählen Sie zwei bis fünf Endpunkte, legen Sie fest, wie ihre Zeilen zusammenkommen und was berechnet wird. Jedes Feld wird beim Tippen geprüft; die Vorschau berechnet den Wert aus dem, was die Endpunkte jetzt liefern. Geschrieben wird erst, wenn die Änderung genehmigt ist.",
+      "lead": "Wählen Sie die Quellen, legen Sie fest, wie ihre Zeilen zusammenkommen und was berechnet wird. Geschrieben wird erst, wenn die Änderung genehmigt ist.",
       "name": "Name der Kennzahl",
       "titleField": "Titel",
       "sources": "Quellen",
@@ -3522,7 +3523,8 @@
       "joinHint": {
         "time": "Eine Kennzahl je Lauf über alle Zeilen, die jede Quelle lieferte.",
         "area": "Eine Kennzahl je Gebietswert, den jede Quelle hat; sein Kürzel wird an den Namen angehängt.",
-        "entity": "Eine Kennzahl je Entität, die jede Quelle nennt; ihr Kürzel wird an den Namen angehängt."
+        "entity": "Eine Kennzahl je Entität, die jede Quelle nennt; ihr Kürzel wird an den Namen angehängt.",
+        "change": "Alle Zeilen des Laufs: eine Änderung ist ein Wert über die ganze Quelle."
       },
       "key": {
         "area": "Gebietsattribut",
@@ -3536,7 +3538,8 @@
         "sum": "Summe der Zahl der ersten Quelle",
         "average": "Durchschnitt der Zahl der ersten Quelle",
         "share": "Anteil: erste Summe geteilt durch zweite Summe",
-        "per": "Erste Summe je Zeile der zweiten Quelle"
+        "per": "Erste Summe je Zeile der zweiten Quelle",
+        "change": "Änderung seit letzter Woche"
       },
       "writes": "Die Formel, die daraus entsteht: {formula}",
       "advanced": "Erweitert: Formel eingeben",
@@ -3554,6 +3557,7 @@
       "runPreview": "Jetzt berechnen",
       "previewing": "Wird berechnet…",
       "previewHint": "Liest bis zu 100 Zeilen jeder Quelle so, wie Sie sie sehen, und berechnet {formula}.",
+      "previewHintChange": "Liest bis zu 100 Zeilen der Quelle so, wie Sie sie sehen, jetzt und vor einer Woche, und berechnet die Differenz.",
       "partial": "Die Vorschau endete bei {rows} Zeilen einer Quelle, dieser Wert ist also nicht endgültig: Ein Lauf liest alle Zeilen.",
       "noKeys": "Kein Schlüssel kommt in jeder Quelle vor, daher würde jetzt keine Kennzahl geschrieben.",
       "indicator": "Kennzahl",
@@ -3580,9 +3584,13 @@
         "target": "Der Endpunkt des Kennzahlenraums, über den geschrieben wird, zum Beispiel kpi-writer.",
         "formula": "sum, avg, min, max von input.attribute und count(input), mit + - * / und Klammern, zum Beispiel sum(parking.occupiedSpotNumber) / count(stops).",
         "areaKey": "Das Attribut mit Name oder Code des Gebiets in dieser Quelle, zum Beispiel district.",
-        "entityKey": "id für die Entität selbst oder die Beziehung, die sie nennt, zum Beispiel refParkingSite."
+        "entityKey": "id für die Entität selbst oder die Beziehung, die sie nennt, zum Beispiel refParkingSite.",
+        "change": "Liest die Historie dieser Quelle: eine Quelle genügt, und der Bereich muss diese Zahl eine Woche lang aufbewahrt haben. Bis dahin schreibt ein Lauf nichts und nennt den Grund."
       },
-      "previewFirst": "Die Vorschau läuft, sobald jedes Feld ohne Problem geprüft ist."
+      "previewFirst": "Die Vorschau läuft, sobald jedes Feld ohne Problem geprüft ist.",
+      "rowsBack": "{name}, vor {period}: {count} Zeilen",
+      "rowsWeekBack": "{name} vor einer Woche: {count} Zeilen",
+      "noPreviewYet": "Noch kein Wert: Berechnen Sie ihn über die Schaltfläche."
     }
   },
   "dashboards": {
