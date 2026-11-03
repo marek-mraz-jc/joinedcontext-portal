@@ -245,10 +245,12 @@ pub(super) async fn stage_listed(
             scratch.write(path, &file)?;
             continue;
         }
-        if is_model_schema(path) {
+        if path.ends_with(".json") {
             // Not a manifest: a DataModel's generated JSON Schema, which the runner's validation
             // stage compiles beside its DataModel (PL-60). Left out, every forge model held its
-            // records to id and type alone (T-5081).
+            // records to id and type alone (T-5081). `listing` admits a `.json` file only by
+            // `is_model_schema`, in a project repository on its `projects/_/` form, so the path
+            // here is not tested again: unprefixed, it failed that test and was dropped (T-6429).
             scratch.write(path, &file)?;
             continue;
         }

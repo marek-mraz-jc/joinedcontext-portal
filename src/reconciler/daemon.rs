@@ -3378,7 +3378,8 @@ impl Steps {
 mod tests {
     use super::super::registrations::RegistrationOutcome;
     use super::super::staging::{
-        is_candidate_manifest, is_encrypted_secrets_file, is_model_schema, stage, stageable,
+        is_candidate_manifest, is_encrypted_secrets_file, is_model_schema, stage, stage_project,
+        stageable,
     };
     use super::super::subscriptions::SubscriptionOutcome;
     use super::*;
@@ -4113,6 +4114,33 @@ output_error{stream="kpi"} 6
             problems.iter().any(|p| p.path == "organizer"),
             "a record without its required organizer passes: {problems:?}"
         );
+    }
+
+    /// A project repository of layout 2 (CC-85) lists its files without the `projects/{slug}/`
+    /// prefix: its model's JSON Schema was listed and then dropped as "not YAML", so every model
+    /// of such a project compiled to id and type alone, and the dashboard editor offered no
+    /// attribute (T-6429).
+    #[tokio::test]
+    async fn a_project_repositorys_json_schema_is_staged_beside_its_model() {
+        let files = [
+            (".jc/layout", "2\n"),
+            (
+                "spaces/podujatia/space.yaml",
+                "apiVersion: joinedcontext.com/v1alpha1\nkind: ContextSpace\nmetadata:\n  name: podujatia\nspec:\n  urnSegment: podujatia\n  isSandbox: false\n",
+            ),
+            (
+                "spaces/podujatia/datamodels/podujatia.v1.schema.json",
+                r#"{"definitions": {"Event": {"properties": {"name": {"type": "string"}}}}}"#,
+            ),
+        ];
+        let (_forge, gitea) = forge(&files).await;
+        let scratch = stage_project(&gitea, "rev-1")
+            .await
+            .expect("the run stages");
+        let staged = scratch
+            .path()
+            .join("spaces/podujatia/datamodels/podujatia.v1.schema.json");
+        assert!(staged.is_file(), "the project's JSON Schema was not staged");
     }
 
     #[test]
