@@ -26,7 +26,9 @@ spending='/(excel_assistant|assistant-paths|assistant-evals|app-generated-full|b
 # SWEEP_SKIP, an extra regex over the same paths, leaves more out: the release gate (T-5899) skips the
 # critic-* walks, which record shots for the UI critic tasks and took 1,619 s of its first hour.
 skip=${SWEEP_SKIP:-'^$'}
-mapfile -t specs < <(ls e2e/live/*.spec.ts | grep -vE "$spending" | grep -vE -- "$skip")
+# Timing runs by hand, one environment at a time (T-6541): their budgets are a measurement, not a gate.
+byhand='/(open-data-times)\.spec\.ts$'
+mapfile -t specs < <(ls e2e/live/*.spec.ts | grep -vE "$spending" | grep -vE "$byhand" | grep -vE -- "$skip")
 
 # SWEEP_LIST=1 only lists the tests the sweep would run ("Total: N tests in M files"): the release
 # gate sizes its sweep stage from that count (T-6354). Nothing signs in, nothing is written.

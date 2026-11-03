@@ -8863,6 +8863,7 @@
       "mapPlace": "Ort",
       "mapCount": "{count, plural, one {# Ort auf der Karte.} other {# Orte auf der Karte.}}",
       "mapCountOf": "Die Karte zeigt die ersten {shown} von {total} Orten.",
+      "mapCountFirst": "Die Karte zeigt die ersten {shown} Orte; der Datensatz hat mehr.",
       "mapList": "{count, plural, one {Der Ort als Liste} other {Die # Orte als Liste}}",
       "mapFailed": "Die Karte konnte nicht gelesen werden; versuchen Sie es gleich noch einmal.",
       "says": {

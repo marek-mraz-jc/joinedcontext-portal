@@ -361,6 +361,12 @@ describe("the catalogue (EP-81, EP-82)", () => {
     expect(asked?.searchParams.get("lang")).toBe("en");
   });
 
+  it("says the map shows the first places when the type was too big to count in time (T-6541)", async () => {
+    answers["/api/v1/catalogue/datasets/bbsk-kpi/map"] = { status: 200, body: { ...MAP, total: null } };
+    renderAt("/catalogue/bbsk-kpi");
+    expect(await screen.findByText("The map shows the first 2 places; the dataset holds more.")).toBeInTheDocument();
+  });
+
   it("asks for the map's labels in the page's language", async () => {
     await i18n.changeLanguage("sk");
     answers["/api/v1/catalogue/datasets/bbsk-kpi/map"] = { status: 200, body: { ...MAP, total: 2 } };

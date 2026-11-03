@@ -90,7 +90,8 @@ export function DatasetMap({ name }: { name: string }): JSX.Element | null {
   if (!Array.isArray(data.features) || data.features.length === 0) return null;
   const number = new Intl.NumberFormat(i18n.language);
   const shown = data.features.length;
-  const total = data.total ?? shown;
+  // No total is a full page whose count took too long (T-6541): a short page is its own count.
+  const total = data.total ?? undefined;
   const fields =
     data.fields.length > 0
       ? data.fields
@@ -98,12 +99,14 @@ export function DatasetMap({ name }: { name: string }): JSX.Element | null {
   return (
     <Section>
       <p role="status" className="text-caption text-fg-muted">
-        {total > shown
-          ? t("catalogue.dataset.mapCountOf", {
-              shown: number.format(shown),
-              total: number.format(total),
-            })
-          : t("catalogue.dataset.mapCount", { count: shown })}
+        {total === undefined
+          ? t("catalogue.dataset.mapCountFirst", { shown: number.format(shown) })
+          : total > shown
+            ? t("catalogue.dataset.mapCountOf", {
+                shown: number.format(shown),
+                total: number.format(total),
+              })
+            : t("catalogue.dataset.mapCount", { count: shown })}
       </p>
       <div className="h-72 overflow-hidden rounded-lg border border-border sm:h-96">
         <Suspense
