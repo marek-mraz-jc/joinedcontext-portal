@@ -1692,7 +1692,7 @@ pub async fn get_sample(
     get,
     path = "/api/v1/catalogue/datasets/{name}/map",
     summary = "Map a Catalogue Dataset",
-    description = "Up to 1000 located entities of the class the dataset's Endpoint serves, read anonymously without a count through its public Endpoint, with the key attributes its popups show (EP-82, T-5628). A dataset without locations answers no features.",
+    description = "Up to 1000 located entities of the class the dataset's Endpoint serves, read anonymously through its public Endpoint without a count, with the key attributes its popups show (EP-82, T-5628). A dataset without locations answers no features.",
     tag = "ckan",
     params(("name" = String, Path, description = "The dataset's name in the catalogue"), MapQuery),
     responses(
@@ -1719,8 +1719,8 @@ pub(crate) async fn get_map(
         let (_, classes, linkml) = model_source(&state, &project, &endpoint.spec)
             .await
             .ok_or_else(no_map)?;
-        let class =
-            endpoint_class(&state.mirror, &project, &endpoint.spec, classes).ok_or_else(no_map)?;
+        let gateway = gateway_endpoint(&state, &slug);
+        let class = endpoint_class(&gateway, classes).await.ok_or_else(no_map)?;
         let (total, entities) = located(&gateway, &class).await.map_err(|reason| {
             tracing::warn!(dataset = %name, %reason, "catalogue map failed");
             ApiError::Unavailable(format!(

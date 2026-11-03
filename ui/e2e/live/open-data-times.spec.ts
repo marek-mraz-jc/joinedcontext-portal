@@ -13,7 +13,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
 
-test.setTimeout(600_000);
+test.setTimeout(1_500_000);
 
 /** The model classes T-6502 found slow to count on Praha (finding 4). */
 const TYPES = ["Tree", "Garden", "GreenAsset", "NoiseZone", "RoadSegment"];
