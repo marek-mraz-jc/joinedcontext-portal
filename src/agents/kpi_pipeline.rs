@@ -89,7 +89,7 @@ impl Trigger {
     }
 }
 
-/// `15m`, `1h`, `90s` in seconds; anything else is not a period.
+/// `15m`, `1h`, `90s`, `1d` in seconds; anything else is not a period.
 fn seconds_of(period: &str) -> Option<u64> {
     let period = period.trim();
     let split = period.find(|c: char| !c.is_ascii_digit())?;
@@ -99,6 +99,7 @@ fn seconds_of(period: &str) -> Option<u64> {
         "s" => Some(number),
         "m" => Some(number * 60),
         "h" => Some(number * 3600),
+        "d" => Some(number * 86_400),
         _ => None,
     }
 }
@@ -128,8 +129,13 @@ pub fn trigger_of(call: &DraftKpiPipeline) -> Result<Trigger, String> {
                 .to_owned(),
         ),
         (Some(period), false) => match seconds_of(period) {
+            // A daily indicator asked as `1d` runs as `24h`: the runner's durations stop at hours.
             Some(seconds) if seconds >= MIN_EVERY_SECONDS => Ok(Trigger::Every {
-                period: period.to_owned(),
+                period: if period.ends_with('d') {
+                    format!("{}h", seconds / 3600)
+                } else {
+                    period.to_owned()
+                },
                 seconds,
             }),
             Some(_) => Err(format!(
@@ -661,6 +667,14 @@ mod tests {
             Ok(Trigger::Every {
                 period: "15m".into(),
                 seconds: 900
+            })
+        );
+        // T-6532: a daily indicator runs once a day, as the runner writes it.
+        assert_eq!(
+            with(json!({ "every": "1d" })),
+            Ok(Trigger::Every {
+                period: "24h".into(),
+                seconds: 86_400
             })
         );
         assert!(with(json!({ "every": "30s" }))
