@@ -423,8 +423,8 @@ export function ApprovalDetailPage({
             >
               <Field
                 id={rejectReasonId}
-                label={t(words.reason)}
-                help={t(words.reasonHint)}
+                label={own ? t("approvals.withdrawReason") : t("approvals.rejectReason")}
+                help={own ? t("approvals.withdrawReasonHint") : t("approvals.rejectReasonHint")}
               >
                 <Textarea
                   id={rejectReasonId}

@@ -91,8 +91,6 @@ export function rejectWords(own: boolean) {
     title: `approvals.${verb}Title`,
     lead: `approvals.${verb}Lead`,
     confirm: `approvals.${verb}Confirm`,
-    reason: `approvals.${verb}Reason`,
-    reasonHint: `approvals.${verb}ReasonHint`,
   } as const;
 }
 
