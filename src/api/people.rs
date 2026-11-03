@@ -1615,7 +1615,7 @@ async fn remove(
 
 fn db_error(err: sqlx::Error) -> ApiError {
     tracing::error!(error = %err, "the pending removals could not be read or written");
-    ApiError::Internal("the people database did not answer".into())
+    ApiError::from_db(&err, "people")
 }
 
 /// The reconciler's step for pending removals (PF-93): a merged Change deletes the Keycloak user,

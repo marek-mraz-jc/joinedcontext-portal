@@ -150,7 +150,7 @@ fn pool(state: &AppState) -> Result<&sqlx::PgPool, ApiError> {
 fn db_error(err: sqlx::Error) -> ApiError {
     // The DSN, the SQL and the driver's wording stay in the log (TS-09).
     tracing::error!(error = %err, "preferences database call failed");
-    ApiError::Internal("the preferences database did not answer".into())
+    ApiError::from_db(&err, "preferences")
 }
 
 #[utoipa::path(
@@ -169,10 +169,22 @@ pub async fn get_preferences(
     user: CurrentUser,
     State(state): State<AppState>,
 ) -> Result<Json<Preferences>, ApiError> {
-    crate::personal_connectors::move_one(&state, &user.0.identity).await?;
-    let stored = db::load_preferences(pool(&state)?, &user.0.identity.subject)
+    let pool = pool(&state)?;
+    let subject = &user.0.identity.subject;
+    // Every page load asks this and the pool holds five connections: only a row with old
+    // connectors pays a second read (T-6520).
+    let mut stored = db::load_preferences(pool, subject)
         .await
         .map_err(db_error)?;
+    if stored
+        .as_ref()
+        .is_some_and(crate::personal_connectors::holds_old)
+    {
+        crate::personal_connectors::move_one(&state, &user.0.identity).await?;
+        stored = db::load_preferences(pool, subject)
+            .await
+            .map_err(db_error)?;
+    }
     // A row written by an older Portal may hold a field this one no longer knows; it is dropped
     // rather than turned into a 500 on the caller's own settings.
     // The keys only the Portal keeps (old connectors) are hidden from the person's own view.
