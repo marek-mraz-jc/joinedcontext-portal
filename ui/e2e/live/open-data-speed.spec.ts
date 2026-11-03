@@ -73,15 +73,21 @@ async function until(start: number, wait: Promise<unknown>): Promise<number | nu
 
 const gridNotes = new WeakMap<Page, string>();
 
-/** Milliseconds until the grid's first row, or null with "empty" in gridNotes when it drew none. */
+/**
+ * Milliseconds until the grid's first row, or null with the reason in gridNotes when it drew none.
+ * A Portal before T-6376 (prod's release) shows a ten-row sample table there instead: its rows count.
+ */
 async function gridDrawn(page: Page, start: number): Promise<number | null> {
   gridNotes.delete(page);
-  const drawn = await until(start, page.locator("tr.jc-grid-tr, .jc-grid-empty").first().waitFor({ timeout: LIMIT_MS }));
-  if (drawn !== null && (await page.locator("tr.jc-grid-tr").count()) === 0) {
-    gridNotes.set(page, `grid: empty, said so in ${(drawn / 1000).toFixed(1)} s`);
-    return null;
+  const sample = 'section[aria-labelledby="catalogue-sample"]';
+  const drawn = await until(start, page.locator(`tr.jc-grid-tr, .jc-grid-empty, ${sample} tbody tr, ${sample} p:not([role=status])`).first().waitFor({ timeout: LIMIT_MS }));
+  if (drawn === null) return null;
+  if ((await page.locator(`tr.jc-grid-tr, ${sample} tbody tr`).count()) > 0) {
+    if ((await page.locator(sample).count()) > 0) gridNotes.set(page, "grid: the release's sample table");
+    return drawn;
   }
-  return drawn;
+  gridNotes.set(page, `grid: empty, said so in ${(drawn / 1000).toFixed(1)} s`);
+  return null;
 }
 
 const mapNotes = new WeakMap<Page, string>();
@@ -137,6 +143,7 @@ async function measure(page: Page, path: string, dataset: boolean, pass: Row["pa
     if (hit) row.slowest[mark] = hit;
   }
   if (dataset) {
+    if (grid !== null && gridNotes.has(page)) note.push(gridNotes.get(page) ?? "");
     if (grid === null) {
       const refused = await page.getByRole("alert").allInnerTexts();
       note.push(gridNotes.get(page) ?? (refused.length ? `grid: ${refused.join(" | ").slice(0, 160)}` : "grid: no row in 30 s"));
