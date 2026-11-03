@@ -518,6 +518,29 @@ fn endpoint_finding(rule: &str, field: &str, reason: String) -> Finding {
     }
 }
 
+fn not_in_project(endpoint: &str) -> String {
+    format!("Endpoint {endpoint} is not in this project")
+}
+
+fn not_read_yet(endpoint: &str) -> String {
+    format!(
+        "Endpoint {endpoint} has no view on the broker yet: the reconciler has not read it; test \
+         again once it has"
+    )
+}
+
+/// Whether a verdict finding's `message` only says `endpoint` is not in the project or not read
+/// yet: what every test says of an Endpoint drafted beside the pipeline, which exists once both
+/// are approved (T-6532: the assistant's KPI pipeline into a new indicator space).
+pub fn awaits_endpoint(message: &str, endpoint: &str) -> bool {
+    let label = endpoint_finding("", "", String::new()).field_label();
+    message
+        .strip_prefix(&format!("{label}: "))
+        .is_some_and(|reason| {
+            reason == not_in_project(endpoint) || reason == not_read_yet(endpoint)
+        })
+}
+
 fn lifetime(rule: &str, field: &str, reason: String) -> Finding {
     Finding {
         source: Source::Lifetime,
@@ -571,7 +594,7 @@ fn judge_model(
         findings.push(endpoint_finding(
             "targetEndpoint",
             "",
-            format!("Endpoint {} is not in this project", target.endpoint),
+            not_in_project(&target.endpoint),
         ));
         return;
     };
@@ -619,14 +642,7 @@ fn judge_write(
     let write = match &target.write {
         None => return,
         Some(None) => {
-            findings.push(endpoint_finding(
-                "view",
-                "",
-                format!(
-                    "Endpoint {endpoint} has no view on the broker yet: the reconciler has not \
-                     read it; test again once it has"
-                ),
-            ));
+            findings.push(endpoint_finding("view", "", not_read_yet(endpoint)));
             return;
         }
         Some(Some(write)) => write,
@@ -881,6 +897,36 @@ fn expires_of(record: &Value) -> Option<Expires> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-6532: an Endpoint drafted beside the pipeline is told apart by the verdict's own words,
+    /// and only for that Endpoint.
+    #[test]
+    fn a_verdict_finding_on_an_endpoint_not_held_yet_is_told_apart() {
+        let checked = Checked {
+            ok: false,
+            checked: 1,
+            rejected: 1,
+            records: vec![RecordCheck {
+                index: 0,
+                ok: false,
+                endpoint: Some("t-kpi".into()),
+                findings: vec![
+                    endpoint_finding("targetEndpoint", "", not_in_project("t-kpi")),
+                    endpoint_finding("view", "", not_read_yet("t-kpi")),
+                    endpoint_finding("policy", "", "no Policy grants it".into()),
+                ],
+                expires: None,
+            }],
+        };
+        let messages: Vec<String> = verdict_findings(&checked)
+            .into_iter()
+            .map(|f| f.message)
+            .collect();
+        assert!(awaits_endpoint(&messages[0], "t-kpi"), "{messages:?}");
+        assert!(awaits_endpoint(&messages[1], "t-kpi"), "{messages:?}");
+        assert!(!awaits_endpoint(&messages[2], "t-kpi"));
+        assert!(!awaits_endpoint(&messages[0], "other"));
+    }
     use crate::config::Config;
     use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
     use chrono::TimeZone;
