@@ -231,6 +231,8 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
         {read?.table.total !== undefined ? <Alert tone="warning">{t("spaces.import.cut", { total: read.table.total, max: MAX_ROWS })}</Alert> : null}
       </Card>
       {read && !proposed ? (
+        // The form and the model it makes side by side, so a changed type name is seen redrawn.
+        <div className="grid items-start gap-section lg:grid-cols-2">
         <Card className="flex flex-col gap-4">
           {read.matches.length === 0 ? <p className="text-body text-fg-muted">{t("spaces.upload.noMatch")}</p> : null}
           <RadioGroup
@@ -257,7 +259,7 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
           <Field id="upload-space" label={t("spaces.upload.space")} help={t("spaces.upload.spaceHint")}>
             <ResourceNamePicker id="upload-space" label={t("spaces.upload.space")} labelled from={{ project, plural: "spaces" }} value={space} onChange={setSpace} create />
           </Field>
-          <Button className="w-fit" onClick={() => void propose()} disabled={!ready || busy} disabledReason={missing ?? t("spaces.upload.notReady")}>
+          <Button className="w-fit" variant="primary" onClick={() => void propose()} disabled={!ready || busy} disabledReason={missing ?? t("spaces.upload.notReady")}>
             {busy ? t("spaces.upload.proposing") : t("spaces.upload.propose")}
           </Button>
           {/* What still keeps Propose out of reach, on screen and not only for a screen reader. */}
@@ -267,11 +269,12 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
             </p>
           ) : null}
         </Card>
-      ) : null}
-      {read && !proposed && draft?.key === draftKey ? (
-        <Card>
-          <DraftedModel source={draft.source} type={typeName} table={read.table} />
-        </Card>
+        {draft?.key === draftKey ? (
+          <Card>
+            <DraftedModel source={draft.source} type={typeName} table={read.table} />
+          </Card>
+        ) : null}
+        </div>
       ) : null}
       {proposed && read ? <LoadRows project={project} space={proposed.space} type={proposed.type} source={proposed.source} table={read.table} change={proposed.change} /> : null}
       {proposed && read ? (
