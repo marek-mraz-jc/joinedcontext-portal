@@ -1086,15 +1086,37 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     setRefusal(null);
 
     const gridQuery = JSON.parse(gridQueryKey) as GridQuery;
+    // A scrolling grid starts over from the first row whenever the question changes.
+    const from = virtual && !paged ? 0 : offset;
+    if (from === 0) {
+      setTotal(undefined);
+      // The total has a read of its own beside the rows (T-6541): a count walks the whole match and
+      // can outlast the gateway's 10 s cut (Praha Tree: 503 after 10 s, the rows alone in 0.2 s), so
+      // a failed or slow count costs the footer its total, never the page its rows.
+      source
+        .query({ ...gridQuery, orderBy: undefined }, { offset: 0, limit: 0, count: true })
+        .then((counted) => {
+          if (cancelledRef.current || nonceRef.current !== nonce || counted.total === undefined) return;
+          const total = counted.total;
+          setTotal(total);
+          setRows((loaded) => {
+            setMore(hasMore(loaded.length, total, loaded.length, config.pageSize));
+            return loaded;
+          });
+        })
+        .catch(() => undefined);
+    }
 
     source
-      // A scrolling grid starts over from the first row whenever the question changes.
-      .query(gridQuery, { offset: virtual && !paged ? 0 : offset, limit: config.pageSize })
+      .query(gridQuery, { offset: from, limit: config.pageSize, count: false })
       .then((page) => {
         if (cancelledRef.current || nonceRef.current !== nonce) return;
         setRows(page.rows);
-        setTotal(page.total);
-        setMore(hasMore(page.rows.length, page.total, page.rows.length, config.pageSize));
+        if (page.total !== undefined) setTotal(page.total);
+        setTotal((known) => {
+          setMore(hasMore(page.rows.length, known, page.rows.length, config.pageSize));
+          return known;
+        });
         setLoading(false);
       })
       .catch((err) => {

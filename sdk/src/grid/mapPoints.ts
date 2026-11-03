@@ -30,9 +30,11 @@ export function pointGeometry(geometry: Geometry): Geometry | null {
 }
 
 /** One page by the source's lean read, or by its row read where it has none (a fixture, an App's own source). */
-async function pageOf(source: EntitySource, q: GridQuery, attr: string, offset: number, count: boolean): Promise<PointPage> {
-  if (source.points) return source.points(q, attr, { offset, limit: POINTS_PAGE, count });
-  const page = await source.query({ ...q, attrs: ["name", attr] }, { offset, limit: POINTS_PAGE, count });
+async function pageOf(source: EntitySource, q: GridQuery, attr: string, offset: number): Promise<PointPage> {
+  // No page asks for a count (T-6541): the walk can outlast the gateway's 10 s cut and take the
+  // first points with it; the read ends at a short page, and the grid's own count reports the total.
+  if (source.points) return source.points(q, attr, { offset, limit: POINTS_PAGE, count: false });
+  const page = await source.query({ ...q, attrs: ["name", attr] }, { offset, limit: POINTS_PAGE, count: false });
   const points = page.rows.flatMap((row): MapPoint[] => {
     const geometry = geometryOfRow(row, attr);
     const name = firstCell(row, "name")?.value;
@@ -66,7 +68,7 @@ export async function readPoints(
   let total: number | undefined;
   let offset = 0;
   for (;;) {
-    const page = await pageOf(source, q, attr, offset, offset === 0);
+    const page = await pageOf(source, q, attr, offset);
     if (signal?.aborted) return { points, total, done: false, capped: false };
     if (offset === 0) total = page.total;
     points.push(...page.points);

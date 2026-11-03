@@ -41,17 +41,18 @@ describe("the map's point read", () => {
     expect(url.searchParams.get("lang")).toBe("sk");
     expect(url.searchParams.get("limit")).toBe(String(POINTS_PAGE));
     expect(url.searchParams.get("q")).toBe('status=="open"');
-    expect(url.searchParams.get("count")).toBe("true");
+    // A count walks the whole match and can outlast the gateway's 10 s cut: the map never asks one (T-6541).
+    expect(url.searchParams.get("count")).toBeNull();
   });
 
-  it("pages until the answer ends, reporting each page, and counts only on the first", async () => {
+  it("pages until the answer ends, reporting each page, and asks no count on any", async () => {
     const { transport, paths } = broker(2_310);
     const seen: number[] = [];
     const done = await readPoints(endpointSource("s", transport), { type: "Station" }, "location", (p) => seen.push(p.points.length));
     expect(paths).toHaveLength(3);
     expect(seen).toEqual([1000, 2000, 2310]);
-    expect(done.total).toBe(2_310);
-    expect(new URL(paths[1], "https://host.invalid").searchParams.get("count")).toBeNull();
+    expect(done.total).toBeUndefined();
+    expect(paths.every((path) => new URL(path, "https://host.invalid").searchParams.get("count") === null)).toBe(true);
     expect(new URL(paths[2], "https://host.invalid").searchParams.get("offset")).toBe("2000");
   });
 
