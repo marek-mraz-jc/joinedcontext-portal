@@ -1826,17 +1826,11 @@ const COUNT_WAIT: Duration = Duration::from_secs(2);
 
 /// The count the Endpoint reports for `class`, `None` when it sends none or takes past [`COUNT_WAIT`].
 async fn counted(url: &str, class: &str) -> Option<u64> {
-    let response = HTTP
-        .get(url)
-        .query(&[("type", class), ("limit", "0"), ("count", "true")])
-        .header(header::ACCEPT, "application/json")
-        .timeout(COUNT_WAIT)
-        .send()
+    let query = [("type", class), ("limit", "0"), ("count", "true")];
+    let response = tokio::time::timeout(COUNT_WAIT, anonymous_read(url.to_owned(), &query))
         .await
+        .ok()?
         .ok()?;
-    if !response.status().is_success() {
-        return None;
-    }
     response
         .headers()
         .get("NGSILD-Results-Count")
