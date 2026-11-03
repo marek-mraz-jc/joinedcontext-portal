@@ -149,6 +149,45 @@ test.describe("approvals", () => {
     await page.screenshot({ path: test.info().outputPath("approval-detail-1440.png"), fullPage: true });
   });
 
+  test("the proposer withdraws their own model change, at 400 and 1440 px (T-6535)", async ({ page }) => {
+    const own = {
+      ...PROPOSAL,
+      author: { name: IDENTITY.name, email: IDENTITY.email },
+      summary: { key: "change.summary.update", params: { kind: "DataModel", name: "air", fields: 1 } },
+      planFields: [{ path: "spec.version", from: "1.0.0", to: "1.0.1" }],
+      files: [{ path: "projects/helsinki/spaces/air/datamodels/air.yaml", kind: "DataModel", lane: "yellow", operation: "Update" }],
+    };
+    const withdrawn = { ...APPROVED, status: { lane: "yellow", phase: "Rejected", plan: { update: 1 } } };
+    const rejects: string[] = [];
+    await stubApi(page);
+    await page.route(`**/changes/${PROPOSAL.metadata.name}`, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(own) }),
+    );
+    await page.route(`**/changes/${PROPOSAL.metadata.name}/reject`, (route) => {
+      rejects.push(route.request().postData() ?? "");
+      return route.fulfill({ status: 202, contentType: "application/json", body: JSON.stringify(withdrawn) });
+    });
+    const shot = (name: string) => page.screenshot({ path: test.info().outputPath(name), fullPage: true });
+    for (const width of [1440, 400]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`/projects/helsinki/approvals/${PROPOSAL.metadata.name}?lang=en`);
+      await expect(page.getByRole("button", { name: "Approve" })).toHaveAttribute("aria-disabled", "true");
+      await expect(page.getByRole("button", { name: "Reject" })).toHaveCount(0);
+      await shot(`withdraw-pending-${width}.png`);
+      await page.getByRole("button", { name: "Withdraw" }).click();
+      const dialog = page.getByRole("dialog", { name: "Withdraw your change?" });
+      await dialog.getByLabel("Why are you withdrawing it?").fill("Proposed the wrong model version");
+      await shot(`withdraw-dialog-${width}.png`);
+      await dialog.getByRole("button", { name: "Withdraw the change" }).click();
+      await expect(page.getByText("You withdrew this change.", { exact: false })).toBeVisible();
+      await shot(`withdraw-done-${width}.png`);
+    }
+    expect(rejects.map((body) => JSON.parse(body))).toEqual([
+      { reason: "Proposed the wrong model version" },
+      { reason: "Proposed the wrong model version" },
+    ]);
+  });
+
   test("an approver sees a change came through an AI client over MCP, at 400 and 1440 px (T-5609)", async ({ page }) => {
     const viaMcp = { ...PROPOSAL, status: { ...PROPOSAL.status, proposedVia: { channel: "mcp", client: "mcp-mobile" } } };
     await stubApi(page);

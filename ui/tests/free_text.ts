@@ -66,7 +66,8 @@ function labelAbove(
 ): string | undefined {
   const window = before.split("\n").slice(-12).join("\n");
   const candidates = [
-    ...window.matchAll(/\blabel=\{\s*t\(\s*["'`]([^"'`]+)["'`]/g),
+    // A ternary label (`label={own ? t("a") : t("b")}`) reads as its first branch.
+    ...window.matchAll(/\blabel=\{\s*(?:[\w.!]+\s*\?\s*)?t\(\s*["'`]([^"'`]+)["'`]/g),
     ...window.matchAll(/\blabel="([^"]+)"/g),
     ...window.matchAll(
       /<(?:label|Label)\b[^>]*>\s*\{\s*t\(\s*["'`]([^"'`]+)["'`]/g,
