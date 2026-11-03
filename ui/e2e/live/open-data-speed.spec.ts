@@ -23,6 +23,8 @@ import type { Browser, Page, Request } from "@playwright/test";
 const OUT = process.env.SPEED_OUT ?? "test-results/open-data-speed";
 const PUBLISHERS = (process.env.SPEED_PUBLISHERS ?? "hel-fi,barcelona").split(",").filter(Boolean);
 const WIDTHS = [1440, 400];
+// SPEED_ONLY, a regex over the page paths, reruns a few pages (a transient outage, a fix).
+const ONLY = new RegExp(process.env.SPEED_ONLY ?? "");
 const LIMIT_MS = 30_000;
 
 interface Listed {
@@ -122,6 +124,11 @@ async function mapDrawn(page: Page, start: number): Promise<number | null> {
 async function measure(page: Page, path: string, dataset: boolean, pass: Row["pass"], width: number): Promise<Row> {
   const slowest = recorder(page);
   const note: string[] = [];
+  // A 429 from the edge is a refusal, never a slow page: the row names it and is not timed (T-6540).
+  let refused = 0;
+  page.on("response", (response) => {
+    if (response.status() === 429) refused += 1;
+  });
   const start = Date.now();
   if (pass === "cold") await page.goto(path, { waitUntil: "commit" });
   else await page.reload({ waitUntil: "commit" });
@@ -142,11 +149,15 @@ async function measure(page: Page, path: string, dataset: boolean, pass: Row["pa
     const hit = slowest(start, start + at);
     if (hit) row.slowest[mark] = hit;
   }
+  if (refused > 0) {
+    note.push(`edge 429 x${refused}: not a timing`);
+    row.card = row.grid = row.map = null;
+  }
   if (dataset) {
     if (grid !== null && gridNotes.has(page)) note.push(gridNotes.get(page) ?? "");
     if (grid === null) {
-      const refused = await page.getByRole("alert").allInnerTexts();
-      note.push(gridNotes.get(page) ?? (refused.length ? `grid: ${refused.join(" | ").slice(0, 160)}` : "grid: no row in 30 s"));
+      const alerts = await page.getByRole("alert").allInnerTexts();
+      note.push(gridNotes.get(page) ?? (alerts.length ? `grid: ${alerts.join(" | ").slice(0, 160)}` : "grid: no row in 30 s"));
     }
     if (map === null) note.push(`map: ${mapNotes.get(page) ?? "no answer"}`);
   }
@@ -179,7 +190,7 @@ test.use({ trace: "off", video: "off", screenshot: "off" });
 test("the open data portal draws its card, grid and map in time", async ({ browser }) => {
   test.setTimeout(4 * 60 * 60 * 1000);
   mkdirSync(join(OUT, "har"), { recursive: true });
-  const all = await pages(browser);
+  const all = (await pages(browser)).filter(({ path }) => ONLY.test(path));
   for (const { path, dataset } of all) {
     for (const width of WIDTHS) {
       const har = join(OUT, "har", `${path.replace(/[^a-z0-9]+/gi, "_")}-${width}.har`);
