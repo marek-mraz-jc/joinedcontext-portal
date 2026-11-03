@@ -8872,6 +8872,7 @@
       "mapPlace": "Place",
       "mapCount": "{count, plural, one {# place on the map.} other {# places on the map.}}",
       "mapCountOf": "The map shows the first {shown} of {total} places.",
+      "mapCountFirst": "The map shows the first {shown} places; the dataset holds more.",
       "mapList": "{count, plural, one {The place as a list} other {The # places as a list}}",
       "mapFailed": "The map could not be read; try again in a moment.",
       "says": {

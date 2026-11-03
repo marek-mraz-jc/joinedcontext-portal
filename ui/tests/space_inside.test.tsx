@@ -1164,7 +1164,9 @@ describe("the space's own data", () => {
         .map((call) => urlOf(call[0]))
         .filter((url) => url.pathname.startsWith("/cs/ovzdusie/ngsi-ld/v1/entities"));
       // The writer's grant lands after the first read: it changes where a correction goes, never the read.
-      const pages = reads.filter((url) => url.searchParams.get("limit") !== "1");
+      // The count is its own read with no rows (T-6541), asked once beside the page.
+      const pages = reads.filter((url) => url.searchParams.get("limit") !== "1" && url.searchParams.get("limit") !== "0");
+      expect(reads.filter((url) => url.searchParams.get("limit") === "0")).toHaveLength(1);
       expect(pages.map((url) => url.search)).toHaveLength(1);
       // The probe only asks whether the surface answers: counting the type there costs a second scan.
       const probes = reads.filter((url) => url.searchParams.get("limit") === "1");
