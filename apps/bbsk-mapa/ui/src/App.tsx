@@ -131,6 +131,8 @@ function RegionMap() {
   };
 
   const loading = layers !== null && KINDS.some((kind) => layers[kind].status === "loading");
+  // A layer that failed is unknown, not empty: its alert says so, "nothing found" would contradict it.
+  const failed = layers !== null && KINDS.some((kind) => layers[kind].status === "failed");
 
   return (
     <Page>
@@ -184,7 +186,7 @@ function RegionMap() {
             <div className="side">
               <section className="results" aria-labelledby="results-heading">
                 <h2 id="results-heading">{s.results(visible.length)}</h2>
-                {!loading && visible.length === 0 ? <p>{s.noResults}</p> : null}
+                {!loading && !failed && visible.length === 0 ? <p>{s.noResults}</p> : null}
                 <ul>
                   {visible.map((place) => (
                     <li key={place.id}>

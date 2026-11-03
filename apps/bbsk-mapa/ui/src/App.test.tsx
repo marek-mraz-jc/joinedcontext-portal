@@ -217,10 +217,17 @@ describe("the region map", () => {
     let down = true;
     show(undefined, true, undefined, (type) => (type === "hospital" && down ? new TypeError("offline") : answer(type)));
     const alert = await screen.findByRole("alert");
+    await waitFor(() => expect(names()).toContain("Stredoslovenské múzeum"));
     down = false;
     await userEvent.click(within(alert).getByRole("button"));
     await waitFor(() => expect(names()).toContain("Nemocnica Zvolen"));
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("never says nothing was found while a kind has failed", async () => {
+    show(undefined, true, undefined, () => new TypeError("offline"));
+    await waitFor(() => expect(screen.getAllByRole("alert")).toHaveLength(3));
+    expect(screen.queryByText(s.noResults)).toBeNull();
   });
 
   it("says why a kind failed when the request itself fails, in its own words", async () => {

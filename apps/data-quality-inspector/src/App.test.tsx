@@ -456,6 +456,14 @@ describe("data-quality-inspector", () => {
     show(undefined, runInspector, server);
     const user = userEvent.setup();
     const trend = await screen.findByRole("table", { name: "Quality over time: the runs the server keeps" });
+    // A phone lays each cell out with its column's name beside it (components.css).
+    expect([...trend.querySelectorAll("tbody tr:first-child td")].map((cell) => cell.getAttribute("data-label"))).toEqual([
+      "Entities",
+      "Complete",
+      "Valid",
+      "Findings",
+      "Full report",
+    ]);
     expect(within(trend).getAllByRole("row").map((row) => row.textContent)).toEqual([
       "Run atEntitiesCompleteValidFindingsFull report",
       "21 Oct 2030, 12:00990 %50 %1Full report",
