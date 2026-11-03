@@ -77,6 +77,11 @@ fn manifest(kind: &str) -> (String, String) {
 /// A forge holding Jana's proposal of `kind` in PROJECT, and a mirror where she administers every
 /// kind across the organization.
 async fn forge(kind: &str) -> (MockServer, AppState) {
+    forge_with(kind, "added").await
+}
+
+/// [`forge`] with the proposal's one file in the forge's `status` (`added`, `deleted`).
+async fn forge_with(kind: &str, status: &str) -> (MockServer, AppState) {
     let server = MockServer::start().await;
     let repo = "/api/v1/repos/test-owner/test-repo";
     let ok = |body: Value| ResponseTemplate::new(200).set_body_json(body);
@@ -107,7 +112,7 @@ async fn forge(kind: &str) -> (MockServer, AppState) {
         .await;
     Mock::given(method("GET"))
         .and(path(format!("{repo}/pulls/1/files")))
-        .respond_with(ok(json!([{ "filename": file, "status": "added" }])))
+        .respond_with(ok(json!([{ "filename": file, "status": status }])))
         .mount(&server)
         .await;
     Mock::given(method("POST"))
@@ -215,6 +220,24 @@ async fn an_access_change_waits_for_a_click() {
         assert!(matches!(err, ApiError::Denied(_)), "{kind}: {err:?}");
         assert!(merge_message(&server).await.is_none(), "{kind} merged");
     }
+}
+
+/// A deletion waits for a person's click too, even by an owner who may delete the kind: it is red
+/// lane, and the autonomous path never types the name its confirmation asks (PF-13, CC-19).
+#[tokio::test]
+async fn a_deletion_waits_for_a_click() {
+    let (server, state) = forge_with("DataModel", "deleted").await;
+    let err = approve(&state, ApprovedBy::Connector(CONNECTOR.into()))
+        .await
+        .expect_err("held");
+    assert!(
+        matches!(&err, ApiError::BadRequest(text) if text.contains("requires confirm")),
+        "{err:?}"
+    );
+    assert!(
+        merge_message(&server).await.is_none(),
+        "the deletion merged"
+    );
 }
 
 /// Without the autonomous switch a connector's token decides nothing (AG-11).
