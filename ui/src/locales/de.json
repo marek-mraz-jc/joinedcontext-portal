@@ -4802,6 +4802,7 @@
   "apps": {
     "title": "Anwendungen",
     "subtitle": "Anwendungen für dieses Projekt. Eine Vorschau läuft gegen einen Sandbox-Raum, das Veröffentlichen ist ein Merge Request.",
+    "pagePurpose": "Öffnen Sie diese Anwendung, verfolgen Sie ihre Builds und wählen Sie ihre Dienste.",
     "empty": "Dieses Projekt hat noch keine Apps. Drücken Sie „Eigene Anwendung erzeugen“, wählen Sie den Endpunkt, den sie liest, und beschreiben Sie sie: der Builder schreibt sie und öffnet einen Merge Request zur Prüfung.",
     "visibility": "Sichtbar für {visibility}",
     "dataNeeds": "Liest {types} in {spaces}",

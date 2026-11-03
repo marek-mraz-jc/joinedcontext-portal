@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { AppPage } from "../src/pages/apps/AppPage";
+import { pageFindings } from "./pageChecks";
 import {
   expectHeadingOutline,
   expectNoAxeViolations,
@@ -48,6 +49,9 @@ const PUBLISHED = {
   },
   spec: { lifecycle: "published", visibility: "public" },
 };
+
+/** The same App built without a description, as a generated App can be (T-6527). */
+const UNDESCRIBED = { ...PUBLISHED, metadata: { name: APP, namespace: PROJECT, title: { en: "Air today" } } };
 
 interface World {
   app?: unknown;
@@ -94,6 +98,14 @@ afterEach(() => {
 });
 
 describe("an application's page", () => {
+  // UI-01: the walker's purpose line holds for an App whose manifest says nothing about itself.
+  it("keeps a purpose line for an App with no description", async () => {
+    renderApp({ app: UNDESCRIBED });
+    const heading = await screen.findByRole("heading", { level: 1, name: "Air today" });
+    expect(heading.nextElementSibling).toHaveTextContent(en.apps.pagePurpose);
+    expect(pageFindings({ namespaces: Object.keys(en), layout: false }).filter((finding) => finding.startsWith("purpose-line"))).toEqual([]);
+  });
+
   // UI-15: the application is named before its runs are known, on screen and in the tab.
   it("names the application while its runs are still loading", async () => {
     renderApp({ pending: true });
