@@ -14,7 +14,7 @@ use utoipa::ToSchema;
 use crate::error::ApiError;
 use crate::state::AppState;
 
-/// Encrypted cookie holding the whole session; nothing about the user is kept server-side.
+/// Encrypted cookie holding the session; only the ID token is kept server-side (T-6549).
 ///
 /// Every Portal cookie is `__Host-` (T-4395, AP-29): an App on `{name}.apps.{domain}` can set a
 /// cookie with `Domain={domain}`, and without the prefix a planted cookie of the same name rides
@@ -159,7 +159,11 @@ pub struct Session {
     /// names one token, and only a paired tab reads it (JC2-19); revocation keeps `issued_at`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub signed_in_at: Option<i64>,
-    /// Kept only as `id_token_hint` for RP-initiated logout.
+    /// Kept only as `id_token_hint` for RP-initiated logout, and never in a cookie: the realm
+    /// repeats every group in it, and beside the identity it pushed the session cookie past
+    /// the 4096 bytes a browser keeps (T-6549). Login and refresh hand it to
+    /// `AppState::keep_id_token`; a session read from the cookie has it empty.
+    #[serde(skip)]
     pub id_token: String,
     /// Unix seconds the access token stops being valid. A cookie session refreshes shortly
     /// before it and is refused past it; a cookie written before this field existed reads as
@@ -831,6 +835,60 @@ mod tests {
             Some("opaque-refresh-token-for-tests"),
             "the refresh token rides in its own cookie and is joined back on load"
         );
+    }
+
+    /// A person in 60 groups, with an ID token the size Keycloak signs for them (T-6549): the
+    /// realm repeats every group path in the token, so a session cookie that carried the token
+    /// beside the groups passed the 4096 bytes a browser keeps, and the browser dropped it.
+    fn session_of_a_person_in_60_groups() -> Session {
+        use base64::Engine as _;
+        let groups: Vec<String> = (0..60)
+            .map(|n| format!("helsinki/projects/air-quality-{n:02}/editors"))
+            .collect();
+        let b64 = |bytes: &[u8]| base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes);
+        let claims = serde_json::json!({
+            "sub": "de300000-0000-4000-8000-000000000001",
+            "preferred_username": "demo.editor",
+            "name": "Demo Editor",
+            "email": "demo.editor@hel.fi",
+            "email_verified": true,
+            "realm_access": { "roles": ["default-roles-joinedcontext", "offline_access"] },
+            "groups": groups.iter().map(|g| format!("/{g}")).collect::<Vec<_>>(),
+        });
+        // Built at run time and signed by nobody: a JWT-shaped literal trips gitleaks.
+        let id_token = [
+            b64(br#"{"alg":"RS256","typ":"JWT","kid":"realm-rs256"}"#),
+            b64(claims.to_string().as_bytes()),
+            b64(&[7u8; 256]),
+        ]
+        .join(".");
+        let mut session = sample(1800);
+        session.identity.subject = "de300000-0000-4000-8000-000000000001".into();
+        session.identity.roles = vec![
+            "default-roles-joinedcontext".into(),
+            "offline_access".into(),
+        ];
+        session.identity.groups = groups;
+        session.id_token = id_token;
+        session.refresh_token = Some("r".repeat(900));
+        session
+    }
+
+    #[test]
+    fn every_cookie_of_a_person_in_60_groups_fits_a_browser() {
+        let lines = set_cookie_lines(
+            store(
+                PrivateCookieJar::new(Key::generate()),
+                &session_of_a_person_in_60_groups(),
+            )
+            .expect("store"),
+        );
+        assert_eq!(lines.len(), 2, "{lines:?}");
+        for line in &lines {
+            // The name and value together: what RFC 6265 lets a browser refuse past 4096 bytes.
+            let pair = line.split(';').next().unwrap_or_default();
+            assert!(pair.len() <= 4000, "{} bytes: {pair:.80}", pair.len());
+        }
     }
 
     #[test]

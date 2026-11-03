@@ -77,7 +77,10 @@ pub async fn middleware(State(state): State<AppState>, request: Request, next: N
             request.extensions_mut().insert(fresh.clone());
             let response = next.run(request).await;
             match session::store(jar, &fresh) {
-                Ok(jar) => (jar, response).into_response(),
+                Ok(jar) => {
+                    state.keep_id_token(&fresh);
+                    (jar, response).into_response()
+                }
                 Err(err) => err.into_response(),
             }
         }

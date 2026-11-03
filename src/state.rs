@@ -151,6 +151,12 @@ pub struct AppState {
     /// ponytail: per-replica map; move it to the preferences database when the portal
     /// runs more than one replica (the reconciler is leader-elected, the UI is not).
     revocations: Arc<RwLock<HashMap<String, i64>>>,
+    /// Each cookie session's ID token, by `sub` and `issued_at`, with the session's end: only
+    /// the `id_token_hint` of its logout, kept out of the cookie because the realm repeats every
+    /// group in the token and a browser drops a cookie past 4096 bytes (T-6549).
+    /// ponytail: per-replica and lost on restart, where logout falls back to `client_id` and
+    /// Keycloak asks the person to confirm; move it to the database with `revocations`.
+    id_tokens: Arc<RwLock<HashMap<(String, i64), (i64, String)>>>,
     /// The calls each key is answering right now (T-5968); a key leaves at zero.
     mcp_in_flight: Arc<Mutex<HashMap<String, u32>>>,
     /// The forge reads of the open changes, per head and base commit (T-6347).
@@ -265,6 +271,7 @@ impl AppState {
             kube: None,
             app_tests: None,
             revocations: Arc::new(RwLock::new(HashMap::new())),
+            id_tokens: Arc::default(),
             mcp_in_flight: Arc::default(),
             change_reads: Default::default(),
             mcp_tasks: crate::mcp::tasks::McpTasks::new(),
@@ -1232,6 +1239,30 @@ impl AppState {
         marks
     }
 
+    /// Keeps a cookie session's ID token for its logout (T-6549); drops every ended session's.
+    pub fn keep_id_token(&self, session: &Session) {
+        if session.id_token.is_empty() {
+            return;
+        }
+        let now = crate::auth::session::now_unix();
+        if let Ok(mut tokens) = self.id_tokens.write() {
+            tokens.retain(|_, (expires_at, _)| *expires_at > now);
+            tokens.insert(
+                (session.identity.subject.clone(), session.issued_at),
+                (session.expires_at, session.id_token.clone()),
+            );
+        }
+    }
+
+    /// The ID token [`Self::keep_id_token`] kept for this session, removed: a logout uses it once.
+    pub fn take_id_token(&self, session: &Session) -> Option<String> {
+        self.id_tokens
+            .write()
+            .ok()?
+            .remove(&(session.identity.subject.clone(), session.issued_at))
+            .map(|(_, token)| token)
+    }
+
     pub fn is_revoked(&self, session: &Session) -> bool {
         self.revoked_since(&session.identity.subject, session.issued_at)
     }
@@ -1293,6 +1324,54 @@ impl Drop for InFlight {
 mod tests {
     use super::*;
     use crate::auth::session::{now_unix, Identity};
+
+    /// T-6549: the ID token stays on the server for one logout, per session, and an ended
+    /// session's goes with the next login.
+    #[test]
+    fn an_id_token_is_kept_per_session_and_handed_out_once() {
+        let state = AppState::new(Config::for_tests(), None);
+        let now = now_unix();
+        let session = |issued_at: i64, expires_at: i64, id_token: &str| Session {
+            identity: Identity {
+                client: None,
+                subject: "f:1:demo.editor".into(),
+                username: "demo.editor".into(),
+                email: None,
+                name: None,
+                roles: Vec::new(),
+                groups: Vec::new(),
+                second_factor: false,
+            },
+            expires_at,
+            issued_at,
+            signed_in_at: None,
+            id_token: id_token.into(),
+            access_expires_at: now + 300,
+            refresh_token: None,
+        };
+        let ended = session(now - 7200, now - 1, "ended-session-token");
+        let laptop = session(now - 60, now + 3600, "laptop-token");
+        let phone = session(now - 30, now + 3600, "phone-token");
+        state.keep_id_token(&ended);
+        state.keep_id_token(&laptop);
+        state.keep_id_token(&phone);
+        state.keep_id_token(&session(now - 10, now + 3600, ""));
+        assert_eq!(
+            state.take_id_token(&ended),
+            None,
+            "pruned at the next login"
+        );
+        assert_eq!(
+            state.take_id_token(&laptop).as_deref(),
+            Some("laptop-token")
+        );
+        assert_eq!(state.take_id_token(&laptop), None, "handed out once");
+        assert_eq!(state.take_id_token(&phone).as_deref(), Some("phone-token"));
+        assert_eq!(
+            state.take_id_token(&session(now - 10, now + 3600, "")),
+            None
+        );
+    }
 
     /// F-R2POR1-011 (T-6225): a replica that does not hold the reconciler lock leads no
     /// background loop; one with no election leads.

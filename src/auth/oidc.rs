@@ -796,6 +796,7 @@ pub async fn callback(
     tracing::info!(subject = %session.identity.subject, "portal login");
 
     let jar = session::store(jar, &session)?;
+    state.keep_id_token(&session);
     let (cookies, _token) = csrf::issue(cookies);
     Ok((jar, cookies, Redirect::to(&flow.redirect_to)).into_response())
 }
@@ -974,8 +975,8 @@ pub async fn logout(
                     "post_logout_redirect_uri",
                     state.config.public_base_url.as_str(),
                 );
-                if let Some(ref session) = session {
-                    params.append_pair("id_token_hint", &session.id_token);
+                if let Some(hint) = session.as_ref().and_then(|s| state.take_id_token(s)) {
+                    params.append_pair("id_token_hint", &hint);
                 }
                 if let Some(oidc) = state.config.oidc.as_ref() {
                     params.append_pair("client_id", &oidc.client_id);

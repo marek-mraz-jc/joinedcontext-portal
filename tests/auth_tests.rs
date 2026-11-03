@@ -659,12 +659,19 @@ fn stored_session(access_in: i64, issued_ago: i64) -> Vec<String> {
 
 /// [`stored_session`] of a session that did or did not prove a second factor (T-5567).
 fn stored_session_with(access_in: i64, issued_ago: i64, second_factor: bool) -> Vec<String> {
-    use axum::response::IntoResponse;
-    use axum_extra::extract::cookie::{Key, PrivateCookieJar};
-    use joinedcontext_portal::auth::session::{now_unix, store, Identity, Session};
+    stored(&demo_session(access_in, issued_ago, second_factor))
+}
+
+/// demo.steward's session as [`stored_session_with`] writes it.
+fn demo_session(
+    access_in: i64,
+    issued_ago: i64,
+    second_factor: bool,
+) -> joinedcontext_portal::auth::session::Session {
+    use joinedcontext_portal::auth::session::{now_unix, Identity, Session};
 
     let now = now_unix();
-    let session = Session {
+    Session {
         identity: Identity {
             client: None,
             subject: "f:1:demo.steward".into(),
@@ -681,9 +688,17 @@ fn stored_session_with(access_in: i64, issued_ago: i64, second_factor: bool) -> 
         id_token: "opaque-id-token-for-tests".into(),
         access_expires_at: now + access_in,
         refresh_token: Some("opaque-refresh-token-for-tests".into()),
-    };
+    }
+}
+
+/// The `Set-Cookie` lines `session::store` writes for `session` with the test key.
+fn stored(session: &joinedcontext_portal::auth::session::Session) -> Vec<String> {
+    use axum::response::IntoResponse;
+    use axum_extra::extract::cookie::{Key, PrivateCookieJar};
+
     let key = Key::from("k".repeat(64).as_bytes());
-    let jar = store(PrivateCookieJar::new(key), &session).expect("store");
+    let jar = joinedcontext_portal::auth::session::store(PrivateCookieJar::new(key), session)
+        .expect("store");
     let response = (jar, StatusCode::OK).into_response();
     set_cookie_values(&response)
 }
@@ -1669,10 +1684,15 @@ async fn logout_clears_the_cookies_without_a_session_and_hints_at_no_token() {
     let realm = realm().await;
     let token = "double-submit-token";
 
+    // The ID token stays on the server (T-6549): the Portal that signed this session in kept it.
+    let signed_in = demo_session(300, -600, false);
     let out = |cookie: String| {
         let realm_ref = &realm;
+        let signed_in = &signed_in;
         async move {
-            let app = app_with_realm(realm_ref).await;
+            let state = state_behind(realm_ref, false).await;
+            state.keep_id_token(signed_in);
+            let app = server::app(state);
             let response = app
                 .oneshot(
                     Request::builder()
@@ -1714,8 +1734,12 @@ async fn logout_clears_the_cookies_without_a_session_and_hints_at_no_token() {
     );
 
     // Signed in: the same, with the hint the provider needs to end the right SSO session.
-    let (status, _cookies, target) =
-        out(format!("{}; __Host-jc_csrf={token}", session_cookies(300))).await;
+    let cookie = stored(&signed_in)
+        .iter()
+        .filter_map(|c| c.split(';').next().map(str::to_string))
+        .collect::<Vec<_>>()
+        .join("; ");
+    let (status, _cookies, target) = out(format!("{cookie}; __Host-jc_csrf={token}")).await;
     assert_eq!(status, StatusCode::OK, "{target}");
     let url = target["endSessionUrl"].as_str().unwrap_or_default();
     assert!(
