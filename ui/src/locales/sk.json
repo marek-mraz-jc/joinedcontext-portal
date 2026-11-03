@@ -6683,6 +6683,7 @@
     "lead": "Zobrazte údaje z Endpointu ako graf, číslo, tabuľku alebo mapu a uložte ich do priečinka projektu v Grafane.",
     "notReady": "Požiadajte prevádzkovateľa, aby pre tento projekt zapol Grafanu, a potom sa vráťte.",
     "notReadyTitle": "Grafana pre tento projekt ešte nie je pripravená",
+    "readOnlyTitle": "Iba na čítanie: tieto môžete otvárať, nové pridávať nie",
     "readOnly": "Na ukladanie potrebujete rolu, ktorá v tomto projekte navrhuje dashboardy; požiadajte vlastníka projektu. Uložené vizualizácie môžete naďalej otvárať.",
     "kind": {
       "timeseries": "Časový rad",

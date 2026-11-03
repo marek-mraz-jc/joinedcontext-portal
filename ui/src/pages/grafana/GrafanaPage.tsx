@@ -71,7 +71,7 @@ export function SavedVisualization({
   const safe = safeHref(item.openUrl);
   return (
     <li className="flex flex-wrap items-center gap-2 border-b border-border py-3 last:border-b-0">
-      <div className="min-w-0 flex-1 basis-60">
+      <div className="min-w-0 flex-1 basis-full sm:basis-60">
         <p className="break-words text-body font-medium text-fg">{item.title}</p>
         <p className="break-words text-caption text-fg-muted">
           {t("grafana.saved.reads", { endpoint: item.endpointTitle, type: item.type, attribute: item.attribute })}
@@ -418,6 +418,7 @@ export function GrafanaPage({ project }: { project: string }): JSX.Element {
       {ready && mayCreate ? <VisualizationForm project={project} /> : null}
       {ready && !mayCreate ? (
         <Card>
+          <CardHeader as="h2" title={t("grafana.readOnlyTitle")} className="mb-1" />
           <p className="text-body text-fg-muted">{t("grafana.readOnly")}</p>
         </Card>
       ) : null}

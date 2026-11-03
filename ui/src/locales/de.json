@@ -6683,6 +6683,7 @@
     "lead": "Stellen Sie die Daten eines Endpoints als Diagramm, Zahl, Tabelle oder Karte dar und speichern Sie sie im Grafana-Ordner Ihres Projekts.",
     "notReady": "Bitten Sie Ihren Betreiber, Grafana für dieses Projekt einzuschalten, und kommen Sie dann zurück.",
     "notReadyTitle": "Grafana ist für dieses Projekt noch nicht bereit",
+    "readOnlyTitle": "Nur Lesen: Sie können diese öffnen, aber keine neuen hinzufügen",
     "readOnly": "Zum Speichern brauchen Sie eine Rolle, die in diesem Projekt Dashboards vorschlägt; fragen Sie den Projektinhaber. Gespeicherte Visualisierungen können Sie weiterhin öffnen.",
     "kind": {
       "timeseries": "Zeitreihe",
