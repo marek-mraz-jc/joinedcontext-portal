@@ -35,6 +35,7 @@ const SAVED = {
   id: "ab12",
   title: "PM2.5 by station",
   endpoint: "helsinki-air-quality",
+  endpointTitle: "Helsinki air quality",
   type: "AirQualityObserved",
   attribute: "pm25",
   kind: "timeseries",
@@ -110,13 +111,14 @@ for (const width of [1440, 400]) {
       await page.getByRole("button", { name: "Save to Grafana" }).click();
       await expect(page.getByRole("link", { name: "Open it" })).toHaveAttribute("href", SAVED.openUrl);
       await expect(page.getByRole("link", { name: "Open PM2.5 by station in Grafana" })).toBeVisible();
+      await expect(page.getByText("Helsinki air quality: AirQualityObserved, pm25")).toBeVisible();
       await shot(page, "saved", width);
       expect(await page.evaluate(pageFindings, { namespaces: NAMESPACES, layout: true })).toEqual([]);
     });
 
     test("a refusal names the field and keeps what was typed", async ({ page }) => {
       await stubApi(page, {
-        save: { status: 422, body: { status: 422, title: "Unprocessable", detail: "Grafana cannot read the closed Endpoint helsinki-air-quality yet; ask your operator to add it to this project's Grafana, or choose another" } },
+        save: { status: 422, body: { status: 422, title: "Unprocessable", detail: "Grafana cannot read the private Endpoint Helsinki air quality yet; ask your operator to add it to this project's Grafana, or choose another" } },
       });
       await page.goto("/projects/helsinki/grafana");
       await fill(page);

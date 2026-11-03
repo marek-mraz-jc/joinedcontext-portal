@@ -12265,6 +12265,8 @@ export interface components {
             attribute: string;
             createdAt: string;
             endpoint: string;
+            /** @description The Endpoint's title, the name its dropdown shows. */
+            endpointTitle: string;
             id: string;
             kind: components["schemas"]["Kind"];
             /** @description Where it opens in Grafana; `None` until the organization is known. */

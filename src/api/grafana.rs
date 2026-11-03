@@ -49,6 +49,8 @@ pub struct VisualizationItem {
     pub id: String,
     pub title: String,
     pub endpoint: String,
+    /// The Endpoint's title, the name its dropdown shows.
+    pub endpoint_title: String,
     #[serde(rename = "type")]
     pub entity_type: String,
     pub attribute: String,
@@ -146,6 +148,16 @@ fn is_public(endpoint: &ResourceEnvelope) -> bool {
     endpoint.spec["audience"] == "public"
 }
 
+/// The name a person knows the Endpoint by.
+fn title_of_endpoint(endpoint: &ResourceEnvelope) -> String {
+    endpoint
+        .metadata
+        .title
+        .as_ref()
+        .and_then(|title| crate::resource::title_text(&serde_json::to_value(title).ok()?))
+        .unwrap_or_else(|| endpoint.metadata.name.clone())
+}
+
 fn slug_of(endpoint: &ResourceEnvelope) -> &str {
     endpoint.spec["slug"].as_str().unwrap_or_default()
 }
@@ -194,7 +206,12 @@ async fn organization(state: &AppState, project: &str) -> Result<i64, ApiError> 
         .ok_or_else(|| ApiError::Conflict(no_organization(project)))
 }
 
-fn item(state: &AppState, row: Visualization, org: Option<i64>) -> VisualizationItem {
+fn item(
+    state: &AppState,
+    row: Visualization,
+    endpoint: &ResourceEnvelope,
+    org: Option<i64>,
+) -> VisualizationItem {
     let open_url = state
         .config
         .grafana
@@ -205,6 +222,7 @@ fn item(state: &AppState, row: Visualization, org: Option<i64>) -> Visualization
         id: row.id,
         title: row.title,
         endpoint: row.endpoint,
+        endpoint_title: title_of_endpoint(endpoint),
         entity_type: row.entity_type,
         attribute: row.attribute,
         kind: row.kind,
@@ -247,8 +265,10 @@ pub async fn grafana_page(
     };
     let items = rows
         .into_iter()
-        .filter(|row| readable_endpoint(&state, &effective, &project, &row.endpoint).is_some())
-        .map(|row| item(&state, row, org))
+        .filter_map(|row| {
+            let endpoint = readable_endpoint(&state, &effective, &project, &row.endpoint)?;
+            Some(item(&state, row, &endpoint, org))
+        })
         .collect();
     Ok(Json(GrafanaPage {
         ready: org.is_some(),
@@ -285,14 +305,7 @@ async fn endpoint_options(
             let slug = slug_of(endpoint);
             EndpointOption {
                 name: endpoint.metadata.name.clone(),
-                title: endpoint
-                    .metadata
-                    .title
-                    .as_ref()
-                    .and_then(|title| {
-                        crate::resource::title_text(&serde_json::to_value(title).ok()?)
-                    })
-                    .unwrap_or_else(|| endpoint.metadata.name.clone()),
+                title: title_of_endpoint(endpoint),
                 slug: slug.to_owned(),
                 public: is_public(endpoint),
                 usable: is_public(endpoint) || held.iter().any(|source| source.slug == slug),
@@ -497,12 +510,15 @@ pub async fn save_visualization(
             format!(
                 "Grafana cannot read the private Endpoint {} yet; ask your operator to add it to \
                  this project's Grafana, or choose another",
-                new.endpoint
+                title_of_endpoint(&endpoint)
             ),
         ));
     }
     grafana::insert(pool, &row).await.map_err(stored)?;
-    Ok((StatusCode::CREATED, Json(item(&state, row, Some(org)))))
+    Ok((
+        StatusCode::CREATED,
+        Json(item(&state, row, &endpoint, Some(org))),
+    ))
 }
 
 #[utoipa::path(

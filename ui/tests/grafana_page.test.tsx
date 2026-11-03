@@ -60,6 +60,7 @@ const item = {
   id: "ab12",
   title: "PM2.5",
   endpoint: "air",
+  endpointTitle: "Air quality",
   type: "AirQualityObserved",
   attribute: "pm25",
   kind: "timeseries" as const,

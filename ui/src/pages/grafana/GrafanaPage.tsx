@@ -74,47 +74,49 @@ export function SavedVisualization({
       <div className="min-w-0 flex-1 basis-60">
         <p className="break-words text-body font-medium text-fg">{item.title}</p>
         <p className="break-words text-caption text-fg-muted">
-          {t("grafana.saved.reads", { endpoint: item.endpoint, type: item.type, attribute: item.attribute })}
+          {t("grafana.saved.reads", { endpoint: item.endpointTitle, type: item.type, attribute: item.attribute })}
         </p>
       </div>
-      <Badge>{t(`grafana.kind.${item.kind}`)}</Badge>
-      {safe ? (
-        <a
-          className={buttonClass("secondary", "sm")}
-          href={safe}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <span aria-hidden="true">{t("grafana.saved.openShort")}</span>
-          <span className="sr-only">{t("grafana.saved.open", { title: item.title })}</span>
-        </a>
-      ) : null}
-      {mayRemove && !asking ? (
-        <Button
-          variant="ghost"
-          size="sm"
-          aria-label={t("grafana.saved.remove", { title: item.title })}
-          onClick={() => setAsking(true)}
-        >
-          {t("grafana.saved.removeShort")}
-        </Button>
-      ) : null}
-      {asking ? (
-        <span className="flex items-center gap-2">
-          <Button
-            variant="danger"
-            size="sm"
-            disabled={remove.isPending}
-            disabledReason={t("grafana.saved.removing")}
-            onClick={() => remove.mutate()}
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge>{t(`grafana.kind.${item.kind}`)}</Badge>
+        {safe ? (
+          <a
+            className={buttonClass("secondary", "sm")}
+            href={safe}
+            target="_blank"
+            rel="noopener noreferrer"
           >
-            {t("grafana.saved.confirm")}
+            <span aria-hidden="true">{t("grafana.saved.openShort")}</span>
+            <span className="sr-only">{t("grafana.saved.open", { title: item.title })}</span>
+          </a>
+        ) : null}
+        {mayRemove && !asking ? (
+          <Button
+            variant="ghost"
+            size="sm"
+            aria-label={t("grafana.saved.remove", { title: item.title })}
+            onClick={() => setAsking(true)}
+          >
+            {t("grafana.saved.removeShort")}
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setAsking(false)}>
-            {t("grafana.saved.keep")}
-          </Button>
-        </span>
-      ) : null}
+        ) : null}
+        {asking ? (
+          <span className="flex items-center gap-2">
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={remove.isPending}
+              disabledReason={t("grafana.saved.removing")}
+              onClick={() => remove.mutate()}
+            >
+              {t("grafana.saved.confirm")}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setAsking(false)}>
+              {t("grafana.saved.keep")}
+            </Button>
+          </span>
+        ) : null}
+      </div>
       {remove.isError ? (
         <Alert tone="danger" className="basis-full">
           {reasonOf(remove.error)}
@@ -345,6 +347,7 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
           </Field>
           <div>
             <Button
+              variant="primary"
               type="submit"
               disabled={!ready || save.isPending}
               disabledReason={ready ? t("grafana.form.saving") : t("grafana.form.incomplete")}
@@ -413,7 +416,11 @@ export function GrafanaPage({ project }: { project: string }): JSX.Element {
         />
       )}
       {ready && mayCreate ? <VisualizationForm project={project} /> : null}
-      {ready && !mayCreate ? <Alert tone="info">{t("grafana.readOnly")}</Alert> : null}
+      {ready && !mayCreate ? (
+        <Card>
+          <p className="text-body text-fg-muted">{t("grafana.readOnly")}</p>
+        </Card>
+      ) : null}
       {ready ? (
         <Card>
           <CardHeader as="h2" title={t("grafana.saved.title")} className="mb-1" />

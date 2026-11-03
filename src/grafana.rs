@@ -4,7 +4,7 @@
 //! writes into it with the local administrator, which never reaches a browser. A panel reads as
 //! whoever opens it: a closed Endpoint through a datasource that forwards that person's token, a
 //! public one through an anonymous datasource. Grafana's database lives and dies with its pod, so
-//! the rows here are the record, and [`spawn_periodic`] puts back what a restart took.
+//! the rows here are the record, and a periodic sweep puts back what a restart took.
 
 use std::sync::LazyLock;
 use std::time::Duration;

@@ -6683,7 +6683,7 @@
     "lead": "Draw an Endpoint's data as a chart, a number, a table or a map, and save it into your project's Grafana folder.",
     "notReady": "Ask your operator to enable Grafana for this project, then come back.",
     "notReadyTitle": "Grafana is not ready for this project",
-    "readOnly": "You can open what is saved here. Saving needs a role that proposes dashboards in this project; ask a project owner.",
+    "readOnly": "Saving here needs a role that proposes dashboards in this project; ask a project owner. You can still open what is saved.",
     "kind": {
       "timeseries": "Time series",
       "stat": "Number",

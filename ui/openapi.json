@@ -54062,6 +54062,7 @@
           "id",
           "title",
           "endpoint",
+          "endpointTitle",
           "type",
           "attribute",
           "kind",
@@ -54076,6 +54077,10 @@
           },
           "endpoint": {
             "type": "string"
+          },
+          "endpointTitle": {
+            "type": "string",
+            "description": "The Endpoint's title, the name its dropdown shows."
           },
           "id": {
             "type": "string"

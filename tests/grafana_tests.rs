@@ -59,22 +59,37 @@ fn world(grafana: Option<&MockServer>) -> AppState {
             .mirror
             .upsert(envelope("ContextSpace", space, PROJECT, json!({})));
     }
-    for (name, space, slug, audience) in [
-        ("bikes-closed", "bikes", CLOSED_SLUG, "private"),
-        ("bikes-open", "bikes", PUBLIC_SLUG, "public"),
+    for (name, title, space, slug, audience) in [
+        (
+            "bikes-closed",
+            "Bike stations",
+            "bikes",
+            CLOSED_SLUG,
+            "private",
+        ),
+        (
+            "bikes-open",
+            "Bike stations, open",
+            "bikes",
+            PUBLIC_SLUG,
+            "public",
+        ),
         (
             "air-closed",
+            "Air quality",
             "air",
             "ydp6nddchg4sewmylsiclg4377mlldrj",
             "private",
         ),
     ] {
-        state.mirror.upsert(envelope(
+        let mut endpoint = envelope(
             "Endpoint",
             name,
             PROJECT,
             json!({ "contextSpaceRef": space, "slug": slug, "audience": audience }),
-        ));
+        );
+        endpoint.metadata.title = Some(jc_core::i18n::Text::Plain(title.to_owned()));
+        state.mirror.upsert(endpoint);
     }
     let read = json!({ "kinds": ["Project", "ContextSpace", "Endpoint"], "verbs": ["read"] });
     role(&state, "reader", json!([read]));
@@ -543,6 +558,11 @@ async fn a_save_lands_in_the_project_folder_comes_back_after_a_restart_and_can_b
     let listed = send(&state, person("vera"), "GET", PAGE, None).await;
     assert_eq!(body(&listed)["ready"], true);
     assert_eq!(body(&listed)["items"][0]["title"], "Free bikes");
+    assert_eq!(
+        body(&listed)["items"][0]["endpointTitle"],
+        "Bike stations",
+        "a saved row names the Endpoint as its dropdown does"
+    );
 
     let config = state.config.grafana.clone().expect("configured");
     grafana::sweep(&state, &pool, &Client::new(&config)).await;
@@ -592,7 +612,12 @@ async fn a_public_endpoint_gets_an_anonymous_datasource_and_a_closed_one_without
     )
     .await;
     assert_eq!(closed.status, StatusCode::UNPROCESSABLE_ENTITY);
-    assert!(closed.text.clone().contains("operator"));
+    assert!(closed.text.contains("operator"));
+    assert!(
+        closed.text.contains("Air quality") && !closed.text.contains("air-closed"),
+        "the refusal uses the name the dropdown shows: {}",
+        closed.text
+    );
 
     let open = send(
         &state,
