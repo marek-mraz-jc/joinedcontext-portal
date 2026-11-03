@@ -14,11 +14,14 @@
  * OPEN_DATA_LIMIT caps datasets per publisher; OPEN_DATA_NAMES (comma list) times only those.
  * Reads are paced: each page waits OPEN_DATA_PAUSE_MS (default 1500) so one run stays well under
  * the edge's 600 reads a minute. With OPEN_DATA_BUDGET=1 a warm page at 1440 over 2 s to its
- * first grid row or 3 s to its first map features fails the test.
+ * first grid row or 3 s to its first map features fails the test. WALK_UI_DIST (a built ui/dist)
+ * times a branch's UI against the live Portal; OPEN_DATA_SHOTS (a directory) keeps a full-height
+ * shot of each warm page.
  */
 import { appendFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
 import type { Browser, Page, Request } from "@playwright/test";
+import { withLocalUi } from "./portal";
 
 const PUBLISHERS = (process.env.OPEN_DATA_PUBLISHERS ?? "bratislava,banskabystrica,bbsk,zilina,slovensko").split(",").filter(Boolean);
 const WIDTHS = (process.env.OPEN_DATA_WIDTHS ?? "1440").split(",").map(Number).filter((width) => width > 0);
@@ -27,6 +30,7 @@ const NAMES = (process.env.OPEN_DATA_NAMES ?? "").split(",").filter(Boolean);
 const PAUSE = Number(process.env.OPEN_DATA_PAUSE_MS ?? "1500");
 const OUT = process.env.OPEN_DATA_OUT;
 const BUDGET = process.env.OPEN_DATA_BUDGET === "1";
+const SHOTS = process.env.OPEN_DATA_SHOTS;
 const WAIT = 30_000;
 
 test.setTimeout(6 * 60 * 60_000);
@@ -165,6 +169,7 @@ async function measure(browser: Browser, width: number, publisher: string, name:
   // A visitor's browser sends no run header: the config's X-JC-Run-Origin would make the grid's
   // cross-origin read to the api host a CORS preflight the gateway refuses.
   const context = await browser.newContext({ viewport: { width, height: width >= 1000 ? 900 : 860 }, extraHTTPHeaders: {} });
+  await withLocalUi(context);
   const page = await context.newPage();
   try {
     for (const run of ["cold", "warm"] as const) {
@@ -175,8 +180,12 @@ async function measure(browser: Browser, width: number, publisher: string, name:
         await page.waitForTimeout(30_000);
         times = await visit(page, name);
       }
-      const row = { at: new Date().toISOString(), base: test.info().project.use.baseURL, width, run, publisher, name, ...times };
+      const row = { at: new Date().toISOString(), base: test.info().project.use.baseURL, ui: process.env.WALK_UI_DIST ? "branch" : "live", width, run, publisher, name, ...times };
       if (OUT) appendFileSync(OUT, `${JSON.stringify(row)}\n`);
+      if (SHOTS && run === "warm") {
+        await page.setViewportSize({ width, height: await page.evaluate(() => document.documentElement.scrollHeight) });
+        await page.screenshot({ path: `${SHOTS}/${name}-${width}.png` });
+      }
       console.log(JSON.stringify(row));
       if (BUDGET && run === "warm" && width === 1440) {
         expect.soft(times.card, `${name}: the card shows`).not.toBeNull();
