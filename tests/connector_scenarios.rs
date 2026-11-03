@@ -659,6 +659,21 @@ async fn forge(server: &MockServer) {
         "projects/t-scn-45/spaces/doprava/space.yaml",
         &space.replace("t-scn-42", "t-scn-45"),
     );
+    // S-32 deletes this binding: a removal reads the file it takes away.
+    let binding = joinedcontext_portal::resource::by_kind("RoleBinding").expect("catalogued");
+    repo.seed(
+        "main",
+        &joinedcontext_portal::resource::repository_path(
+            binding,
+            ORG_NAMESPACE,
+            None,
+            "scn-member-jana-t-scn-32",
+        )
+        .expect("a path"),
+        "apiVersion: joinedcontext.com/v1alpha1\nkind: RoleBinding\nmetadata:\n  name: \
+         scn-member-jana-t-scn-32\n  namespace: org\nspec:\n  role: scn-viewer\n  scope:\n    \
+         project: t-scn-32\n  subjects:\n  - user: 7c1e4b2a-9d3f-4a6e-8b5c-2f0a1d9e3b47\n",
+    );
     Mock::given(wiremock::matchers::path_regex(format!(
         "^{REPO}/(branches|contents|git/trees)(/.*)?$"
     )))

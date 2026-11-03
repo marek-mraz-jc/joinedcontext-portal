@@ -1051,6 +1051,35 @@
   expect: 'binding removed; jana''s connectors lose the project at their next call'
   deny: 'none'
   script:
+    # The model takes the binding's name from jc_member_list (T-6485: the live walk could only
+    # guess it) and opens the change that deletes it; what follows proves the effect.
+    - proves: expect
+      manifest: { kind: Group, name: s32-people, spec: { members: [{ user: scn.project-admin@hel.fi }] } }
+    - proves: expect
+      manifest: { kind: DelegationPolicy, name: s32-access, spec: { subjects: [{ kind: Group, name: s32-people }], projects: ['{project}'], segments: [access], writes: true, maxExpiry: P90D } }
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s32-access, segments: [access], writes: true, scope: [{ project: '{project}', access: write }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      via: connector
+      call: jc_member_list
+      args: { search: jana }
+      contains: ['"binding":"scn-member-jana-{project}"', '"subjects":1', 'Jana Nováková']
+      absent: ['jana.novakova@hel.fi']
+    - proves: expect
+      via: connector
+      call: jc_change_plan
+      args: { changes: [{ op: delete, kind: RoleBinding, name: 'scn-member-jana-{project}' }] }
+      keep: planId
+      contains: ['"planId"', 'scn-member-jana-{project}']
+    - proves: expect
+      via: connector
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
     - proves: expect
       as: viewer
       rest:
