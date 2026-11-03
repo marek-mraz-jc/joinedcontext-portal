@@ -1692,7 +1692,7 @@ pub async fn get_sample(
     get,
     path = "/api/v1/catalogue/datasets/{name}/map",
     summary = "Map a Catalogue Dataset",
-    description = "Up to 1000 located entities of the dataset's first model class, read anonymously through its public Endpoint, with the key attributes its popups show (EP-82, T-5628). A dataset without locations answers no features.",
+    description = "Up to 1000 located entities of the first model class the dataset's Endpoint serves, read anonymously through its public Endpoint, with the key attributes its popups show (EP-82, T-5628). A dataset without locations answers no features.",
     tag = "ckan",
     params(("name" = String, Path, description = "The dataset's name in the catalogue"), MapQuery),
     responses(
