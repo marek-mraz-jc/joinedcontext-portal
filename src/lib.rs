@@ -36,6 +36,7 @@ pub mod error;
 pub mod feedback;
 pub mod flow_map;
 pub mod git;
+pub mod grafana;
 pub mod groups;
 pub mod health_log;
 pub mod health_probe;

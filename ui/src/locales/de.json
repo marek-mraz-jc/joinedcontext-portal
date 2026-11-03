@@ -68,6 +68,7 @@
     "nothingToUndo": "Noch nichts rückgängig zu machen."
   },
   "nav": {
+    "grafana": "Grafana",
     "approvalsPending": "{count, plural, one {# Änderung wartet auf Ihre Genehmigung} other {# Änderungen warten auf Ihre Genehmigung}}",
     "organizationSwitch": "Organisation wechseln, jetzt {organization}",
     "organizationLabel": "Organisationen",
@@ -6675,6 +6676,62 @@
     },
     "timing": {
       "both": "Erstes Bild und erste Version"
+    }
+  },
+  "grafana": {
+    "title": "Grafana",
+    "lead": "Stellen Sie die Daten eines Endpoints als Diagramm, Zahl, Tabelle oder Karte dar und speichern Sie sie im Grafana-Ordner Ihres Projekts.",
+    "notReady": "Bitten Sie Ihren Betreiber, Grafana für dieses Projekt einzuschalten, und kommen Sie dann zurück.",
+    "notReadyTitle": "Grafana ist für dieses Projekt noch nicht bereit",
+    "readOnly": "Gespeicherte Visualisierungen können Sie öffnen. Zum Speichern brauchen Sie eine Rolle, die in diesem Projekt Dashboards vorschlägt; fragen Sie den Projektinhaber.",
+    "kind": {
+      "timeseries": "Zeitreihe",
+      "stat": "Zahl",
+      "table": "Tabelle",
+      "map": "Karte"
+    },
+    "saved": {
+      "title": "Gespeicherte Visualisierungen",
+      "reads": "{endpoint}: {type}, {attribute}",
+      "openShort": "In Grafana öffnen",
+      "removeShort": "Entfernen",
+      "removing": "Wird entfernt…",
+      "open": "{title} in Grafana öffnen",
+      "remove": "{title} entfernen",
+      "confirm": "Aus Grafana entfernen",
+      "keep": "Behalten",
+      "emptyTitle": "Noch nichts gespeichert",
+      "empty": "Füllen Sie das Formular oben aus und speichern Sie Ihre erste Visualisierung.",
+      "emptyReader": "Sobald jemand im Projekt eine Visualisierung speichert, erscheint sie hier."
+    },
+    "form": {
+      "title": "Neue Visualisierung",
+      "endpoint": "Endpoint",
+      "endpointHelp": "Die darzustellenden Daten. Die Liste enthält die Endpoints, die Sie lesen dürfen, zum Beispiel Luftqualität Helsinki.",
+      "type": "Typ",
+      "typeHelp": "Was jede Zeile darstellt, zum Beispiel eine Luftqualitätsmessung.",
+      "chooseEndpointFirst": "Wählen Sie zuerst einen Endpoint.",
+      "chooseTypeFirst": "Wählen Sie zuerst einen Typ.",
+      "saving": "Wird gespeichert…",
+      "attribute": "Attribut",
+      "attributeHelp": "Der darzustellende Wert, zum Beispiel pm25. Verweise auf andere Entitäten fehlen hier.",
+      "kind": "Visualisierung",
+      "kindHelp": "Zeitreihe und Zahl brauchen einen Zahlenwert, Karte einen Ort. Tabelle nimmt jeden Wert.",
+      "name": "Name",
+      "nameHelp": "Erscheint in Grafana, zum Beispiel PM2.5 nach Station.",
+      "choose": "Wählen…",
+      "notReachable": "Noch nicht in Grafana: {names}. Bitten Sie Ihren Betreiber, sie hinzuzufügen.",
+      "save": "In Grafana speichern",
+      "incomplete": "Füllen Sie zuerst alle Felder aus.",
+      "saved": "{title} wurde in Grafana gespeichert.",
+      "openSaved": "Öffnen",
+      "preview": "Vorschau: die Zeilen, die Sie jetzt lesen können",
+      "previewFailed": "Die Zeilen konnten nicht gelesen werden. Versuchen Sie es gleich noch einmal.",
+      "previewNoRows": "Dieser Endpoint hat noch keine Zeilen dieses Typs.",
+      "previewEmptyTitle": "Vorschau",
+      "previewEmpty": "Wählen Sie Endpoint, Typ und Attribut, um die Zeilen dieser Visualisierung zu sehen.",
+      "noEndpointsTitle": "Keine Daten zum Darstellen",
+      "noEndpoints": "Sie dürfen in diesem Projekt noch keinen Endpoint lesen. Fragen Sie den Projektinhaber nach Zugriff oder legen Sie zuerst einen Endpoint an."
     }
   },
   "activity": {

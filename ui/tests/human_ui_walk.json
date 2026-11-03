@@ -2501,6 +2501,24 @@
         "evidence/T-6208/spaces-refused-1440.png",
         "evidence/T-6208/spaces-refused-400.png"
       ]
+    },
+    "src/pages/grafana/GrafanaPage.tsx": {
+      "walkedBy": "worker-t6509",
+      "date": "2026-11-03",
+      "screenshots": [
+        "evidence/T-6509/empty-list-1440.png",
+        "evidence/T-6509/empty-list-400.png",
+        "evidence/T-6509/error-1440.png",
+        "evidence/T-6509/error-400.png",
+        "evidence/T-6509/filled-1440.png",
+        "evidence/T-6509/filled-400.png",
+        "evidence/T-6509/not-ready-1440.png",
+        "evidence/T-6509/not-ready-400.png",
+        "evidence/T-6509/refusal-reader-1440.png",
+        "evidence/T-6509/refusal-reader-400.png",
+        "evidence/T-6509/saved-1440.png",
+        "evidence/T-6509/saved-400.png"
+      ]
     }
   }
 }

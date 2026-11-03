@@ -1393,6 +1393,14 @@
         "share_flow.test.tsx"
       ]
     },
+    "src/pages/grafana/GrafanaPage.tsx": {
+      "controls": {
+        "Button": 4
+      },
+      "tests": [
+        "grafana_page.test.tsx"
+      ]
+    },
     "src/pages/endpoints/VisualizationsSection.tsx": {
       "controls": {
         "Button": 3
