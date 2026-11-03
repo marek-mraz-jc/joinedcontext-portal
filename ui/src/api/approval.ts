@@ -103,6 +103,7 @@ export function approvalStanding(
     summary: { params: unknown };
     author: { email?: string | null };
     planFields?: PlannedField[] | null;
+    files?: { kind: string }[] | null;
   },
 ): ApprovalStanding {
   // A secret's change names no manifest kind: the API judges it on DataSource (T-6359).
@@ -118,8 +119,10 @@ export function approvalStanding(
   if (!isOwn(callerEmail, change)) {
     return { block: null, ownAsAdministrator: false };
   }
-  if (needsSecondPerson(kind)) {
-    return { block: isAccessKind(kind) ? "ownAccessChange" : "ownModelChange", ownAsAdministrator: false };
+  // Every file counts, as the API judges every file: a new space carries its DataModel (PF-58).
+  const second = [kind, ...(change.files ?? []).map((file) => file.kind)].filter(needsSecondPerson);
+  if (second.length > 0) {
+    return { block: second.some(isAccessKind) ? "ownAccessChange" : "ownModelChange", ownAsAdministrator: false };
   }
   // The bootstrap group is not a binding, so it does not administer a kind (PF-58).
   const administers =

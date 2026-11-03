@@ -188,6 +188,22 @@ describe("what approving a change leads to for each role", () => {
     for (const locale of [cs, de, en, sk]) expect(locale.approvals.ownModelChange).toBeTruthy();
   });
 
+  // T-6501: a new ContextSpace carries its DataModel file; the API holds the whole change for a
+  // second person, so the page must not offer its author Approve on the headline kind alone.
+  it("an administrator's own space with its model waits for a second person", () => {
+    const data: Effective = {
+      bootstrap: false,
+      project: "helsinki",
+      grants: [{ binding: "admins", role: "admin", scope: "organization", rule: { kinds: ["ContextSpace", "DataModel"], verbs: ROLES.admin } as never }],
+    };
+    const permissions = { data, can: (k: string, verb: Verb) => allows(data, k, verb) };
+    const space = { ...change("ContextSpace", "admin@hel.fi"), files: [{ kind: "ContextSpace" }, { kind: "DataModel" }] };
+    expect(approvalStanding(permissions, "admin@hel.fi", space)).toEqual({ block: "ownModelChange", ownAsAdministrator: false });
+    const bare = { ...change("ContextSpace", "admin@hel.fi"), files: [{ kind: "ContextSpace" }] };
+    expect(approvalStanding(permissions, "admin@hel.fi", bare)).toEqual({ block: null, ownAsAdministrator: true });
+    expect(approvalStanding(permissions, "admin@hel.fi", { ...space, author: { email: "other@hel.fi" } }).block).toBeNull();
+  });
+
   it("the approval page names the second person in every language", () => {
     for (const [lang, messages] of Object.entries({ en, sk, cs, de })) {
       expect(messages.approvals.ownAccessChange, lang).toBeTruthy();
