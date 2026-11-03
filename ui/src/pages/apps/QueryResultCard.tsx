@@ -391,9 +391,14 @@ export function QueryAnswer({ view, project }: { view: QueryView; project?: stri
         </TableBody>
       </Table>
       <p className="mt-1 text-fg-muted">
-        {view.total > view.rows.length
-          ? `${t("assistant.query.someRows", { shown: view.rows.length, total: view.total })}. ${t("assistant.query.moreHint")}`
-          : t("assistant.query.rows", { count: view.total })}
+        {view.total > view.rows.length ? (
+          <>
+            <span>{t("assistant.query.someRows", { shown: view.rows.length, total: view.total })}</span>{" "}
+            <span>{t("assistant.query.moreHint")}</span>
+          </>
+        ) : (
+          t("assistant.query.rows", { count: view.total })
+        )}
       </p>
     </div>
   ) : view.kind === "schema" ? (

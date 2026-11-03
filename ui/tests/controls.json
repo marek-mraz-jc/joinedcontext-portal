@@ -970,10 +970,11 @@
     },
     "src/pages/apps/ActionStep.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 3
       },
       "tests": [
-        "action_inspector.test.tsx"
+        "action_inspector.test.tsx",
+        "assistant_step_states.test.tsx"
       ]
     },
     "src/pages/apps/AgentRunPage.tsx": {

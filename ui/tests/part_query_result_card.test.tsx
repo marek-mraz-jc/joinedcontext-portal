@@ -50,9 +50,10 @@ afterEach(() => {
 });
 
 describe("the card of a query answer", () => {
-  it("names the endpoint, the tool and the argument that matters", () => {
+  it("names the endpoint and the argument that matters, never the tool", () => {
     renderPart(<QueryResultCard result={card([entity(0)])} />);
-    expect(screen.getByText("air-public · queryEntities")).toBeInTheDocument();
+    expect(screen.getByText("air-public")).toBeInTheDocument();
+    expect(screen.queryByText(/queryEntities/)).toBeNull();
     expect(screen.getByText("type: AirQualityObserved")).toBeInTheDocument();
   });
 
