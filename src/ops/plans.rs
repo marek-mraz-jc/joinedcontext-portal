@@ -515,7 +515,7 @@ async fn checked(
     };
     let mut diff = json!({
         "op": change.op_word(),
-        "portal": portal,
+        "portal": crate::agents::change::address(&state.config, &portal),
         "kind": info.kind,
         "name": change.name,
         "lane": answer.get("lane"),

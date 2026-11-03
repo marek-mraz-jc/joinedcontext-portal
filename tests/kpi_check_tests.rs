@@ -129,8 +129,12 @@ struct Rig {
 /// jana may propose pipelines in `city` and read its space `mobility`; eva only reads it. The
 /// pipeline `kpi`'s account holds a read grant on TransitStop.
 async fn rig() -> Rig {
+    rig_on(Config::for_tests()).await
+}
+
+async fn rig_on(config: Config) -> Rig {
     let broker = broker().await;
-    let mut state = AppState::new(Config::for_tests(), None);
+    let mut state = AppState::new(config, None);
     for space in ["mobility", "secret", "city-kpi"] {
         state
             .mirror
@@ -479,6 +483,200 @@ async fn an_empty_source_gives_no_value_and_says_why() {
         problem.contains("input parking") && problem.contains("no rows"),
         "{problem}"
     );
+}
+
+/// One source, `by: time`, read back a week: the draft of the editor's "Change since last week".
+fn change(formula: &str) -> Value {
+    let mut body = draft(formula, "stops");
+    let spec = &mut body["pipeline"]["spec"];
+    spec["sources"].as_array_mut().expect("sources").truncate(1);
+    spec["steps"][0]["kpi"]["join"] = json!({ "by": "time" });
+    body
+}
+
+/// `parking` as a public Endpoint and a gateway whose Temporal API answers `rows`: the rig of the
+/// preview's read back, which goes through the gateway and not the broker's view preview.
+async fn rig_with_history(rows: Value) -> (Rig, MockServer) {
+    let gateway = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "/api/endpoint/{PARKING}/ngsi-ld/v1/temporal/entities"
+        )))
+        .and(query_param("type", "ParkingSite"))
+        .and(query_param("attrs", "occupied"))
+        .and(query_param("timerel", "before"))
+        .and(query_param("lastN", "1"))
+        .and(query_param("limit", "100"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(rows))
+        .mount(&gateway)
+        .await;
+    let mut config = Config::for_tests();
+    config.gateway_url = Some(gateway.uri());
+    let rig = rig_on(config).await;
+    rig.state.mirror.upsert(envelope(
+        "Endpoint",
+        "parking",
+        "city",
+        json!({ "contextSpaceRef": "mobility", "slug": PARKING, "audience": "public" }),
+    ));
+    (rig, gateway)
+}
+
+/// PL-117, PL-105: a change over one source previews the sum now (21) minus the rows as they
+/// stood a week ago (the broker's shape: a list of instances per attribute).
+#[tokio::test]
+async fn a_change_since_last_week_previews_a_value_from_history() {
+    let instance = |id: &str, n: u32| {
+        json!({ "id": id, "type": "ParkingSite",
+        "occupied": [{ "type": "Property", "value": n }] })
+    };
+    let (rig, _gateway) = rig_with_history(json!([
+        instance("p1", 7),
+        instance("p2", 8),
+        instance("p3", 2)
+    ]))
+    .await;
+    let answer = checked(
+        &rig,
+        change("sum(parking.occupied) - prev(sum(parking.occupied), P7D)"),
+    )
+    .await;
+    assert_eq!(answer["problems"], json!([]), "{answer}");
+    assert_eq!(
+        answer["preview"],
+        json!({
+            "values": [{ "key": null, "name": "parking-per-stop", "value": 4.0 }],
+            "rows": { "parking": 3, "parking@P7D": 3 }
+        })
+    );
+}
+
+/// PL-117: no history gives no value with the reason, never the whole sum as the change.
+#[tokio::test]
+async fn no_history_gives_no_value_and_says_why() {
+    let (rig, _gateway) = rig_with_history(json!([])).await;
+    let answer = checked(
+        &rig,
+        change("sum(parking.occupied) - prev(sum(parking.occupied), P7D)"),
+    )
+    .await;
+    assert_eq!(answer["preview"]["values"], json!([]), "{answer}");
+    let problem = answer["preview"]["problem"].as_str().expect("a problem");
+    assert!(
+        problem.contains("input parking") && problem.contains("no history 7 days back"),
+        "{problem}"
+    );
+}
+
+/// PL-117: the history is the person's to read: without their token nothing is asked of the
+/// gateway on an Endpoint that is not public, and a refused read gives no value.
+#[tokio::test]
+async fn a_person_without_a_token_reads_no_history() {
+    let gateway = MockServer::start().await;
+    let mut config = Config::for_tests();
+    config.gateway_url = Some(gateway.uri());
+    let rig = rig_on(config).await;
+    let answer = checked(
+        &rig,
+        change("sum(parking.occupied) - prev(sum(parking.occupied), P7D)"),
+    )
+    .await;
+    let problem = answer["preview"]["problem"].as_str().expect("a problem");
+    assert!(problem.contains("your own access token"), "{problem}");
+    assert_eq!(answer["preview"]["values"], json!([]), "{answer}");
+    assert_eq!(
+        gateway.received_requests().await.unwrap_or_default().len(),
+        0
+    );
+}
+
+#[tokio::test]
+async fn a_refused_history_read_gives_no_value() {
+    let gateway = MockServer::start().await;
+    Mock::given(method("GET"))
+        .respond_with(ResponseTemplate::new(403))
+        .mount(&gateway)
+        .await;
+    let mut config = Config::for_tests();
+    config.gateway_url = Some(gateway.uri());
+    let rig = rig_on(config).await;
+    rig.state.mirror.upsert(envelope(
+        "Endpoint",
+        "parking",
+        "city",
+        json!({ "contextSpaceRef": "mobility", "slug": PARKING, "audience": "public" }),
+    ));
+    let answer = checked(
+        &rig,
+        change("sum(parking.occupied) - prev(sum(parking.occupied), P7D)"),
+    )
+    .await;
+    let problem = answer["preview"]["problem"].as_str().expect("a problem");
+    assert!(problem.contains("may not read its history"), "{problem}");
+}
+
+/// PL-117: a source whose grant holds no `queryTemporal` is not readable for a `prev` term, though
+/// the same grant reads its current page.
+#[tokio::test]
+async fn a_read_back_needs_the_history_grant() {
+    let rig = rig().await;
+    let grant = |operations: Value, name: &str| {
+        envelope(
+            "Policy",
+            name,
+            "city",
+            json!({
+                "contextSpaceRef": "mobility",
+                "assignee": { "kind": "serviceAccount", "id": "city/pl-kpi" },
+                "operations": operations,
+                "information": [{ "entities": [{ "type": "ParkingSite" }] }],
+            }),
+        )
+    };
+    let read = |rig_body: Value| rig_body["sources"][0]["readable"].clone();
+    let formula = "sum(parking.occupied) - prev(sum(parking.occupied), P7D)";
+    rig.state
+        .mirror
+        .upsert(grant(json!(["retrieveOps"]), "kpi-read"));
+    let mut plain = change("sum(parking.occupied) + count(parking)");
+    plain["preview"] = json!(false);
+    plain["pipeline"]["spec"]["sources"]
+        .as_array_mut()
+        .expect("sources")
+        .push(draft("", "stops")["pipeline"]["spec"]["sources"][1].clone());
+    assert_eq!(read(checked(&rig, plain).await), json!(true));
+    let mut body = change(formula);
+    body["preview"] = json!(false);
+    assert_eq!(read(checked(&rig, body.clone()).await), json!(false));
+    rig.state.mirror.upsert(grant(
+        json!(["retrieveOps", "queryTemporal"]),
+        "kpi-history",
+    ));
+    assert_eq!(read(checked(&rig, body).await), json!(true));
+}
+
+/// PL-117: the join and the shape of a read back are refused at their fields.
+#[tokio::test]
+async fn a_read_back_refusal_names_its_field() {
+    let rig = rig().await;
+    let mut by_area = change("sum(parking.occupied) - prev(sum(parking.occupied), P7D)");
+    by_area["pipeline"]["spec"]["steps"][0]["kpi"]["join"] =
+        json!({ "by": "area", "keys": { "parking": "district" } });
+    let answer = checked(&rig, by_area).await;
+    assert_eq!(
+        answer["problems"][0]["field"], "spec.steps.kpi.join",
+        "{answer}"
+    );
+    let answer = checked(
+        &rig,
+        change("sum(parking.occupied) - prev(count(parking), P7D)"),
+    )
+    .await;
+    assert_eq!(
+        answer["problems"][0]["field"], "spec.steps.kpi.formula",
+        "{answer}"
+    );
+    assert!(answer.get("preview").is_none(), "{answer}");
 }
 
 #[tokio::test]

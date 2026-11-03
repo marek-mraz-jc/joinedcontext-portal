@@ -15,10 +15,11 @@ export type JoinBy = "time" | "area" | "entity";
 
 /**
  * The formula choices (PL-105). `per` is the first source's sum per row of the second, `rest` the
- * share left: spaces in use from free spaces and all spaces.
+ * share left: spaces in use from free spaces and all spaces, `change` the first source's sum now
+ * minus the same sum a week ago, read from its history (PL-117).
  */
-export type FormulaChoice = "count" | "sum" | "average" | "share" | "rest" | "per";
-export const FORMULA_CHOICES: FormulaChoice[] = ["count", "sum", "average", "share", "rest", "per"];
+export type FormulaChoice = "count" | "sum" | "average" | "share" | "rest" | "per" | "change";
+export const FORMULA_CHOICES: FormulaChoice[] = ["count", "sum", "average", "share", "rest", "per", "change"];
 
 /** How often the indicator is computed, as the cron the schedule takes. */
 export const SCHEDULES = { quarter: "*/15 * * * *", hourly: "0 * * * *", daily: "0 3 * * *" } as const;
@@ -87,7 +88,28 @@ export function choiceFormula(choice: FormulaChoice, sources: KpiSourceDraft[]):
       return `1 - sum(${of(a)}) / sum(${of(b)})`;
     case "per":
       return `sum(${of(a)}) / count(${b?.name ?? ""})`;
+    case "change":
+      return `sum(${of(a)}) - prev(sum(${of(a)}), P7D)`;
   }
+}
+
+/** The fewest sources the draft's formula takes: a `prev` term is a second read of one source. */
+export function leastSources(draft: KpiDraft): number {
+  return /\bprev\s*\(/.test(formulaOf(draft)) ? 1 : MIN_SOURCES;
+}
+
+/**
+ * The draft after picking `choice`: a change reads one source over all its rows, so it drops the
+ * sources it does not read and the join; any other choice gets its second source back.
+ */
+export function withChoice(draft: KpiDraft, choice: FormulaChoice): KpiDraft {
+  const sources =
+    choice === "change"
+      ? draft.sources.slice(0, 1)
+      : draft.sources.length < MIN_SOURCES
+        ? [...draft.sources, emptySource(draft.sources.length)]
+        : draft.sources;
+  return { ...draft, choice, sources, join: choice === "change" ? "time" : draft.join };
 }
 
 export function formulaOf(draft: KpiDraft): string {

@@ -788,7 +788,10 @@ mod tests {
         let id = planned["planId"].as_str().expect("planId").to_owned();
         assert_eq!(
             planned["diff"][0]["portal"],
-            json!("/projects/helsinki/pipelines?edit=hel-news")
+            json!(crate::agents::change::address(
+                &state.config,
+                "/projects/helsinki/pipelines?edit=hel-news"
+            ))
         );
         let server = model(
             calls("jc_ui_show_diff", json!({ "planId": id }), 10),

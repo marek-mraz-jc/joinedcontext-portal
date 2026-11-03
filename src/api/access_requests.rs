@@ -907,7 +907,12 @@ fn readable_endpoint(
 
 /// The entity types `endpoint` serves: its space's compiled model, narrowed to the classes of the
 /// ModelProjection it names; empty when the space has no compiled model.
-fn served_types(state: &AppState, project: &str, space: &str, endpoint: &Value) -> Vec<String> {
+pub(crate) fn served_types(
+    state: &AppState,
+    project: &str,
+    space: &str,
+    endpoint: &Value,
+) -> Vec<String> {
     let Some(model) = state.model_schemas.get(project, space) else {
         return Vec::new();
     };
