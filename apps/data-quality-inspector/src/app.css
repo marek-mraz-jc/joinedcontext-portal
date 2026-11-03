@@ -81,10 +81,10 @@ body {
   margin-top: var(--jc-space-1, 0.25rem);
 }
 
+/* One line per figure: eight tiles share a 1440 px row, too narrow for three columns of labels. */
 .app-tile-stats {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--jc-space-2, 0.5rem);
+  gap: var(--jc-space-1, 0.25rem);
   margin-top: var(--jc-space-2, 0.5rem);
   padding-top: var(--jc-space-2, 0.5rem);
   border-top: 1px solid var(--jc-color-line, #e2e8f0);
@@ -92,8 +92,14 @@ body {
 
 .app-tile-stat {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0 var(--jc-space-2, 0.5rem);
+}
+
+.app-tile-retry {
+  justify-self: start;
+  margin-top: var(--jc-space-1, 0.25rem);
 }
 
 .app-tile-stat-k {
@@ -150,10 +156,6 @@ body {
 }
 
 @media (max-width: 40rem) {
-  .app-tile-stats {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .app-freshness-dl {
     grid-template-columns: minmax(0, 1fr);
   }

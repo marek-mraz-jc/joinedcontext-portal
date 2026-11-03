@@ -1923,6 +1923,36 @@ async fn a_projection_that_names_the_served_major_is_imported() {
     );
 }
 
+/// A project's own DataModel resolves: the Endpoint form's check names one and was refused
+/// with "in neither the bundle nor project" although the project listed the model (T-6449).
+#[tokio::test]
+async fn a_projection_of_a_model_the_project_holds_itself_resolves() {
+    let server = forge().await;
+    let model = r#"apiVersion: joinedcontext.com/v1alpha1
+kind: DataModel
+metadata:
+  name: helsinki
+  namespace: helsinki
+spec:
+  version: "1"
+"#;
+    let (state, cookie) = state(&server, vec![model]);
+    let good = BAD_PROJECTION.replace("version: 1.1.0", "version: \"1\"");
+    let (content_type, body) = multipart(
+        &archive(&[
+            ("projects/helsinki/spaces/ovzdusie/space.yaml", SPACE),
+            (
+                "projects/helsinki/spaces/ovzdusie/projections/helsinki-bikes-mobility.yaml",
+                &good,
+            ),
+        ]),
+        &[("dryRun", "true")],
+    );
+    let (_, report) = post(state, &cookie, &content_type, body).await;
+    let detail = report["detail"].as_str().unwrap_or_default();
+    assert!(!detail.contains("is in neither"), "{report}");
+}
+
 /// T-2870 (ADR-N-035): the organization's `spec.limits.data.uploadMegabytes` is the import's
 /// limit. A bundle past it is refused before anything is read or written, naming its size, the
 /// limit and the setting; the same bundle under a larger limit is imported.

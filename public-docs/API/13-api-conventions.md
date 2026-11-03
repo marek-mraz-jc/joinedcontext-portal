@@ -27,24 +27,30 @@ DELETE /api/v1/projects/{project}/{plural}/{name}      delete   → 202 + Change
 - An action other than create, read, update or delete is a `POST` to a sub-resource: `…/agent-runs/{id}/cancel` cancels a run, `…/changes/{id}/approve` records a decision. Custom-method suffixes (`…/{name}:run`) are not used.
 - Reads are `GET` and never change state, so the edge caches them and rate-limits them by route class. A read never moves to `POST` for a long query; the query moves to a saved resource instead.
 
-## 2. Listing: filter, order, paging
+## 2. Listing: filter, search, sort, paging, count
 
 ```text
-GET /api/v1/projects/{project}/pipelines?filter=spec.schedule:*%20AND%20labels.team="air"&orderBy=metadata.name&limit=50&cursor=…
+GET /api/v1/projects/{project}/pipelines?filter=spec.schedule:*%20AND%20labels.team="air"&q=ozone&sort=-metadata.name&limit=50&count=true&cursor=…
 ```
+
+Every Portal list takes the same five list parameters, read by one extractor (`joinedcontext-portal/src/api/list_query.rs`); a route adds its own (`filter`, selectors) beside them.
 
 | Parameter | Rule |
 |---|---|
+| `limit` | rows per page, 1 to 1000; any other value is `400` `invalid-request` with `errors[]` naming `limit`; without `limit` a resource list answers every readable object in one page |
+| `cursor` | the opaque `nextCursor` of the previous answer; a cursor from another filter, sort, `q` or caller is `400` naming `cursor` |
+| `sort` | one field of the rows, `-` in front for descending (`sort=-metadata.name`); default `metadata.name`. A malformed value is `400` naming `sort`; a field the rows do not have (the kind's jc-core JSON Schema decides) is `422` `unprocessable` naming `sort` |
+| `q` | text, at most 200 characters, searched case-insensitively in each object's `metadata.name`, `metadata.title`, `metadata.labels` and `spec`, never in `status` |
+| `count` | `true` adds `totalCount`, the rows of every page together after the read check, `filter` and `q`; `true` or `false`, anything else is `400` naming `count` |
 | `filter` | a subset of [AIP-160](https://google.aip.dev/160): `field = value`, `!=`, `<`, `<=`, `>`, `>=`, `:` (has; `field:*` is present), `AND`, `OR`, `NOT`, parentheses, quoted strings. Fields are dotted manifest paths (`metadata.name`, `spec.space`) and `labels.{key}`. A field the kind's schema lacks or a malformed expression is `400` `invalid-request` naming the field and its position |
-| `orderBy` | one field, optionally followed by `desc`; default `metadata.name` |
-| `limit` | 1 to 500; `0` is `400`, a larger value is served as 500; without `limit` a resource list answers every readable object in one page |
-| `cursor` | the opaque `nextCursor` of the previous answer; a cursor from another filter, order or caller is `400` |
 
-The answer is `{ "items": [...], "nextCursor": "…" }`; `nextCursor` is absent on the last page. A cursor is signed and carries the filter it was made for, so it cannot be edited into another query.
+Each parameter is sent at most once; a second copy is `400` naming it. The answer is `{ "items": [...], "nextCursor": "…", "totalCount": 12 }`; `nextCursor` is absent on the last page and `totalCount` without `count=true`. A cursor is signed and carries the filter, sort and search it was made for, so it cannot be edited into another query.
+
+`orderBy` (`field` or `field desc`) is the old name of `sort` and stays an alias until the notice of §7 ends; sending both is `400`.
 
 A list counts and pages only over the objects the caller may read: the filter runs after `may_read_manifest`, so an unreadable object never shifts a page, shows in a total or turns a `400` into a `200`. A caller who may read nothing of the kind gets an empty list, and a caller who may not read the project `404`.
 
-Every kind's list (`GET /api/v1/projects/{project}/{plural}`) is one handler over the kind catalogue (`joinedcontext-portal/src/api/resources.rs`) and takes `filter`, `orderBy`, `limit` and `cursor`; the filter checks its fields against the kind's jc-core JSON Schema (`joinedcontext-portal/src/resource/filter.rs`). A cursor is signed with a key of the running Portal, so a restart ends an open listing with a `400` that says to list again. The answer also keeps `metadata.continue` and `metadata.remainingItemCount`, and the list still takes `labelSelector`, `fieldSelector` and `continue` (Kubernetes syntax, `joinedcontext-portal/src/resource/selector.rs`) until the notice of §7 ends; `continue` pages by `metadata.name` only. Lists that are not a kind keep their own parameters: activity and agent-run lists use `cursor`, catalogue and change-history lists use `page`.
+Every kind's list (`GET /api/v1/projects/{project}/{plural}`) is one handler over the kind catalogue (`joinedcontext-portal/src/api/resources.rs`); the organization's Endpoints list (`GET /api/v1/endpoints`) takes the same parameters, orders by project and then name by default and breaks a tie in a `sort` the same way. Both judge the list parameters after the read check, so a project the caller may not read is `404` whatever the query says. The filter checks its fields against the kind's jc-core JSON Schema (`joinedcontext-portal/src/resource/filter.rs`). A cursor is signed with a key of the running Portal, so a restart ends an open listing with a `400` that says to list again. The answer also keeps `metadata.continue` and `metadata.remainingItemCount`, and the list still takes `labelSelector`, `fieldSelector` and `continue` (Kubernetes syntax, `joinedcontext-portal/src/resource/selector.rs`) until the notice of §7 ends; `continue` pages by `metadata.name` only. Lists that are not a kind keep their own parameters until they move to the extractor: activity and agent-run lists use `cursor`, catalogue and change-history lists use `page`.
 
 ## 3. Concurrency: ETag and If-Match
 

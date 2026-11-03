@@ -30,6 +30,7 @@ dependencies = [
  "jc-app-sdk",
  "serde",
  "serde_json",
+ "wit-bindgen",
 ]
 
 [[package]]

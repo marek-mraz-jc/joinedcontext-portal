@@ -3,6 +3,7 @@ sidebar_position: 13
 title: Managing Your Organization and Projects
 description: Where the organization's settings, members, roles and projects live, and where one project's settings live.
 routes:
+  - /settings
   - /organization
   - /organization/$tab
   - /organization/$tab/$

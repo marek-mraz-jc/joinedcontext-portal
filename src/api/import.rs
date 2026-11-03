@@ -762,10 +762,15 @@ fn unresolved(manifests: &[ResourceEnvelope], state: &AppState, project: &str) -
             if inside.contains(&(kind.clone(), name.clone())) {
                 continue;
             }
-            if state
-                .mirror
-                .get(namespace_for(&kind, project), &kind, &name)
-                .is_some()
+            // A kind that lives in either place resolves in the project first, then the
+            // organization: a project's own DataModel is no missing reference.
+            let homes = resource::by_kind(&kind).map_or_else(
+                || vec![namespace_for(&kind, project).to_owned()],
+                |info| resource::homes(info, project),
+            );
+            if homes
+                .iter()
+                .any(|home| state.mirror.get(home, &kind, &name).is_some())
             {
                 continue;
             }

@@ -36,6 +36,7 @@ const WORDS = {
     en: "The published schema could not be read; validity is not checked.",
     sv: "Det publicerade schemat kunde inte läsas; giltigheten kontrolleras inte.",
   },
+  retry: { fi: "Yritä uudelleen", en: "Retry", sv: "Försök igen" },
   typeReadError: { fi: "Tietoja ei voitu lukea.", en: "Data could not be read.", sv: "Datan kunde inte läsas." },
   allTypesFailed: { fi: "Minkään tietotyypin kohteita ei voitu lukea.", en: "Could not read entities for any type.", sv: "Objekten kunde inte läsas för någon typ." },
   noSchema: { fi: "ei julkaistua skeemaa", en: "no published schema", sv: "inget publicerat schema" },

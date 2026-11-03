@@ -1,6 +1,6 @@
 //! The server half of district-compare (T-3353): what the browser cannot keep. The feeds hold
-//! today's events, stations, alerts and readings, so once a day on Helsinki's calendar the server
-//! reads them through the App's own Endpoint with the caller's token, runs the browser's own
+//! today's events, stations, alerts and readings, so once a day on Helsinki's calendar the job
+//! `keep-metrics` reads them through the App's own Endpoint as the App's job principal, runs the browser's own
 //! comparison (`../wasm`) and keeps each district's figures for that day in its own schema: a
 //! district gets a history. It also keeps the district boundaries it compared against as a
 //! GeoJSON file with its licence under the App's prefix. Choosing districts and a measure stays in
@@ -8,7 +8,7 @@
 //!
 //! | Route | What it does |
 //! |---|---|
-//! | `GET /api/metrics?codes=101,102` | the kept days of up to six districts, the newest first; today's computed first when missing |
+//! | `GET /api/metrics?codes=101,102` | the kept days of up to six districts, the newest first; `stale` until the job kept today's |
 //! | `GET /api/boundaries` | URLs to download the boundaries and their licence from |
 //!
 //! Roles and edits (T-3828, API/07), decided from `identity::caller()` alone: a signed-in reader
@@ -251,9 +251,13 @@ fn entities(kind: &str, attrs: &str) -> Result<Vec<Json>, gateway::Error> {
 }
 
 /// Reads the feeds, compares, and keeps today's figures of every district and the boundaries.
-fn refresh() -> Result<(), Response> {
-    let read = |kind: &str, attrs: &str| entities(kind, attrs).map_err(|err| refused(kind, err));
-    let districts = read("AdministrativeArea", "name,districtCode,divisionLevel,location")?;
+fn refresh() -> Result<(), String> {
+    let read =
+        |kind: &str, attrs: &str| entities(kind, attrs).map_err(|err| format!("{kind}: {err}"));
+    let districts = read(
+        "AdministrativeArea",
+        "name,districtCode,divisionLevel,location",
+    )?;
     let input = input(
         &districts,
         &read("Event", "location")?,
@@ -281,7 +285,7 @@ fn refresh() -> Result<(), Response> {
                 Value::from(d.aqi),
             ],
         )
-        .map_err(Response::from_sql)?;
+        .map_err(|err| err.to_string())?;
     }
     if !output.districts.is_empty() {
         let day = sql::query(
@@ -301,15 +305,37 @@ fn refresh() -> Result<(), Response> {
             boundaries(&input).to_string().as_bytes(),
             Some("application/geo+json"),
         )
-        .map_err(Response::from_blob)?;
+        .map_err(|err| err.to_string())?;
         blob::put(
             LICENCE,
             format!("{LICENCE_TEXT}\nWritten: {day}\n").as_bytes(),
             Some("text/plain; charset=utf-8"),
         )
-        .map_err(Response::from_blob)?;
+        .map_err(|err| err.to_string())?;
     }
     Ok(())
+}
+
+/// Whether today's figures are kept, on Helsinki's calendar.
+fn kept_today() -> Result<bool, sql::Error> {
+    let rows = sql::query(
+        "select count(*) from district_metrics where day = (now() at time zone 'Europe/Helsinki')::date",
+        &[],
+    )?;
+    Ok(!matches!(
+        rows.values.first().and_then(|row| row.first()),
+        Some(Value::Int(0)) | None
+    ))
+}
+
+/// The job `keep-metrics` (app.yaml `spec.server.jobs`): keeps today's figures once, and an hour
+/// later again after a run the feeds failed. Reading the five feeds takes longer than the 5 s a
+/// request may run, and the job has 60 s (T-6503).
+fn keep_metrics() -> Result<(), String> {
+    if kept_today().map_err(|err| err.to_string())? {
+        return Ok(());
+    }
+    refresh()
 }
 
 fn metrics(request: &Request, _: &Params) -> Response {
@@ -317,23 +343,17 @@ fn metrics(request: &Request, _: &Params) -> Response {
         Ok(codes) => codes,
         Err(why) => return Response::problem(400, "Bad Request", &why),
     };
-    let today = match sql::query(
-        "select count(*) from district_metrics where day = (now() at time zone 'Europe/Helsinki')::date",
-        &[],
-    ) {
-        Ok(rows) => !matches!(rows.values.first().and_then(|row| row.first()), Some(Value::Int(0)) | None),
+    let today = match kept_today() {
+        Ok(today) => today,
         Err(err) => return Response::from_sql(err),
     };
-    // Feeds that cannot be read leave what is stored readable, and say so.
-    let problem = if today { None } else { refresh().err() };
     match sql::query(
         "select day::text as day, code, name, area_km2, events, bikes, bike_slots, alerts, pm25, aqi from district_metrics \
          where code = any(string_to_array($1, ',')) and day > (now() at time zone 'Europe/Helsinki')::date - $2::int \
          order by day desc, code",
         &[Value::from(codes.join(",")), Value::from(DAYS)],
     ) {
-        Ok(rows) if rows.values.is_empty() && problem.is_some() => problem.unwrap_or_else(Response::no_content),
-        Ok(rows) => Response::json(200, &json!({ "days": sql::objects(&rows), "stale": problem.is_some() })),
+        Ok(rows) => Response::json(200, &json!({ "days": sql::objects(&rows), "stale": !today })),
         Err(err) => Response::from_sql(err),
     }
 }
@@ -353,15 +373,6 @@ fn files(_: &Request, _: &Params) -> Response {
             (Err(err), _) | (_, Err(err)) => Response::from_blob(err),
         },
         Err(err) => Response::from_blob(err),
-    }
-}
-
-/// A read of `kind` that failed: the caller's own 401 or 403 as the gateway said it, anything else
-/// the gateway's, naming the type.
-fn refused(kind: &str, err: gateway::Error) -> Response {
-    match err {
-        gateway::Error::Status(401 | 403, _) => Response::from(err),
-        other => Response::problem(502, "Bad Gateway", &format!("{kind}: {other}")),
     }
 }
 
@@ -690,6 +701,23 @@ pub fn handle(request: Request) -> Response {
 }
 
 jc_app_sdk::app!(handle);
+
+// The job's export, a root-level `keep-metrics: func() -> result<_, string>` beside the request
+// handler, as `wit/server.wit` declares it (AP-159).
+#[cfg(target_arch = "wasm32")]
+mod job {
+    wit_bindgen::generate!({ path: "wit", world: "helsinki:district-compare/server", generate_all });
+
+    struct Jobs;
+
+    impl Guest for Jobs {
+        fn keep_metrics() -> Result<(), String> {
+            super::keep_metrics()
+        }
+    }
+
+    export!(Jobs);
+}
 
 #[cfg(test)]
 mod tests {
