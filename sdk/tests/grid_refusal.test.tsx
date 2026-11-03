@@ -23,9 +23,10 @@ afterEach(cleanup);
 
 function answering(status: number): { transport: Transport; calls: () => number } {
   let calls = 0;
-  // Only the row reads count: the grid also asks the Endpoint's per-attribute access once.
+  // Only the row reads count: the grid also asks the Endpoint's per-attribute access once, and
+  // the total by a read of its own with no rows (T-6541).
   const transport: Transport = async (request) => {
-    if (request.path.includes("/entities?")) calls += 1;
+    if (request.path.includes("/entities?") && !request.path.includes("limit=0")) calls += 1;
     return { status, body: { type: "https://uri.etsi.org/ngsi-ld/errors/Unauthorized", title: "Unauthorized", detail: "sign in" } };
   };
   return { transport, calls: () => calls };

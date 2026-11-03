@@ -139,7 +139,8 @@ describe("EntityGrid reloadKey (T-5186)", () => {
     rerender(grid(0));
     expect(query.mock.calls.length).toBe(first);
     rerender(grid(1));
-    await waitFor(() => expect(query.mock.calls.length).toBe(first + 1));
+    // The rows and their count, two reads of the one question (T-6541).
+    await waitFor(() => expect(query.mock.calls.length).toBe(first + 2));
     expect(container.querySelectorAll('tr[aria-selected="true"]')).toHaveLength(1);
   });
 });

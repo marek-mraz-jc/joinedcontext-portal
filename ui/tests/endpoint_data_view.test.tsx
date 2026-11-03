@@ -537,7 +537,7 @@ describe("the presentation chain (DM-134, T-5196)", () => {
     await waitFor(() => expect(screen.getByRole("combobox", { name: "Pole" })).toHaveValue("startDate"));
     expect(screen.getByRole("combobox", { name: "Operátor" })).toHaveValue("gte");
     await waitFor(() => expect(asked.some((url) => /^startDate>=\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get("q") ?? ""))).toBe(true));
-    expect(asked.find((url) => url.searchParams.get("q"))?.searchParams.get("limit")).toBe("10");
+    expect(asked.find((url) => url.searchParams.get("q") && url.searchParams.get("limit") !== "0")?.searchParams.get("limit")).toBe("10");
     const before = asked.length;
     await user.click(screen.getByRole("button", { name: "Zrušiť filtre" }));
     await waitFor(() => expect(screen.queryByRole("combobox", { name: "Operátor" })).toBeNull());
@@ -577,7 +577,7 @@ describe("the Endpoint's table start (API/11 EP-164, T-5197)", () => {
     const day = `${week.getFullYear()}-${String(week.getMonth() + 1).padStart(2, "0")}-${String(week.getDate()).padStart(2, "0")}`;
     await waitFor(() => expect(asked.some((url) => url.searchParams.get("q") === `startDate>=${day}`)).toBe(true));
     expect(asked.some((url) => url.searchParams.get("q") === `startDate>=${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`)).toBe(false);
-    expect(asked.find((url) => url.searchParams.get("q"))?.searchParams.get("limit")).toBe("50");
+    expect(asked.find((url) => url.searchParams.get("q") && url.searchParams.get("limit") !== "0")?.searchParams.get("limit")).toBe("50");
     await waitFor(() => expect(columns().map((text) => text.replace(/[⋮↑↓]/g, "").trim()).slice(0, 4)).toEqual(["ID", "Typ", "Názov", "Začiatok"]));
     // The typed filter row under the headers is back (T-6328, owner): one control per column.
     expect(screen.getByRole("combobox", { name: "Filter: Začiatok" })).toBeInTheDocument();
@@ -595,7 +595,7 @@ describe("the Endpoint's table start (API/11 EP-164, T-5197)", () => {
       url.pathname.endsWith("/widget.json") ? new Response("{}", { status: 503 }) : model(url),
     );
     await waitFor(() => expect(asked.some((url) => /^startDate>=\d{4}-\d{2}-\d{2}$/.test(url.searchParams.get("q") ?? ""))).toBe(true));
-    expect(asked.find((url) => url.searchParams.get("q"))?.searchParams.get("limit")).toBe("10");
+    expect(asked.find((url) => url.searchParams.get("q") && url.searchParams.get("limit") !== "0")?.searchParams.get("limit")).toBe("10");
     await i18n.changeLanguage("en");
   });
 });
