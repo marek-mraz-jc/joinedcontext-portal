@@ -100,6 +100,7 @@ export interface Rendered extends RenderResult {
   fetchMock: ReturnType<typeof vi.fn>;
   /** The requests the page sent, as `METHOD /path`. */
   calls(): string[];
+  client: QueryClient;
 }
 
 export async function renderRoute(options: RouteOptions): Promise<Rendered> {
@@ -147,6 +148,7 @@ export async function renderRoute(options: RouteOptions): Promise<Rendered> {
     </QueryClientProvider>,
   );
   return Object.assign(rendered, {
+    client,
     fetchMock,
     calls: () =>
       fetchMock.mock.calls.map((call) => {
