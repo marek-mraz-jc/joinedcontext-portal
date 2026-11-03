@@ -15,8 +15,8 @@
 use serde_json::{json, Value};
 
 use joinedcontext_portal::agents::share::{
-    self, prose_of, render, EditEndpoint, ProposeEndpoint, RateLimits, MAX_REQUESTS_PER_MINUTE,
-    REPRESENTATIONS,
+    self, known_representations, prose_of, render, EditEndpoint, ProposeEndpoint, RateLimits,
+    MAX_REQUESTS_PER_MINUTE,
 };
 use joinedcontext_portal::resource::{is_dns1123, API_VERSION};
 
@@ -235,7 +235,7 @@ fn a_representation_the_catalogue_does_not_know_is_refused() {
         assert!(refused.contains("representation"), "{bad:?}: {refused}");
     }
     // Every name the catalogue does know renders.
-    for good in REPRESENTATIONS.iter() {
+    for good in known_representations() {
         let mut params = share();
         params.representations = vec![format!("  {good}  ")];
         let rendered = render(PROJECT, &params, &[]).expect("a known representation");

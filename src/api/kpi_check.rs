@@ -632,19 +632,16 @@ async fn history(reader: &Reader<'_>, input: &Input, read: &Earlier) -> Result<V
         let exchanged = oidc.exchange_for_endpoint(token, slug).await;
         Some(exchanged.map_err(|err| err.to_string())?)
     };
-    let request = crate::api::pipelines::http()
-        .get(format!(
-            "{}/api/endpoint/{slug}/ngsi-ld/v1/temporal/entities",
-            base.trim_end_matches('/')
-        ))
-        .query(&history_query(input, read))
-        .header("accept", "application/json")
-        .timeout(HISTORY_TIMEOUT);
-    let request = match bearer {
-        Some(token) => request.bearer_auth(token),
-        None => request,
-    };
-    let answer = request.send().await.map_err(|err| {
+    let answer = crate::ops::data_query::gateway_read(
+        base,
+        slug,
+        "ngsi-ld/v1/temporal/entities",
+        &history_query(input, read),
+        bearer,
+        HISTORY_TIMEOUT,
+    )
+    .await
+    .map_err(|err| {
         tracing::warn!(error = %err.without_url(), endpoint = slug, "the gateway did not answer a KPI history read");
         "the gateway did not answer; try again shortly".to_owned()
     })?;
