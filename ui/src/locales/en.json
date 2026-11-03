@@ -8883,6 +8883,7 @@
       "mapPlace": "Place",
       "mapCount": "{count, plural, one {# place on the map.} other {# places on the map.}}",
       "mapCountOf": "The map shows the first {shown} of {total} places.",
+      "mapCountFirst": "The map shows the first {shown} places; the dataset holds more.",
       "mapList": "{count, plural, one {The place as a list} other {The # places as a list}}",
       "mapFailed": "The map could not be read; try again in a moment.",
       "says": {
@@ -11160,6 +11161,7 @@
         "noSchedule": "no pipeline promises a schedule for this data",
         "onTime": "{fresh} of {total} feeds are on schedule",
         "late": "{late} of {total} feeds are late; the newest observation is from {newest}",
+        "lateUnread": "{late} of {total} feeds are late; none has delivered an observation yet",
         "noRequired": "the model marks no field required",
         "complete": "{complete} of {fields} required fields are filled in every entity",
         "valid": "{valid} of {checked} entities follow the model",

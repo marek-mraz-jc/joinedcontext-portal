@@ -19,6 +19,16 @@ const SCORED = {
   ],
 };
 
+// T-6565: the Endpoint's own type is on schedule; and a feed that is late with no reading yet.
+// the badge is the mean of the four parts, as the server computes it
+const freshnessOf = (reason: unknown, score: number) => ({
+  ...SCORED,
+  score: Math.floor((score + 97 + 95 + 100) / 4),
+  parts: [{ part: "freshness", score, measuredAt: "2026-10-22T08:04:00Z", reason }, ...SCORED.parts.slice(1)],
+});
+const FRESH = freshnessOf({ code: "onTime", args: { fresh: "1", total: "1" }, text: "1 of 1 feeds are on schedule" }, 100);
+const UNREAD = freshnessOf({ code: "lateUnread", args: { late: "1", total: "1" }, text: "1 of 1 feeds are late; none has delivered an observation yet" }, 0);
+
 const UNMEASURED = {
   parts: ["freshness", "completeness", "validity", "links"].map((part) => ({
     part,
@@ -73,6 +83,22 @@ test.describe("a dataset's quality score", () => {
       expect(await axeViolations(page)).toEqual([]);
       if (process.env.SHOTS_DIR) await card.screenshot({ path: `${process.env.SHOTS_DIR}/quality-filled-${width}.png` });
     });
+
+    for (const [state, quality, said] of [
+      ["fresh", FRESH, "1 of 1 feeds are on schedule"],
+      ["unread", UNREAD, "1 of 1 feeds are late; none has delivered an observation yet"],
+    ] as const) {
+      test(`freshness reads the ${state} feed in words at ${width} px`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await stubApi(page, quality);
+        await page.goto("/catalogue/bbsk-kpi?lang=en");
+        const card = page.getByRole("region", { name: "Data quality" });
+        await expect(card.getByText(said)).toBeVisible();
+        await expect(card.getByText(/never/)).toHaveCount(0);
+        expect(await axeViolations(page)).toEqual([]);
+        if (process.env.SHOTS_DIR) await card.screenshot({ path: `${process.env.SHOTS_DIR}/quality-${state}-${width}.png` });
+      });
+    }
 
     test(`a dataset nothing measured yet says so at ${width} px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });

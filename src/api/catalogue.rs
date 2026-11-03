@@ -1795,25 +1795,46 @@ async fn anonymous_read(url: String, query: &[(&str, &str)]) -> Result<reqwest::
 }
 
 /// Up to [`MAP_ROWS`] keyValues entities of `class` from the Endpoint at `endpoint`, read
-/// anonymously, and the count the Endpoint reports; the reason as text when it did not answer.
+/// anonymously, and how many the type holds; the reason as text when it did not answer.
+///
+/// The rows are read without a count (T-6541): a count walks the whole match and outlasted the
+/// gateway's 10 s cut on Praha Tree while the rows alone took 0.2 s. A short page is its own
+/// count; only a full page asks [`counted`], whose failure leaves the total unknown.
 async fn located(endpoint: &str, class: &str) -> Result<(Option<u64>, Vec<Value>), String> {
+    let url = format!("{endpoint}ngsi-ld/v1/entities");
     let limit = MAP_ROWS.to_string();
     let response = anonymous_read(
-        format!("{endpoint}ngsi-ld/v1/entities"),
+        url.clone(),
         &[
             ("type", class),
             ("limit", limit.as_str()),
             ("options", "keyValues"),
-            ("count", "true"),
         ],
     )
     .await?;
-    let total = response
+    let entities: Vec<Value> = crate::capped::json(response, crate::capped::ANSWER_BYTES).await?;
+    let total = if entities.len() < MAP_ROWS {
+        u64::try_from(entities.len()).ok()
+    } else {
+        counted(&url, class).await
+    };
+    Ok((total, entities))
+}
+
+/// How long the map waits for a type's count before it shows its rows without one.
+const COUNT_WAIT: Duration = Duration::from_secs(2);
+
+/// The count the Endpoint reports for `class`, `None` when it sends none or takes past [`COUNT_WAIT`].
+async fn counted(url: &str, class: &str) -> Option<u64> {
+    let query = [("type", class), ("limit", "0"), ("count", "true")];
+    let response = tokio::time::timeout(COUNT_WAIT, anonymous_read(url.to_owned(), &query))
+        .await
+        .ok()?
+        .ok()?;
+    response
         .headers()
         .get("NGSILD-Results-Count")
-        .and_then(|v| v.to_str().ok()?.parse().ok());
-    let entities = crate::capped::json(response, crate::capped::ANSWER_BYTES).await?;
-    Ok((total, entities))
+        .and_then(|v| v.to_str().ok()?.parse().ok())
 }
 
 /// The DataModel of the space an Endpoint serves: its name, its classes and its LinkML source,
@@ -2688,6 +2709,52 @@ classes:
         assert!(
             served("http://localhost:9/").await.is_empty(),
             "no answer serves nothing"
+        );
+    }
+
+    /// A broker whose `count=true` answers 503 late, as the gateway's 10 s cut did on Praha Tree.
+    async fn counts_cut(rows: usize) -> wiremock::MockServer {
+        use wiremock::matchers::{method, path, query_param};
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(method("GET"))
+            .and(path("/ngsi-ld/v1/entities"))
+            .and(query_param("count", "true"))
+            .respond_with(wiremock::ResponseTemplate::new(503).set_delay(Duration::from_secs(5)))
+            .mount(&server)
+            .await;
+        let body: Vec<Value> = (0..rows)
+            .map(|i| json!({"id": format!("urn:ngsi-ld:Tree:{i}"), "type": "Tree"}))
+            .collect();
+        wiremock::Mock::given(method("GET"))
+            .and(path("/ngsi-ld/v1/entities"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(body))
+            .mount(&server)
+            .await;
+        server
+    }
+
+    #[tokio::test]
+    async fn a_short_page_is_its_own_count_and_asks_no_other() {
+        let server = counts_cut(3).await;
+        let (total, entities) = located(&format!("{}/", server.uri()), "Tree")
+            .await
+            .expect("the rows answer without a count");
+        assert_eq!((total, entities.len()), (Some(3), 3));
+        let asked = server.received_requests().await.expect("recorded");
+        assert_eq!(asked.len(), 1, "one read of rows, no count");
+    }
+
+    #[tokio::test]
+    async fn a_count_cut_by_the_gateway_leaves_the_map_its_rows() {
+        let server = counts_cut(MAP_ROWS).await;
+        let started = std::time::Instant::now();
+        let (total, entities) = located(&format!("{}/", server.uri()), "Tree")
+            .await
+            .expect("a failed count is no failed map");
+        assert_eq!((total, entities.len()), (None, MAP_ROWS));
+        assert!(
+            started.elapsed() < Duration::from_secs(4),
+            "the map waits at most COUNT_WAIT for a count"
         );
     }
 

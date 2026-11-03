@@ -8883,6 +8883,7 @@
       "mapPlace": "Ort",
       "mapCount": "{count, plural, one {# Ort auf der Karte.} other {# Orte auf der Karte.}}",
       "mapCountOf": "Die Karte zeigt die ersten {shown} von {total} Orten.",
+      "mapCountFirst": "Die Karte zeigt die ersten {shown} Orte; der Datensatz hat mehr.",
       "mapList": "{count, plural, one {Der Ort als Liste} other {Die # Orte als Liste}}",
       "mapFailed": "Die Karte konnte nicht gelesen werden; versuchen Sie es gleich noch einmal.",
       "says": {
@@ -11160,6 +11161,7 @@
         "noSchedule": "keine Pipeline verspricht für diese Daten einen Zeitplan",
         "onTime": "{fresh} von {total} Quellen sind pünktlich",
         "late": "{late} von {total} Quellen sind verspätet; die neueste Beobachtung ist vom {newest}",
+        "lateUnread": "{late} von {total} Quellen sind verspätet; noch keine hat eine Beobachtung geliefert",
         "noRequired": "das Modell markiert kein Feld als Pflichtfeld",
         "complete": "{complete} von {fields} Pflichtfeldern sind in jeder Entität gefüllt",
         "valid": "{valid} von {checked} Entitäten entsprechen dem Modell",

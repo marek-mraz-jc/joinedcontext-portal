@@ -8883,6 +8883,7 @@
       "mapPlace": "Místo",
       "mapCount": "{count, plural, one {# místo na mapě.} few {# místa na mapě.} other {# míst na mapě.}}",
       "mapCountOf": "Mapa ukazuje prvních {shown} z {total} míst.",
+      "mapCountFirst": "Mapa ukazuje prvních {shown} míst; datová sada má víc.",
       "mapList": "{count, plural, one {Místo jako seznam} other {Místa jako seznam (#)}}",
       "mapFailed": "Mapu se nepodařilo načíst; zkuste to za chvíli znovu.",
       "says": {
@@ -11160,6 +11161,7 @@
         "noSchedule": "žádná pipeline pro tato data neslibuje harmonogram",
         "onTime": "{fresh} z {total} zdrojů je včas",
         "late": "{late} z {total} zdrojů se zpožďuje; nejnovější pozorování je z {newest}",
+        "lateUnread": "{late} z {total} zdrojů se zpožďuje; žádný zatím nedodal pozorování",
         "noRequired": "model neoznačuje žádné pole jako povinné",
         "complete": "{complete} z {fields} povinných polí je vyplněno v každé entitě",
         "valid": "{valid} z {checked} entit odpovídá modelu",

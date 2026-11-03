@@ -257,10 +257,11 @@ describe("data explorer (UI-33)", () => {
     await userEvent.type(value, "20");
     expect(screen.getByLabelText(en.entities.q)).toHaveValue("pm10>20");
     await waitFor(() => expect(screen.queryByRole("button", { name: `${en.entityGrid.openRow}: radvan-01` })).not.toBeInTheDocument());
-    const last = gatewayUrls(fetchMock).at(-1)!;
-    expect(last.pathname).toContain("/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa/");
-    expect(last.searchParams.get("q")).toBe("pm10>20");
-    expect(last.searchParams.get("count")).toBe("true");
+    // The rows and the count are two reads of one question (T-6541).
+    const asked = gatewayUrls(fetchMock).filter((url) => url.searchParams.get("q") === "pm10>20");
+    expect(asked.every((url) => url.pathname.includes("/api/endpoint/k7m2qz4tv6xh3n5jb2ryd3wcfa/"))).toBe(true);
+    expect(asked.some((url) => url.searchParams.get("count") === "true" && url.searchParams.get("limit") === "0")).toBe(true);
+    expect(asked.some((url) => url.searchParams.get("count") === null && url.searchParams.get("limit") !== "0")).toBe(true);
     expect(screen.getByText(`1 ${en.entityGrid.of} 1 ${en.entityGrid.loaded}`)).toBeInTheDocument();
 
     // A q typed by hand outside the simple grammar shows as text, no rows.
