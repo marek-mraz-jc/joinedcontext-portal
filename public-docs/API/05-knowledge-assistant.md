@@ -300,7 +300,7 @@ naming `jc-assistant`. Anything else is `401`.
 | `language`, `fetchedAt`, `children`, `documents`, `passages` | what it holds |
 | `title`, `description`, `published`, `modified` | what the page states of itself (AG-120); `null` when it does not |
 
-Files of a `source: upload` go to `POST …/knowledge/sources/{source}/files?name={file name}` with the file itself as the request body, one file per request, at most `upload.maxBytes`; are listed by `GET …/files`; and are removed by `DELETE …/files/{id}`. The Portal fronts the same paths under `/api/v1` with `propose` on the `KnowledgeSource`. A file's type is checked by its content, never by its name or `Content-Type`: a PDF, a DOCX, an XLSX, or UTF-8 text, read as CSV or Markdown when the name ends in `.csv` or `.md`. A DOCX or XLSX whose archive unpacks past 200 MiB or 5,000 entries is refused. The name is 1 to 200 characters with no `/`, `\` or control character. Uploading a name again replaces that file. Its passages are data, never instructions (AG-105). (T-4184)
+Files of a `source: upload` go to `POST …/knowledge/sources/{source}/files?name={file name}` with the file itself as the request body, one file per request, at most `upload.maxBytes`; are listed by `GET …/files`; and are removed by `DELETE …/files/{id}`. The Portal fronts the same paths under `/api/v1` with `propose` on the `KnowledgeSource`. A file's type is checked by its content, never by its name or `Content-Type`: a PDF, a DOCX, an XLSX, or UTF-8 text, read as CSV or Markdown when the name ends in `.csv` or `.md`. A DOCX or XLSX whose archive unpacks past 200 MiB or 5,000 entries is refused. The name is 1 to 200 characters with no `\` or control character, and may sit in up to 8 folders separated by `/` (`reports/2026/budget.pdf`; no empty, `.` or `..` part): the folders and the name are the path its passages are searched and cited by (T-6183). Uploading a name again replaces that file. Its passages are data, never instructions (AG-105). (T-4184)
 
 | Answer | When |
 |---|---|
@@ -444,11 +444,16 @@ alone. It takes no token: it answers only what is public.
 
 ```json
 {"query": "úradné hodiny klientskeho centra", "sources": [{"project": "banskabystrica", "source": "web"}],
- "publisher": "banskabystrica", "lang": "sk", "limit": 5}
+ "publisher": "banskabystrica", "lang": "sk", "limit": 5, "pathPrefix": ["/sluzby/"]}
 ```
 
-- `query` 1 to 300 characters; `sources` 1 to 20; `limit` 1 to 10 (default 5); `publisher` and
-  `lang` optional. Anything else in the body is `400`.
+- `query` 1 to 300 characters; `sources` 1 to 20; `limit` 1 to 50 (default 5); `publisher`,
+  `lang` and `pathPrefix` (up to five paths, each starting with `/`, at most 200 characters, no
+  control character) optional. Anything else in the body is `400`.
+- `pathPrefix` keeps the passages whose path starts with one of them, compared as text (`%` and
+  `_` are plain characters), inside the search's SQL before ranking (T-6183). The path is a
+  website page's URL path without query or fragment (`/sluzby/kupalisko`), and an uploaded
+  file's folders and name (`/reports/2026/budget.pdf`).
 - It reads only the `visibility: public` passages of the named sources, ranks them by the chat's
   hybrid search (full text, and the local `multilingual-e5-small` embedding of the query, fused by
   reciprocal rank) and answers the best `limit`, with no model call. `publisher` keeps the
@@ -460,13 +465,25 @@ alone. It takes no token: it answers only what is public.
 ```json
 {"hits": [{"title": "Klientske centrum", "url": "https://www.banskabystrica.sk/…", "publisher": "banskabystrica",
   "description": "…", "published": null, "modified": "2026-09-30T08:12:00Z", "crawled": "2026-10-19T03:12:40Z", "language": "sk",
-  "text": "…", "score": 0.0325}]}
+  "text": "…", "score": 0.0325, "chunkId": 4211, "ordinal": 3, "path": "/sluzby/kupalisko",
+  "breadcrumb": ["Služby mesta"], "page": null}]}
 ```
 
 `text` is at most 1,200 characters. The metadata is the page's or document's (AG-120), `null`
 where the source states none; `modified` falls back to the sitemap's `<lastmod>`, then the
 server's `Last-Modified`, and `crawled` is when the crawl last read it (T-4749); a hit's `title` is the page's own, else the first heading of its
-first passage.
+first passage. `breadcrumb` holds the titles of the pages the crawl reached the page from
+(`parent_id`, up to 8, within its site), the start page first; a page without a title stands by
+its path; a document's is empty. `page` is the PDF page a passage starts on, else `null`.
+
+`POST /internal/v1/context` reads the passages around one hit for `read_knowledge_context`
+(EP-167, T-6183), under the same network rule: `{"sources": [{"project", "source"}],
+"chunkId": 4211, "before": 2, "after": 2}`, `before` and `after` 0 to 10. It answers
+`{"publisher": "hronov", "passages": [{"chunkId", "ordinal", "url", "path", "page", "language",
+"text", "hit"}]}`, the passages of the hit's page or document from `ordinal - before` to
+`ordinal + after`, in order, `hit` true for the one asked. The hit and every neighbour must each
+be a `visibility: public` passage of the named sources; one that is not is left out, and a
+`chunkId` that is not answers `404`.
 
 `POST /internal/v1/sources` with `{"sources": [{"project", "source"}]}` (1 to 20) answers what the
 named sources hold in public, for the tool's description, under the same rules:
@@ -484,7 +501,7 @@ model:
 | Offered | What it is |
 |---|---|
 | the read tools of the hub (`list_endpoints`, `get_endpoint`, `query_entities`, `get_entity`, `query_temporal`, …) | narrowed to the Endpoints the resolver returns for the deployment (AG-121) |
-| `search_documents` | over the deployment's own `visibility: public` knowledge sources, when it has one (EP-133) |
+| `search_documents`, `read_knowledge_context` | over the deployment's own `visibility: public` knowledge sources, when it has one (EP-133, EP-167) |
 | resource `context` | the document of §1.9 |
 
 - A `public`, `ckan` or `iframe` deployment answers without a token and with the anonymous tokens

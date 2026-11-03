@@ -5,6 +5,7 @@ description: Authoring, importing, adapting, and versioning data models using Li
 routes:
   - /projects/$project/models
   - /projects/$project/models/$name
+  - /projects/$project/models/$name/diagram
   - /projects/$project/datamodels
   - /projects/$project/projections
   - /projects/$project/mappings
@@ -71,6 +72,8 @@ Attach a CSV or JSON file in the assistant panel and type:
 The assistant analyzes the sample structure, populates the LinkML editor, and presents the draft at `/projects/helsinki/models`.
 
 ## 3. Editing Classes and Slots
+
+On a model's overview, **Open full screen** opens the model diagram on its own page (`/projects/helsinki/models/<name>/diagram`), with the Endpoints that serve each class beside it.
 
 ### Author Attributes in the Visual Editor
 

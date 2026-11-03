@@ -125,7 +125,7 @@ An administrator can see every person's connector on the organization overview a
 | `403` "this connector answers only …; the token was obtained by …" | The connector's **Allowed clients** do not include the client you used. | Use a listed client, or **Edit** the connector's **Allowed clients**. |
 | `403` naming a tool, a kind or a target, out of scope | The call reaches a tool or an item the connector's presets and ticks do not cover, or your own role does not allow it. | **Edit** the connector's **Presets** or **What it reaches**. If your role lacks the right, ask a project administrator; see [Users, Roles and Approvals](07-users-roles-approvals.md). |
 | `422` `secret-in-argument` | A tool argument holds a value that reads like a password or key. | Enter the credential in the Portal's secret form; never type it into the chat. |
-| `429` with `Retry-After` | The connector made more than 60 calls a minute (120 across all your connectors), or more than 4 at once. | Wait the seconds `Retry-After` names; ask the client for fewer, larger reads. |
+| `429` with `Retry-After` | The connector had more than 4 calls running at once, or you had more than 8 across all your connectors. | Wait the seconds `Retry-After` names; ask the client for fewer calls at once. |
 | A tool answer is too large (`413`) | One answer would pass 1 MiB. | Narrow the read with `limit`, `attrs` or one name. |
 
 ## 8. The Portal's Shared MCP Address
