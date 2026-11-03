@@ -287,6 +287,48 @@ impl Driver {
         .await
     }
 
+    /// `change_resource` for the person's message `asked`: a Role that grants writes the person
+    /// said they do not want goes back to the model with each write it grants, and on the last
+    /// draft the person reads why nothing was drafted (T-6534, walk S-28).
+    pub(super) async fn change_asked(
+        &self,
+        call: Result<change::ChangeResource, String>,
+        asked: &str,
+        answer: &str,
+        last: bool,
+    ) -> Result<Worked, String> {
+        let Some(reason) = call
+            .as_ref()
+            .ok()
+            .and_then(|params| change::wider_than_asked(params, asked))
+        else {
+            return self.change_resource(call, answer, last).await;
+        };
+        let input = call
+            .ok()
+            .and_then(|params| serde_json::to_value(params).ok())
+            .unwrap_or(Value::Null);
+        self.event(
+            "tool",
+            failed_step(
+                "change_resource",
+                std::time::Instant::now(),
+                &input,
+                &reason,
+            ),
+        )
+        .await?;
+        self.again(
+            last,
+            format!("error: {reason}"),
+            "Nothing was drafted: you asked for no writes, and what the role should do needs a \
+             write verb (running a pipeline needs propose and approve on Pipeline). Say whether \
+             the role may hold it, or keep the role to reading."
+                .to_owned(),
+        )
+        .await
+    }
+
     /// A new resource of a kind whose form the person finishes (AG-45, UI-45): the manifest the
     /// sentence described, put through the dry run every channel uses and through the same test a
     /// change of that kind runs (a data source fetches its URL, a pipeline runs on a page of its
@@ -2677,5 +2719,44 @@ mod unparsed_tests {
                 .is_some_and(|error| error.contains(NOT_PARSED))
         });
         assert!(parsed, "{tools:?}");
+    }
+
+    /// T-6534, walk S-28: the Role drafted for "run pipelines, no writes" granted Pipeline
+    /// propose and approve. It goes back to the model naming each write, keeps no draft and opens
+    /// no page; on the last draft the person reads why and what to decide.
+    #[tokio::test]
+    async fn a_role_with_writes_the_person_said_no_to_is_never_drafted() {
+        let (driver, state) = steward();
+        let asked = "Create a role Analyst: read all Endpoints, run pipelines, no writes.";
+        let analyst = || ChangeResource {
+            kind: "Role".into(),
+            name: "analyst".into(),
+            create: true,
+            patch: Some(json!({ "spec": { "rules": [
+                { "kinds": ["Endpoint"], "verbs": ["read"] },
+                { "kinds": ["Pipeline"], "verbs": ["propose", "approve"] },
+            ] } })),
+            ..Default::default()
+        };
+        let again = driver
+            .change_asked(Ok(analyst()), asked, "", false)
+            .await
+            .expect("no event failed");
+        let Worked::Again(reason) = again else {
+            panic!("the Role was drafted");
+        };
+        assert!(reason.contains("approve on Pipeline"), "{reason}");
+        let done = driver
+            .change_asked(Ok(analyst()), asked, "", true)
+            .await
+            .expect("no event failed");
+        let Worked::Done(prose) = done else {
+            panic!("the last draft went back to the model");
+        };
+        assert!(prose.contains("you asked for no writes"), "{prose}");
+        assert!(logged(&state, "navigate").await.is_empty());
+        let failed = logged(&state, "tool").await;
+        assert_eq!(failed.len(), 2, "{failed:?}");
+        assert!(failed.iter().all(|step| step["status"] == "failed"));
     }
 }
