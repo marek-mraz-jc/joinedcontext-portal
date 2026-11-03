@@ -226,6 +226,7 @@ The broker keeps one row per measurement and versions of a corrected one ([ADR-N
 | `GET …/temporal/entities…&versions=all` | every version, oldest first, each with `supersededAt` and `provenance`; `403` without `readVersions` |
 | `GET …/temporal/entities…&versions=all&provenance=organization==hel;actorKind==agent` | the change log: the versions whose provenance matches, per Entity or over `…/temporal/entities?type=…`; `403` without `readVersions` (DM-137) |
 | a write through an Endpoint with `spec.audit: changes` | `204`; a changed value is kept as a version even where the type records no history, a repeat writes nothing (DM-136); the row follows the type's history retention until the audit retention (T-5398) is built |
+| a write with `JC-Record: version` | `204`; each changed value is kept as a version for any type, the replaced value first when the attribute had no row; a repeat writes nothing; readable only with `versions=all` and `readVersions`, kept for the audit retention (DM-143…DM-146) |
 | `GET …/entities/{id}?options=sysAttrs` | `modifiedBy` (`organization`, `actorKind`, `actor`) per attribute, only the members the Endpoint's `spec.metadata` passes (DM-138, DM-139) |
 | `GET …/temporal/entities…` over an `onChange` attribute | also its last row before `timeAt` |
 | `aggrMethods=sum` or `totalCount` over an `onChange` attribute | `400`, problem type `aggregation-not-meaningful` |
@@ -235,6 +236,7 @@ Headers:
 | Header | Direction | Meaning |
 |---|---|---|
 | `JC-Reason` | request | why a correction, a delete or a UI edit is made, 1 to 500 characters of UTF-8, percent-encoded; without one such a write answers `400` with the problem type `reason-required` |
+| `JC-Record` | request | `version` on a write keeps each changed value as a version ([ADR-N-054 §2.9](../Decisions/adr-n-054-history-versions-provenance-gdpr.md#29-versions-on-request)); dropped on a read; any other value answers `400` with the problem type `bad-request` |
 | `X-Request-Id` | response | the id the row's `provenance.requestId` holds |
 | `JC-Provenance-*` | never | dropped at the edge; the gateway sets them for the broker (DM-112, DM-136) |
 
@@ -776,8 +778,10 @@ only for the entities that meet it), `grant`, `not_in_grant` (a permission cover
 lists other Attributes) or `no_grant`. Deny is the default: with no grant every cell is `false`.
 A reason never names a Policy, its assigner or another principal
 ([GW6](../Requirements/gateway-firewall.md)). `type` missing or not a class of the model the
-Endpoint serves (an Endpoint without a generated model, or whose view serves another model,
-included) is a `400`; a class with no served Attributes or more than 200 is a `400` too. The answer pays the Endpoint's `rateLimits` as `evaluations` does: one request per 100
+Endpoint serves (an Endpoint without a model, or whose view serves another model, included) is a
+`400`, and so is a class of more than 200 served Attributes. A class with no served Attribute (a
+draft model that names classes and no slot, so it has no generated schema yet, or a projection
+that keeps none) answers `200` with an empty `attributes` list, and the view is not asked (T-6137). The answer pays the Endpoint's `rateLimits` as `evaluations` does: one request per 100
 decisions (three per Attribute), and a quota that cannot pay it is a `429`.
 
 `POST …/access/simulate` answers the same question for someone else (EP-103, T-3311): the decision

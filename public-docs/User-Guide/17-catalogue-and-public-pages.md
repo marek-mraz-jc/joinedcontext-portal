@@ -5,6 +5,7 @@ description: What a visitor without an account finds in the Portal, how to searc
 routes:
   - /catalogue
   - /catalogue/$name
+  - /catalogue/endpoint/$slug
   - /v/$slug
   - /d/$slug
   - /f/$slug

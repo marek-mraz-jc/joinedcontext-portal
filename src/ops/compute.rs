@@ -2,6 +2,7 @@
 //! test and a model inferred from a sample (AG-58, AG-62, PL-38, DM-10).
 
 use super::bounds;
+use super::data_query;
 use super::drafts::DraftRef;
 use super::parse_input;
 use super::pipeline_steps::candidate;
@@ -46,8 +47,39 @@ pub struct KpiComputeInput {
     pub unit: Option<String>,
     #[serde(default)]
     pub q: Option<String>,
+    /// The Endpoint read, as the caller; or `rows`.
+    #[serde(default)]
+    pub endpoint: Option<String>,
     #[serde(default)]
     pub rows: Option<Vec<Value>>,
+}
+
+impl KpiComputeInput {
+    /// Exactly one source, and an attribute for a fold that reads one.
+    fn check(&self) -> Result<(), OpError> {
+        let refused = |path: &str, message: &str| {
+            Err(OpError::InvalidInput {
+                path: path.into(),
+                message: message.into(),
+            })
+        };
+        let endpoint = self
+            .endpoint
+            .as_deref()
+            .is_some_and(|e| !e.trim().is_empty());
+        match (endpoint, self.rows.is_some()) {
+            (true, true) => refused("/rows", "send rows or name an endpoint, not both"),
+            (false, false) => refused(
+                "/endpoint",
+                "name the Endpoint to read, e.g. city-counters, or send rows",
+            ),
+            _ if self.agg != kpi::Agg::Count && self.attribute.trim().is_empty() => refused(
+                "/attribute",
+                "name the attribute to fold, e.g. count; only agg count folds none",
+            ),
+            _ => Ok(()),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -139,9 +171,10 @@ fn kpi_input_schema() -> Value {
             },
             "unit": text("A UN/CEFACT common code for the value", TERM),
             "q": text("An NGSI-LD q narrowing the entities read", QUERY),
+            "endpoint": text("The Endpoint read as you; or rows", NAME),
             "rows": {
                 "type": "array",
-                "description": "Entities the caller already holds, to compute over",
+                "description": "Entities to fold; or endpoint",
                 "items": { "type": "object", "maxProperties": RECORD_MEMBERS }
             }
         },
@@ -277,9 +310,120 @@ fn kpi_value(rows: &[Value], params: &kpi::ComputeKpi) -> Result<f64, OpError> {
         })
 }
 
+/// The most entities one indicator folds: past it the read is refused, so a value never stands
+/// for a part of what `q` matches.
+const KPI_MAX_ENTITIES: u64 = 10_000;
+/// The entities one read of an indicator asks for (the Endpoint's own ceiling).
+const KPI_PAGE: u32 = 1000;
+
+/// The indicator's value over what `endpoint` lets the caller read, every page of it: the
+/// gateway's total decides when the read is over, since it may answer a shorter page (T-5891).
+async fn kpi_read(
+    caller: &super::Caller,
+    state: &crate::state::AppState,
+    project: &str,
+    endpoint: &str,
+    params: &kpi::ComputeKpi,
+) -> Result<f64, OpError> {
+    let query = |limit, cursor| data_query::DataQueryInput {
+        endpoint: endpoint.to_owned(),
+        entity_type: Some(params.entity_type.clone()),
+        q: params.q.clone(),
+        attrs: match params.agg {
+            kpi::Agg::Count => Vec::new(),
+            _ => vec![params.attribute.clone()],
+        },
+        format: Some("keyValues".to_owned()),
+        count: true,
+        limit: Some(limit),
+        cursor,
+        ..Default::default()
+    };
+    let total_of = |page: &Value| {
+        page["total"].as_u64().ok_or_else(|| {
+            OpError::from(ApiError::Unavailable(format!(
+                "Endpoint {endpoint} did not count its entities; try again shortly"
+            )))
+        })
+    };
+    if params.agg == kpi::Agg::Count {
+        let page = data_query::run(caller, state, project, query(0, None)).await?;
+        return Ok(total_of(&page)? as f64);
+    }
+    let mut rows: Vec<Value> = Vec::new();
+    loop {
+        let cursor = (!rows.is_empty()).then(|| rows.len().to_string());
+        let page = data_query::run(caller, state, project, query(KPI_PAGE, cursor)).await?;
+        let total = total_of(&page)?;
+        if total > KPI_MAX_ENTITIES {
+            return Err(OpError::InvalidInput {
+                path: "/q".into(),
+                message: format!(
+                    "{total} {} match, over the {KPI_MAX_ENTITIES} one indicator folds: narrow q",
+                    params.entity_type
+                ),
+            });
+        }
+        let read = rows.len();
+        rows.extend(page["entities"].as_array().into_iter().flatten().cloned());
+        if rows.len() == read || rows.len() as u64 >= total {
+            return kpi_value(&rows, params);
+        }
+    }
+}
+
+/// The indicator rendered over the rows sent or the Endpoint named; writes nothing.
+async fn kpi_compute(
+    caller: &super::Caller,
+    state: &crate::state::AppState,
+    project: &str,
+    input: KpiComputeInput,
+) -> Result<Value, OpError> {
+    input.check()?;
+    let params = kpi::ComputeKpi {
+        name: input.name,
+        title: input.title,
+        entity_type: input.entity_type,
+        attribute: input.attribute,
+        agg: input.agg,
+        unit: input.unit,
+        q: input.q,
+        endpoint: input.endpoint,
+    };
+    let (value, read) = match params.endpoint.as_deref().filter(|e| !e.trim().is_empty()) {
+        Some(endpoint) => {
+            let value = kpi_read(caller, state, project, endpoint, &params).await?;
+            let space = state
+                .mirror
+                .get(project, "Endpoint", endpoint)
+                .and_then(|e| crate::api::assistant::ref_name(&e.spec["contextSpaceRef"]))
+                .unwrap_or_else(|| project.to_owned());
+            (value, Some((space, endpoint.to_owned())))
+        }
+        None => (kpi_value(&input.rows.unwrap_or_default(), &params)?, None),
+    };
+    let org_domain = assistant::org_domain(state, project);
+    // The Endpoint read, or for rows the indicator space's, as the provenance's source.
+    let (ep_slug, ep_name) = read
+        .or_else(|| kpi::kpi_endpoint(state, project))
+        .unwrap_or_else(|| (format!("{project}-kpi"), format!("{project}-kpi")));
+    let now = chrono::Utc::now().to_rfc3339();
+    let prov = kpi::Provenance {
+        org_domain: &org_domain,
+        project,
+        endpoint_space: &ep_slug,
+        endpoint_name: &ep_name,
+        run_id: "ops",
+        now: &now,
+    };
+    let entity = kpi::entity(&params, value, &prov).map_err(ApiError::BadRequest)?;
+    Ok(entity.to_json())
+}
+
 /// This module's operations in the registry (`super::init_registry`).
 pub fn operations() -> Vec<Operation> {
-    vec![        Operation {
+    vec![
+        Operation {
             name: "jc_catalog_search",
             title: "Search Catalog",
             description: "Find spaces, endpoints, models and open datasets by keywords",
@@ -293,16 +437,18 @@ pub fn operations() -> Vec<Operation> {
             kind: "*",
             verb: None,
             lane: Lane::Green,
-            validate: |val| {
-                parse_input::<CatalogSearchInput>(val.clone()).map(|_| ())
-            },
+            validate: |val| parse_input::<CatalogSearchInput>(val.clone()).map(|_| ()),
             run: |caller, state, project, val| {
-                Box::pin(async move { catalog_search(caller, state, project, parse_input(val)?).await })
+                Box::pin(
+                    async move { catalog_search(caller, state, project, parse_input(val)?).await },
+                )
             },
-        },        Operation {
+        },
+        Operation {
             name: "jc_kpi_compute",
             title: "Compute KPI",
-            description: "Folds an attribute over context entities and renders a KeyPerformanceIndicator entity",
+            description:
+                "Folds an attribute over an Endpoint or rows into a KeyPerformanceIndicator entity",
             input: kpi_input_schema,
             output: || json!({ "type": "object" }),
             annotations: OperationAnnotations {
@@ -313,44 +459,18 @@ pub fn operations() -> Vec<Operation> {
             kind: "Endpoint",
             verb: None,
             lane: Lane::Green,
-            validate: |val| {
-                parse_input::<KpiComputeInput>(val.clone()).map(|_| ())
+            validate: |val| parse_input::<KpiComputeInput>(val.clone())?.check(),
+            run: |caller, state, project, val| {
+                Box::pin(
+                    async move { kpi_compute(caller, state, project, parse_input(val)?).await },
+                )
             },
-            run: |_, state, project, val| {
-                Box::pin(async move {
-                    let input: KpiComputeInput = parse_input(val)?;
-                    let params = kpi::ComputeKpi {
-                        name: input.name,
-                        title: input.title,
-                        entity_type: input.entity_type,
-                        attribute: input.attribute,
-                        agg: input.agg,
-                        unit: input.unit,
-                        q: input.q,
-                        endpoint: None,
-                    };
-                    let value = kpi_value(&input.rows.unwrap_or_default(), &params)?;
-                    let org_domain = assistant::org_domain(state, project);
-                    let (ep_slug, ep_name) = kpi::kpi_endpoint(state, project)
-                        .unwrap_or_else(|| (format!("{project}-kpi"), format!("{project}-kpi")));
-                    let now = chrono::Utc::now().to_rfc3339();
-                    let prov = kpi::Provenance {
-                        org_domain: &org_domain,
-                        project,
-                        endpoint_space: &ep_slug,
-                        endpoint_name: &ep_name,
-                        run_id: "ops",
-                        now: &now,
-                    };
-                    let entity = kpi::entity(&params, value, &prov)
-                        .map_err(ApiError::BadRequest)?;
-                    Ok(entity.to_json())
-                })
-            },
-        },        Operation {
+        },
+        Operation {
             name: "jc_pipeline_test",
             title: "Pipeline Test",
-            description: "Tests candidate pipeline mapping and validation on runner without writing",
+            description:
+                "Tests candidate pipeline mapping and validation on runner without writing",
             input: pipeline_test_input_schema,
             output: pipeline_test_output_schema,
             annotations: OperationAnnotations {
@@ -374,7 +494,8 @@ pub fn operations() -> Vec<Operation> {
             run: |caller, state, project, val| {
                 Box::pin(pipeline_test_run(caller, state, project, val))
             },
-        },        Operation {
+        },
+        Operation {
             name: "jc_model_infer",
             title: "Infer Schema",
             description: "Infers a draft LinkML data model from sample data bytes or text",
@@ -388,14 +509,19 @@ pub fn operations() -> Vec<Operation> {
             kind: "DataModel",
             verb: None,
             lane: Lane::Green,
-            validate: |val| {
-                parse_input::<ModelInferInput>(val.clone()).map(|_| ())
-            },
+            validate: |val| parse_input::<ModelInferInput>(val.clone()).map(|_| ()),
             run: |caller, state, project, val| {
                 Box::pin(async move {
                     let input: ModelInferInput = parse_input(val)?;
                     if let Some(url) = input.url {
-                        return infer_from_url(&caller.identity, state, project, input.name.as_deref(), &url).await;
+                        return infer_from_url(
+                            &caller.identity,
+                            state,
+                            project,
+                            input.name.as_deref(),
+                            &url,
+                        )
+                        .await;
                     }
                     let bytes = if let Some(b64) = input.content {
                         base64::engine::general_purpose::STANDARD
@@ -586,6 +712,189 @@ fn credential_in_address(url: &url::Url) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const SLUG: &str = "citycounterszzzzzzzzzzzzzz";
+
+    /// A compute through a Portal whose mirror holds a public Endpoint on `gateway`.
+    async fn compute(gateway: &wiremock::MockServer, args: Value) -> Result<Value, OpError> {
+        let mut config = crate::config::Config::for_tests();
+        config.gateway_url = Some(gateway.uri());
+        let state = crate::state::AppState::new(config, None);
+        for (kind, name, namespace, spec) in [
+            (
+                "Endpoint",
+                "counters",
+                "city",
+                json!({ "slug": SLUG, "audience": "public" }),
+            ),
+            (
+                "Organization",
+                "city",
+                crate::api::blueprints::ORG_NAMESPACE,
+                json!({ "domain": "city.example" }),
+            ),
+        ] {
+            state.mirror.upsert(crate::resource::ResourceEnvelope {
+                api_version: crate::resource::API_VERSION.to_owned(),
+                kind: kind.to_owned(),
+                metadata: crate::resource::ObjectMeta::new(name, namespace),
+                spec,
+                status: None,
+            });
+        }
+        let caller = crate::ops::Caller {
+            identity: crate::auth::session::Identity {
+                client: None,
+                subject: "sub".into(),
+                username: "person".into(),
+                email: None,
+                name: None,
+                roles: vec![],
+                groups: vec![],
+                second_factor: false,
+            },
+            via: crate::ops::Via::Mcp,
+            access: None,
+            bearer: None,
+        };
+        let mut input = json!({ "name": "n", "type": "BikeCounter", "endpoint": SLUG });
+        input
+            .as_object_mut()
+            .expect("an object")
+            .extend(args.as_object().expect("an object").clone());
+        kpi_compute(&caller, &state, "elsewhere", parse_input(input)?).await
+    }
+
+    /// A gateway holding `total` counters of count 1, 2, ... that answers at most `page` a read.
+    async fn gateway(total: u64, page: u64) -> wiremock::MockServer {
+        let server = wiremock::MockServer::start().await;
+        let answer = move |request: &wiremock::Request| {
+            let number = |key: &str| {
+                request
+                    .url
+                    .query_pairs()
+                    .find(|(k, _)| k == key)
+                    .and_then(|(_, v)| v.parse::<u64>().ok())
+            };
+            let start = number("offset").unwrap_or(0);
+            let end = total.min(start + page.min(number("limit").unwrap_or(0)));
+            let rows: Vec<Value> = (start..end)
+                .map(|i| json!({ "id": format!("urn:ngsi-ld:BikeCounter:{i}"), "count": i + 1 }))
+                .collect();
+            wiremock::ResponseTemplate::new(200)
+                .insert_header("NGSILD-Results-Count", total.to_string().as_str())
+                .set_body_json(rows)
+        };
+        wiremock::Mock::given(wiremock::matchers::path(format!(
+            "/api/endpoint/{SLUG}/ngsi-ld/v1/entities"
+        )))
+        .respond_with(answer)
+        .mount(&server)
+        .await;
+        server
+    }
+
+    fn value_of(answer: &Value) -> f64 {
+        answer["currentValue"]["value"]
+            .as_f64()
+            .unwrap_or_else(|| panic!("no value in {answer}"))
+    }
+
+    /// The value is the direct aggregation over every entity, also when the gateway answers
+    /// shorter pages than asked (T-6484).
+    #[tokio::test]
+    async fn an_endpoint_read_folds_every_page_the_gateway_answers() {
+        let server = gateway(2500, 700).await;
+        let sum = compute(&server, json!({ "attribute": "count", "agg": "sum" }))
+            .await
+            .expect("a value");
+        assert_eq!(value_of(&sum), (1..=2500u64).sum::<u64>() as f64);
+        let reads = server.received_requests().await.expect("recorded");
+        assert_eq!(reads.len(), 4, "700 at a time");
+        let attrs = reads[0].url.query().unwrap_or("");
+        assert!(
+            attrs.contains("attrs=count") && attrs.contains("type=BikeCounter"),
+            "{attrs}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_count_reads_the_total_alone() {
+        let server = gateway(50_000, 1000).await;
+        let count = compute(&server, json!({ "agg": "count" }))
+            .await
+            .expect("a value");
+        assert_eq!(value_of(&count), 50_000.0);
+        let reads = server.received_requests().await.expect("recorded");
+        assert_eq!(reads.len(), 1);
+        assert!(reads[0].url.query().unwrap_or("").contains("limit=0"));
+    }
+
+    /// A fold over more than one indicator reads is refused, never a value of the first pages.
+    #[tokio::test]
+    async fn a_fold_past_the_cap_is_refused_at_q() {
+        let server = gateway(KPI_MAX_ENTITIES + 1, 1000).await;
+        match compute(&server, json!({ "attribute": "count", "agg": "avg" })).await {
+            Err(OpError::InvalidInput { path, message }) => {
+                assert_eq!(path, "/q");
+                assert!(message.contains("10001 BikeCounter match"), "{message}");
+            }
+            other => panic!("not refused: {other:?}"),
+        }
+    }
+
+    /// An empty Endpoint folds no number, and `count` of it is a true 0.
+    #[tokio::test]
+    async fn an_empty_endpoint_is_no_measured_zero() {
+        let server = gateway(0, 1000).await;
+        let refused = compute(&server, json!({ "attribute": "count", "agg": "sum" })).await;
+        assert!(
+            matches!(&refused, Err(OpError::InvalidInput { message, .. }) if message.contains("(0 read)")),
+            "{refused:?}"
+        );
+        let count = compute(&server, json!({ "agg": "count" }))
+            .await
+            .expect("a value");
+        assert_eq!(value_of(&count), 0.0);
+    }
+
+    /// No source is never a fold of nothing: T-5962's call read 0 rows without saying why.
+    #[test]
+    fn a_call_names_one_source_and_a_fold_its_attribute() {
+        let path = |args: Value| {
+            let mut input = json!({ "name": "n", "type": "T", "agg": "sum", "attribute": "a" });
+            input
+                .as_object_mut()
+                .expect("an object")
+                .extend(args.as_object().expect("an object").clone());
+            match parse_input::<KpiComputeInput>(input)
+                .expect("parses")
+                .check()
+            {
+                Err(OpError::InvalidInput { path, .. }) => Some(path),
+                _ => None,
+            }
+        };
+        assert_eq!(path(json!({})).as_deref(), Some("/endpoint"));
+        assert_eq!(
+            path(json!({ "endpoint": " " })).as_deref(),
+            Some("/endpoint")
+        );
+        assert_eq!(
+            path(json!({ "endpoint": "e", "rows": [] })).as_deref(),
+            Some("/rows")
+        );
+        assert_eq!(
+            path(json!({ "endpoint": "e", "attribute": "" })).as_deref(),
+            Some("/attribute")
+        );
+        assert_eq!(path(json!({ "endpoint": "e" })), None);
+        assert_eq!(path(json!({ "rows": [] })), None);
+        assert_eq!(
+            path(json!({ "rows": [], "agg": "count", "attribute": "" })),
+            None
+        );
+    }
 
     fn params(agg: kpi::Agg) -> kpi::ComputeKpi {
         kpi::ComputeKpi {

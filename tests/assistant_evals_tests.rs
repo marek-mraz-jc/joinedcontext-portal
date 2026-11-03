@@ -69,7 +69,10 @@ const UNRECORDED_LATER: [(&str, &str); 7] = [
 
 /// Case conversations added after 2026-10-06, each owing its recording with the task that added
 /// it, counted apart like [`UNRECORDED_LATER`].
-const UNRECORDED_CASES_LATER: [(&str, &str); 0] = [];
+const UNRECORDED_CASES_LATER: [(&str, &str); 2] = [
+    ("datasource--api-key", "T-6488"),
+    ("endpoint--hide-attribute", "T-6488"),
+];
 
 /// What separates a workflow from its case in a conversation's file name.
 const CASE: &str = "--";
@@ -442,6 +445,8 @@ fn rebuild(message: &str, events: &[Recorded]) -> Script {
     for (at, event) in events.iter().enumerate() {
         match event.kind.as_str() {
             "tool" if !searched_first && is_first_search(event, message) => searched_first = true,
+            // The driver reads it itself after a parse refusal: the model never asked (T-6488).
+            "tool" if event.payload["tool"] == ops::schemas::GET => {}
             "tool" => {
                 let tool = event.payload["tool"].as_str().unwrap_or_default();
                 let input = event.payload["input"].clone();

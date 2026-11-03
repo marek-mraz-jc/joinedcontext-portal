@@ -1002,13 +1002,20 @@ PUT /api/v1/preferences      replaces them whole; answers 200 with what is now s
   again by clearing it. Absent means shown. Each step ticks itself from the project's own state,
   never from this record (T-3233).
 - Personal MCP connectors are no preference since T-5970: they are connector records (API/14,
-  ADR-N-064 §9); a body naming `connectors` is a `400`, and a list an older Portal stored moves
-  into the connector store once (`data-read`, every item `read`, the default ceiling's expiry). An
-  old connector that does not move (its selector takes no Endpoint, its name is live already, the
-  person holds the most live connectors) stays in the stored row under `connectorsNotMoved` as
-  `{name, select, reason}`, and a list the Portal cannot read stays under `connectors`; no read
-  answers either key and a `PUT` carries both over, so the move loses nothing a person made. The
-  gateway reads a person's live `data-read` connectors for `/api/mcp/me/{name}` by the caller's
+  ADR-N-064 §9); a body naming `connectors` is a `400`. A list an older Portal stored moves into
+  the connector store once, on that person's first signed-in `GET` or `PUT` of this resource
+  (T-6362): the start-up and the gateway know no person's groups, so neither moves it, and a person
+  who only calls `/api/mcp/me/{name}` gets an empty list there until they sign in to the Portal
+  once. A client token moves nothing (AG-151). Each moved connector is `data-read`, every item
+  `read`, expiring after the `maxExpiry` of the person's own DelegationPolicy ceiling, and holds
+  only the Endpoints, spaces and projects that person may read today and the ceiling admits,
+  checked item by item as `POST /api/v1/connectors` checks them. An old connector that does not
+  move (its selector takes no Endpoint the person may read, the ceiling would queue or refuse it,
+  its name is live already, the person holds the most live connectors) stays in the stored row
+  under `connectorsNotMoved` as `{name, select, reason}`, and a list the Portal cannot read stays
+  under `connectors`; no read answers either key and a `PUT` carries both over, so the move loses
+  nothing a person made. The gateway reads a person's live `data-read` connectors for
+  `/api/mcp/me/{name}` by the caller's
   `sub` alone (EP-123): `GET /internal/connectors/{sub}` on the Portal's internal listener answers
   `{ "connectors": [ { "id": "…", "name": "my-air", "scope": [ … ], "expiresAt": "…",
   "allowedClients": [ … ] } ] }`, an empty list for a `sub` with none, with the same Keycloak
@@ -1515,6 +1522,7 @@ The inference answer (DM-54): the model as source and as the operations the visu
 
 The editor's operations (DM-13) are `addClass`, `removeClass`, `renameClass`, `setClass`, `addSlot`, `removeSlot`, `renameSlot`, `attachSlot`, `detachSlot`, `setSlot`, `setTitle`, `addEnum` and `addEnumValue`, applied in order and all or nothing. A rename carries `to` and follows the element through the model: a renamed class is renamed in every `is_a` and every slot `range` that names it, a renamed slot in every class's slot list. An operation naming an element the model does not have, or a new name it already has, is refused with its index and the reason.
 
+- `sdm-catalog` and `import-sdm` answer from the Smart Data Models mirror when the image holds one (`JC_PORTAL_SDM_MIRROR_DIR`): the catalogue names each model's upstream `commit` (DM-08) and lists in `failed` the models that did not convert, each with its `finding`. A failed model is never offered: `import-sdm` refuses it with that finding. A model the mirror lacks, or a stored file that no longer matches the catalogue's pin, goes to Model Tools as before.
 - `sdm-catalog` is the index the import wizard browses (DM-07): the subjects and their models, with
   the attribute names and descriptions the wizard searches. Model Tools caches it and refreshes it
   daily; `?refresh=true` asks for a refresh now, and an index Model Tools could not refresh is
@@ -2657,20 +2665,26 @@ MCP (Streamable HTTP, protocol 2026-07-28):
   `destructiveHint`, never runs on the agent's word. The first `tools/call` runs nothing and
   answers
     { "isError": false, "status": "input_required",
-      "structuredContent": { "elicitation": {
+      "content": [{ "type": "text", "text": "<the sentence>\n\nThe person decides here: <url>\n…" }],
+      "_meta": { "joinedcontext.com/elicitation": { "elicitation": {
         "elicitationId": "eli-…", "mode": "url", "url": "https://portal…/projects/{project}/…",
         "message": "<what this call would do, in one sentence>",
-        "expiresIn": 600 } } }
-  A proposal whose check has not run carries the route's own refusal beside the question
-  (PF-57, ADR-N-021): `structuredContent` gains `"error": "verdict_required"`, `"check": "<the
-  operation to run>"`, `"reason": "verdict_absent" | "verdict_failed" | "stale"` and the same
-  one-sentence `detail`, at its top level where the REST route puts them, with `elicitation`
-  beside them. A client that reads `verdict_required` on the route reads it here too and knows
-  which check to run, and the person still has the URL to run it at. The door refuses either
-  way: nothing is proposed without a fresh Verdict.
+        "expiresIn": 600 } } } }
+  The text names the URL and the `elicitationId`, because a client hands its model the text
+  alone (T-6361). The answer carries no `structuredContent`: every tool declares an
+  `outputSchema` and a question is not the tool's output, so `_meta` holds the same fields for a
+  client that reads them by name. A proposal whose check has not run carries the route's own
+  refusal beside the question (PF-57, ADR-N-021): the `_meta` object gains `"error":
+  "verdict_required"`, `"check": "<the operation to run>"`, `"reason": "verdict_absent" |
+  "verdict_failed" | "stale"` and the same one-sentence `detail` at its top level, with
+  `elicitation` beside them, and the text names the check. A client that reads
+  `verdict_required` on the route reads it here too and knows which check to run, and the person
+  still has the URL to run it at. The door refuses either way: nothing is proposed without a
+  fresh Verdict.
   The host shows it to the person, who opens the URL and decides; the client then repeats the
-  same `tools/call` with `params.elicitation = { "elicitationId": "eli-…", "action": "accept" }`
-  and the operation runs. `"action": "decline"` (or `"cancel"`) answers a refusal and nothing
+  same `tools/call` with `params.elicitation = { "elicitationId": "eli-…" }`, or with
+  `elicitation` among its `arguments` for a client that can only fill arguments, and the
+  operation runs once the person accepted on the page. `"action": "decline"` (or `"cancel"`) answers a refusal and nothing
   runs. An id is one-shot, belongs to the token's subject, expires in ten minutes and is bound to
   the operation and the arguments it was asked for: different arguments need a new answer. Every
   `tools/call` naming a known operation in a project the caller reads is one `mcp.tool` row from
@@ -2687,8 +2701,10 @@ MCP (Streamable HTTP, protocol 2026-07-28):
   `"forbidden"`. A task belongs to the token's subject: another caller's `tasks/get` answers
   `unknown task`, the same as one that never existed. A finished task is kept ten minutes.
   Limits (AG-60), counted by the token's subject in the Portal itself, so an in-cluster caller
-  is bounded too: 120 requests a minute → 429 with `Retry-After`, a request body over 1 MiB and
-  an answer over 4 MiB → 413 naming what to narrow. The edge's own bucket stays on top of them.
+  is bounded too: a ninth call running at once, counted with the person's connectors → 429 with
+  `Retry-After`; a request body over 1 MiB and an answer over 4 MiB →
+  413 naming what to narrow. Calls a minute have no limit in the Portal (T-6484). The edge's own
+  bucket stays on top of them.
 ```
 
 ## 22. Workspaces (CC-76…CC-81, PF-82, PF-83, AG-82, UI-61…UI-63)
@@ -3289,15 +3305,19 @@ T-2996): `GET /ngsi-ld/v1/entities?local=true&count=true&limit=0` with `NGSILD-T
 read from `NGSILD-Results-Count`. `local=true` counts every type of the tenant's own entities and
 none of a registered source's. A `404` whose problem type is `NonexistentTenant` is a space never
 written to (`0`); any other `404`, an answer without a readable count, or a broker that does not
-answer is `503` with the reason, never a zero. The Portal keeps each answer for five minutes;
-these are dashboard numbers, not per-request work.
+answer is `503` with the reason, never a zero. The Portal keeps each answer: these are dashboard
+numbers, not per-request work. A space under 10 000 rows (entities and history together) is
+measured again on a read after five minutes; a larger one is kept for an hour, and the Portal's
+health sweep measures every space within that hour (T-6208).
 
 ```text
-GET /api/v1/projects/{project}/spaces/{space}/usage     the space's entity count → 200
+GET  /api/v1/projects/{project}/spaces/{space}/usage               the kept count and size → 200
+POST /api/v1/projects/{project}/spaces/{space}/usage/recalculate   measure the space again → 200
 ```
 
 ```json
-{ "entities": 14232, "broker": "main", "observedAt": "2026-09-25T11:40:00Z",
+{ "entities": 14232, "attrInstances": 90311, "estimated": false,
+  "broker": "main", "observedAt": "2026-09-25T11:40:00Z", "measuredAt": "2026-09-25T11:38:12Z",
   "bytes": { "entities": 48211968, "attrInstances": 1203456,
              "byType": { "https://smartdatamodels.org/dataModel.Environment/AirQualityObserved": 48211968 } } }
 ```
@@ -3313,12 +3333,26 @@ GET /api/v1/projects/{project}/spaces/{space}/usage     the space's entity count
 - The per-type breakdown on the space's page is the gateway's own `count=true` per type, read
   with the person's token, so it narrows as the person's grants do.
 - `bytes` is the storage the space takes, measured by the broker in its store (`GET
-  /q/tenants/{tenant}` `bytes`, T-2890), never estimated: `entities` the current state,
+  /q/tenants/{tenant}` `bytes`, T-2890): `entities` the current state,
   `attrInstances` the history, `byType` the current state by each Entity's first type as the
   broker stores it (an expanded IRI), summing to `entities`. Like the count it is the space's,
   the same for everyone who reads the space; the type names are the space's DataModels, which the
   reader already sees. A broker that cannot measure leaves `bytes` out, and so does a space it has
   no tenant for yet; the page then shows no size, never a zero.
+- `attrInstances` is the space's history, its temporal attribute instances, as the broker counts
+  them (`counts.attrInstances`, T-6085); left out when the broker neither counted nor estimated
+  them, never a zero. The broker counts and sizes the history exactly within one second; a longer
+  history it estimates from its database's statistics, and `estimated` is `true`: then
+  `attrInstances` and `bytes.attrInstances` are estimates, and the page says so. The space's page
+  shows the entity count, the history count, the current-state and history sizes and their total.
+- `measuredAt` is when the broker measured the size: the broker keeps a measured size for five
+  minutes (Antares `TENANT_BYTES_TTL`), so it can be older than `observedAt`, when the broker
+  answered. A broker that sends no `measuredAt` gives `observedAt`.
+- `recalculate` measures the space again for anyone who may read it (`404` otherwise, as the
+  read). Concurrent asks of one space share one broker read, and an answer under 30 seconds old
+  stands, so repeated clicks cost the broker nothing. It answers the same body as the read.
+- The Context Spaces list shows the count and size with an (i) beside them: its panel says when
+  the size was measured and holds the Recalculate button.
 - The Context Spaces list and the space's page show the size in binary units (KiB, MiB, GiB) with
   the locale's separators and the exact bytes in the tooltip; the space's per-type table adds the
   size of each type beside its count. The list still sorts by the entity count.
@@ -4344,7 +4378,7 @@ DELETE /api/v1/projects/{project}/mqttbrokers/{name}/captured          → 204
 A pipeline that reads or writes a Context Space it has no grant on asks the space's owner for one. The request lives in the owning project and grants nothing until an owner there approves it; approval proposes the grant as a Change of the owning project, through its lane.
 
 ```text
-POST   /api/v1/projects/{project}/pipelines/{name}/access-requests   { "endpoint": { "project", "name" }, "operations": "read"|"write", "types": [{ "type", "attrs": [...] }], "until"?, "reason" } → 201
+POST   /api/v1/projects/{project}/pipelines/{name}/access-requests   { "endpoint": { "project", "name" }, "operations": "read"|"write"|"history", "types": [{ "type", "attrs": [...] }], "until"?, "reason" } → 201
 GET    /api/v1/projects/{project}/pipelines/{name}/access-requests   the pipeline's requests, outgoing → 200
 GET    /api/v1/projects/{project}/pipelines/{name}/access-requests/endpoints   the Endpoints the request may name → 200
 GET    /api/v1/projects/{project}/access-requests                        the requests into this project's spaces, incoming → 200
@@ -4651,9 +4685,10 @@ GET /api/v1/organization/costs/export?month=2026-09   → 200 text/csv
 
 What each Endpoint answered, per UTC day and surface, for its publisher. Every gateway replica
 counts the calls it answered with a status below 400, by the Endpoint slug of the path and the
-surface of the route (`ngsi-ld`, `ogc`, `odata`, `sta`, `ical`, `mcp`, `websocket`, `download`
-for `file.csv`), and posts what it counted since its last post every five minutes. The Portal
-adds the counts into one row per project, Endpoint, surface and day and keeps rows 400 days.
+surface of the route (`ngsi-ld`, `ogc`, `odata`, `sta`, `ical`, `feed`, `mcp`, `websocket`,
+`download` for `file.csv`) and the kind of caller (T-6186), and posts what it counted since its
+last post every five minutes. The Portal adds the counts into one row per project, Endpoint,
+surface, kind of caller and day and keeps rows 400 days.
 
 ```text
 GET  /api/v1/projects/{project}/endpoints/{name}/usage?days=30    → 200 EndpointUsage
@@ -4664,11 +4699,20 @@ GET  /api/v1/projects/{project}/usage/endpoints/export?month=2026-10 → 200 tex
 ```json
 {"name": "air", "from": "2026-09-23", "to": "2026-10-22",
  "days": [{"day": "2026-10-22", "calls": {"ngsi-ld": 120, "download": 3}, "total": 123}],
- "totals": {"ngsi-ld": 120, "download": 3}, "total": 123}
+ "totals": {"ngsi-ld": 120, "download": 3},
+ "callers": {"person": 20, "agent": 100, "anonymous": 3}, "total": 123}
 ```
 
-- The gateway posts to the internal listener's `/internal/usage` (`204`); the body is `{"counts": [{"endpoint": "<slug>", "surface": "ogc", "count": 7}]}`, at most
-  5,000 lines and 10,000,000 per line; any other member, an unknown surface or a slug that is no
+- The kind of caller comes from the bearer token the realm signed (signature, issuer, lifetime
+  checked), never from one it did not: `agent` for an MCP connector's client (`mcp-*`, a client
+  metadata document URL) or the Portal's assistant (`jc-assistant`), `workload` for a Keycloak
+  service account or a token without a username, `person` for any other username, and
+  `anonymous` for no token or one the realm did not sign. Rows counted before the split, or posted
+  by a gateway that sends no kind, are `unknown`. `callers` holds the window's calls per kind in
+  `EndpointUsage` and in each line of `ProjectUsage`.
+
+- The gateway posts to the internal listener's `/internal/usage` (`204`); the body is `{"counts": [{"endpoint": "<slug>", "surface": "ogc", "caller": "person", "count": 7}]}`, at most
+  5,000 lines and 10,000,000 per line; any other member, an unknown surface or kind of caller, or a slug that is no
   DNS-1123 name refuses the whole post with `400`. A slug no Endpoint has is dropped. The route
   is on the internal listener and answers the gateway's own workload token alone (PF-46); any
   other caller gets `401` before the body is read.
@@ -4676,11 +4720,11 @@ GET  /api/v1/projects/{project}/usage/endpoints/export?month=2026-10 → 200 tex
   `total: 0`. `ProjectUsage` lists every Endpoint the caller may read, with `daily` holding one
   total per day, oldest first.
 - The export is `day,endpoint,surface,calls`, one line per day, Endpoint and surface with calls,
-  for the Endpoints the caller may read; `month` other than `YYYY-MM` is `400`.
+  every kind of caller summed, for the Endpoints the caller may read; `month` other than `YYYY-MM` is `400`.
 - Who may read: whoever may read the Endpoint (`read` on `Endpoint` in its Context Space); a
   project the caller cannot read, or an Endpoint they cannot read, is `404`.
-- Nothing personal is kept: the gateway sends no address, token, person, query or entity id, and
-  `endpoint_usage_daily` has no column for one.
+- Nothing personal is kept: the gateway sends no address, token, subject, client id, query or
+  entity id, only a kind of caller, and `endpoint_usage_daily` has no column for one.
 
 ## 55. Checking a KPI over several sources (PL-102…PL-105, T-4935)
 
@@ -4717,6 +4761,14 @@ POST /api/v1/projects/{project}/kpis/check   {pipeline, preview?}   → 200 KpiC
   the query is the source's type, `q`, its `attrs` and the join key. `rows` counts what each
   page held; `problem` says in words why nothing was computed (a division by zero, an average
   over nothing, a source that did not answer, PL-104).
+- A `prev` term (PL-117) adds one read per source and period: `rows` holds it under
+  `parking@P7D`, at most 100 rows. The broker's view preview serves current pages only, so this
+  read goes through the gateway to the Endpoint's Temporal API, with the person's token
+  exchanged for the Endpoint (anonymous on a public one). A session without the person's token,
+  and a read with no rows, give `problem` in words and no value.
+- `readable` for a source with a `prev` term also needs `queryTemporal`; the pipeline access
+  request (§48) asks for it with `operations: history`, which grants `retrieveOps` and
+  `queryTemporal`.
 - Who may call: a person with `propose` on `Pipeline` in the project; anyone else gets `403`,
   and so does a workload token, whose reading is its ServiceAccount's grants.
 

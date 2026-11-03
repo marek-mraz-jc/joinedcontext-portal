@@ -17,9 +17,9 @@ use super::runs::as_user;
 use super::{annotations, parse_input, OpError, Operation};
 use crate::change::Lane;
 use crate::tools::model_tools::{
-    self, is_catalogue_id, subjects_of, CatalogueModel, GenerateRequest, ImportSdmRequest,
-    MAX_REQUEST_BYTES,
+    self, subjects_of, CatalogueModel, GenerateRequest, ImportSdmRequest, MAX_REQUEST_BYTES,
 };
+use crate::tools::sdm_mirror::is_catalogue_id;
 
 pub const SEARCH: &str = "jc_model_sdm_search";
 pub const IMPORT: &str = "jc_model_sdm_import";
@@ -387,6 +387,7 @@ mod tests {
             name: "OnStreetParking".into(),
             description: Some("A street segment where vehicles park".into()),
             attributes: vec!["availableSpotNumber".into()],
+            commit: None,
         };
         for q in ["onstreet", "datamodel.parking", "vehicles", "availablespot"] {
             assert!(matches(&model, q), "{q}");

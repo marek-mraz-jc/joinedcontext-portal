@@ -20,7 +20,7 @@ Nothing in this guide goes live when you press Save. Every write is proposed as 
 
 1. Open the Portal. The sign-in page is your organization's own; enter the user name and password you were given. Once you are in, the Portal opens on a project.
 2. The bar at the top names the project you are looking at. If you belong to more than one, use it to switch: everything below it, every page and every list, belongs to the project named there.
-3. The left navigation is the whole Portal: **Context Spaces**, **Endpoints**, **Data sources**, **Pipelines**, **Dashboards**, **Applications**, **Approvals**, **Access**, **Explore data**, **Data models**, **Flows**, **Copies**, **Open data** and **Activity**.
+3. The left navigation is the whole Portal: **Context Spaces**, **Endpoints**, **Data sources**, **Pipelines**, **Dashboards**, **Applications**, **Approvals**, **Access**, **Explore data**, **Data models**, **Copies**, **Open data** and **Activity**.
 4. The assistant sits in the corner behind **Open the assistant**. It can read the pages you can read and fill in the forms you can fill in, and it can propose a change, exactly like you; it cannot approve one.
 
 If a page says you may not see something, that is your role talking, not a fault. **Access** shows what your roles let you do here.
@@ -67,7 +67,7 @@ Two pieces, in this order: a data source says where to fetch from, and a pipelin
 
 **By asking the assistant:** *load the city's air quality feed from this URL into a new space every fifteen minutes*. The assistant drafts the data source, the pipeline and the space together and leaves them filled in for you to read. The notice above the form says the assistant filled it in; check it before you propose, because the change goes out under your name.
 
-Or start from a flow: **Flows** is a gallery of whole use cases. **Set up** asks only for what that use case needs and writes the space, the source, the pipeline and the endpoint together.
+Or start from a ready-made set-up: **Data sources** lists them under **Ready-made set-ups**. **Set up** asks only for what that feed needs and writes the source, its pipeline and its schedule together.
 
 ## 5. Publish it
 

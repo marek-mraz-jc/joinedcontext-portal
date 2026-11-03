@@ -5,17 +5,20 @@
 //! of each source whether the pipeline's account may read it yet (a source it cannot read is
 //! asked for with PL-90 once the pipeline exists). `preview: true` reads each source Endpoint's
 //! current page as the person, the filter preview's way (EP-85), and computes the indicator with
-//! jc-core's reference evaluator. Nothing is stored or written.
+//! jc-core's reference evaluator. A `prev` term's history (PL-117) is read through the gateway
+//! with the person's token exchanged for the Endpoint, since the broker's view preview serves
+//! current pages only. Nothing is stored or written.
 
 use std::collections::BTreeMap;
 
 use axum::extract::rejection::JsonRejection;
 use axum::extract::{Path, State};
+use axum::http::HeaderMap;
 use axum::routing::post;
 use axum::{Json, Router};
-use chrono::{SecondsFormat, Utc};
+use chrono::{Duration, SecondsFormat, Utc};
 use jc_core::kinds::{PipelineSource, PipelineSpec, Step, Verb};
-use jc_core::kpi_join::{Expr, Input, KpiStep};
+use jc_core::kpi_join::{earlier_reads, Earlier, Expr, Input, KpiStep};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use utoipa::ToSchema;
@@ -29,6 +32,10 @@ use crate::store::ListOptions;
 
 /// The rows one source's preview page holds: the broker's view preview bound.
 const PAGE: u32 = 100;
+
+/// How long the gateway gets to answer a history read: a read over a type is slower than the
+/// gateway's usual 10 s on a cold broker (T-6466: 15 s on dev).
+const HISTORY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(25);
 
 /// The body of `POST …/kpis/check`.
 #[derive(Debug, Deserialize, ToSchema)]
@@ -60,7 +67,8 @@ pub struct KpiSource {
     /// The source Endpoint.
     pub endpoint: String,
     /// Whether the pipeline's account reads the source's type through the Endpoint now: a
-    /// Policy grants it, or the Endpoint is public (PL-55, PL-90).
+    /// Policy grants it, its history too for a `prev` term, or the Endpoint is public (PL-55,
+    /// PL-90, PL-117).
     pub readable: bool,
 }
 
@@ -90,10 +98,10 @@ impl From<jc_core::kpi_join::Computed> for KpiValue {
 pub struct KpiPreview {
     /// One value per key, one for a join by time.
     pub values: Vec<KpiValue>,
-    /// The rows each source's page held, at most 100.
+    /// The rows each source's page held, at most 100; a read back goes by `parking@P7D`.
     pub rows: BTreeMap<String, usize>,
     /// Why nothing is computed: a division by zero, an average over nothing, a source that did
-    /// not answer (PL-104).
+    /// not answer (PL-104), no history for a `prev` term (PL-117).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub problem: Option<String>,
 }
@@ -113,7 +121,7 @@ pub struct KpiChecked {
     post,
     path = "/api/v1/projects/{project}/kpis/check",
     summary = "Check A KPI Over Several Sources",
-    description = "Checks a v1alpha2 Pipeline draft with one kpi step by jc-core's admission rules (PL-102, PL-103), with each attribute's unit from its space's model, and says of each source whether the pipeline's account may read it. `preview: true` also computes the indicator on each source Endpoint's current page, read as the person (PL-105). Needs propose on Pipeline in the project, from a person's session; a source in a space the caller may not read is named as unknown. Changes no data.",
+    description = "Checks a v1alpha2 Pipeline draft with one kpi step by jc-core's admission rules (PL-102, PL-103), with each attribute's unit from its space's model, and says of each source whether the pipeline's account may read it. `preview: true` also computes the indicator on each source Endpoint's current page, read as the person (PL-105), and a `prev` term on its history (PL-117). Needs propose on Pipeline in the project, from a person's session; a source in a space the caller may not read is named as unknown. Changes no data.",
     tag = "pipelines",
     params(("project" = String, Path, description = "Project name")),
     request_body(
@@ -152,6 +160,7 @@ pub async fn check_kpi(
     user: CurrentUser,
     State(state): State<AppState>,
     Path(project): Path<String>,
+    headers: HeaderMap,
     body: Result<Json<KpiCheckRequest>, JsonRejection>,
 ) -> Result<Json<KpiChecked>, ApiError> {
     let identity = &user.0.identity;
@@ -159,7 +168,14 @@ pub async fn check_kpi(
     let pipeline = admitted(&state, identity, &project, request.pipeline)?;
     let (mut checked, compiled) = check(&state, identity, &project, &pipeline);
     if let (true, Some((step, expr, inputs))) = (request.preview, compiled) {
-        checked.preview = Some(preview(&state, identity, &project, &step, &expr, &inputs).await);
+        let token = crate::agents::identity::persons_token(&headers, state.config.trust_edge_token);
+        let reader = Reader {
+            state: &state,
+            identity,
+            project: &project,
+            token,
+        };
+        checked.preview = Some(preview(&reader, &step, &expr, &inputs).await);
     }
     Ok(Json(checked))
 }
@@ -271,6 +287,10 @@ fn check(
         pipeline["metadata"]["name"].as_str().unwrap_or_default()
     );
     let policies = policies(state, project);
+    let reads = kpi_step(&spec)
+        .and_then(|step| jc_core::kpi_join::parse(&step.formula).ok())
+        .map(|expr| earlier_reads(&expr))
+        .unwrap_or_default();
     let mut inputs = match spec.kpi_inputs() {
         Ok(inputs) => inputs,
         Err(err) => {
@@ -303,7 +323,11 @@ fn check(
                                 entity_type: input.entity_type.clone(),
                                 attrs: Vec::new(),
                             }],
-                            Operations::Read,
+                            if reads.iter().any(|read| read.input == input.name) {
+                                Operations::History
+                            } else {
+                                Operations::Read
+                            },
                         ),
                     endpoint: name,
                 });
@@ -465,25 +489,48 @@ fn policies(state: &AppState, project: &str) -> Vec<Value> {
         .collect()
 }
 
-/// Each source's current page read as the person, and the indicator computed on them.
-async fn preview(
-    state: &AppState,
-    identity: &Identity,
-    project: &str,
-    step: &KpiStep,
-    expr: &Expr,
-    inputs: &[Input],
-) -> KpiPreview {
+/// Who a preview reads as, and where.
+struct Reader<'a> {
+    state: &'a AppState,
+    identity: &'a Identity,
+    project: &'a str,
+    /// The person's own access token, when this session carries one.
+    token: Option<&'a str>,
+}
+
+/// Each source's current page read as the person, each read back from its history, and the
+/// indicator computed on them.
+async fn preview(reader: &Reader<'_>, step: &KpiStep, expr: &Expr, inputs: &[Input]) -> KpiPreview {
     let mut pages = BTreeMap::new();
     let mut problem = None;
     for input in inputs {
-        match page(state, identity, project, input, step).await {
+        match page(reader, input, step).await {
             Ok(rows) => {
                 pages.insert(input.name.clone(), rows);
             }
             Err(reason) => {
                 problem.get_or_insert(format!("input {}: {reason}", input.name));
             }
+        }
+    }
+    let reads = earlier_reads(expr);
+    for read in &reads {
+        let found = inputs.iter().find(|input| input.name == read.input);
+        let Some(input) = found.filter(|_| problem.is_none()) else {
+            continue;
+        };
+        match history(reader, input, read).await {
+            Ok(rows) if rows.is_empty() => {
+                problem = Some(format!(
+                    "input {}: {}",
+                    read.input,
+                    jc_core::kpi_join::no_history(&read.period)
+                ));
+            }
+            Ok(rows) => {
+                pages.insert(read.page(), rows);
+            }
+            Err(reason) => problem = Some(format!("input {}: {reason}", read.input)),
         }
     }
     let rows = pages
@@ -524,13 +571,13 @@ fn empty_source(name: &str) -> String {
 
 /// One source's page through its Endpoint's compiled view, as the person (or the anonymous
 /// caller on a public Endpoint) reads it.
-async fn page(
-    state: &AppState,
-    identity: &Identity,
-    project: &str,
-    input: &Input,
-    step: &KpiStep,
-) -> Result<Vec<Value>, String> {
+async fn page(reader: &Reader<'_>, input: &Input, step: &KpiStep) -> Result<Vec<Value>, String> {
+    let Reader {
+        state,
+        identity,
+        project,
+        ..
+    } = *reader;
     let views = state
         .views
         .as_ref()
@@ -552,6 +599,86 @@ async fn page(
             .as_str()
             .map_or_else(|| format!("the broker answered {status}"), str::to_owned)),
     }
+}
+
+/// One page of a source one period back (PL-117), through its Endpoint's Temporal API: anonymous
+/// on a public Endpoint, else with the person's token exchanged for this Endpoint, so the
+/// gateway decides on their grants as it does for every read of theirs.
+async fn history(reader: &Reader<'_>, input: &Input, read: &Earlier) -> Result<Vec<Value>, String> {
+    let state = reader.state;
+    let base = state
+        .config
+        .gateway_url
+        .as_deref()
+        .ok_or("this Portal has no gateway address, so it cannot read history")?;
+    let endpoint = state
+        .mirror
+        .get(reader.project, "Endpoint", &input.endpoint)
+        .ok_or("the Endpoint is gone")?;
+    let slug = endpoint.spec["slug"]
+        .as_str()
+        .ok_or("the Endpoint has no slug yet; try again shortly")?;
+    let bearer = if endpoint.spec["audience"].as_str() == Some("public") {
+        None
+    } else {
+        let token = reader.token.ok_or(
+            "history is read with your own access token, which this session does not carry; \
+             sign in through the platform's address",
+        )?;
+        let oidc = state
+            .oidc
+            .as_ref()
+            .ok_or("this Portal has no Keycloak client to read history with")?;
+        let exchanged = oidc.exchange_for_endpoint(token, slug).await;
+        Some(exchanged.map_err(|err| err.to_string())?)
+    };
+    let request = crate::api::pipelines::http()
+        .get(format!(
+            "{}/api/endpoint/{slug}/ngsi-ld/v1/temporal/entities",
+            base.trim_end_matches('/')
+        ))
+        .query(&history_query(input, read))
+        .header("accept", "application/json")
+        .timeout(HISTORY_TIMEOUT);
+    let request = match bearer {
+        Some(token) => request.bearer_auth(token),
+        None => request,
+    };
+    let answer = request.send().await.map_err(|err| {
+        tracing::warn!(error = %err.without_url(), endpoint = slug, "the gateway did not answer a KPI history read");
+        "the gateway did not answer; try again shortly".to_owned()
+    })?;
+    match answer.status().as_u16() {
+        200 => {
+            let body: Result<Value, _> =
+                crate::capped::json(answer, crate::capped::ANSWER_BYTES).await;
+            Ok(body
+                .ok()
+                .and_then(|answer| answer.as_array().cloned())
+                .unwrap_or_default())
+        }
+        401 | 403 | 404 => Err("you may not read its history through this Endpoint".to_owned()),
+        status => Err(format!("the gateway answered {status} reading its history")),
+    }
+}
+
+/// The history read of a source: its type and `q`, the attributes the `prev` terms fold, each
+/// row's newest reading at the time one period back, one page.
+fn history_query(input: &Input, read: &Earlier) -> Vec<(&'static str, String)> {
+    let at =
+        Utc::now() - Duration::seconds(i64::from(jc_core::kpi_join::period_seconds(&read.period)));
+    let mut query = vec![
+        ("type", input.entity_type.clone()),
+        ("attrs", read.attrs.join(",")),
+        ("timerel", "before".to_owned()),
+        ("timeAt", at.to_rfc3339_opts(SecondsFormat::Secs, true)),
+        ("lastN", "1".to_owned()),
+        ("limit", PAGE.to_string()),
+    ];
+    if let Some(q) = &input.q {
+        query.push(("q", q.clone()));
+    }
+    query
 }
 
 /// The source's query: its type, `q`, the attributes it reads and its join key, one page.
@@ -606,6 +733,30 @@ mod tests {
             query_of(&input, &step),
             "type=ParkingSite&attrs=occupied&q=occupied%3E0&limit=100&offset=0"
         );
+    }
+
+    #[test]
+    fn a_history_page_reads_the_folded_attributes_at_the_time_one_period_back() {
+        let input = Input {
+            name: "parking".into(),
+            entity_type: "ParkingSite".into(),
+            attrs: vec!["occupied".into(), "capacity".into()],
+            q: Some("occupied>0".into()),
+            ..Default::default()
+        };
+        let read = Earlier {
+            input: "parking".into(),
+            period: "P7D".into(),
+            attrs: vec!["occupied".into()],
+        };
+        let query: BTreeMap<_, _> = history_query(&input, &read).into_iter().collect();
+        assert_eq!(query["attrs"], "occupied");
+        assert_eq!(query["timerel"], "before");
+        assert_eq!(query["lastN"], "1");
+        assert_eq!(query["q"], "occupied>0");
+        let at = chrono::DateTime::parse_from_rfc3339(&query["timeAt"]).expect("a time");
+        let back = (Utc::now() - at.with_timezone(&Utc)).num_seconds();
+        assert!((604_790..=604_810).contains(&back), "{back}");
     }
 
     #[test]

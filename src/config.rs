@@ -170,6 +170,9 @@ pub struct Config {
     /// `http://model-tools.tools.svc.cluster.local:8080`. `None` leaves the LinkML preview
     /// routes answering 503 instead of guessing a service name (DM-18).
     pub model_tools_url: Option<String>,
+    /// The Smart Data Models mirror in the image (`JC_PORTAL_SDM_MIRROR_DIR`, T-6353). `None`, or
+    /// a directory that does not read, leaves every import to Model Tools.
+    pub sdm_mirror_dir: Option<String>,
     /// Base URL of the `portal-ui` bundle the pages are read from (`JC_PORTAL_UI_URL`), e.g.
     /// `http://portal-ui.jc-portal.svc.cluster.local:8080`, without a trailing slash (T-2485).
     /// `None` serves the bundle built into the binary, or the placeholder page without one.
@@ -385,6 +388,7 @@ impl std::fmt::Debug for Config {
             .field("org_domain", &self.org_domain)
             .field("pipeline_test_capture_url", &self.pipeline_test_capture_url)
             .field("model_tools_url", &self.model_tools_url)
+            .field("sdm_mirror_dir", &self.sdm_mirror_dir)
             .field("ui_url", &self.ui_url)
             .field("functions_url", &self.functions_url)
             .field("knowledge_url", &self.knowledge_url)
@@ -1750,6 +1754,7 @@ impl Config {
             http_url(&lookup, "JC_FUNCTIONS_URL")?.map(|url| url.trim_end_matches('/').to_owned());
 
         let model_tools_url = http_url(&lookup, "JC_PORTAL_MODEL_TOOLS_URL")?;
+        let sdm_mirror_dir = lookup("JC_PORTAL_SDM_MIRROR_DIR").filter(|dir| !dir.is_empty());
         let ui_url =
             http_url(&lookup, "JC_PORTAL_UI_URL")?.map(|url| url.trim_end_matches('/').to_owned());
 
@@ -1849,6 +1854,7 @@ impl Config {
             org_domain: lookup("JC_PORTAL_ORG_DOMAIN").filter(|v| !v.trim().is_empty()),
             pipeline_test_capture_url,
             model_tools_url,
+            sdm_mirror_dir,
             ui_url,
             functions_url,
             knowledge_url,
@@ -1919,6 +1925,7 @@ impl Config {
             org_domain: None,
             pipeline_test_capture_url: None,
             model_tools_url: None,
+            sdm_mirror_dir: None,
             ui_url: None,
             functions_url: None,
             knowledge_url: None,

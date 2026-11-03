@@ -18,6 +18,7 @@ import { MAX_FILES_BYTES, SAMPLE_BYTES, sampleOf, typeNameOf } from "./csvUpload
 import { csvOf, MAX_ROWS, parseCsv, readSheets, sheetFileName, unreadableText } from "./importRows";
 import type { Sheet, Table } from "./importRows";
 import { LoadRows } from "./LoadRows";
+import { ModelReview } from "./ModelReview";
 import { SheetChoice } from "./SheetChoice";
 
 interface CompletedDraft {
@@ -35,7 +36,20 @@ interface CompleteResult {
   proposeReady: boolean;
   lane: string;
   change?: Change | null;
+  /** The space already serves this model: nothing to propose, the rows load straight away. */
+  alreadyLive?: boolean;
 }
+
+/** The page a draft of each kind opens on; the dashboards page reads `?draft=` as a Layer, then a Dashboard (JC1-40). */
+const DRAFT_PAGE: Record<string, string> = {
+  DataSource: "datasources",
+  Pipeline: "pipelines",
+  Endpoint: "endpoints",
+  Dashboard: "dashboards",
+  Layer: "dashboards",
+  ContextSpace: "spaces",
+  DataModel: "models",
+};
 
 const KIND_ICON: Record<string, IconName> = {
   DataModel: "models",
@@ -153,13 +167,11 @@ function ProposedNext({ project, result, change, rows }: { project: string; resu
 }
 
 /** The drafts the assistant's `space_complete` handed over with its navigation, when it did. */
-function handedOver(prefill: Record<string, unknown> | null): { result: CompleteResult | null; url: string; file: File | null } {
+function handedOver(prefill: Record<string, unknown> | null): { result: CompleteResult | null; url: string } {
   const result = prefill?.result as CompleteResult | undefined;
   return {
     result: result && Array.isArray(result.drafts) && typeof result.space === "string" ? result : null,
     url: typeof prefill?.url === "string" ? prefill.url : "",
-    // The dock's table (T-6445); a File lives only in this tab's memory, so a reload has none.
-    file: prefill?.file instanceof File ? prefill.file : null,
   };
 }
 
@@ -176,11 +188,87 @@ function Drafts({ folded, count, children }: { folded: boolean; count: number; c
   );
 }
 
-export function SpaceComplete({ project }: { project: string }): JSX.Element {
+/** A name for the space a dropped file makes: its stem as a DNS-1123 label, the person may change it. */
+export function spaceNameOf(fileName: string): string {
+  const stem = fileName.replace(/\.[^.]*$/, "").normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
+  return stem.replace(/[^a-z0-9]+/g, "-").slice(0, 40).replace(/^-+|-+$/g, "");
+}
+
+/** One draft: what it is, whether its check passed, and the way to its own page (AG-73). */
+function DraftCard({ project, draft: d }: { project: string; draft: CompletedDraft }): JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const open = () => {
+    const base = `/projects/${project}`;
+    const plural = Object.hasOwn(DRAFT_PAGE, d.kind) ? DRAFT_PAGE[d.kind] : undefined;
+    if (plural === undefined) {
+      void navigate({ href: `${base}/spaces` });
+    } else if (d.kind === "DataModel") {
+      const source = (d.manifest.spec as { source?: unknown } | undefined)?.source;
+      if (typeof source === "string") handPrefill(`${base}/models`, { source });
+      void navigate({ href: `${base}/models` });
+    } else {
+      void navigate({ href: `${base}/${plural}?draft=${encodeURIComponent(d.name)}` });
+    }
+  };
+  const summary = summaryOf(d, t);
+  return (
+    <Card data-testid={`complete-draft-${d.kind}`}>
+      <div className="flex items-center justify-between gap-2 p-3">
+        <div className="flex min-w-0 flex-col gap-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <Icon name={iconOf(d.kind, "spaces")} className="size-4 text-fg-muted" />
+            <span className="font-semibold text-fg">{KIND_ICON[d.kind] ? t(`spaces.complete.kind.${d.kind}`) : d.kind}</span>
+            <span className="font-mono text-caption text-fg-muted">{d.name}</span>
+            {d.inferred ? null : <Badge tone="neutral">{t("spaces.complete.alreadyThere")}</Badge>}
+            {d.verdict ? <Badge tone={d.verdict.ok ? "success" : "danger"}>{d.verdict.ok ? t("spaces.complete.checkPassed") : t("spaces.complete.checkFailed")}</Badge> : null}
+          </div>
+          {summary !== null ? <p className="text-caption text-fg-muted">{summary}</p> : null}
+        </div>
+        <Button size="sm" variant="ghost" onClick={open}>
+          {t("spaces.complete.open")}
+        </Button>
+      </div>
+      {d.verdict && !d.verdict.ok && d.verdict.findings.length > 0 ? (
+        <ul className="border-t border-border px-3 py-2 text-caption text-danger">
+          {d.verdict.findings.map((f, i) => (
+            <li key={i}>
+              {f.path ? `${f.path}: ` : ""}
+              {forPeople(f.message)}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </Card>
+  );
+}
+
+export function SpaceComplete({ project }: { project: string }): JSX.Element {
+  const { t } = useTranslation();
+  return (
+    <div className="flex flex-col gap-section">
+      <PageHeader title={t("spaces.complete.title")} description={t("spaces.complete.lead")} />
+      <CompleteFlow project={project} />
+    </div>
+  );
+}
+
+/**
+ * One table or feed into a Context Space: the model drafted and reviewed, the bundle proposed, the
+ * approval followed and the rows loaded. The page shows it and the assistant dock opens it on an
+ * attached table (T-6456), so both doors are this one flow.
+ */
+export function CompleteFlow({ project, file, inDock = false }: {
+  project: string;
+  /** The table the dock was given; a File lives only in this tab's memory. */
+  file?: File;
+  /** The file's way in only: a dock has no room for the feed address. */
+  inDock?: boolean;
+}): JSX.Element {
+  const { t } = useTranslation();
   const permissions = usePermissions(project);
   const [spaceName, setSpaceName] = useState(() => {
+    if (file !== undefined) return spaceNameOf(file.name);
     if (typeof window === "undefined") return "";
     return new URLSearchParams(window.location.search).get("space") ?? "";
   });
@@ -192,9 +280,12 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<CompleteResult | null>(null);
+  // The drafted model as the person corrected it; none until they change a type.
+  const [corrected, setCorrected] = useState<string | null>(null);
   const takeFiles = async (selected: File[]) => {
     setError(null);
     setResult(null);
+    setCorrected(null);
     const workbook = (f: File) => f.name.toLowerCase().endsWith(".xlsx");
     if (selected.reduce((sum, f) => sum + f.size, 0) > MAX_FILES_BYTES) {
       setBooks([]);
@@ -223,19 +314,22 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
   // once the page is on screen: a render React throws away and starts over (the dock's stream
   // updates while the navigation is pending) would otherwise take them and show nothing (T-0894).
   useEffect(() => {
-    const handed = handedOver(takePrefill(window.location.pathname));
-    if (handed.file !== null) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- a prefill is taken once after mount
-      takeHanded(handed.file);
+    if (file !== undefined) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- a handed file is taken once after mount
+      takeHanded(file);
       return;
     }
+    if (inDock) {
+      return;
+    }
+    const handed = handedOver(takePrefill(window.location.pathname));
     if (handed.result === null && handed.url === "") {
       return;
     }
     // Taking the prefill empties it, so it is taken once after mount; lazy state lost it to a discarded render (T-0894).
     setUrl(handed.url);
     setResult(handed.result);
-  }, []);
+  }, [file, inDock]);
 
   /** What the op reads: the text files as they are, each workbook as its chosen sheet's CSV. */
   const given = () => [
@@ -244,11 +338,14 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
       const sheet = book.sheets.find((s) => s.name === book.sheet);
       return sheet ? [{ name: sheetFileName(book.name, book.sheets, sheet), content: sampleOf(csvOf(sheet.table), SAMPLE_BYTES) }] : [];
     }),
+    // The op takes a model file as it takes one dropped here, and checks it the same way.
+    ...(corrected !== null && result ? [{ name: `${result.space}.linkml.yaml`, content: corrected }] : []),
   ];
   const chosen = [...files.map((f) => f.name), ...books.map((b) => b.name)];
   // One table and nothing that describes a source: its rows have no feed to come from, so the
   // person loads them here (T-6445) and the op drafts the Endpoint and the grant for that (DM-81).
   const rows = url.trim() ? undefined : rowsOf(files, books);
+  const model = result ? draftedModel(result.drafts) : undefined;
 
   const executeComplete = async (propose: boolean) => {
     setLoading(true);
@@ -285,53 +382,20 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
     }
   };
 
-  // Each draft opens on its kind's page the way the assistant hands one over (AG-73).
-  const openDraft = (d: CompletedDraft) => {
-    const base = `/projects/${project}`;
-    const draft = `?draft=${encodeURIComponent(d.name)}`;
-    if (d.kind === "DataSource") {
-      void navigate({ href: `${base}/datasources${draft}` });
-    } else if (d.kind === "Pipeline") {
-      void navigate({ href: `${base}/pipelines${draft}` });
-    } else if (d.kind === "Endpoint") {
-      void navigate({ href: `${base}/endpoints${draft}` });
-    } else if (d.kind === "Dashboard" || d.kind === "Layer") {
-      // The dashboards page reads `?draft=` as a Layer, then as a Dashboard of that name (JC1-40).
-      void navigate({ href: `${base}/dashboards${draft}` });
-    } else if (d.kind === "ContextSpace") {
-      void navigate({ href: `${base}/spaces${draft}` });
-    } else if (d.kind === "DataModel") {
-      const source = (d.manifest.spec as { source?: unknown } | undefined)?.source;
-      if (typeof source === "string") {
-        handPrefill(`${base}/models`, { source });
-      }
-      void navigate({ href: `${base}/models` });
-    } else {
-      void navigate({ href: `${base}/spaces` });
-    }
-  };
-
   // A role that may not propose a space reads why, not a form whose every step ends in a 403 (T-4263).
   if (permissions.data !== undefined && !permissions.can("ContextSpace", "propose")) {
     return (
-      <div className="flex flex-col gap-section">
-        <PageHeader title={t("spaces.complete.title")} description={t("spaces.complete.lead")} />
-        <Alert role="status" tone="info">
-          {t("form.mayNotCreate")}
-        </Alert>
-      </div>
+      <Alert role="status" tone="info">
+        {t("form.mayNotCreate")}
+      </Alert>
     );
   }
 
   return (
     <div className="flex flex-col gap-section">
-      <PageHeader
-        title={t("spaces.complete.title")}
-        description={t("spaces.complete.lead")}
-      />
-
-      <Card className="flex flex-col gap-4">
-        <Field id="complete-space" label={t("spaces.complete.space")}>
+      {inDock && result?.change ? null : <Card className="flex flex-col gap-4">
+        {inDock && file !== undefined ? <p className="truncate text-body font-medium text-fg">{t("spaces.complete.fileGiven", { name: file.name })}</p> : null}
+        <Field id="complete-space" label={t("spaces.complete.space")} help={t("spaces.complete.spaceHint")}>
           {/* An existing space to complete, or the name of a new one (ADR-N-033). */}
           <ResourceNamePicker
             id="complete-space"
@@ -344,28 +408,32 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
           />
         </Field>
 
-        <Field id="complete-url" label={t("spaces.complete.url")} help={t("spaces.complete.urlHint")}>
-          <Input
-            id="complete-url"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder={t("spaces.complete.urlPlaceholder")}
-          />
-        </Field>
+        {inDock ? null : (
+          <Field id="complete-url" label={t("spaces.complete.url")} help={t("spaces.complete.urlHint")}>
+            <Input
+              id="complete-url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder={t("spaces.complete.urlPlaceholder")}
+            />
+          </Field>
+        )}
 
-        <FileDropZone
-          label={t("spaces.complete.files")}
-          button={t("form.dropMany")}
-          hint={t("spaces.complete.filesHint")}
-          multiple
-          onFiles={(selected) => void takeFiles(selected)}
-        >
-          {chosen.length > 0 ? (
-            <p className="text-caption text-fg">
-              {t("form.chosenFiles", { names: chosen.join(", ") })}
-            </p>
-          ) : null}
-        </FileDropZone>
+        {inDock ? null : (
+          <FileDropZone
+            label={t("spaces.complete.files")}
+            button={t("form.dropMany")}
+            hint={t("spaces.complete.filesHint")}
+            multiple
+            onFiles={(selected) => void takeFiles(selected)}
+          >
+            {chosen.length > 0 ? (
+              <p className="text-caption text-fg">
+                {t("form.chosenFiles", { names: chosen.join(", ") })}
+              </p>
+            ) : null}
+          </FileDropZone>
+        )}
         {books.map((book, at) => (
           <SheetChoice
             key={book.name}
@@ -376,8 +444,12 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
           />
         ))}
         {rows ? <RowsRead rows={rows} name={chosen[0]} oneSheet={(books[0]?.sheets.length ?? 0) < 2} /> : null}
+        {rows && model && result && !result.change && !result.alreadyLive ? (
+          <ModelReview project={project} space={result.space} type={model.type} source={corrected ?? model.source} table={rows.table} onCorrect={setCorrected} />
+        ) : null}
 
-        <div className="flex flex-wrap items-center gap-3">
+        {/* The attributes above can outgrow the dock: the next step stays in view. */}
+        <div className={`flex flex-wrap items-center gap-3 ${inDock ? "sticky bottom-0 border-t border-border bg-surface py-2" : ""}`}>
           <Button
             id="complete-btn"
             variant={result?.proposeReady ? "secondary" : "primary"}
@@ -390,7 +462,7 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
             loading={loading}
             onClick={() => void executeComplete(false)}
           >
-            {t("spaces.complete.action")}
+            {t(inDock ? "spaces.complete.checkFile" : "spaces.complete.action")}
           </Button>
 
           {result?.proposeReady && !result.change ? (
@@ -405,7 +477,7 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
           ) : null}
           {!url.trim() && chosen.length === 0 ? <span className="text-caption text-fg-muted" aria-hidden="true">{t("spaces.complete.needInput")}</span> : null}
         </div>
-      </Card>
+      </Card>}
 
       {error ? (
         <Alert role="alert" tone="danger">
@@ -414,47 +486,13 @@ export function SpaceComplete({ project }: { project: string }): JSX.Element {
       ) : null}
 
       {result?.change ? <ProposedNext project={project} result={result} change={result.change} rows={rows} /> : null}
+      {result?.alreadyLive && rows && model ? <LoadRows project={project} space={result.space} type={model.type} source={model.source} table={rows.table} change={null} /> : null}
 
       {result?.drafts && result.drafts.length > 0 ? (
-        <Drafts folded={Boolean(result.change)} count={result.drafts.length}>
-          {result.drafts.map((d) => {
-            const summary = summaryOf(d, t);
-            return (
-              <Card key={`${d.kind}-${d.name}`} data-testid={`complete-draft-${d.kind}`}>
-                <div className="flex items-center justify-between gap-2 p-3">
-                  <div className="flex min-w-0 flex-col gap-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Icon name={iconOf(d.kind, "spaces")} className="size-4 text-fg-muted" />
-                      <span className="font-semibold text-fg">
-                        {KIND_ICON[d.kind] ? t(`spaces.complete.kind.${d.kind}`) : d.kind}
-                      </span>
-                      <span className="font-mono text-caption text-fg-muted">{d.name}</span>
-                      {d.inferred ? null : <Badge tone="neutral">{t("spaces.complete.alreadyThere")}</Badge>}
-                      {d.verdict ? (
-                        <Badge tone={d.verdict.ok ? "success" : "danger"}>
-                          {d.verdict.ok ? t("spaces.complete.checkPassed") : t("spaces.complete.checkFailed")}
-                        </Badge>
-                      ) : null}
-                    </div>
-                    {summary !== null ? <p className="text-caption text-fg-muted">{summary}</p> : null}
-                  </div>
-                  <Button size="sm" variant="ghost" onClick={() => openDraft(d)}>
-                    {t("spaces.complete.open")}
-                  </Button>
-                </div>
-                {d.verdict && !d.verdict.ok && d.verdict.findings.length > 0 ? (
-                  <ul className="border-t border-border px-3 py-2 text-caption text-danger">
-                    {d.verdict.findings.map((f, i) => (
-                      <li key={i}>
-                        {f.path ? `${f.path}: ` : ""}
-                        {forPeople(f.message)}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </Card>
-            );
-          })}
+        <Drafts folded={Boolean(result.change) || result.alreadyLive === true} count={result.drafts.length}>
+          {result.drafts.map((d) => (
+            <DraftCard key={`${d.kind}-${d.name}`} project={project} draft={d} />
+          ))}
           {result.drafts.some((d) => d.verdict?.ok === false) ? <p className="text-caption text-danger">{t("spaces.complete.failedNext")}</p> : null}
           {result.proposeReady && !result.change ? (
             <p className="text-caption text-fg-muted">{t(rows ? "spaces.complete.onApprovalRows" : "spaces.complete.onApproval", { count: rows?.table.rows.length })}</p>
