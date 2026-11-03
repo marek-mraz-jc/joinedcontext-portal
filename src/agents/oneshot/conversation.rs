@@ -985,6 +985,24 @@ a removal of its binding with change_resource.
                 project = self.project
             ));
         }
+        if changeable.contains_key("ContextSpace") {
+            pack.push_str(
+                r#"
+## WHEN THE PERSON ASKS FOR A QUALITY RULE
+
+A rule on the data ("count must be >= 0") is a member of the ContextSpace's `spec.quality`, never a
+kind of its own and never a slot of the model. Read the space with `jc_resource_get`, then
+change_resource that ContextSpace; a patch replaces the whole list, so keep its rules:
+
+```json
+{ "tool": "change_resource", "kind": "ContextSpace", "name": "<the space>", "patch": { "spec": { "quality": [{ "name": "<a dns-1123 name>", "entityType": "<a class of its model>", "attribute": "<a slot of it>", "kind": "range", "min": 0 }] } } }
+```
+
+`kind` is `range` (`min`, `max`), `area` (`bbox`) or `freshness` (`maxAhead`, `maxAge`); `outcome`
+(`flag`, `reject`, `quarantine`) only when the person names one.
+"#,
+            );
+        }
 
         // What changes from message to message comes last, after the part a path keeps
         // byte-identical for the provider's cache (T-2770).
@@ -1027,6 +1045,11 @@ a removal of its binding with change_resource.
             shapes.push_str(
                 "- **ContextSpace**: `{\"defaultLocale\": \"en\", \"isSandbox\": false}`. Nothing \
                  else; its data models, endpoints and policies come afterwards.\n",
+            );
+        }
+        if creatable.contains(&"Role") {
+            shapes.push_str(
+                "- **Role**: `{\"rules\": [{\"kinds\": [\"Endpoint\"], \"verbs\":                  [\"read\"]}]}`, verbs from read, propose, approve, delete. Running a pipeline                  takes propose and approve on Pipeline; say so when the person asked for no                  writes.\n",
             );
         }
         if creatable.contains(&"DataSource") {
@@ -1098,7 +1121,7 @@ manifest's fields, and `metadata.title` its title in the language of the request
 {shapes}
 A **dashboard** is created the same way, with `create: true`, and carries the layers its pages
 draw: its own section below says how. Nothing else is created from the chat — a data model is drawn
-in the model editor, a space is completed from files, an endpoint is shared, a role is granted.
+in the model editor, a space is completed from files, an endpoint is shared, a role goes to a person by a grant.
 
 The platform checks the manifest, tests what that kind tests, keeps it as the person's draft and
 opens the kind's page with the form filled from it; the person reads it there and proposes it. What
@@ -1410,6 +1433,11 @@ const PLAYBOOKS: &[(&str, &str, &[Option<Path>])] = &[
         "## WHEN THE PERSON ASKS TO GIVE SOMEBODY A ROLE",
         "grant-role",
         &[Some(Path::ShareData)],
+    ),
+    (
+        "## WHEN THE PERSON ASKS FOR A QUALITY RULE",
+        "quality-rule",
+        &[],
     ),
     // No path calls `write_entities` (AG-89): a conversation on none reads how when asked.
     (
@@ -2306,6 +2334,7 @@ mod tests {
         let mut driver = proposing(
             &[],
             &[
+                ("ContextSpace", "bikes-space", "helsinki"),
                 ("Endpoint", "bikes-open", "helsinki"),
                 ("Pipeline", "bikes", "helsinki"),
                 ("DataSource", "bikes-feed", "helsinki"),
@@ -2322,6 +2351,7 @@ mod tests {
             "Layer",
             "App",
             "DataModel",
+            "Role",
             "RoleBinding",
         ]
         .iter()
@@ -2358,11 +2388,46 @@ mod tests {
     #[test]
     fn every_path_turn_stays_under_its_token_budget() {
         let driver = everything();
+        let mut over = Vec::new();
         for path in Path::ALL.map(Some).into_iter().chain([None]) {
             let (tokens, user) = turn_tokens(&driver, path);
             eprintln!("BUDGET {path:?} {tokens}");
-            assert!(tokens < 4000, "{path:?}: {tokens} tokens\n{user}");
+            over.push((path, tokens, user));
         }
+        let over: Vec<_> = over
+            .iter()
+            .filter(|(_, tokens, _)| *tokens >= 4000)
+            .collect();
+        assert!(over.is_empty(), "over 4000 tokens: {over:?}");
+    }
+
+    /// T-6489: the walk's wrong turns each have their answer in what the turn sends: find-data
+    /// offers a source's rows and a run's log and says when to read them (S-18, S-21), and a free
+    /// turn's playbooks hand out a Role's rules (S-28) and the space's quality list (S-35).
+    #[test]
+    fn a_turn_carries_the_way_to_the_walks_wrong_turns() {
+        let driver = everything();
+        let (_, finding) = turn_tokens(&driver, Some(Path::FindData));
+        for said in [
+            "`jc_pipeline_sample_source`",
+            "`jc_pipeline_logs`",
+            "`jc_pipeline_inspect`",
+        ] {
+            assert!(finding.contains(said), "{said}\n{finding}");
+        }
+        let (_, user) = turn_tokens(&driver, None);
+        assert!(!user.contains("`jc_pipeline_logs`"), "{user}");
+        for said in ["`quality-rule`", "`create-resource`"] {
+            assert!(user.contains(said), "{said}\n{user}");
+        }
+        let pack = driver.conversation_pack(&[], "a rule", None);
+        let quality = playbook(&pack, "quality-rule").expect("the quality playbook");
+        assert!(quality.contains("spec.quality") && quality.contains("\"entityType\""));
+        let create = playbook(&pack, "create-resource").expect("the create playbook");
+        assert!(
+            create.contains("**Role**") && create.contains("\"rules\""),
+            "{create}"
+        );
     }
 
     /// T-3079: ten long turns in, a turn's own part (what follows the cached pack) holds the

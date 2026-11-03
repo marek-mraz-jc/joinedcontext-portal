@@ -16,7 +16,7 @@ import { RulesInWords } from "../../components/AccessWords";
 import { presetOfRules } from "../../components/forms/widgets/accessPresets";
 import { EditResourceAction } from "../../components/EditResourceDialog";
 import { ResourceFormDialog } from "../../components/ResourceFormDialog";
-import { FormFrame, useCreateForm, useFormRoute } from "../../components/forms/FormRoute";
+import { FormFrame, useCreateFormFromDraft, useFormRoute } from "../../components/forms/FormRoute";
 import { ROLE_VERBS, roleSchema, roleUiSchema } from "../../schemas/kinds";
 import {
   Alert,
@@ -132,10 +132,13 @@ export function NewRoleDialog({
   project,
   open,
   onOpenChange,
+  draftName,
 }: {
   project: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** The draft the assistant handed this page (`?draft=`, AG-73). */
+  draftName?: string;
 }): JSX.Element {
   const { t } = useTranslation();
   const formRoute = useFormRoute();
@@ -223,6 +226,7 @@ export function NewRoleDialog({
       onChange={setForm}
       project={project}
       draftKind="Role"
+      draftName={draftName}
       plural="roles"
       source={{
         toManifest: (role) => toRoleEnvelope(project, role),
@@ -261,7 +265,7 @@ export function Roles({
   const ownRoles = scope !== "organization" && project !== ORG_NAMESPACE;
   const here = useRoles(project, ownRoles);
   // The routed `…/roles/new` opens the same form the button does (T-2750, T-2474).
-  const [writing, setWriting] = useCreateForm();
+  const [writing, setWriting, handedDraft] = useCreateFormFromDraft();
   // A role already written may name a kind the editor does not hold; the lists offer what they
   // hold and the schema keeps the rest, so editing one rule never silently drops another (PF-52).
   const editSchema = roleSchema(t, [], ROLE_VERBS);
@@ -390,7 +394,7 @@ export function Roles({
         />
       )}
 
-      <NewRoleDialog project={project} open={writing} onOpenChange={setWriting} />
+      <NewRoleDialog project={project} open={writing} onOpenChange={setWriting} draftName={handedDraft} />
     </section>
   );
 }
