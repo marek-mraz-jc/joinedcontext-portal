@@ -88,6 +88,9 @@ pub struct ChangeProposal {
 #[serde(rename_all = "camelCase")]
 pub struct ChangeDecision {
     pub by: String,
+    /// The connector an autonomous approval came through (T-6552), e.g. `doprava-in-claude`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub via: Option<String>,
     /// RFC 3339, when the forge merged or closed it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub at: Option<String>,
@@ -1473,6 +1476,7 @@ async fn decision_of(
         let message = gitea.commit_message(&pr.merge_commit_sha).await?;
         return Ok(approver_in(&message).map(|by| ChangeDecision {
             by,
+            via: connector_in(&message),
             at,
             reason: None,
         }));
@@ -1482,13 +1486,32 @@ async fn decision_of(
         .iter()
         .rev()
         .find_map(|body| rejection_in(body))
-        .map(|(by, reason)| ChangeDecision { by, at, reason }))
+        .map(|(by, reason)| ChangeDecision {
+            by,
+            via: None,
+            at,
+            reason,
+        }))
 }
 
 /// The approver a merge commit names, as `approve_change_for` writes it.
 pub(crate) fn approver_in(message: &str) -> Option<String> {
     named_after(message, "Approved in the Portal by ")
 }
+
+/// The connector an autonomous approval names on its approval line (T-6552).
+pub(crate) fn connector_in(message: &str) -> Option<String> {
+    let line = message
+        .lines()
+        .rev()
+        .find(|text| text.starts_with("Approved in the Portal by "))?;
+    let rest = line.split_once(VIA_CONNECTOR)?.1;
+    let name = rest.split([' ', ',']).next()?.trim();
+    (!name.is_empty()).then(|| name.to_owned())
+}
+
+/// What an autonomous approval writes after the approver (T-6552).
+const VIA_CONNECTOR: &str = ", via connector ";
 
 /// The line `approve_change_for` writes the proposer on (PL-95).
 const PROPOSED_BY: &str = "Proposed in the Portal by ";
@@ -1896,12 +1919,21 @@ pub async fn approve_change(
     Ok((StatusCode::ACCEPTED, Json(change)).into_response())
 }
 
-/// Who presses approve: a person at the Portal's button, or an operation of the registry, which an
-/// agent calls on a person's behalf (AG-11).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Who presses approve: a person at the Portal's button, an operation of the registry, which an
+/// agent calls on a person's behalf (AG-11), or a connector its owner set `autonomous` (T-6552),
+/// named here: the Portal approves what it opened as that person, and a change that grants access,
+/// publishes publicly or deletes still waits for a click.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ApprovedBy {
     Person,
     Operation,
+    Connector(String),
+}
+
+/// Kinds whose change grants or shapes access: a connector's autonomous approval leaves them for
+/// a person's click, because prod is public (T-6552).
+pub(crate) fn keeps_its_click(kind: &str) -> bool {
+    is_access_kind(kind) || matches!(kind, "Policy" | "DelegationPolicy" | "Organization")
 }
 
 /// Whether a binding covering the project grants `approve` and `delete` on the change's kind: an
@@ -2020,7 +2052,7 @@ async fn approve_every_file(
     project: &str,
     gitea: &GiteaClient,
     pr: &PullRequest,
-) -> Result<(Lane, bool, bool, bool, bool), ApiError> {
+) -> Result<(Lane, bool, bool, bool, bool, bool), ApiError> {
     // The caller's grants, per project, computed where each file actually lives (PF-50, T-1682).
     // Asking the project in the *path* once would check a file under `projects/other/` against a
     // binding that never reached it: an organization-scoped grant covers every project and is
@@ -2033,6 +2065,7 @@ async fn approve_every_file(
     let mut changes_access = false;
     let mut publishes = false;
     let mut grants_approver = false;
+    let mut grants_access = false;
     let mut files = Vec::new();
     for file in gitea.pull_request_files(pr.number).await? {
         let git_ref = if file.deleted {
@@ -2155,6 +2188,7 @@ async fn approve_every_file(
         // A public publication is held for a second person like an access change (EP-142).
         changes_access |= public;
         changes_access |= needs_second_person(&envelope.kind);
+        grants_access |= keeps_its_click(&envelope.kind);
         grants_approver |= !file.deleted && grants_its_caller(state, identity, envelope);
         if file.deleted {
             // `delete` is its own verb on every kind, not only the access ones: a cascade that
@@ -2218,6 +2252,7 @@ async fn approve_every_file(
         changes_access,
         publishes,
         grants_approver,
+        grants_access,
     ))
 }
 
@@ -2364,7 +2399,15 @@ pub async fn approve_change_for(
     confirm: Option<&str>,
     by: ApprovedBy,
 ) -> Result<Change, ApiError> {
-    refuse_bearer_decision(identity)?;
+    // A connector's token is a client's; only the Portal itself, for a connector its owner set
+    // autonomous, approves through it (T-6552).
+    let connector = match &by {
+        ApprovedBy::Connector(name) => Some(name.as_str()),
+        _ => None,
+    };
+    if connector.is_none() {
+        refuse_bearer_decision(identity)?;
+    }
     may_approve_anything(state, identity, project)?;
     crate::auth::session::require_second_factor(identity, &state.config)?;
     let (gitea, pr_number) = resolve_change(state, project, id)?;
@@ -2434,8 +2477,19 @@ pub async fn approve_change_for(
     // Every file of the merge request, not only the headline (T-0832, MF-21, CC-63): each
     // manifest needs approve on its kind, the PF-52 hold when it grants access, and its own
     // lane; a native file approves under the kind its directory names.
-    let (bundle_lane, deletes_every_kind, changes_access, publishes, grants_approver) =
-        approve_every_file(state, identity, project, gitea, &pr).await?;
+    let (
+        bundle_lane,
+        deletes_every_kind,
+        changes_access,
+        publishes,
+        grants_approver,
+        grants_access,
+    ) = approve_every_file(state, identity, project, gitea, &pr).await?;
+    if connector.is_some() && (publishes || grants_access) {
+        return Err(ApiError::Denied(
+            "a change that grants access or publishes publicly waits for a person's approval in the Portal, even through an autonomous connector (T-6552, PF-58, EP-142)".to_string(),
+        ));
+    }
     if publishes && by == ApprovedBy::Operation {
         tracing::warn!(change = %id, approver = %identity.username, "refused: an operation may not approve a public publication");
         return Err(ApiError::Denied(
@@ -2472,7 +2526,9 @@ pub async fn approve_change_for(
     }
     // Access is never granted, nor a model changed, by its own proposer: someone else approves
     // it, an administrator of its kind or the bootstrap group (PF-58, T-4833, T-4830).
-    if is_author && (changes_access || needs_second_person(&data.kind)) {
+    // An autonomous connector's model change is its owner's standing approval (T-6552); access
+    // never reaches here, refused above.
+    if is_author && connector.is_none() && (changes_access || needs_second_person(&data.kind)) {
         tracing::warn!(change = %id, kind = %data.kind, approver = %identity.username, "refused: the proposer of an access or model change may not approve it");
         return Err(ApiError::SelfApproval(format!(
             "a change to {} is approved by a second administrator, never by its proposer (PF-58)",
@@ -2482,7 +2538,7 @@ pub async fn approve_change_for(
     // An author's own change is approved only by a person, and only as an administrator of every
     // kind in it (PF-58); an agent never does (AG-11).
     if is_author
-        && !(by == ApprovedBy::Person
+        && !(matches!(by, ApprovedBy::Person | ApprovedBy::Connector(_))
             && deletes_every_kind
             && administers(state, identity, project, &data))
     {
@@ -2513,7 +2569,12 @@ pub async fn approve_change_for(
     // the Portal checked the binding (PF-50) and the author (CC-34) above, and the merge commit
     // records who approved.
     let approver = identity.email.as_deref().unwrap_or(&identity.username);
-    let merge_msg = if is_author {
+    let merge_msg = if let Some(name) = connector {
+        format!(
+            "Merge change proposal {id}: {}\n\nApproved in the Portal by {approver}{VIA_CONNECTOR}{name}, autonomous, as an administrator of {} (T-6552)",
+            pr.title, data.kind
+        )
+    } else if is_author {
         format!(
             "Merge change proposal {id}: {}\n\nApproved in the Portal by {approver}, its author, as an administrator of {} (PF-58)",
             pr.title, data.kind
@@ -2538,7 +2599,7 @@ pub async fn approve_change_for(
         _ => merge_msg,
     };
     merge_when_ready(gitea, pr_number, &merge_msg, &pr.head_sha, id).await?;
-    say_merged(state, project, id, &data, approver).await;
+    say_merged(state, project, id, &data, approver, connector).await;
 
     // A published application's own repository merges once its Change has (AP-77).
     crate::api::agent_runs::merge_published_application(
@@ -2578,8 +2639,13 @@ async fn say_merged(
     id: &str,
     data: &ManifestData,
     approver: &str,
+    connector: Option<&str>,
 ) {
     let operation = operation_word(data.operation);
+    let by = match connector {
+        Some(name) => format!("{approver} via connector {name}"),
+        None => approver.to_owned(),
+    };
     let mut details = serde_json::json!({
         "change": id,
         "resourceKind": data.kind,
@@ -2587,6 +2653,9 @@ async fn say_merged(
         "operation": operation,
         "approvedBy": approver,
     });
+    if let Some(name) = connector {
+        details["viaConnector"] = Value::String(name.to_owned());
+    }
     if let Some(info) = crate::resource::by_kind(&data.kind) {
         details["object"] = Value::String(format!("{}/{}", info.plural, data.name));
     }
@@ -2597,7 +2666,7 @@ async fn say_merged(
         kind: "change.merged".to_owned(),
         source: "portal".to_owned(),
         summary: format!(
-            "Change {id} merged: {operation} {} {}, approved by {approver}.",
+            "Change {id} merged: {operation} {} {}, approved by {by}.",
             data.kind, data.name
         ),
         severity: "info".to_owned(),

@@ -47,6 +47,7 @@ const connector = (patch: Partial<AiConnector> = {}): AiConnector => ({
   segments: ["data-read"],
   scope: [{ project: "doprava", endpoint: "bike-counters", access: "read" }],
   writes: false,
+  autonomous: false,
   expiresAt: new Date(Date.now() + 10 * 24 * 3600_000).toISOString(),
   allowedClients: ["mcp-local"],
   clientIsBoundary: false,
@@ -72,10 +73,16 @@ describe("AI connector helpers", () => {
       scope: [{ project: "doprava", access: "read" }, { project: "doprava", endpoint: "bike-counters", access: "read" }],
       kinds: [],
       writes: false,
+      autonomous: false,
       expiresAt: "2026-11-26T23:59:59Z",
       allowedClients: [],
     });
     expect(toRequest({ ...form, picks: [{ project: "doprava", kind: "space", name: "parking", access: "write" }] }).writes).toBe(true);
+    // T-6552: autonomous goes out only with a write pick, and comes back from the stored connector.
+    expect(toRequest({ ...form, autonomous: true }).autonomous).toBe(false);
+    expect(toRequest({ ...form, autonomous: true, picks: [{ project: "doprava", kind: "space", name: "parking", access: "write" }] }).autonomous).toBe(true);
+    expect(toForm(connector({ autonomous: true })).autonomous).toBe(true);
+    expect(refusedSection(["autonomous"], "autonomous: no")).toBe("autonomous");
   });
 
   it("sends read alone on every kind the presets reach unless a verb is ticked (T-6302)", () => {
@@ -95,7 +102,7 @@ describe("AI connector helpers", () => {
   });
 
   it("refuses a bad name, no preset, no tick and a day past the cap before the server is asked", () => {
-    const problems = formProblems({ name: "Bad Name", segments: [], picks: [], verbs: {}, expires: "2027-01-01", clients: [] }, OPTIONS, NOW);
+    const problems = formProblems({ name: "Bad Name", segments: [], picks: [], verbs: {}, expires: "2027-01-01", clients: [], autonomous: false }, OPTIONS, NOW);
     expect(Object.keys(problems).sort()).toEqual(["expiresAt", "name", "scope", "segments"]);
     expect(formProblems({ ...emptyForm(OPTIONS, NOW), name: "ok", picks: [{ project: "doprava", kind: "project", access: "read" }] }, OPTIONS, NOW)).toEqual({});
   });

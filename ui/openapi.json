@@ -42965,6 +42965,13 @@
               "null"
             ],
             "description": "The rejecter's reason, when they gave one."
+          },
+          "via": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The connector an autonomous approval came through (T-6552), e.g. `doprava-in-claude`."
           }
         }
       },
@@ -43772,6 +43779,7 @@
           "segments",
           "scope",
           "writes",
+          "autonomous",
           "expiresAt",
           "allowedClients",
           "clientIsBoundary",
@@ -43803,6 +43811,10 @@
                 "$ref": "#/components/schemas/ConnectorApproval"
               }
             ]
+          },
+          "autonomous": {
+            "type": "boolean",
+            "description": "Whether the changes it applies are approved at once as its owner (T-6552)."
           },
           "clientIsBoundary": {
             "type": "boolean",
@@ -44014,6 +44026,13 @@
             "items": {
               "type": "string"
             }
+          },
+          "autonomous": {
+            "type": [
+              "boolean",
+              "null"
+            ],
+            "description": "Approve each applied change at once as the owner (T-6552), e.g. `true`."
           },
           "expiresAt": {
             "type": [
@@ -48009,6 +48028,10 @@
               "type": "string"
             },
             "description": "OAuth client ids the connector answers, e.g. a CIMD URL `https://claude.ai/oauth/mcp-client-metadata`."
+          },
+          "autonomous": {
+            "type": "boolean",
+            "description": "Each change the connector applies is approved at once as its owner (T-6552), e.g. `true`;\nneeds `writes` and approve rights in every project it writes. Access changes, public\npublications and deletions still wait for a click. Default `false`."
           },
           "expiresAt": {
             "type": "string",

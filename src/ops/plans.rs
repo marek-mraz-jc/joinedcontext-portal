@@ -1291,8 +1291,14 @@ async fn apply(
         }
         None => opening.await,
     }?;
+    let mut opened = opened;
     if let (Some(connector), None) = (connector, workspace) {
-        notify_approvers(state, caller, project, &connector.name, &opened).await;
+        let waiting = if connector.autonomous {
+            approve_autonomously(state, caller, project, &connector.name, &mut opened).await
+        } else {
+            opened.clone()
+        };
+        notify_approvers(state, caller, project, &connector.name, &waiting).await;
     }
     let key = if workspace.is_some() {
         "workspaceChanges"
@@ -1301,8 +1307,48 @@ async fn apply(
     };
     Ok(json!({
         key: opened,
-        "approve": "a person with approve on these kinds decides each change at its url, its approval page in the Portal",
+        "approve": "a change with approvedVia is approved already (an autonomous connector); a person with approve on these kinds decides each other change at its url, its approval page in the Portal",
     }))
+}
+
+/// Approves each change an autonomous connector just opened as its owner (T-6552), through the
+/// approval page's own path and checks. A change the checks hold back (access, a public
+/// publication, a deletion, a missing right) stays pending, its row saying why; those rows come
+/// back for the approvers' notice.
+async fn approve_autonomously(
+    state: &AppState,
+    caller: &Caller,
+    project: &str,
+    connector: &str,
+    opened: &mut [Value],
+) -> Vec<Value> {
+    let mut waiting = Vec::new();
+    for row in opened.iter_mut() {
+        let Some(id) = row["id"].as_str().map(str::to_owned) else {
+            continue;
+        };
+        match crate::api::changes::approve_change_for(
+            state,
+            &caller.identity,
+            project,
+            &id,
+            None,
+            crate::api::changes::ApprovedBy::Connector(connector.to_owned()),
+        )
+        .await
+        {
+            Ok(change) => {
+                row["state"] = json!(change.status.phase);
+                row["approvedVia"] = json!(connector);
+            }
+            Err(err) => {
+                tracing::info!(change = %id, %connector, error = %err, "an autonomous connector's change waits for an approver");
+                row["waits"] = json!(err.to_string());
+                waiting.push(row.clone());
+            }
+        }
+    }
+    waiting
 }
 
 /// Tells the project's approvers of each change a connector opened (T-5979): one notice per
@@ -2197,6 +2243,7 @@ mod tests {
             scope: vec![],
             kinds: None,
             writes: false,
+            autonomous: false,
             expires_at: Utc::now() + Duration::days(1),
             allowed_clients: vec![],
             client_is_boundary: false,

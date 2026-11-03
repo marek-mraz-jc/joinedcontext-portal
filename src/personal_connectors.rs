@@ -243,6 +243,7 @@ pub fn adopted(old: &Old, endpoints: &[EndpointFacts], ceiling: &Ceiling) -> Opt
         scope,
         kinds: None,
         writes: false,
+        autonomous: false,
         expires_at: Utc::now() + Duration::days(ceiling.max_days()),
         allowed_clients: Vec::new(),
     })
