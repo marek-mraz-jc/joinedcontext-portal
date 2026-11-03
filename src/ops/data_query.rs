@@ -477,20 +477,7 @@ pub(super) async fn run(
         }
         Target::Public(slug) => (slug, None),
     };
-    let request = crate::api::pipelines::http()
-        .get(format!(
-            "{}/api/endpoint/{slug}/{path}",
-            base.trim_end_matches('/')
-        ))
-        .query(&query)
-        .header("accept", "application/json")
-        .timeout(GATEWAY_TIMEOUT);
-    let request = match token {
-        Some(token) => request.bearer_auth(token),
-        None => request,
-    };
-    let answer = request
-        .send()
+    let answer = gateway_read(base, &slug, path, &query, token, GATEWAY_TIMEOUT)
         .await
         .map_err(|err| {
             tracing::warn!(error = %err.without_url(), endpoint = slug, "the gateway did not answer a data read");
@@ -520,6 +507,32 @@ pub(super) async fn run(
     }
     refusal_of(status, input.temporal.is_some(), name, &slug, &body)?;
     answer_of(&input, body, total)
+}
+
+/// A read of `path` under Endpoint `slug` at the gateway: anonymous without a bearer, so the
+/// gateway decides on the token's grants or the Endpoint's public audience.
+pub(crate) async fn gateway_read<Q: serde::Serialize + ?Sized>(
+    base: &str,
+    slug: &str,
+    path: &str,
+    query: &Q,
+    bearer: Option<String>,
+    timeout: std::time::Duration,
+) -> reqwest::Result<reqwest::Response> {
+    let request = crate::api::pipelines::http()
+        .get(format!(
+            "{}/api/endpoint/{slug}/{path}",
+            base.trim_end_matches('/')
+        ))
+        .query(query)
+        .header("accept", "application/json")
+        .timeout(timeout);
+    match bearer {
+        Some(token) => request.bearer_auth(token),
+        None => request,
+    }
+    .send()
+    .await
 }
 
 /// The person's token for Endpoint `slug`: their MCP client's bearer exchanged at the realm.
