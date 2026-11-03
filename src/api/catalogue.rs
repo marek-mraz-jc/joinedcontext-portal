@@ -1692,7 +1692,7 @@ pub async fn get_sample(
     get,
     path = "/api/v1/catalogue/datasets/{name}/map",
     summary = "Map a Catalogue Dataset",
-    description = "Up to 1000 located entities of the dataset's first model class, read anonymously through its public Endpoint, with the key attributes its popups show (EP-82, T-5628). A dataset without locations answers no features.",
+    description = "Up to 1000 located entities of the class the dataset's Endpoint serves, read anonymously without a count through its public Endpoint, with the key attributes its popups show (EP-82, T-5628). A dataset without locations answers no features.",
     tag = "ckan",
     params(("name" = String, Path, description = "The dataset's name in the catalogue"), MapQuery),
     responses(
@@ -1719,15 +1719,14 @@ pub(crate) async fn get_map(
         let (_, classes, linkml) = model_source(&state, &project, &endpoint.spec)
             .await
             .ok_or_else(no_map)?;
-        let class = classes.into_iter().next().ok_or_else(no_map)?;
-        let (total, entities) = located(&gateway_endpoint(&state, &slug), &class)
-            .await
-            .map_err(|reason| {
-                tracing::warn!(dataset = %name, %reason, "catalogue map failed");
-                ApiError::Unavailable(format!(
-                    "The endpoint of dataset '{name}' did not answer; try again in a minute."
-                ))
-            })?;
+        let class =
+            endpoint_class(&state.mirror, &project, &endpoint.spec, classes).ok_or_else(no_map)?;
+        let (total, entities) = located(&gateway, &class).await.map_err(|reason| {
+            tracing::warn!(dataset = %name, %reason, "catalogue map failed");
+            ApiError::Unavailable(format!(
+                "The endpoint of dataset '{name}' did not answer; try again in a minute."
+            ))
+        })?;
         let view: Option<jc_core::display_order::Display> =
             serde_json::from_value(endpoint.spec["display"][&class].clone()).ok();
         let mut map = map_of(&class, &entities, linkml.as_deref(), view.as_ref(), &lang);
@@ -1738,6 +1737,43 @@ pub(crate) async fn get_map(
     })
     .await?;
     Ok(cached(&headers, &*map))
+}
+
+/// The first of the space model's `classes` the Endpoint at `endpoint` lists as its types
+/// (T-6541): a dataset Endpoint serves one class of a model that holds many, and the model's first
+/// class drew Praha Tree's map from BikeHireDockingStation, which that Endpoint does not serve.
+/// Without the list (an Endpoint that does not answer it) the model's first class stands.
+async fn endpoint_class(endpoint: &str, classes: Vec<String>) -> Option<String> {
+    let served = served_types(endpoint).await;
+    let mut classes = classes.into_iter();
+    match served {
+        Some(served) => classes.find(|class| served.contains(class)),
+        None => classes.next(),
+    }
+}
+
+/// The `typeList` of the Endpoint's own `/types`, read anonymously; `None` when it does not answer.
+async fn served_types(endpoint: &str) -> Option<Vec<String>> {
+    let response = HTTP
+        .get(format!("{endpoint}ngsi-ld/v1/types"))
+        .header(header::ACCEPT, "application/json")
+        .timeout(COUNT_WAIT)
+        .send()
+        .await
+        .ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+    let list: Value = crate::capped::json(response, crate::capped::ANSWER_BYTES)
+        .await
+        .ok()?;
+    Some(
+        list["typeList"]
+            .as_array()?
+            .iter()
+            .filter_map(|t| t.as_str().map(str::to_owned))
+            .collect(),
+    )
 }
 
 /// The language a map labels its popups in: two or three lowercase letters, English when absent.
@@ -2632,6 +2668,32 @@ classes:
             .await
             .expect("a failure is not kept");
         assert_eq!(builds.load(std::sync::atomic::Ordering::SeqCst), 3);
+    }
+
+    #[tokio::test]
+    async fn the_map_draws_the_class_the_endpoint_serves_not_the_models_first() {
+        use wiremock::matchers::{method, path};
+        let server = wiremock::MockServer::start().await;
+        wiremock::Mock::given(method("GET"))
+            .and(path("/ngsi-ld/v1/types"))
+            .respond_with(wiremock::ResponseTemplate::new(200).set_body_json(
+                json!({"id": "urn:ngsi-ld:EntityTypeList:1", "type": "EntityTypeList", "typeList": ["Tree"]}),
+            ))
+            .mount(&server)
+            .await;
+        let classes = || vec!["BikeHireDockingStation".to_owned(), "Tree".to_owned()];
+        let served = format!("{}/", server.uri());
+        assert_eq!(
+            endpoint_class(&served, classes()).await.as_deref(),
+            Some("Tree")
+        );
+        assert_eq!(
+            endpoint_class("http://localhost:9/", classes())
+                .await
+                .as_deref(),
+            Some("BikeHireDockingStation"),
+            "an Endpoint that does not list its types keeps the model's first class"
+        );
     }
 
     /// A broker whose `count=true` answers 503 late, as the gateway's 10 s cut did on Praha Tree.
