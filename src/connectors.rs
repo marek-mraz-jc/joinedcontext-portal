@@ -235,6 +235,7 @@ pub fn of_conversation(run_id: &str, owner: &str, project: &str, segment: &str) 
         }],
         kinds: None,
         writes: false,
+        autonomous: false,
         expires_at: now + Duration::hours(1),
         allowed_clients: Vec::new(),
         client_is_boundary: false,
@@ -805,6 +806,11 @@ pub struct NewConnector {
     pub kinds: Option<Vec<KindGrant>>,
     #[serde(default)]
     pub writes: bool,
+    /// Each change the connector applies is approved at once as its owner (T-6552), e.g. `true`;
+    /// needs `writes` and approve rights in every project it writes. Access changes, public
+    /// publications and deletions still wait for a click. Default `false`.
+    #[serde(default)]
+    pub autonomous: bool,
     /// RFC 3339, e.g. `2026-11-27T00:00:00Z`.
     #[schema(value_type = String, format = DateTime)]
     pub expires_at: DateTime<Utc>,
@@ -823,6 +829,9 @@ struct GrantDoc {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     kinds: Option<Vec<KindGrant>>,
     writes: bool,
+    /// Absent on a record kept before T-6552: off.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    autonomous: bool,
     expires_at: DateTime<Utc>,
     allowed_clients: Vec<String>,
     /// Above the ceiling, waiting for an administrator (AG-150); a record kept before T-5953 has
@@ -876,6 +885,8 @@ pub struct Connector {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kinds: Option<Vec<KindGrant>>,
     pub writes: bool,
+    /// Whether the changes it applies are approved at once as its owner (T-6552).
+    pub autonomous: bool,
     #[schema(value_type = String, format = DateTime)]
     pub expires_at: DateTime<Utc>,
     pub allowed_clients: Vec<String>,
@@ -1417,6 +1428,7 @@ impl Record {
             scope: self.grant.scope.clone(),
             kinds: self.grant.kinds.clone(),
             writes: self.grant.writes,
+            autonomous: self.grant.autonomous,
             expires_at: self.grant.expires_at,
             client_is_boundary: !self.grant.allowed_clients.is_empty()
                 && self.grant.allowed_clients.iter().all(|c| binds(c)),
@@ -1917,6 +1929,7 @@ impl ConnectorStore {
                 scope: new.scope,
                 kinds: new.kinds,
                 writes: new.writes,
+                autonomous: new.autonomous,
                 expires_at: new.expires_at,
                 allowed_clients: new.allowed_clients,
                 pending: !above.is_empty(),
@@ -1996,6 +2009,7 @@ impl ConnectorStore {
             scope: new.scope,
             kinds: new.kinds,
             writes: new.writes,
+            autonomous: new.autonomous,
             expires_at: new.expires_at,
             allowed_clients: new.allowed_clients,
             pending: !above.is_empty() && approval.is_none(),
@@ -2395,6 +2409,7 @@ pub(crate) mod tests {
                 scope,
                 kinds: None,
                 writes: false,
+                autonomous: false,
                 expires_at: Utc::now() + Duration::days(1),
                 allowed_clients: vec![],
                 pending: false,
@@ -3027,6 +3042,7 @@ pub(crate) mod tests {
             scope: vec![item("doprava", None)],
             kinds: None,
             writes,
+            autonomous: false,
             expires_at: Utc::now() + Duration::days(days),
             allowed_clients: vec![],
         }
@@ -3339,6 +3355,7 @@ pub(crate) mod tests {
                 scope: vec![item("doprava", None)],
                 kinds: None,
                 writes: false,
+                autonomous: false,
                 expires_at: Utc::now() - Duration::seconds(1),
                 allowed_clients: vec![],
                 pending: false,

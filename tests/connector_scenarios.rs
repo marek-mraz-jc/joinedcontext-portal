@@ -3103,6 +3103,7 @@ async fn the_connector_door_holds_its_budget_under_load() {
                 }],
                 kinds: None,
                 writes: false,
+                autonomous: false,
                 expires_at,
                 allowed_clients: Vec::new(),
             };
