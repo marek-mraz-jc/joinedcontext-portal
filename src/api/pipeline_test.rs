@@ -342,12 +342,27 @@ pub(crate) async fn run_harness(
     sample: &Sample,
 ) -> Result<TestTrace, ApiError> {
     run_stream(state, project, |capture| {
-        let mut config =
-            harness(spec, sample, capture).map_err(|e| ApiError::BadRequest(e.to_string()))?;
+        let mut config = harnessed(&state.mirror, project, spec, sample, capture)?;
         with_lifetime(&mut config, spec)?;
         Ok(config)
     })
     .await
+}
+
+/// The harness of `spec` with the spaces its mapping reads (`env("JC_SPACE")`, …) written in as
+/// the live stream has them: without them a mapping minting ids from its space made
+/// `…:<nil>:…` in the test and every record was refused, while the same mapping ran live (T-6567).
+fn harnessed(
+    mirror: &crate::store::Mirror,
+    project: &str,
+    spec: &PipelineSpec,
+    sample: &Sample,
+    capture: &str,
+) -> Result<Value, ApiError> {
+    let mut config =
+        harness(spec, sample, capture).map_err(|e| ApiError::BadRequest(e.to_string()))?;
+    crate::reconciler::streams::StreamSpaces::of(mirror, project, spec).inject(&mut config);
+    Ok(config)
 }
 
 /// The harness with the pipeline's history and lifetime steps after its own steps, where a live
@@ -394,8 +409,7 @@ pub(crate) async fn run_messages(
 ) -> Result<TestTrace, ApiError> {
     let sample = messages_sample(messages);
     run_stream(state, project, |capture| {
-        let mut config =
-            harness(spec, &sample, capture).map_err(|e| ApiError::BadRequest(e.to_string()))?;
+        let mut config = harnessed(&state.mirror, project, spec, &sample, capture)?;
         split_messages(&mut config);
         with_lifetime(&mut config, spec)?;
         Ok(config)
@@ -839,6 +853,53 @@ mod tests {
                 serde_json::from_value::<TestRequest>(json!({ "pipeline": {}, "sample": sample }));
             assert!(refused.is_err(), "{sample} was accepted");
         }
+    }
+
+    /// T-6567: the test reads the target space where the live stream does, so a mapping minting
+    /// ids from `env("JC_SPACE")` gets the space's segment in the test, never `<nil>`.
+    #[test]
+    fn the_harness_writes_the_target_space_a_mapping_reads() {
+        use crate::resource::{ObjectMeta, ResourceEnvelope, API_VERSION};
+        let mirror = crate::store::Mirror::new();
+        mirror.upsert(ResourceEnvelope {
+            api_version: API_VERSION.to_owned(),
+            kind: "Endpoint".to_owned(),
+            metadata: ObjectMeta {
+                name: "bikes-in".to_owned(),
+                namespace: Some("helsinki".to_owned()),
+                ..Default::default()
+            },
+            spec: json!({ "contextSpaceRef": "bikes" }),
+            status: None,
+        });
+        let spec: PipelineSpec = serde_json::from_value(json!({
+            "class": "auto",
+            "source": { "dataSourceRef": { "kind": "DataSource", "name": "feed" } },
+            "compute": { "kind": "bloblang", "bloblang":
+                "root.id = \"urn:ngsi-ld:Station:\" + env(\"JC_ORG_DOMAIN\") + \":\" + env(\"JC_SPACE\") + \":\" + this.id" },
+            "targetEndpoint": "urn:ngsi-ld:Endpoint:hel.fi:bikes:bikes-in"
+        }))
+        .expect("spec");
+        let sample = Sample {
+            text: Some("{\"id\":\"1\"}".into()),
+            url: None,
+            format: SampleFormat::Json,
+        };
+        let config = harnessed(
+            &mirror,
+            "helsinki",
+            &spec,
+            &sample,
+            "http://portal-internal:9090/x",
+        )
+        .expect("harness");
+        let text = config.to_string();
+        assert!(!text.contains("JC_SPACE"), "{text}");
+        assert!(text.contains(r#"\"helsinki-bikes\""#), "{text}");
+        assert!(
+            text.contains("JC_ORG_DOMAIN"),
+            "the runner's own variable stays: {text}"
+        );
     }
 
     fn harness_for(sample: Sample) -> Value {

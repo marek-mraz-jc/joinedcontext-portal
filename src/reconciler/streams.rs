@@ -143,6 +143,67 @@ pub fn stream_id(project: &str, name: &str) -> String {
     format!("{project}.{name}")
 }
 
+/// The spaces a stream of `spec` in project `ns` writes into and reads out of, as its mapping
+/// reads them: `env("JC_SPACE")`, `JC_SPACE_2`, … per output (PL-57, PF-84) and
+/// `env("JC_SOURCE_SPACE")` per source Endpoint. The live stream and the test harness inject the
+/// same values, so a mapping minting ids from them passes the test as it passes live (T-6567).
+pub(crate) struct StreamSpaces {
+    /// Each output Endpoint's Context Space, "" where the mirror lacks it.
+    pub spaces: Vec<String>,
+    segments: Vec<String>,
+    /// A pipeline that computes from another space records where its figures came from, and
+    /// that provenance is a URN the broker parses: with nothing injected the mapping rendered
+    /// `urn:ngsi-ld:Endpoint:hel.fi:<nil>:<nil>`, every indicator was refused, and the indicator
+    /// space stayed empty (T-2445). A source that names a DataSource contributes nothing here.
+    sources: Vec<String>,
+}
+
+impl StreamSpaces {
+    pub(crate) fn of(mirror: &Mirror, ns: &str, spec: &PipelineSpec) -> Self {
+        let space_of = |owner: &str, endpoint: &str| {
+            mirror
+                .get(owner, "Endpoint", endpoint)
+                .and_then(|ep| {
+                    ep.spec.get("contextSpaceRef").and_then(|r| {
+                        r.as_str()
+                            .or_else(|| r.get("name").and_then(Value::as_str))
+                            .map(str::to_owned)
+                    })
+                })
+                .unwrap_or_default()
+        };
+        let spaces: Vec<String> = spec
+            .outputs()
+            .iter()
+            .map(|output| space_of(ns, output.target_endpoint.local_id()))
+            .collect();
+        let segments = spaces
+            .iter()
+            .map(|space| crate::spaces::segment(mirror, ns, space))
+            .collect();
+        let sources = spec
+            .sources()
+            .iter()
+            .filter_map(|source| source.endpoint_ref.as_ref())
+            .map(|reference| {
+                let owner = reference.namespace().unwrap_or(ns);
+                crate::spaces::segment(mirror, owner, &space_of(owner, reference.name()))
+            })
+            .collect();
+        Self {
+            spaces,
+            segments,
+            sources,
+        }
+    }
+
+    /// Writes the spaces into every string of `stream` that reads them.
+    pub(crate) fn inject(&self, stream: &mut Value) {
+        jcctl::bento::inject_space(stream, &self.segments);
+        inject_source_space(stream, &self.sources);
+    }
+}
+
 /// Every text of the pipeline the runner runs as Bloblang or as a processor passes the check it
 /// passed at write time (PL-16, PL-52): no read of the runner's environment but the pipeline's
 /// own variables, no refused processor. A manifest pushed to the forge past the Portal is
@@ -618,55 +679,8 @@ impl StreamDeployer {
                     continue;
                 }
 
-                // What each output's Endpoint writes into: the space segment a mapping reads as
-                // `env("JC_SPACE")`, `JC_SPACE_2`, … (PL-57, PF-84).
-                let spaces: Vec<String> = spec
-                    .outputs()
-                    .iter()
-                    .map(|output| {
-                        let ep_name = output.target_endpoint.local_id();
-                        mirror
-                            .get(&ns, "Endpoint", ep_name)
-                            .and_then(|ep| {
-                                ep.spec.get("contextSpaceRef").and_then(|r| {
-                                    r.as_str()
-                                        .or_else(|| r.get("name").and_then(Value::as_str))
-                                        .map(str::to_owned)
-                                })
-                            })
-                            .unwrap_or_default()
-                    })
-                    .collect();
-                let segments: Vec<String> = spaces
-                    .iter()
-                    .map(|space| crate::spaces::segment(mirror, &ns, space))
-                    .collect();
-                // And what each source's Endpoint reads out of: the segment a mapping reads as
-                // `env("JC_SOURCE_SPACE")`. A pipeline that computes from another space records
-                // where its figures came from, and that provenance is a URN the broker parses:
-                // with nothing injected the mapping rendered `urn:ngsi-ld:Endpoint:hel.fi:<nil>:<nil>`,
-                // every indicator was refused `attribute derivedFrom: object must be a URI`, and
-                // the indicator space stayed empty (T-2445). A source that names a DataSource
-                // has no space to read, and contributes nothing here.
-                let source_segments: Vec<String> = spec
-                    .sources()
-                    .iter()
-                    .filter_map(|source| source.endpoint_ref.as_ref())
-                    .map(|reference| {
-                        let owner = reference.namespace().unwrap_or(&ns);
-                        let space = mirror
-                            .get(owner, "Endpoint", reference.name())
-                            .and_then(|ep| {
-                                ep.spec.get("contextSpaceRef").and_then(|r| {
-                                    r.as_str()
-                                        .or_else(|| r.get("name").and_then(Value::as_str))
-                                        .map(str::to_owned)
-                                })
-                            })
-                            .unwrap_or_default();
-                        crate::spaces::segment(mirror, owner, &space)
-                    })
-                    .collect();
+                let stream_spaces = StreamSpaces::of(mirror, &ns, &spec);
+                let spaces = &stream_spaces.spaces;
                 // Every output's Endpoint, from the mirror (PL-52, PL-55).
                 let slugs: Result<Vec<String>, String> = spec
                     .outputs()
@@ -722,10 +736,9 @@ impl StreamDeployer {
                     });
                     match rendered {
                         Ok(mut stream_json) => {
-                            self.reporting(&mut stream_json, &ns, &name, &spaces);
+                            self.reporting(&mut stream_json, &ns, &name, spaces);
                             self.identified(&mut stream_json, &ns, &name);
-                            jcctl::bento::inject_space(&mut stream_json, &segments);
-                            inject_source_space(&mut stream_json, &source_segments);
+                            stream_spaces.inject(&mut stream_json);
                             place(
                                 (&ns, name, stream_json),
                                 resident,
@@ -842,10 +855,9 @@ impl StreamDeployer {
                 };
 
                 let mut stream_json = stream_json;
-                self.reporting(&mut stream_json, &ns, &name, &spaces);
+                self.reporting(&mut stream_json, &ns, &name, spaces);
                 self.identified(&mut stream_json, &ns, &name);
-                jcctl::bento::inject_space(&mut stream_json, &segments);
-                inject_source_space(&mut stream_json, &source_segments);
+                stream_spaces.inject(&mut stream_json);
                 place(
                     (&ns, name, stream_json),
                     resident,
