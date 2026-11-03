@@ -1016,7 +1016,7 @@
       "title": "Zeilen in {type} importieren",
       "lead": "Wählen Sie eine CSV-, Excel-, JSON- oder XML-Datei, legen Sie fest, welche Spalte welches Feld füllt, und die gültigen Zeilen werden in Ihrem Namen über das Gateway angelegt. Eine vorhandene Entität wird nie überschrieben.",
       "choose": "Datei wählen",
-      "empty": "Die Datei enthält unter ihrer Kopfzeile keine Zeilen.",
+      "empty": "Die Datei enthält unter ihrer Kopfzeile keine Zeilen. Ergänzen Sie die Zeilen unter den Spaltennamen, speichern Sie sie und wählen Sie sie erneut.",
       "unreadable": "Die Datei lässt sich nicht lesen: {reason}",
       "tooLarge": "Die Datei hat {size} MB; ein Import liest höchstens {limit} MB. Teilen Sie sie in kleinere Dateien auf oder entfernen Sie nicht benötigte Spalten und importieren Sie jeden Teil.",
       "denied": "Nichts wurde geschrieben: Der Raum {space} erlaubt Ihrer Rolle nicht, {type}-Entitäten anzulegen ({reason}). Bitten Sie einen Projektverantwortlichen um eine Policy auf diesem Raum, die Ihrer Rolle das Anlegen von {type} im Stapel erlaubt, und importieren Sie die Datei dann erneut.",

@@ -256,7 +256,7 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
           ) : null}
           {choice === "" ? (
             <Field id="upload-own-type" label={t("spaces.upload.ownType")} help={t("spaces.upload.ownTypeHint")}>
-              <Input id="upload-own-type" value={ownType} onChange={(e) => setOwnType(e.target.value)} />
+              <Input id="upload-own-type" className="font-mono" value={ownType} onChange={(e) => setOwnType(e.target.value)} />
             </Field>
           ) : null}
           <Field id="upload-space" label={t("spaces.upload.space")} help={t("spaces.upload.spaceHint")}>
@@ -273,7 +273,8 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
           ) : null}
         </Card>
         {draft?.key === draftKey ? (
-          <Card>
+          // On a phone the model comes first: it is what Propose sends.
+          <Card className="order-first lg:order-none">
             <DraftedModel source={draft.source} type={typeName} table={read.table} />
           </Card>
         ) : null}

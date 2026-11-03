@@ -1016,7 +1016,7 @@
       "title": "Import rows into {type}",
       "lead": "Choose a CSV, Excel, JSON or XML file, say which column feeds which field, and the valid rows are created through the gateway as you. An entity that already exists is never overwritten.",
       "choose": "Choose a file",
-      "empty": "The file holds no rows under its header.",
+      "empty": "The file holds no rows under its header. Add the rows below the column names, save it and choose it again.",
       "unreadable": "The file could not be read: {reason}",
       "tooLarge": "The file is {size} MB; an import reads at most {limit} MB. Split it into smaller files, or remove the columns you do not need, and import each part.",
       "denied": "Nothing was written: the space {space} does not let your role create {type} entities ({reason}). Ask a project owner for a Policy on this space that grants your role batch create on {type}, then import the file again.",

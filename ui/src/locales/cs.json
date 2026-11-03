@@ -1016,7 +1016,7 @@
       "title": "Import řádků do {type}",
       "lead": "Vyberte soubor CSV, Excel, JSON nebo XML, určete, který sloupec plní které pole, a platné řádky se vytvoří přes bránu pod vaším jménem. Existující entita se nikdy nepřepíše.",
       "choose": "Vybrat soubor",
-      "empty": "Soubor nemá pod hlavičkou žádné řádky.",
+      "empty": "Soubor nemá pod hlavičkou žádné řádky. Doplňte řádky pod názvy sloupců, uložte jej a vyberte znovu.",
       "unreadable": "Soubor nelze přečíst: {reason}",
       "tooLarge": "Soubor má {size} MB; import přečte nejvýše {limit} MB. Rozdělte ho na menší soubory nebo odstraňte sloupce, které nepotřebujete, a importujte každou část.",
       "denied": "Nic se nezapsalo: prostor {space} vaší roli nedovoluje vytvářet entity {type} ({reason}). Požádejte vlastníka projektu o Policy na tomto prostoru, která vaší roli povolí dávkové vytváření {type}, a pak soubor importujte znovu.",
