@@ -1078,20 +1078,31 @@ impl Driver {
                     }),
                 )
                 .await?;
-                if opening == Opening::Change || last {
+                // A red test goes back to the model while rounds are left, a new resource's too:
+                // a new pipeline drafted as `root = this` opened its form red with every row's
+                // finding pasted, and nobody wrote the mapping from the source's columns
+                // (T-6532, live walk T-6490 S-20).
+                if opening == Opening::Change || !last {
+                    let hint = if info.kind == "Pipeline" {
+                        " Write spec.compute.bloblang from the columns of the rows it ran on: \
+                         `id` as urn:ngsi-ld:<Type>:<the row's key column>, `type`, and one \
+                         attribute per column the target's model has; then send the call again."
+                    } else {
+                        ""
+                    };
                     return self
                         .again(
                             last,
-                            format!("error: the change's test is not green: {findings}; what it ran on: {card}; the changed manifest was {manifest}"),
+                            format!("error: the change's test is not green: {findings}; what it ran on: {card}; the changed manifest was {manifest}.{hint}"),
                             format!("The change to '{name}' does not pass its test: {findings}"),
                         )
                         .await;
                 }
-                // A new resource whose test is not green still opens its form: a pipeline's
-                // mapping is written in the editor, with the editor's own test beside it, and a
-                // sentence in the chat is not where a person writes Bloblang (AG-45). The draft
-                // is kept without a verdict, so the strict gate refuses a proposal until the
-                // person has checked it there (PF-57), and the finding is what they read first.
+                // On the last round a new resource whose test is not green still opens its form:
+                // the mapping is finished in the editor, with the editor's own test beside it
+                // (AG-45). The draft is kept without a verdict, so the strict gate refuses a
+                // proposal until the person has checked it there (PF-57), and the finding is
+                // what they read first.
                 half_written = Some(findings);
                 Tested {
                     card: Some(card),
@@ -1163,7 +1174,8 @@ impl Driver {
         if let Some(findings) = &half_written {
             // The person reads what is still wrong with it before they read the form (AG-45).
             prose = format!(
-                "{prose}\n\nIts test is not green yet: {findings}. The form is open on it; finish                  it there and check it before you propose it."
+                "{prose}\n\nIts test is not green yet: {findings}. The form is open on it; finish \
+                 it there and check it before you propose it."
             );
         }
         self.thought(&prose).await?;

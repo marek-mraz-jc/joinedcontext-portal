@@ -505,7 +505,8 @@ impl Driver {
                         "error: the person asked for a pipeline that keeps the indicator updated \
                          (a period, a schedule or a target space), not one number: answer with \
                          draft_kpi_pipeline for the same indicator, its sourceEndpoint, a \
-                         targetSpace and `every` (\"15m\" when no period is named)"
+                         targetSpace and `every` (\"24h\" for daily, \"1h\" for hourly, \"15m\" when \
+                         no period is named)"
                             .to_owned(),
                     ));
                     continue;
@@ -784,7 +785,8 @@ sentences and then ONE fenced JSON block, nothing else:
 }}
 ```
 
-Give `every` or `"onChange": true`, never both. When the person names no period, use "15m". The
+Give `every` or `"onChange": true`, never both. `every` follows the person's words: daily is
+"24h", hourly "1h"; only when they name no period, "15m". The
 platform drafts the Bento pipeline, drafts the indicator space when it does not exist, and tests
 the pipeline on a page of the source. A refused plan or a red test comes back to you with the
 reason and the page it ran on: look at the data again and draft it anew. A green draft opens its
@@ -1049,7 +1051,9 @@ change_resource that ContextSpace; a patch replaces the whole list, so keep its 
         }
         if creatable.contains(&"Role") {
             shapes.push_str(
-                "- **Role**: `{\"rules\": [{\"kinds\": [\"Endpoint\"], \"verbs\":                  [\"read\"]}]}`, verbs from read, propose, approve, delete. Running a pipeline                  takes propose and approve on Pipeline; say so when the person asked for no                  writes.\n",
+                "- **Role**: `{\"rules\": [{\"kinds\": [\"Endpoint\"], \"verbs\": [\"read\"]}]}`, verbs from read, propose, approve, \
+                 delete. Running a pipeline takes propose and approve on Pipeline; say so when \
+                 the person asked for no writes.\n",
             );
         }
         if creatable.contains(&"DataSource") {
@@ -1126,8 +1130,7 @@ in the model editor, a space is completed from files, an endpoint is shared, a r
 The platform checks the manifest, tests what that kind tests, keeps it as the person's draft and
 opens the kind's page with the form filled from it; the person reads it there and proposes it. What
 the check refuses comes back to you with the reason: send the call again with the fields fixed. A
-test that is not green still opens the form, with what it found, because a pipeline's mapping is
-finished in the editor. You never propose it yourself, and never with `jc_resource_propose` — a change nobody read must
+red test comes back too, with the rows it ran on: map their columns in `compute`. You never propose it yourself, and never with `jc_resource_propose` — a change nobody read must
 not reach the approval queue.
 "#,
             kinds = creatable.join(", "),

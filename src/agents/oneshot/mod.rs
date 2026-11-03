@@ -907,23 +907,46 @@ fn needs_served(data_needs: &Value, index: Option<&Value>) -> Value {
     Value::Array(needs.collect())
 }
 
-/// The `tool` event of a call that did not run, with why.
-/// A verdict's findings on one line, for the model and the step: `path message; …`.
+/// The most distinct findings [`findings_of`] names; the rest are counted.
+const FINDINGS_NAMED: usize = 8;
+
+/// A verdict's findings on one line, for the model, the step and the person: `path message; …`.
+/// A finding every record of the page repeats is named once with its count (`records[*].id …
+/// (20 records)`), so a red test over a page never reads as the same line per row (T-6532).
 fn findings_of(verdict: &Value) -> String {
-    verdict
+    static INDEX: LazyLock<regex::Regex> =
+        LazyLock::new(|| regex::Regex::new(r"\[\d+\]").expect("valid regex"));
+    // (the line with its indices as `[*]`, the first line as written, how often)
+    let mut grouped: Vec<(String, String, usize)> = Vec::new();
+    for f in verdict
         .get("findings")
         .and_then(Value::as_array)
         .into_iter()
         .flatten()
-        .map(|f| {
-            format!(
-                "{} {}",
-                f.get("path").and_then(Value::as_str).unwrap_or(""),
-                f.get("message").and_then(Value::as_str).unwrap_or("")
-            )
+    {
+        let line = format!(
+            "{} {}",
+            f.get("path").and_then(Value::as_str).unwrap_or(""),
+            f.get("message").and_then(Value::as_str).unwrap_or("")
+        );
+        let key = INDEX.replace_all(&line, "[*]").into_owned();
+        match grouped.iter_mut().find(|(k, _, _)| *k == key) {
+            Some((_, _, count)) => *count += 1,
+            None => grouped.push((key, line, 1)),
+        }
+    }
+    let mut parts: Vec<String> = grouped
+        .iter()
+        .take(FINDINGS_NAMED)
+        .map(|(key, line, count)| match count {
+            1 => line.clone(),
+            n => format!("{key} ({n} records)"),
         })
-        .collect::<Vec<_>>()
-        .join("; ")
+        .collect();
+    if grouped.len() > FINDINGS_NAMED {
+        parts.push(format!("and {} more", grouped.len() - FINDINGS_NAMED));
+    }
+    parts.join("; ")
 }
 
 /// What a changed pipeline's or data source's test showed: the card beside the chat, and the
@@ -1039,6 +1062,29 @@ fn urlencoding(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-6532 (live walk T-6490, S-20): a test red on every row of a page was pasted to the person
+    /// as two lines per row; each finding is named once with how many records repeat it.
+    #[test]
+    fn findings_repeated_per_record_are_named_once_with_their_count() {
+        let mut findings = Vec::new();
+        for i in 0..20 {
+            findings.push(json!({ "path": format!("validation[{i}]"), "message": "no 'type'" }));
+            findings
+                .push(json!({ "path": format!("records[{i}].id"), "message": "id: not a URN" }));
+        }
+        findings.push(json!({ "path": "records[3].count", "message": "count: not a number" }));
+        let line = findings_of(&json!({ "ok": false, "findings": findings }));
+        assert_eq!(
+            line,
+            "validation[*] no 'type' (20 records); records[*].id id: not a URN (20 records); \
+             records[3].count count: not a number"
+        );
+        let many: Vec<Value> = (0..12)
+            .map(|i| json!({ "path": format!("spec.f{i}"), "message": "wrong" }))
+            .collect();
+        assert!(findings_of(&json!({ "findings": many })).ends_with("spec.f7 wrong; and 4 more"));
+    }
 
     /// JC1-25: a tool event quoting a credential (a source URL's key, a header a log line
     /// repeats) is stored masked, not only the run's own ticket.
