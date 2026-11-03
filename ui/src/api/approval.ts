@@ -82,6 +82,20 @@ export function isOwn(callerEmail: string | null | undefined, change: { author: 
   );
 }
 
+/** The words of the Reject button and its dialog: a proposer withdraws their own change (T-6535). */
+export function rejectWords(own: boolean) {
+  const verb = own ? "withdraw" : "reject";
+  return {
+    action: `approvals.${verb}`,
+    busy: own ? "approvals.withdrawing" : "approvals.rejecting",
+    title: `approvals.${verb}Title`,
+    lead: `approvals.${verb}Lead`,
+    confirm: `approvals.${verb}Confirm`,
+    reason: `approvals.${verb}Reason`,
+    reasonHint: `approvals.${verb}ReasonHint`,
+  } as const;
+}
+
 /**
  * The resource name a red change's approver types back: the plan's own `params.name`, else the
  * change id. The same value the API compares `confirm` against (CC-19, CC-39).

@@ -1042,6 +1042,30 @@ async fn head_author(
     })
 }
 
+/// Whether `identity` proposed `pr`, by the e-mail its author carries: never by a display
+/// name a second person could share. A forge error answers no, so the caller falls back to the
+/// approve rules (T-6535).
+async fn proposed_by(
+    gitea: &GiteaClient,
+    pr: &crate::git::gitea::PullRequest,
+    identity: &crate::auth::session::Identity,
+) -> bool {
+    let author = match head_author(gitea, pr).await {
+        Ok(author) => author,
+        Err(GitError::NotFound) => poster(pr),
+        Err(_) => return false,
+    };
+    same_email(author.email.as_deref(), identity.email.as_deref())
+}
+
+/// Two e-mails equal ignoring case and surrounding space; a missing or blank one equals nothing.
+fn same_email(a: Option<&str>, b: Option<&str>) -> bool {
+    match (a.map(str::trim), b.map(str::trim)) {
+        (Some(a), Some(b)) => !a.is_empty() && a.eq_ignore_ascii_case(b),
+        _ => false,
+    }
+}
+
 /// The forge account that opened `pr`.
 fn poster(pr: &crate::git::gitea::PullRequest) -> ChangeAuthor {
     ChangeAuthor {
@@ -2608,6 +2632,7 @@ async fn say_rejected(
     data: &ManifestData,
     rejecter: &str,
     reason: Option<&str>,
+    withdrawn: bool,
 ) {
     let operation = operation_word(data.operation);
     let reason = reason
@@ -2625,6 +2650,7 @@ async fn say_rejected(
         "name": data.name,
         "operation": operation,
         "rejectedBy": rejecter,
+        "withdrawnByProposer": withdrawn,
     });
     if let Some(ref reason) = reason {
         details["reason"] = Value::String(reason.clone());
@@ -2987,21 +3013,38 @@ pub async fn reject_change_for(
     reason: Option<&str>,
 ) -> Result<Change, ApiError> {
     refuse_bearer_decision(identity)?;
-    may_approve_anything(state, identity, project)?;
-    crate::auth::session::require_second_factor(identity, &state.config)?;
-    let (gitea, pr_number) = resolve_change(state, project, id)?;
+    // A caller without `approve` learns nothing about the change unless it turns out theirs.
+    let hide = |found: ApiError| {
+        may_approve_anything(state, identity, project)
+            .err()
+            .unwrap_or(found)
+    };
+    let (gitea, pr_number) = resolve_change(state, project, id).map_err(hide)?;
     let gitea: &crate::git::GiteaClient = &gitea;
 
-    let pr = gitea.pull_request(pr_number).await?;
-    require_change(state, gitea, project, id, &pr).await?;
+    let pr = gitea
+        .pull_request(pr_number)
+        .await
+        .map_err(|e| hide(e.into()))?;
+    require_change(state, gitea, project, id, &pr)
+        .await
+        .map_err(hide)?;
     let data = load_manifest_data(gitea, &pr, project, None)
-        .await?
+        .await
+        .map_err(hide)?
         .ok_or_else(|| {
-            ApiError::NotFound(format!(
+            hide(ApiError::NotFound(format!(
                 "change proposal '{id}' not found in project '{project}'"
-            ))
+            )))
         })?;
-    may_approve(state, identity, project, &data)?;
+    // The proposer withdraws their own change: closing never merges, so the second-person rule
+    // of approval does not hold it open (T-6535). Anyone else rejects with `approve` (PF-50).
+    let withdrawn = proposed_by(gitea, &pr, identity).await;
+    if !withdrawn {
+        may_approve_anything(state, identity, project)?;
+        crate::auth::session::require_second_factor(identity, &state.config)?;
+        may_approve(state, identity, project, &data)?;
+    }
 
     // A comment, not a "request changes" review: the forge token is the pull request's author
     // and Gitea refuses the author's verdict on their own pull; the Portal's role check above is
@@ -3039,7 +3082,7 @@ pub async fn reject_change_for(
             .await;
     }
 
-    say_rejected(state, project, id, &data, rejecter, reason).await;
+    say_rejected(state, project, id, &data, rejecter, reason, withdrawn).await;
 
     let plan = plan::diff(data.base_envelope.as_ref(), data.head_envelope.as_ref());
     let lane = if data.operation == Operation::Delete {
@@ -4267,6 +4310,7 @@ mod tests {
             &data,
             "eva@bb.sk",
             Some(&long),
+            false,
         )
         .await;
         say_rejected(
@@ -4276,6 +4320,7 @@ mod tests {
             &data,
             "eva@bb.sk",
             Some("  "),
+            true,
         )
         .await;
 
@@ -4305,6 +4350,8 @@ mod tests {
             )
         );
         assert_eq!(blank.details.get("reason"), None);
+        assert_eq!(blank.details["withdrawnByProposer"], json!(true));
+        assert_eq!(capped.details["withdrawnByProposer"], json!(false));
         assert_eq!(
             blank.summary,
             "Change chg-00000005 rejected: create Endpoint public-air, by eva@bb.sk."
