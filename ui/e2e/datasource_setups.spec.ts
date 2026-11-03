@@ -138,4 +138,31 @@ test.describe("ready-made set-ups on Data sources", () => {
     await expect(page.getByRole("region", { name: "Ready-made set-ups" })).toHaveCount(0);
     await shot(page, "datasources-none");
   });
+
+  // T-6572: a JSON feed that keeps its records in an array (GBFS data.stations) names that array
+  // on the template, so the source sends one station per message.
+  test("a JSON template names the array its records sit in, and refuses a path that is not names", async ({ page }) => {
+    await stubApi(page);
+    await page.goto(`/projects/${PROJECT}/datasources/new?lang=en`);
+    await page.getByText("Start from a template").click();
+    await page.getByRole("button", { name: /REST API \(JSON\)/ }).click();
+    await page.getByLabel("Address of the API").fill("https://gbfs.example.org/gbfs/2.2/helsinki/en/station_information.json");
+    const records = page.getByTestId("datasource-templates").getByRole("textbox", { name: "Records are in" });
+    await expect(records).toBeVisible();
+    await shot(page, "records-empty");
+    await records.fill("data stations");
+    await page.getByRole("button", { name: "Fill the form and check" }).click();
+    await expect(page.getByText("Give the path as names joined by dots, for example data.stations.")).toBeVisible();
+    await shot(page, "records-refused");
+    await records.fill("data.stations");
+    await expect(page.getByText("Give the path as names joined by dots, for example data.stations.")).toBeHidden();
+    await shot(page, "records-filled");
+    await page.getByRole("button", { name: "Fill the form and check" }).click();
+    // The template fills the form that is saved: the connection's own field holds the path.
+    const form = page.getByRole("group", { name: "HTTP endpoint" });
+    await expect(form.getByRole("textbox", { name: "Records are in" })).toHaveValue("data.stations");
+    await expect(form.getByRole("textbox", { name: /URL/ })).toHaveValue("https://gbfs.example.org/gbfs/2.2/helsinki/en/station_information.json");
+    await shot(page, "records-applied");
+    expect(await axeViolations(page)).toEqual([]);
+  });
 });

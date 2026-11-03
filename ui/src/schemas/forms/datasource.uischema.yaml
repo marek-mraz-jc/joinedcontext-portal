@@ -144,6 +144,12 @@ spec:
         sk: Ako dlho sa čaká na odpoveď vzdialeného servera pred zlyhaním, napríklad 30s.
         cs: Jak dlouho se čeká na odpověď vzdáleného serveru před selháním, například 30s.
         de: Wie lange auf eine Antwort des entfernten Servers gewartet wird, etwa 30s.
+    http.records:
+      help:
+        en: For a JSON answer that keeps its records in an array, the path to it, such as data.stations; each item becomes one record.
+        sk: Pre JSON odpoveď so záznamami v poli cesta k nemu, napríklad data.stations; každá položka je jeden záznam.
+        cs: U odpovědi JSON se záznamy v poli cesta k němu, například data.stations; každá položka je jeden záznam.
+        de: Bei einer JSON-Antwort mit Datensätzen in einem Array der Pfad dorthin, etwa data.stations; jedes Element wird ein Datensatz.
     http.authorization.scheme:
       help:
         en: Authentication prefix sent in the header, defaulting to Bearer when left blank.

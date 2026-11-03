@@ -1072,6 +1072,7 @@ fn hub_endpoint(
         feeds: Vec::new(),
         calendars: Vec::new(),
         map_defaults: Default::default(),
+        page: None,
         base_path: format!("/api/endpoint/{slug}"),
         models: vec![context_gateway::resolver::Model {
             name: "scn".to_owned(),

@@ -99,6 +99,7 @@ impl From<SampleRequest> for Sample {
                 SampleFormatRequest::Csv => SampleFormat::Csv,
                 SampleFormatRequest::Json => SampleFormat::Json,
             },
+            records: None,
         }
     }
 }
@@ -435,6 +436,7 @@ fn messages_sample(messages: &[Value]) -> Sample {
         text: Some(Value::Array(encoded).to_string()),
         url: None,
         format: SampleFormat::Text,
+        records: None,
     }
 }
 
@@ -691,7 +693,7 @@ fn answers_xml(spec: &Value, url: &str) -> bool {
 
 /// How one fetch of a DataSource at `url` is read, shared by the workbench's sample and the
 /// DataSource Check (MF-39, PL-43): a CSV split into rows when the connection says `format: csv`
-/// (PL-114) and kept whole otherwise, as the runner hands it over, an XML feed taken as it is and turned
+/// (PL-114) or into the elements of its `records` array, and kept whole otherwise, as the runner hands it over, an XML feed taken as it is and turned
 /// into JSON by the same `xml` step a pipeline reading it starts with, anything else parsed as
 /// JSON. Reading XML as JSON failed on its first `<` and the page said the source answered a
 /// web page (T-4818). The spec's target is the minimum a PipelineSpec needs to exist.
@@ -728,10 +730,17 @@ pub(crate) fn sampling(
     } else {
         serde_json::json!({ "class": "auto", "targetEndpoint": target })
     };
+    // A JSON body the source names a `records` array in reaches the steps one element per
+    // message, split before them as the runner splits it (PL-114, T-6572).
+    let records = spec
+        .pointer("/http/records")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
     let sample = Sample {
         text: None,
         url: Some(url),
         format,
+        records,
     };
     Ok((sample, serde_json::from_value(plan)?))
 }
@@ -925,6 +934,7 @@ mod tests {
             text: Some("{}".into()),
             url: None,
             format: SampleFormat::Json,
+            records: None,
         };
         let mut config = harness(&spec, &sample, "http://portal-internal:9090/x").expect("harness");
         let before = config["pipeline"]["processors"]
@@ -968,6 +978,7 @@ mod tests {
             text: None,
             url: Some("https://feed.example/x.json".into()),
             format: SampleFormat::Json,
+            records: None,
         });
         assert_eq!(url["input"]["generate"]["count"], 1);
         assert!(url["input"].get("http_client").is_none());
@@ -989,6 +1000,7 @@ mod tests {
             text: Some("[1]".into()),
             url: None,
             format: SampleFormat::Json,
+            records: None,
         });
         assert!(text["input"]["generate"]["mapping"]
             .as_str()
@@ -1007,6 +1019,7 @@ mod tests {
             text: Some("zone_id,name\n1,Kallio\n2,Töölö\n3,Pasila\n".into()),
             url: None,
             format: SampleFormat::Csv,
+            records: None,
         });
         let processors = csv["pipeline"]["processors"]
             .as_array()
@@ -1041,6 +1054,7 @@ mod tests {
             text: Some("[1]".into()),
             url: None,
             format: SampleFormat::Json,
+            records: None,
         });
         let oauth2 = &config["output"]["http_client"]["oauth2"];
         assert_eq!(oauth2["enabled"], true, "{config}");
@@ -1061,6 +1075,7 @@ mod tests {
             text: Some("<html>no</html>".into()),
             url: None,
             format: SampleFormat::Json,
+            records: None,
         });
         let envelope = config["pipeline"]["processors"]
             .as_array()
@@ -1206,6 +1221,62 @@ mod tests {
             assert_eq!(sample.format, format, "{http}");
             assert!(plan.steps().is_empty(), "{url}");
         }
+    }
+
+    /// T-6572: a GBFS feed keeps its ~460 stations in `data.stations`, ~100 KB in one body, over
+    /// the 64 KiB a sample keeps of one message. With `records: data.stations` the sample splits
+    /// the body right after the fetch, as the runner does, so each station is one message well
+    /// under the bound and the steps see stations, never the page.
+    #[test]
+    fn a_json_source_with_records_samples_one_message_per_element() {
+        let stations: Vec<Value> = (0..460)
+            .map(|n| json!({ "station_id": format!("{n:03}"), "name": format!("Asema {n} with a longer name"), "lat": 60.1, "lon": 24.9, "capacity": 20, "rental_uris": { "android": "https://example.invalid/app" } }))
+            .collect();
+        let body = json!({ "last_updated": 1, "ttl": 0, "data": { "stations": stations } });
+        assert!(
+            body.to_string().len() > 64 * 1024,
+            "the page alone is over the bound"
+        );
+        assert!(stations
+            .iter()
+            .all(|one| one.to_string().len() < crate::api::datasource_test::RECORD_BYTES));
+
+        let spec = json!({ "type": "http", "http": {
+            "url": "https://feeds.example/gbfs/station_information.json",
+            "records": "data.stations"
+        }});
+        let url = probe_plan(&spec).expect("http").expect("probed");
+        let (sample, plan) = sampling(&spec, url).expect("plan");
+        assert_eq!(sample.records.as_deref(), Some("data.stations"));
+        let config = harness(&plan, &sample, "http://capture.local/c").expect("harness");
+        let processors = config["pipeline"]["processors"]
+            .as_array()
+            .expect("processors");
+        let take = processors
+            .iter()
+            .position(|p| {
+                p["mapping"]
+                    .as_str()
+                    .is_some_and(|m| m.starts_with("let records = this.\"data\".\"stations\""))
+            })
+            .expect("the records split");
+        let input = processors
+            .iter()
+            .position(|p| {
+                p["mapping"]
+                    .as_str()
+                    .is_some_and(|m| m.contains("meta jc_input"))
+            })
+            .expect("the input stamp");
+        assert!(take < input, "split before the input is recorded");
+        assert_eq!(
+            processors[take + 1]["switch"][0]["processors"][1]["unarchive"]["format"],
+            "json_array"
+        );
+
+        let whole = json!({ "type": "http", "http": { "url": "https://feeds.example/gbfs.json" } });
+        let (sample, _) = sampling(&whole, "https://feeds.example/gbfs.json".into()).expect("plan");
+        assert_eq!(sample.records, None, "without records the body stays whole");
     }
 
     #[test]

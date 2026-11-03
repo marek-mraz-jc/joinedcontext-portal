@@ -2,6 +2,7 @@
  * T-3258: a pipeline recipe asks only for its source and where it writes, and fills the form the
  * workbench samples, maps and tests before anything is proposed.
  */
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { I18nextProvider } from "react-i18next";
@@ -9,7 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import type { Manifest } from "../src/api/manifest";
-import { RecipeGallery } from "../src/pages/pipelines/RecipeGallery";
+import { RecipeGallery, sourceLabel } from "../src/pages/pipelines/RecipeGallery";
 import { RECIPES, fromRecipe, nameOf, problemOf } from "../src/pages/pipelines/recipes";
 
 const r = en.pipelines.recipe;
@@ -93,6 +94,35 @@ describe("the recipe gallery", () => {
     await user.selectOptions(screen.getByLabelText(new RegExp(r.target)), TARGET);
     await user.click(screen.getByRole("button", { name: r.use }));
     expect(onUse).toHaveBeenCalledWith(expect.objectContaining({ source: { dataSourceRef: "gbfs" }, period: "15m", targetEndpoint: TARGET }));
+  });
+
+  it("names each source by its title beside its name, and offers no App Endpoint (T-6572)", async () => {
+    const user = userEvent.setup();
+    const info: Manifest = {
+      ...manifest("DataSource", "hsl-citybikes-gbfs-info"),
+      metadata: { name: "hsl-citybikes-gbfs-info", namespace: "helsinki", title: { en: "City bike station information (GBFS)", fi: "Kaupunkipyöräasemien tiedot" } },
+    };
+    expect(sourceLabel(info, "en")).toBe("City bike station information (GBFS) (hsl-citybikes-gbfs-info)");
+    expect(sourceLabel(manifest("DataSource", "gbfs"), "en")).toBe("gbfs");
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+      <I18nextProvider i18n={i18n}>
+        <RecipeGallery
+          project="helsinki"
+          orgDomain="hel.fi"
+          dataSources={[info]}
+          endpoints={[...ENDPOINTS, manifest("Endpoint", "app-bikes-map", { contextSpaceRef: "bikes" })]}
+          targets={[{ name: "bikes-write", urn: TARGET }]}
+          onUse={vi.fn()}
+        />
+      </I18nextProvider>
+      </QueryClientProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: new RegExp(r.api.title) }));
+    expect(screen.getByRole("option", { name: "City bike station information (GBFS) (hsl-citybikes-gbfs-info)" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: new RegExp(r.kpi.title) }));
+    expect(screen.getByRole("option", { name: "bikes-read" })).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "app-bikes-map" })).toBeNull();
   });
 
   it("says where to start when the project has no data source", async () => {
