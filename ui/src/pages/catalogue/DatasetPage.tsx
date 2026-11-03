@@ -405,7 +405,7 @@ function Model({ model }: { model: NonNullable<DatasetDetail["model"]> }): JSX.E
  * through the Endpoint with the visitor's own session, so the Endpoint's Policy decides what each
  * person sees, and a private dataset says sign in or no access rather than drawing an empty grid.
  */
-function DatasetData({ endpoint }: { endpoint: NonNullable<DatasetDetail["endpoint"]> }): JSX.Element | null {
+export function DatasetData({ endpoint }: { endpoint: NonNullable<DatasetDetail["endpoint"]> }): JSX.Element | null {
   const { t } = useTranslation();
   const status = useAuthStatus();
   const slug = developerSlug(endpoint.url);
