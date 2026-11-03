@@ -66,6 +66,17 @@ pub enum Operation {
         name: String,
         parent: String,
     },
+    /// An enum with no values yet, as `operations.ts` declares it; values follow one by one.
+    AddEnum {
+        name: String,
+    },
+    /// One permissible value of an enum the model declares.
+    AddEnumValue {
+        r#enum: String,
+        value: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        description: Option<String>,
+    },
     /// The classes a class mixes in; an empty list removes the key.
     SetClassMixins {
         name: String,
@@ -410,6 +421,7 @@ fn mutate(model: &mut Value, operation: &Operation) -> Result<(), String> {
                 (!named.is_empty()).then(|| json!(named)),
             );
         }
+        Operation::AddEnum { .. } | Operation::AddEnumValue { .. } => add_enum(model, operation)?,
         Operation::SetSlotSubsets { name, subsets } => {
             existing(model, "slots", name, "slot")?;
             let named = named_list(subsets);
@@ -531,6 +543,50 @@ fn add_slot(model: &mut Value, operation: &Operation) -> Result<(), String> {
         slots.push(name.clone());
         set_slots(class, slots);
     }
+    Ok(())
+}
+
+/// Declares an enum, or adds one permissible value to an enum the model declares.
+fn add_enum(model: &mut Value, operation: &Operation) -> Result<(), String> {
+    let (name, value, description) = match operation {
+        Operation::AddEnum { name } => {
+            new_name(model, "enums", name, "enum")?;
+            section_mut(model, "enums").insert(name.clone(), json!({ "permissible_values": {} }));
+            return Ok(());
+        }
+        Operation::AddEnumValue {
+            r#enum,
+            value,
+            description,
+        } => (r#enum, value.trim(), description.as_deref().map(str::trim)),
+        _ => return Err("not add_enum".to_owned()),
+    };
+    if value.is_empty() {
+        return Err(format!("a value of enum '{name}' needs a text"));
+    }
+    let entry = section_mut(model, "enums")
+        .get_mut(name)
+        .ok_or_else(|| format!("unknown enum '{name}'"))?;
+    if !entry.is_object() {
+        *entry = json!({});
+    }
+    if !entry
+        .get("permissible_values")
+        .is_some_and(Value::is_object)
+    {
+        entry["permissible_values"] = json!({});
+    }
+    let values = entry["permissible_values"]
+        .as_object_mut()
+        .expect("an object");
+    if values.contains_key(value) {
+        return Err(format!("enum '{name}' already has the value '{value}'"));
+    }
+    let fields = match description.filter(|d| !d.is_empty()) {
+        Some(text) => json!({ "description": text }),
+        None => json!({}),
+    };
+    values.insert(value.to_owned(), fields);
     Ok(())
 }
 
@@ -1181,6 +1237,46 @@ mod tests {
             ),
         ] {
             assert_eq!(apply(&model, &ops(operations)), Err(reason.to_owned()));
+        }
+    }
+
+    #[test]
+    fn an_enum_slot_keeps_its_values_and_a_repeated_value_or_unknown_enum_is_refused() {
+        // S-10 (T-6530): "an optional slot direction (enum in, out)" reaches the model as an enum.
+        let model = apply(
+            &bikes(),
+            &ops(json!([
+                { "op": "addEnum", "name": "DirectionEnum" },
+                { "op": "addEnumValue", "enum": "DirectionEnum", "value": "in" },
+                { "op": "addEnumValue", "enum": "DirectionEnum", "value": "out", "description": "leaving" },
+                { "op": "addSlot", "name": "direction", "class": "Vehicle", "range": "DirectionEnum" }
+            ])),
+        )
+        .expect("applied");
+        assert_eq!(
+            model["enums"]["DirectionEnum"],
+            json!({ "permissible_values": { "in": {}, "out": { "description": "leaving" } } })
+        );
+        assert_eq!(model["slots"]["direction"]["range"], "DirectionEnum");
+        for (operations, reason) in [
+            (
+                json!([{ "op": "addEnumValue", "enum": "Nope", "value": "in" }]),
+                "operation 0: unknown enum 'Nope'",
+            ),
+            (
+                json!([
+                    { "op": "addEnum", "name": "DirectionEnum" },
+                    { "op": "addEnumValue", "enum": "DirectionEnum", "value": "in" },
+                    { "op": "addEnumValue", "enum": "DirectionEnum", "value": "in" }
+                ]),
+                "operation 2: enum 'DirectionEnum' already has the value 'in'",
+            ),
+            (
+                json!([{ "op": "addEnum", "name": "Direction Enum" }]),
+                "operation 0: 'Direction Enum' is not a valid enum name",
+            ),
+        ] {
+            assert_eq!(apply(&bikes(), &ops(operations)), Err(reason.to_owned()));
         }
     }
 
