@@ -481,9 +481,10 @@ fn served_types(
             crate::resource::reference_name(&policy.spec["contextSpaceRef"]) == Some(space)
         })
         .filter(|policy| refs.is_empty() || refs.contains(&policy.metadata.name))
-        .flat_map(|policy| {
-            std::iter::once(&policy.spec)
-                .chain(policy.spec["rules"].as_array().into_iter().flatten())
+        // a Policy is one rule or its `rules[]`, never both (PolicySpec::check_shape)
+        .flat_map(|policy| match policy.spec["rules"].as_array() {
+            Some(rules) => rules.iter().collect::<Vec<_>>(),
+            None => vec![&policy.spec],
         })
         .filter(|grant| {
             !grant["effect"]
