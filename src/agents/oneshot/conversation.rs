@@ -1062,8 +1062,9 @@ change_resource that ContextSpace; a patch replaces the whole list, so keep its 
         let mut shapes = String::new();
         if creatable.contains(&"ContextSpace") {
             shapes.push_str(
-                "- **ContextSpace**: `{\"defaultLocale\": \"en\", \"isSandbox\": false}`. Nothing \
-                 else; its data models, endpoints and policies come afterwards.\n",
+                "- **ContextSpace**: `{\"defaultLocale\": \"en\", \"isSandbox\": false}`, plus \
+                 any history asked for: `\"retention\": [{\"entityType\": \"BikeCounter\", \
+                 \"history\": \"P365D\"}]`. Its models, endpoints and policies come later.\n",
             );
         }
         if creatable.contains(&"Role") {
@@ -1142,14 +1143,16 @@ manifest's fields, and `metadata.title` its title in the language of the request
 
 {shapes}
 A **dashboard** is created the same way, with `create: true`, and carries the layers its pages
-draw: its own section below says how. Nothing else is created from the chat — a data model is drawn
-in the model editor, a space is completed from files, an endpoint is shared, a role goes to a person by a grant.
+draw: its own section below says how.
 
 The platform checks the manifest, tests what that kind tests, keeps it as the person's draft and
 opens the kind's page with the form filled from it; the person reads it there and proposes it. What
 the check refuses comes back to you with the reason: send the call again with the fields fixed. A
 red test comes back too, with the rows it ran on: map their columns in `compute`. You never propose it yourself, and never with `jc_resource_propose` — a change nobody read must
 not reach the approval queue.
+
+Asked for several resources, draft first what the others need and list the rest in order as
+`"next": [{{"kind": "DataModel", "name": "<its name>"}}]`.
 "#,
             kinds = creatable.join(", "),
         ));
@@ -1177,7 +1180,10 @@ patch, applied in order:
 The other operations are `addClass` {name, is_a: "Entity"}, `removeClass` {name}, `renameClass`
 {name, to}, `attachSlot` and `detachSlot` {class, slot}, and `setSlot` {name, field, value} for
 `range`, `required`, `multivalued` or `description`. A range is `string`, `integer`, `float`,
-`boolean`, `date`, `datetime`, `uri` or a class of the model. A relationship is two ends in one
+`boolean`, `date`, `datetime`, `uri`, a class or an enum of the model. Values a slot takes from a
+list are an enum first: "direction (enum in, out)" is `addEnum` {name: "DirectionEnum"}, then
+`addEnumValue` {enum: "DirectionEnum", value} for `in` and for `out`, then `addSlot` with range
+`DirectionEnum`. A relationship is two ends in one
 `addRelationship` {from, to, name, inverse, cardinality, required, inverseRequired, onDelete}:
 "a school has many users, a user belongs to one school" is from `School` to `User`, `one-to-many`,
 name `users`, inverse `school`, `inverseRequired: true`; the others are `one-to-one`, `many-to-one`,
