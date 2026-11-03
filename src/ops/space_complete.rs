@@ -1329,11 +1329,13 @@ async fn pipeline_verdict(
             text: Some(String::from_utf8_lossy(bytes).to_string()),
             url: None,
             format: sample_format(filename),
+            records: None,
         },
         (None, Some(url)) => Sample {
             text: None,
             url: Some(url.to_owned()),
             format: SampleFormat::Json,
+            records: None,
         },
         (None, None) => return Some(red(m, "no sample to test the mapping on".into())),
     };

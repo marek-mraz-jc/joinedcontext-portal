@@ -390,6 +390,9 @@ export function generateSlug(): string {
 /** The four feeds a `DataSource` connects to, in the order the wizard offers them (MF-35). */
 // HTTP first: a person adding their first source most often has the address of a file or an API,
 // and the first type is the one a new form opens on (T-3211).
+/** A `records` path of an http DataSource: 1 to 8 dot-separated names (jc-core records_mapping). */
+export const RECORDS_PATH = "^[A-Za-z0-9_-]{1,64}(\\.[A-Za-z0-9_-]{1,64}){0,7}$";
+
 export const DATA_SOURCE_TYPES = ["http", "mqtt", "websocket", "gtfs-rt"] as const;
 
 export type TypedDataSourceType = (typeof DATA_SOURCE_TYPES)[number];
@@ -578,6 +581,12 @@ export function dataSourceSchema(
         url: { type: "string", title: t("datasources.field.url"), pattern: "^https?://.+" },
         verb: { type: "string", title: t("datasources.field.verb"), enum: ["GET", "POST"], default: "GET" },
         timeout: { type: "string", title: t("datasources.field.timeout"), pattern: "^[0-9]+(ms|s|m)$" },
+        // T-6572: the array a JSON answer keeps its records in; jc-core checks the same shape.
+        records: {
+          type: "string",
+          title: t("datasources.field.records"),
+          pattern: RECORDS_PATH,
+        },
         authorization: {
           type: "object",
           title: t("datasources.field.authorization"),
