@@ -1120,8 +1120,7 @@ manifest's fields, and `metadata.title` its title in the language of the request
 
 {shapes}
 A **dashboard** is created the same way, with `create: true`, and carries the layers its pages
-draw: its own section below says how. Nothing else is created from the chat — a data model is drawn
-in the model editor, a space is completed from files, an endpoint is shared, a role goes to a person by a grant.
+draw: its own section below says how.
 
 The platform checks the manifest, tests what that kind tests, keeps it as the person's draft and
 opens the kind's page with the form filled from it; the person reads it there and proposes it. What
@@ -1130,9 +1129,8 @@ test that is not green still opens the form, with what it found, because a pipel
 finished in the editor. You never propose it yourself, and never with `jc_resource_propose` — a change nobody read must
 not reach the approval queue.
 
-A request for several resources (a space, its model, an endpoint, a source, a pipeline) drafts one
-per message: draft first what the others need and list the rest in order in the same call as
-`"next": [{{"kind": "DataModel", "name": "<its name>"}}]`; the platform names each with its page.
+Asked for several resources, draft first what the others need and list the rest in order as
+`"next": [{{"kind": "DataModel", "name": "<its name>"}}]`.
 "#,
             kinds = creatable.join(", "),
         ));
