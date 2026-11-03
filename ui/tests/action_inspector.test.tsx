@@ -103,18 +103,23 @@ describe("the action inspector", () => {
     await userEvent.click(within(failed).getByRole("button", { name: en.agentRun.step.fix }));
     expect(onSend).toHaveBeenCalledTimes(1);
     const text = onSend.mock.calls[0][0] as string;
-    expect(text).toContain("propose_endpoint");
-    expect(text).toContain("422: representations must name at least one of ngsi-ld, geojson, csv");
+    // The assistant holds its step's error: the person's own bubble says neither tool nor error.
+    expect(text).toContain(en.agentRun.step.label.propose_endpoint);
+    expect(text).not.toContain("propose_endpoint");
+    expect(text).not.toContain("422");
   });
 
-  it("keeps a failed step's label and reason to one line each, the whole text on the title (T-0892)", () => {
+  it("keeps a failed step's label to one line and says the reason in words on its own row (T-0892, T-6492)", () => {
     renderPanel();
     const reason = screen.getByTestId("step-reason");
-    expect(reason).toHaveClass("truncate");
-    expect(reason).toHaveAttribute("title", EVENTS[1].payload.error as string);
-    const label = reason.parentElement?.querySelector("span.truncate.font-sans") as HTMLElement;
+    expect(reason).toHaveClass("basis-full");
+    expect(reason).not.toHaveClass("truncate");
+    expect(reason).toHaveTextContent(en.agentRun.failure.other);
+    expect(reason).toHaveAttribute("title", en.agentRun.failure.other);
+    const label = reason.parentElement?.querySelector("span.font-sans") as HTMLElement;
     expect(label).not.toBeNull();
-    expect(label).toHaveClass("flex-1");
+    expect(label).toHaveClass("flex-1", "min-w-32");
+    expect(label).not.toHaveClass("truncate");
     expect(label).toHaveAttribute("title", label.textContent ?? "");
   });
 

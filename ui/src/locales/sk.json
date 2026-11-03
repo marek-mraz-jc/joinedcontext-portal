@@ -6155,7 +6155,6 @@
       "tool": "{tool}: {command} (návratový kód {exit})",
       "commit": "Commit {sha}: {message}",
       "preview": "Náhľad na {url}",
-      "usage": "{tokens} tokenov v tomto kroku.",
       "question": "Otázka: {question}",
       "asked": "Položil otázku.",
       "withdrawn": "Otázka stiahnutá: napísali ste niečo iné. Asistent sa spýta znova, ak odpoveď ešte potrebuje.",
@@ -6200,6 +6199,28 @@
       "done": "Hotovo",
       "stopped": "Zastavené"
     },
+    "failure": {
+      "argument": "Tento pokus nevyšiel.",
+      "refused": "Toto tu nemôžete urobiť.",
+      "guarded": "Zastavené, nič sa nezmenilo. Požiadavka prišla z textu v údajoch, nie od vás.",
+      "page": "Túto stránku sa nepodarilo otvoriť.",
+      "missing": "V tomto projekte sa to nenašlo.",
+      "test": "Návrh zatiaľ neprešiel testom.",
+      "other": "Tento krok sa nedokončil.",
+      "next": {
+        "refused": "Požiadajte vlastníka projektu alebo správcu organizácie o potrebnú rolu.",
+        "guarded": "Ak to chcete, pošlite požiadavku znova a asistent ju vezme z vašich slov.",
+        "page": "Povedzte, ktorú stránku chcete, alebo si vyberte tu.",
+        "missing": "Skontrolujte názov alebo sa opýtajte, čo tento projekt obsahuje."
+      },
+      "askAgain": "Poslať požiadavku znova",
+      "askHolds": "Opýtať sa, čo obsahuje",
+      "holds": "Čo tento projekt obsahuje?",
+      "page_spaces": "Kontextové priestory",
+      "page_models": "Dátové modely",
+      "page_endpoints": "Endpointy",
+      "page_explore": "Prehliadať údaje"
+    },
     "step": {
       "label": {
         "search_catalog": "Prehľadal katalóg",
@@ -6214,12 +6235,17 @@
         "profile_sample": "Prečítal riadky a stĺpce súboru",
         "compute_kpi": "Vypočítal ukazovateľ",
         "draft_kpi_pipeline": "Pripravil pipeline",
+        "navigate": "Otvorenie stránky",
+        "jc_ui_navigate": "Otvorenie stránky",
+        "describe_tool": "Overenie postupu kroku",
+        "portal": "Práca v Portáli",
         "entities": "entít",
         "readSome": "Prečítaných {shown} z {total} ({type}) z {endpoint}",
         "readAll": "Prečítaných {count} ({type}) z {endpoint}"
       },
       "ok": "Úspešný",
       "failed": "Nedokončený",
+      "retried": "Skúsené znova inak",
       "duration": "{ms} ms",
       "input": "Vstup",
       "output": "Výstup",
@@ -6230,7 +6256,8 @@
       "copy": "Kopírovať záznam",
       "copied": "Záznam skopírovaný",
       "fix": "Požiadať asistenta o opravu",
-      "fixMessage": "Krok {tool} zlyhal: {error}. Oprav to."
+      "fixMessage": "Krok {tool} zlyhal: {error}. Oprav to.",
+      "fixPlain": "Krok „{step}“ sa nedokončil. Skús to inak."
     },
     "catalog": {
       "title": "Čo asistent našiel",
@@ -6466,6 +6493,11 @@
       "id": "Entita",
       "rows": "Riadky: {count}",
       "someRows": "{shown} z {total} riadkov",
+      "moreHint": "Požiadajte o ďalšie riadky a uvidíte viac",
+      "nothing": "Tomuto čítaniu nič nezodpovedá.",
+      "nothingHint": "Skúste širšie územie, dlhšie obdobie alebo menej podmienok.",
+      "widen": "Skúsiť s menej podmienkami",
+      "widenAsk": "Skús toto čítanie znova s menej podmienkami.",
       "attributes": "Atribúty triedy {name}",
       "attribute": "Atribút",
       "range": "Typ",

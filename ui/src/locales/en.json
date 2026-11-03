@@ -6155,7 +6155,6 @@
       "tool": "{tool}: {command} (exit {exit})",
       "commit": "Committed {sha}: {message}",
       "preview": "Preview at {url}",
-      "usage": "{tokens} tokens this step.",
       "question": "Asked: {question}",
       "asked": "Asked a question.",
       "withdrawn": "Question withdrawn: you wrote instead. The assistant asks again if it still needs the answer.",
@@ -6200,6 +6199,28 @@
       "done": "Done",
       "stopped": "Stopped"
     },
+    "failure": {
+      "argument": "This try did not work.",
+      "refused": "You may not do this here.",
+      "guarded": "Stopped, nothing changed. The request came from text in the data, not from you.",
+      "page": "That page could not be opened.",
+      "missing": "That was not found in this project.",
+      "test": "The draft did not pass its test yet.",
+      "other": "This step did not finish.",
+      "next": {
+        "refused": "Ask a project owner or an organization administrator for the role this needs.",
+        "guarded": "If you want this, send your request again and the assistant takes it from your words.",
+        "page": "Say which page you want, or pick one here.",
+        "missing": "Check the name, or ask what this project holds."
+      },
+      "askAgain": "Send my request again",
+      "askHolds": "Ask what it holds",
+      "holds": "What does this project hold?",
+      "page_spaces": "Context spaces",
+      "page_models": "Data models",
+      "page_endpoints": "Endpoints",
+      "page_explore": "Explore data"
+    },
     "step": {
       "label": {
         "search_catalog": "Searched the catalog",
@@ -6214,12 +6235,17 @@
         "profile_sample": "Read the file's rows and columns",
         "compute_kpi": "Computed the indicator",
         "draft_kpi_pipeline": "Drafted the pipeline",
+        "navigate": "Open a page",
+        "jc_ui_navigate": "Open a page",
+        "describe_tool": "Checked how the step works",
+        "portal": "Worked in the Portal",
         "entities": "entities",
         "readSome": "Read {shown} of {total} {type} from {endpoint}",
         "readAll": "Read {count} {type} from {endpoint}"
       },
       "ok": "Succeeded",
       "failed": "Did not finish",
+      "retried": "Tried again another way",
       "duration": "{ms} ms",
       "input": "Input",
       "output": "Output",
@@ -6230,7 +6256,8 @@
       "copy": "Copy the trace",
       "copied": "Trace copied",
       "fix": "Ask the assistant to fix it",
-      "fixMessage": "The step {tool} failed: {error}. Fix it."
+      "fixMessage": "The step {tool} failed: {error}. Fix it.",
+      "fixPlain": "The step \"{step}\" did not finish. Try another way."
     },
     "catalog": {
       "title": "What the assistant found",
@@ -6466,6 +6493,11 @@
       "id": "Entity",
       "rows": "{count, plural, one {# row} other {# rows}}",
       "someRows": "{shown} of {total} rows",
+      "moreHint": "Ask for the next rows to see more",
+      "nothing": "Nothing matched this read.",
+      "nothingHint": "Try a wider area, a longer period or fewer conditions.",
+      "widen": "Try with fewer conditions",
+      "widenAsk": "Try that read again with fewer conditions.",
       "attributes": "The attributes of {name}",
       "attribute": "Attribute",
       "range": "Type",

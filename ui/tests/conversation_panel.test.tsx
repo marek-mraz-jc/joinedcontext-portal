@@ -222,7 +222,7 @@ describe("the conversation panel", () => {
     expect(screen.getByTestId("run-progress")).toHaveTextContent(en.agentRun.progress.working);
   });
 
-  it("keeps tokens, commits and preview addresses behind Details", async () => {
+  it("keeps commits and preview addresses behind Details and token counts out of the conversation", async () => {
     const user = userEvent.setup();
     panel([
       { seq: 1, kind: "thought", payload: { text: "Building the map." } },
@@ -230,10 +230,12 @@ describe("the conversation panel", () => {
       { seq: 3, kind: "commit", payload: { sha: "3e26835f00", message: "map" } },
       { seq: 4, kind: "preview", payload: { previewUrl: "/api/v1/projects/helsinki/apps/x/preview" } },
     ]);
-    const usage = screen.getByText("57285 tokens this step.");
-    expect(usage).not.toBeVisible();
-    await user.click(screen.getByText("Details (3 lines)"));
-    expect(usage).toBeVisible();
+    expect(screen.queryByText(/57285/)).toBeNull();
+    const commit = screen.getByText(/3e26835f/);
+    expect(commit).not.toBeVisible();
+    await user.click(screen.getByText("Details (2 lines)"));
+    expect(commit).toBeVisible();
+    expect(screen.queryByText(/57285/)).toBeNull();
     // The preview is a link a person clicks, never the API path printed (T-0703).
     expect(screen.getByRole("link", { name: new RegExp(`^${en.agentRun.line.previewLink}`) })).toBeVisible();
   });
@@ -241,9 +243,9 @@ describe("the conversation panel", () => {
   it("shows a single machinery line as itself, never as an empty Details (T-2769)", () => {
     panel([
       { seq: 1, kind: "thought", payload: { text: "Drafted the endpoint." } },
-      { seq: 2, kind: "usage", payload: { tokensThisStep: 3120 } },
+      { seq: 2, kind: "commit", payload: { sha: "3e26835f00", message: "map" } },
     ]);
-    expect(screen.getByText("3120 tokens this step.")).toBeVisible();
+    expect(screen.getByText(/3e26835f/)).toBeVisible();
     expect(screen.queryByText(/^Details/)).toBeNull();
   });
 

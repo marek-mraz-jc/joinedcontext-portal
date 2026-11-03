@@ -970,10 +970,11 @@
     },
     "src/pages/apps/ActionStep.tsx": {
       "controls": {
-        "Button": 2
+        "Button": 3
       },
       "tests": [
-        "action_inspector.test.tsx"
+        "action_inspector.test.tsx",
+        "assistant_step_states.test.tsx"
       ]
     },
     "src/pages/apps/AgentRunPage.tsx": {
@@ -1058,6 +1059,17 @@
         "use_template.test.tsx"
       ]
     },
+    "src/pages/apps/QueryResultCard.tsx": {
+      "controls": {
+        "Button": 1
+      },
+      "tests": [
+        "assistant_endpoints.test.tsx",
+        "assistant_step_states.test.tsx",
+        "model_links.test.tsx",
+        "part_query_result_card.test.tsx"
+      ]
+    },
     "src/pages/apps/UseTemplate.tsx": {
       "controls": {
         "Button": 1
@@ -1098,6 +1110,7 @@
       },
       "tests": [
         "action_inspector.test.tsx",
+        "assistant_step_states.test.tsx",
         "assistant_turns.test.tsx",
         "conversation_panel.test.tsx",
         "conversation_repeats.test.tsx",

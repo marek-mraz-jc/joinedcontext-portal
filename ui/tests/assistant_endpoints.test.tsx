@@ -375,7 +375,7 @@ describe("the query result card (AG-75)", () => {
     });
   });
 
-  it("renders the card as text only and names the endpoint, the tool and the argument", async () => {
+  it("renders the card as text only and names the endpoint and the argument, never the tool", async () => {
     await i18n.changeLanguage("en");
     const result = queryResultOf({
       tool: "query_endpoint",
@@ -394,7 +394,8 @@ describe("the query result card (AG-75)", () => {
       </I18nextProvider>,
     );
     const card = screen.getByTestId("query-result");
-    expect(card).toHaveTextContent("helsinki-all · query_entities");
+    expect(card).toHaveTextContent("helsinki-all");
+    expect(card).not.toHaveTextContent("query_entities");
     expect(card).toHaveTextContent("type: Alert");
     expect(card).toHaveTextContent("<img src=x onerror=alert(1)>");
     expect(card.querySelector("img")).toBeNull();
