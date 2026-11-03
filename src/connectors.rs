@@ -1144,7 +1144,6 @@ impl Connector {
                 self.projects().join(", ")
             ));
         }
-        let text = |key: &str| args.get(key).and_then(Value::as_str);
         let kind = resource_kind(op, args);
         if matches!(op.name, "jc_resource_list" | "jc_resource_get") {
             let (_, kinds) = self.reach();
@@ -1167,26 +1166,8 @@ impl Connector {
                 op.name
             ));
         }
-        if op.name == RUN {
-            let name = text("name").ok_or("jc_pipeline_run names the pipeline: name it")?;
-            self.may_verb("Pipeline", name, ConnectorVerb::Run)?;
-            let space = space_of("Pipeline", name);
-            return self.may_change(project, "Pipeline", name, space.as_deref(), true);
-        }
-        if op.name == PAUSE {
-            let name = text("name").ok_or("jc_syncsource_pause names the SyncSource: name it")?;
-            self.may_verb("SyncSource", name, ConnectorVerb::Edit)?;
-            let space = space_of("SyncSource", name);
-            return self.may_change(project, "SyncSource", name, space.as_deref(), true);
-        }
-        // An entity write is a write on its Endpoint: `writes` and `write` on an item reaching it.
-        if op.name == DATA_WRITE {
-            let name = text("endpoint").ok_or("jc_data_write names the endpoint: name it")?;
-            let space = space_of("Endpoint", name);
-            return self.may_change(project, "Endpoint", name, space.as_deref(), true);
-        }
-        if op.name == BUILD {
-            return self.may_build(project, args);
+        if let Some(admitted) = self.admits_write(op, project, args, space_of) {
+            return admitted;
         }
         // A plan or an apply names its objects per change; the operation holds each one to
         // the scope with `may_change` (T-5956).
@@ -1216,6 +1197,39 @@ impl Connector {
                 self.named(project)
             )),
         }
+    }
+
+    /// The writing tools' half of [`Self::admits`]: a run, a pause or an entity write is a
+    /// write on the object it names, with the kind's verb where one applies (an entity write is
+    /// a write on its Endpoint: `writes` and `write` on an item reaching it). `None` for any
+    /// other operation.
+    fn admits_write(
+        &self,
+        op: &Operation,
+        project: &str,
+        args: &Value,
+        space_of: &dyn Fn(&str, &str) -> Option<String>,
+    ) -> Option<Result<(), String>> {
+        let (kind, key, noun, verb) = match op.name {
+            RUN => ("Pipeline", "name", "pipeline", Some(ConnectorVerb::Run)),
+            PAUSE => (
+                "SyncSource",
+                "name",
+                "SyncSource",
+                Some(ConnectorVerb::Edit),
+            ),
+            DATA_WRITE => ("Endpoint", "endpoint", "endpoint", None),
+            BUILD => return Some(self.may_build(project, args)),
+            _ => return None,
+        };
+        let Some(name) = args.get(key).and_then(Value::as_str) else {
+            return Some(Err(format!("{} names the {noun}: name it", op.name)));
+        };
+        let space = space_of(kind, name);
+        Some(
+            verb.map_or(Ok(()), |verb| self.may_verb(kind, name, verb))
+                .and_then(|()| self.may_change(project, kind, name, space.as_deref(), true)),
+        )
     }
 
     /// A build's half of [`Self::admits`] (T-6487): `create` on the App and `write` on an item of
