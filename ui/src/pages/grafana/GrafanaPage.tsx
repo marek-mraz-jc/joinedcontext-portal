@@ -68,20 +68,20 @@ export function SavedVisualization({
       ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: pageKey(project) }),
   });
-  const open = safeHref(item.openUrl);
+  const safe = safeHref(item.openUrl);
   return (
     <li className="flex flex-wrap items-center gap-2 border-b border-border py-3 last:border-b-0">
       <div className="min-w-0 flex-1 basis-60">
         <p className="break-words text-body font-medium text-fg">{item.title}</p>
-        <p className="break-words text-small text-fg-muted">
+        <p className="break-words text-caption text-fg-muted">
           {t("grafana.saved.reads", { endpoint: item.endpoint, type: item.type, attribute: item.attribute })}
         </p>
       </div>
       <Badge>{t(`grafana.kind.${item.kind}`)}</Badge>
-      {open ? (
+      {safe ? (
         <a
           className={buttonClass("secondary", "sm")}
-          href={open}
+          href={safe}
           target="_blank"
           rel="noopener noreferrer"
         >
@@ -101,7 +101,13 @@ export function SavedVisualization({
       ) : null}
       {asking ? (
         <span className="flex items-center gap-2">
-          <Button variant="danger" size="sm" disabled={remove.isPending} onClick={() => remove.mutate()}>
+          <Button
+            variant="danger"
+            size="sm"
+            disabled={remove.isPending}
+            disabledReason={t("grafana.saved.removing")}
+            onClick={() => remove.mutate()}
+          >
             {t("grafana.saved.confirm")}
           </Button>
           <Button variant="ghost" size="sm" onClick={() => setAsking(false)}>
@@ -266,7 +272,7 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
       />
     );
   }
-  const openUrl = safeHref(save.data?.openUrl);
+  const safe = safeHref(save.data?.openUrl);
   return (
     <div className="grid items-start gap-card lg:grid-cols-2 [&>*]:min-w-0">
       <Card>
@@ -289,7 +295,7 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
             </Select>
           </Field>
           {closed.length > 0 ? (
-            <p className="text-small text-fg-muted">
+            <p className="text-caption text-fg-muted">
               {t("grafana.form.notReachable", { names: closed.map((endpoint) => endpoint.title).join(", ") })}
             </p>
           ) : null}
@@ -298,6 +304,7 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
               id="grafana-type"
               value={form.type}
               disabled={!chosen}
+              title={chosen ? undefined : t("grafana.form.chooseEndpointFirst")}
               onChange={(event) => form.chooseType(event.target.value)}
             >
               <option value="">{t("grafana.form.choose")}</option>
@@ -313,6 +320,7 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
               id="grafana-attribute"
               value={form.attribute}
               disabled={!form.type}
+              title={form.type ? undefined : t("grafana.form.chooseTypeFirst")}
               onChange={(event) => form.chooseAttribute(event.target.value)}
             >
               <option value="">{t("grafana.form.choose")}</option>
@@ -339,7 +347,7 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
             <Button
               type="submit"
               disabled={!ready || save.isPending}
-              disabledReason={ready ? undefined : t("grafana.form.incomplete")}
+              disabledReason={ready ? t("grafana.form.saving") : t("grafana.form.incomplete")}
             >
               {t("grafana.form.save")}
             </Button>
@@ -348,8 +356,8 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
           {save.isSuccess ? (
             <Alert tone="success">
               {t("grafana.form.saved", { title: save.data.title })}{" "}
-              {openUrl ? (
-                <a className="underline" href={openUrl} target="_blank" rel="noopener noreferrer">
+              {safe ? (
+                <a className="underline" href={safe} target="_blank" rel="noopener noreferrer">
                   {t("grafana.form.openSaved")}
                 </a>
               ) : null}
@@ -398,7 +406,11 @@ export function GrafanaPage({ project }: { project: string }): JSX.Element {
     <div className="flex flex-col gap-section">
       {header}
       {ready ? null : (
-        <EmptyState icon="dashboards" title={t("grafana.notReadyTitle")} description={reason} />
+        <EmptyState
+          icon="dashboards"
+          title={t("grafana.notReadyTitle")}
+          description={reason ?? t("grafana.notReady")}
+        />
       )}
       {ready && mayCreate ? <VisualizationForm project={project} /> : null}
       {ready && !mayCreate ? <Alert tone="info">{t("grafana.readOnly")}</Alert> : null}

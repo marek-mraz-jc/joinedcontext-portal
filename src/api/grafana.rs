@@ -10,7 +10,6 @@ use axum::{Json, Router};
 use chrono::{SecondsFormat, Utc};
 use jc_core::kinds::Verb;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use utoipa::{IntoParams, ToSchema};
 
 use crate::auth::{CurrentUser, Identity};
@@ -346,7 +345,7 @@ pub async fn grafana_options(
             .filter_map(|attribute| {
                 let kinds: Vec<Kind> = Kind::ALL
                     .into_iter()
-                    .filter(|kind| kind.draws(attribute))
+                    .filter(|kind| kind.draws(&attribute.kind, attribute.value_type.as_deref()))
                     .collect();
                 (!kinds.is_empty()).then(|| AttributeOption {
                     name: attribute.name.clone(),
@@ -414,7 +413,10 @@ fn check_choice(
                 ),
             )
         })?;
-    if !new.kind.draws(attribute) {
+    if !new
+        .kind
+        .draws(&attribute.kind, attribute.value_type.as_deref())
+    {
         return Err(refused(
             "kind",
             format!(

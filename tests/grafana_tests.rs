@@ -612,3 +612,77 @@ async fn a_public_endpoint_gets_an_anonymous_datasource_and_a_closed_one_without
     );
     assert!(sources[0]["jsonData"].get("oauthPassThru").is_none());
 }
+
+/// The client against a real Grafana (`JC_PORTAL_TEST_GRAFANA_URL`, admin/admin, an organization
+/// `helsinki` and folder `project-helsinki` made first): the wire shapes the mock above assumes.
+#[tokio::test]
+async fn the_client_speaks_a_real_grafanas_api() {
+    let Some(url) = std::env::var("JC_PORTAL_TEST_GRAFANA_URL")
+        .ok()
+        .filter(|url| !url.is_empty())
+    else {
+        eprintln!("skipped: JC_PORTAL_TEST_GRAFANA_URL is not set");
+        return;
+    };
+    let config = GrafanaConfig {
+        url,
+        public_url: "https://dev.example/grafana".into(),
+        user: "admin".into(),
+        password: "admin".into(),
+    };
+    let client = Client::new(&config);
+    assert_eq!(
+        client
+            .organization("no-such-project")
+            .await
+            .expect("an answer"),
+        None
+    );
+    let org = client
+        .organization(PROJECT)
+        .await
+        .expect("an answer")
+        .expect("the organization");
+    let source = grafana::Source {
+        name: "bikes-open",
+        slug: PUBLIC_SLUG,
+        public: true,
+    };
+    let uid = client
+        .datasource_for(org, &source, Some("http://gateway:8080"))
+        .await
+        .expect("an answer")
+        .expect("a datasource");
+    let again = client
+        .datasource_for(org, &source, Some("http://gateway:8080"))
+        .await
+        .expect("an answer");
+    assert_eq!(
+        again.as_deref(),
+        Some(uid.as_str()),
+        "a second read finds the first by its address"
+    );
+    for kind in grafana::Kind::ALL {
+        let row = grafana::Visualization {
+            id: grafana::new_id(),
+            project: PROJECT.to_owned(),
+            title: format!("Check {}", kind.as_str()),
+            endpoint: "bikes-open".to_owned(),
+            entity_type: "BikeHireDockingStation".to_owned(),
+            attribute: "location".to_owned(),
+            kind,
+            created_at: String::new(),
+        };
+        let dashboard = grafana::dashboard_of(&row, &uid, true);
+        client.save(org, &dashboard, PROJECT).await.expect("saved");
+        client
+            .save(org, &dashboard, PROJECT)
+            .await
+            .expect("saved again");
+        client.remove(org, &row.uid()).await.expect("removed");
+        client
+            .remove(org, &row.uid())
+            .await
+            .expect("already gone is fine");
+    }
+}

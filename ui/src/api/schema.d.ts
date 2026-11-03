@@ -10101,7 +10101,16 @@ export interface components {
             /** @description The grant's end, RFC 3339; none is no end. */
             until?: string | null;
         };
-        /** @description A new visualization. */
+        /**
+         * @description A new visualization.
+         * @example {
+         *       "attribute": "pm25",
+         *       "endpoint": "helsinki-air-quality",
+         *       "kind": "timeseries",
+         *       "title": "PM2.5 by station",
+         *       "type": "AirQualityObserved"
+         *     }
+         */
         NewVisualization: {
             attribute: string;
             endpoint: string;

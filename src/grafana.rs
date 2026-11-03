@@ -17,7 +17,6 @@ use utoipa::ToSchema;
 
 use crate::config::GrafanaConfig;
 use crate::error::ApiError;
-use crate::pipeline_validation::Attribute;
 use crate::state::AppState;
 
 /// The datasource type of the NGSI-LD plugin in the deployment's Grafana image.
@@ -66,15 +65,12 @@ impl Kind {
 
     /// Whether this kind can draw `attribute`: a number for a chart or a tile, a place for a map,
     /// any value but a link for a table. A model that leaves the value open is taken at its word.
-    pub fn draws(self, attribute: &Attribute) -> bool {
-        let numeric = matches!(
-            attribute.value_type.as_deref(),
-            None | Some("number" | "integer")
-        );
+    pub fn draws(self, attribute_kind: &str, value_type: Option<&str>) -> bool {
+        let numeric = matches!(value_type, None | Some("number" | "integer"));
         match self {
-            Kind::Timeseries | Kind::Stat => attribute.kind == "Property" && numeric,
-            Kind::Table => attribute.kind != "Relationship",
-            Kind::Map => attribute.kind == "GeoProperty",
+            Kind::Timeseries | Kind::Stat => attribute_kind == "Property" && numeric,
+            Kind::Table => attribute_kind != "Relationship",
+            Kind::Map => attribute_kind == "GeoProperty",
         }
     }
 }
@@ -595,26 +591,21 @@ mod tests {
         }
     }
 
-    fn attribute(kind: &str, value_type: Option<&str>) -> Attribute {
-        serde_json::from_value(json!({
-            "name": "x", "kind": kind, "valueType": value_type, "required": false,
-        }))
-        .expect("an attribute")
-    }
-
     #[test]
     fn each_kind_draws_only_what_it_can_show() {
-        let number = attribute("Property", Some("number"));
-        let text = attribute("Property", Some("string"));
-        let open = attribute("Property", None);
-        let place = attribute("GeoProperty", None);
-        let link = attribute("Relationship", None);
+        let number = ("Property", Some("number"));
+        let text = ("Property", Some("string"));
+        let open = ("Property", None);
+        let place = ("GeoProperty", None);
+        let link = ("Relationship", None);
+        let draws =
+            |kind: Kind, (attribute, value): (&str, Option<&str>)| kind.draws(attribute, value);
         for kind in [Kind::Timeseries, Kind::Stat] {
-            assert!(kind.draws(&number) && kind.draws(&open));
-            assert!(!kind.draws(&text) && !kind.draws(&place) && !kind.draws(&link));
+            assert!(draws(kind, number) && draws(kind, open));
+            assert!(!draws(kind, text) && !draws(kind, place) && !draws(kind, link));
         }
-        assert!(Kind::Table.draws(&text) && Kind::Table.draws(&place) && !Kind::Table.draws(&link));
-        assert!(Kind::Map.draws(&place) && !Kind::Map.draws(&number));
+        assert!(draws(Kind::Table, text) && draws(Kind::Table, place) && !draws(Kind::Table, link));
+        assert!(draws(Kind::Map, place) && !draws(Kind::Map, number));
     }
 
     #[test]

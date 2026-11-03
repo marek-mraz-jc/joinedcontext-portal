@@ -48110,7 +48110,14 @@
             "type": "string"
           }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "example": {
+          "attribute": "pm25",
+          "endpoint": "helsinki-air-quality",
+          "kind": "timeseries",
+          "title": "PM2.5 by station",
+          "type": "AirQualityObserved"
+        }
       },
       "Node": {
         "type": "object",
