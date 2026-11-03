@@ -168,13 +168,7 @@ pub async fn check_kpi(
     let pipeline = admitted(&state, identity, &project, request.pipeline)?;
     let (mut checked, compiled) = check(&state, identity, &project, &pipeline);
     if let (true, Some((step, expr, inputs))) = (request.preview, compiled) {
-        let token = crate::agents::identity::persons_token(&headers, state.config.trust_edge_token);
-        let reader = Reader {
-            state: &state,
-            identity,
-            project: &project,
-            token,
-        };
+        let reader = Reader::of(&state, identity, &project, &headers);
         checked.preview = Some(preview(&reader, &step, &expr, &inputs).await);
     }
     Ok(Json(checked))
@@ -496,6 +490,23 @@ struct Reader<'a> {
     project: &'a str,
     /// The person's own access token, when this session carries one.
     token: Option<&'a str>,
+}
+
+impl<'a> Reader<'a> {
+    /// The caller of this request.
+    fn of(
+        state: &'a AppState,
+        identity: &'a Identity,
+        project: &'a str,
+        headers: &'a HeaderMap,
+    ) -> Self {
+        Self {
+            state,
+            identity,
+            project,
+            token: crate::agents::identity::persons_token(headers, state.config.trust_edge_token),
+        }
+    }
 }
 
 /// Each source's current page read as the person, each read back from its history, and the

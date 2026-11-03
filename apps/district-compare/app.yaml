@@ -31,6 +31,13 @@ spec:
       quotaMiB: 50
     blob:
       quotaMiB: 64
+  # Today's figures of every district, whether or not anybody opens the page, as the App's own job
+  # principal through its own Endpoint (AP-154, AP-159): each hour until a run has kept them.
+  server:
+    jobs:
+      - name: hourly-metrics
+        schedule: "15 * * * *"
+        export: keep-metrics
   visibility: public
   roles:
     - name: viewer
