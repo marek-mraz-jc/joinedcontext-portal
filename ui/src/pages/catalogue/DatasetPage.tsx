@@ -3,6 +3,7 @@ import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
+import { useAuthStatus } from "../../auth/AuthProvider";
 import { ApiError } from "../../api/client";
 import type { components } from "../../api/schema";
 import { CodeBlock,
@@ -244,6 +245,16 @@ export function developerSlug(url: string | undefined): string | undefined {
   return /\/api\/endpoint\/([a-z0-9]{16,64})\//.exec(url ?? "")?.[1];
 }
 
+/** The https origin of an Endpoint URL the catalogue gives, or nothing for any other URL. */
+export function dataOrigin(url: string): string | undefined {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" ? parsed.origin : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function Resources({ detail }: { detail: DatasetDetail }): JSX.Element {
   const { t } = useTranslation();
   return (
@@ -394,18 +405,27 @@ function Model({ model }: { model: NonNullable<DatasetDetail["model"]> }): JSX.E
  * through the Endpoint with the visitor's own session, so the Endpoint's Policy decides what each
  * person sees, and a private dataset says sign in or no access rather than drawing an empty grid.
  */
-function DatasetData({ endpoint }: { endpoint: NonNullable<DatasetDetail["endpoint"]> }): JSX.Element | null {
+export function DatasetData({ endpoint }: { endpoint: NonNullable<DatasetDetail["endpoint"]> }): JSX.Element | null {
   const { t } = useTranslation();
+  const status = useAuthStatus();
   const slug = developerSlug(endpoint.url);
   if (!slug) return null;
+  // A visitor without a session reads the Endpoint's own data host: the Portal host answers each of
+  // their reads with a redirect there, one round trip more per read (T-6540). A signed-in person
+  // reads through the Portal host, whose edge turns the session into their bearer.
+  const origin = status === "anonymous" ? dataOrigin(endpoint.url) : undefined;
   return (
     <section aria-labelledby="catalogue-data" className="flex flex-col gap-3">
       <h2 id="catalogue-data" className="font-heading text-title font-semibold">
         {t("catalogue.dataset.data")}
       </h2>
-      <Suspense fallback={<p role="status">{t("app.loading")}</p>}>
-        <EndpointDataView project="catalogue" slug={slug} csv={endpoint.representations.includes("csv")} />
-      </Suspense>
+      {status === "loading" ? (
+        <p role="status">{t("app.loading")}</p>
+      ) : (
+        <Suspense fallback={<p role="status">{t("app.loading")}</p>}>
+          <EndpointDataView project="catalogue" slug={slug} csv={endpoint.representations.includes("csv")} origin={origin} />
+        </Suspense>
+      )}
     </section>
   );
 }

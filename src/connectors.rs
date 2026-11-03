@@ -200,6 +200,10 @@ pub const ADMIN: &str = "admin";
 /// Runs an approved Pipeline now: it writes data, so like [`APPLY`] it comes with the `writes`
 /// switch alone, to a connector whose segments reach Pipeline (T-6028).
 pub const RUN: &str = "jc_pipeline_run";
+/// Pauses or resumes one SyncSource's loop: it changes what the platform pulls with no Change a
+/// person approves, so like [`RUN`] it comes with the `writes` switch alone, to a connector whose
+/// segments reach SyncSource, and needs `edit` on it (T-6533).
+pub const PAUSE: &str = "jc_syncsource_pause";
 /// Writes entities through one Endpoint: like [`APPLY`], it comes with the `writes` switch alone.
 pub const DATA_WRITE: &str = crate::ops::data_write::NAME;
 /// Starts the builder on an App: it spends the person's quota and writes a branch, so like
@@ -575,6 +579,9 @@ impl Ceiling {
                 && (op.name != RUN
                     || p.kinds.is_none()
                     || verbs_allow(p.verbs_for("Pipeline"), ConnectorVerb::Run))
+                && (op.name != PAUSE
+                    || p.kinds.is_none()
+                    || verbs_allow(p.verbs_for("SyncSource"), ConnectorVerb::Edit))
                 && (op.name != BUILD || policy_builds(p, args))
         };
         if self.each().into_iter().any(fits) {
@@ -1137,7 +1144,6 @@ impl Connector {
                 self.projects().join(", ")
             ));
         }
-        let text = |key: &str| args.get(key).and_then(Value::as_str);
         let kind = resource_kind(op, args);
         if matches!(op.name, "jc_resource_list" | "jc_resource_get") {
             let (_, kinds) = self.reach();
@@ -1160,20 +1166,8 @@ impl Connector {
                 op.name
             ));
         }
-        if op.name == RUN {
-            let name = text("name").ok_or("jc_pipeline_run names the pipeline: name it")?;
-            self.may_verb("Pipeline", name, ConnectorVerb::Run)?;
-            let space = space_of("Pipeline", name);
-            return self.may_change(project, "Pipeline", name, space.as_deref(), true);
-        }
-        // An entity write is a write on its Endpoint: `writes` and `write` on an item reaching it.
-        if op.name == DATA_WRITE {
-            let name = text("endpoint").ok_or("jc_data_write names the endpoint: name it")?;
-            let space = space_of("Endpoint", name);
-            return self.may_change(project, "Endpoint", name, space.as_deref(), true);
-        }
-        if op.name == BUILD {
-            return self.may_build(project, args);
+        if let Some(admitted) = self.admits_write(op, project, args, space_of) {
+            return admitted;
         }
         // A plan or an apply names its objects per change; the operation holds each one to
         // the scope with `may_change` (T-5956).
@@ -1203,6 +1197,39 @@ impl Connector {
                 self.named(project)
             )),
         }
+    }
+
+    /// The writing tools' half of [`Self::admits`]: a run, a pause or an entity write is a
+    /// write on the object it names, with the kind's verb where one applies (an entity write is
+    /// a write on its Endpoint: `writes` and `write` on an item reaching it). `None` for any
+    /// other operation.
+    fn admits_write(
+        &self,
+        op: &Operation,
+        project: &str,
+        args: &Value,
+        space_of: &dyn Fn(&str, &str) -> Option<String>,
+    ) -> Option<Result<(), String>> {
+        let (kind, key, noun, verb) = match op.name {
+            RUN => ("Pipeline", "name", "pipeline", Some(ConnectorVerb::Run)),
+            PAUSE => (
+                "SyncSource",
+                "name",
+                "SyncSource",
+                Some(ConnectorVerb::Edit),
+            ),
+            DATA_WRITE => ("Endpoint", "endpoint", "endpoint", None),
+            BUILD => return Some(self.may_build(project, args)),
+            _ => return None,
+        };
+        let Some(name) = args.get(key).and_then(Value::as_str) else {
+            return Some(Err(format!("{} names the {noun}: name it", op.name)));
+        };
+        let space = space_of(kind, name);
+        Some(
+            verb.map_or(Ok(()), |verb| self.may_verb(kind, name, verb))
+                .and_then(|()| self.may_change(project, kind, name, space.as_deref(), true)),
+        )
     }
 
     /// A build's half of [`Self::admits`] (T-6487): `create` on the App and `write` on an item of
@@ -1279,14 +1306,17 @@ pub(crate) fn change_space(now: Option<&Value>, next: Option<&Value>) -> Option<
 
 /// The writing tools a `writes` connector adds to its segments' tools, by the kinds they reach:
 /// a run to one reaching Pipeline, the entity write to one reaching Endpoint, whose Policy then
-/// decides each entity (T-6389), and a build to one reaching App (T-6487).
+/// decides each entity (T-6389), a build to one reaching App (T-6487) and the pause switch to one
+/// reaching SyncSource (T-6533).
 fn written(kinds: &[&str]) -> Vec<&'static str> {
     let run = kinds.contains(&"Pipeline").then_some(RUN);
+    let pause = kinds.contains(&"SyncSource").then_some(PAUSE);
     let data = kinds.contains(&"Endpoint").then_some(DATA_WRITE);
     let build = kinds.contains(&"App").then_some(BUILD);
     [APPLY]
         .into_iter()
         .chain(run)
+        .chain(pause)
         .chain(data)
         .chain(build)
         .collect()
@@ -2391,6 +2421,37 @@ pub(crate) mod tests {
             revoked_at: None,
         }
         .view("https://portal.test", Utc::now())
+    }
+
+    /// T-6533: the operate segment pauses a SyncSource with `writes` on, a write item reaching it
+    /// and `edit` on SyncSource; writes off, another project or read alone refuse it.
+    #[test]
+    fn the_operate_segment_pauses_a_syncsource_with_writes_alone() {
+        let args = json!({ "name": "regional", "paused": true });
+        let mut c = connector(&["operate"], vec![item("doprava", None)]);
+        assert!(!c.access().names(op(PAUSE)), "writes off: no pause");
+        assert!(c
+            .admits(op(PAUSE), "doprava", &args, &|_, _| None)
+            .expect_err("writes off")
+            .contains("writes off"));
+        c.writes = true;
+        c.scope[0].access = ItemAccess::Write;
+        assert!(c.access().names(op(PAUSE)));
+        assert_eq!(c.admits(op(PAUSE), "doprava", &args, &|_, _| None), Ok(()));
+        assert!(c.admits(op(PAUSE), "other", &args, &|_, _| None).is_err());
+        let read = connector(&["data-read"], vec![item("doprava", None)]);
+        assert!(
+            !read.access().names(op(PAUSE)),
+            "no segment reaching SyncSource"
+        );
+        c.kinds = Some(vec![KindGrant {
+            kind: "SyncSource".into(),
+            verbs: vec![ConnectorVerb::Read],
+        }]);
+        assert!(c
+            .admits(op(PAUSE), "doprava", &args, &|_, _| None)
+            .expect_err("read alone")
+            .contains("may not edit"));
     }
 
     /// T-6028: the pipeline segment samples, tries a mapping and reads runs; a run comes with

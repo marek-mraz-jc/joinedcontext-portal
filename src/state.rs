@@ -151,6 +151,13 @@ pub struct AppState {
     /// ponytail: per-replica map; move it to the preferences database when the portal
     /// runs more than one replica (the reconciler is leader-elected, the UI is not).
     revocations: Arc<RwLock<HashMap<String, i64>>>,
+    /// What a cookie session keeps on the server, by `sub` and `issued_at` (T-6549): the ID
+    /// token (only the `id_token_hint` of its logout) and the group paths. Both grow with the
+    /// person's groups, and a browser drops a cookie past 4096 bytes.
+    /// ponytail: per-replica and lost on restart. The next request then refreshes the session,
+    /// which reads the groups from a fresh ID token, and a logout before that falls back to
+    /// `client_id` (Keycloak asks to confirm); move it to the database with `revocations`.
+    session_claims: Arc<RwLock<HashMap<(String, i64), SessionClaims>>>,
     /// The calls each key is answering right now (T-5968); a key leaves at zero.
     mcp_in_flight: Arc<Mutex<HashMap<String, u32>>>,
     /// The forge reads of the open changes, per head and base commit (T-6347).
@@ -265,6 +272,7 @@ impl AppState {
             kube: None,
             app_tests: None,
             revocations: Arc::new(RwLock::new(HashMap::new())),
+            session_claims: Arc::default(),
             mcp_in_flight: Arc::default(),
             change_reads: Default::default(),
             mcp_tasks: crate::mcp::tasks::McpTasks::new(),
@@ -1232,6 +1240,48 @@ impl AppState {
         marks
     }
 
+    /// Keeps a cookie session's ID token and groups (T-6549) and drops every ended session's.
+    /// A refresh that brought no ID token keeps the one the session had.
+    pub fn keep_session_claims(&self, session: &Session) {
+        let now = crate::auth::session::now_unix();
+        let key = (session.identity.subject.clone(), session.issued_at);
+        if let Ok(mut kept) = self.session_claims.write() {
+            kept.retain(|_, claims| claims.expires_at > now);
+            let id_token = match (session.id_token.is_empty(), kept.get(&key)) {
+                (true, Some(before)) => before.id_token.clone(),
+                _ => session.id_token.clone(),
+            };
+            kept.insert(
+                key,
+                SessionClaims {
+                    expires_at: session.expires_at,
+                    id_token,
+                    groups: session.identity.groups.clone(),
+                },
+            );
+        }
+    }
+
+    /// The groups [`Self::keep_session_claims`] kept for this session; `None` when this process
+    /// holds none (a restart, another replica).
+    pub fn session_groups(&self, session: &Session) -> Option<Vec<String>> {
+        self.session_claims
+            .read()
+            .ok()?
+            .get(&(session.identity.subject.clone(), session.issued_at))
+            .map(|claims| claims.groups.clone())
+    }
+
+    /// The ID token kept for this session, removed with its groups: a logout ends the session.
+    pub fn take_id_token(&self, session: &Session) -> Option<String> {
+        self.session_claims
+            .write()
+            .ok()?
+            .remove(&(session.identity.subject.clone(), session.issued_at))
+            .map(|claims| claims.id_token)
+            .filter(|token| !token.is_empty())
+    }
+
     pub fn is_revoked(&self, session: &Session) -> bool {
         self.revoked_since(&session.identity.subject, session.issued_at)
     }
@@ -1250,6 +1300,14 @@ impl AppState {
     pub fn branding(&self) -> Branding {
         Branding::load(self.config.branding_file.as_deref())
     }
+}
+
+/// A cookie session's claims kept on the server ([`AppState::keep_session_claims`]).
+struct SessionClaims {
+    /// Unix seconds the session ends; past it the entry goes.
+    expires_at: i64,
+    id_token: String,
+    groups: Vec<String>,
 }
 
 impl FromRef<AppState> for Key {
@@ -1293,6 +1351,62 @@ impl Drop for InFlight {
 mod tests {
     use super::*;
     use crate::auth::session::{now_unix, Identity};
+
+    /// T-6549: the ID token stays on the server for one logout, per session, and an ended
+    /// session's goes with the next login.
+    #[test]
+    fn an_id_token_is_kept_per_session_and_handed_out_once() {
+        let state = AppState::new(Config::for_tests(), None);
+        let now = now_unix();
+        let session = |issued_at: i64, expires_at: i64, id_token: &str| Session {
+            identity: Identity {
+                client: None,
+                subject: "f:1:demo.editor".into(),
+                username: "demo.editor".into(),
+                email: None,
+                name: None,
+                roles: Vec::new(),
+                groups: Vec::new(),
+                second_factor: false,
+            },
+            expires_at,
+            issued_at,
+            signed_in_at: None,
+            id_token: id_token.into(),
+            access_expires_at: now + 300,
+            refresh_token: None,
+        };
+        let ended = session(now - 7200, now - 1, "ended-session-token");
+        let laptop = session(now - 60, now + 3600, "laptop-token");
+        let phone = session(now - 30, now + 3600, "phone-token");
+        state.keep_session_claims(&ended);
+        state.keep_session_claims(&laptop);
+        state.keep_session_claims(&phone);
+        state.keep_session_claims(&session(now - 10, now + 3600, ""));
+        // A refresh that brought no ID token keeps the session's, and its groups move.
+        let mut refreshed = session(now - 30, now + 7200, "");
+        refreshed.identity.groups = vec!["helsinki/editors".into()];
+        state.keep_session_claims(&refreshed);
+        assert_eq!(
+            state.session_groups(&phone),
+            Some(refreshed.identity.groups.clone())
+        );
+        assert_eq!(
+            state.take_id_token(&ended),
+            None,
+            "pruned at the next login"
+        );
+        assert_eq!(
+            state.take_id_token(&laptop).as_deref(),
+            Some("laptop-token")
+        );
+        assert_eq!(state.take_id_token(&laptop), None, "handed out once");
+        assert_eq!(state.take_id_token(&phone).as_deref(), Some("phone-token"));
+        assert_eq!(
+            state.take_id_token(&session(now - 10, now + 3600, "")),
+            None
+        );
+    }
 
     /// F-R2POR1-011 (T-6225): a replica that does not hold the reconciler lock leads no
     /// background loop; one with no election leads.

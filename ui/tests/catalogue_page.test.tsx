@@ -9,7 +9,7 @@ import i18n from "../src/i18n";
 import { App } from "../src/App";
 import { keyFormats } from "../src/pages/catalogue/CataloguePage";
 import { catalogueKey, datasetKey } from "../src/pages/catalogue/queries";
-import { notesBlocks, resourceSays } from "../src/pages/catalogue/DatasetPage";
+import { DatasetData, dataOrigin, notesBlocks, resourceSays } from "../src/pages/catalogue/DatasetPage";
 import { narrowed, parseCatalogueSearch, toggled } from "../src/pages/catalogue/search";
 import { snippets } from "../src/pages/catalogue/snippets";
 import { DatasetMap, mapCollection } from "../src/pages/catalogue/DatasetMap";
@@ -27,8 +27,8 @@ vi.mock("../src/components/dashboards/MapLibreView", () => ({
 // The data grid is the SDK EntityGrid behind EndpointDataView, tested on its own (T-6376); here only
 // that the dataset page mounts it for its Endpoint.
 vi.mock("../src/components/entities/EndpointDataView", () => ({
-  EndpointDataView: ({ slug, project, csv }: { slug: string; project: string; csv?: boolean }) => (
-    <div data-testid="endpoint-data" data-slug={slug} data-project={project} data-csv={String(Boolean(csv))} />
+  EndpointDataView: ({ slug, project, csv, origin }: { slug: string; project: string; csv?: boolean; origin?: string }) => (
+    <div data-testid="endpoint-data" data-slug={slug} data-project={project} data-csv={String(Boolean(csv))} data-origin={origin ?? "portal"} />
   ),
 }));
 
@@ -314,6 +314,8 @@ describe("the catalogue (EP-81, EP-82)", () => {
     const grid = await screen.findByTestId("endpoint-data");
     expect(grid).toHaveAttribute("data-project", "catalogue");
     expect(grid.getAttribute("data-slug")).toMatch(/^[a-z0-9]{16,64}$/);
+    // A signed-in person reads through the Portal host, which carries the session as the bearer.
+    expect(grid).toHaveAttribute("data-origin", "portal");
 
     expect(screen.getByRole("heading", { name: "From a shell (NGSI-LD)" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Download as CSV" })).toBeInTheDocument();
@@ -324,6 +326,41 @@ describe("the catalogue (EP-81, EP-82)", () => {
     const shell = screen.getByLabelText("From a shell (NGSI-LD)");
     expect(shell.tagName).toBe("PRE");
     expect(shell).toHaveAttribute("tabindex", "0");
+  });
+
+  it("reads the grid of a visitor without a session from the Endpoint's own data host (T-6540)", async () => {
+    signedIn = false;
+    renderAt("/catalogue/bbsk-kpi");
+    const grid = await screen.findByTestId("endpoint-data");
+    // The Portal host would answer each anonymous read with a 308 to this host.
+    expect(grid).toHaveAttribute("data-origin", "https://api.dev.joinedcontext.com");
+  });
+
+  it("mounts the grid of a signed-in person on the Portal host, and nothing for an address of no Endpoint", async () => {
+    const endpoint = { url: "https://api.dev.joinedcontext.com/api/endpoint/abcdefghijklmnopqrst/", representations: ["csv"], feeds: [], calendars: [] };
+    const view = render(
+      <I18nextProvider i18n={i18n}>
+        <DatasetData endpoint={endpoint} />
+      </I18nextProvider>,
+    );
+    const grid = await screen.findByTestId("endpoint-data");
+    expect(grid).toHaveAttribute("data-slug", "abcdefghijklmnopqrst");
+    expect(grid).toHaveAttribute("data-csv", "true");
+    expect(grid).toHaveAttribute("data-origin", "portal");
+    expect(screen.getByRole("heading", { level: 2 })).toHaveAttribute("id", "catalogue-data");
+    view.rerender(
+      <I18nextProvider i18n={i18n}>
+        <DatasetData endpoint={{ ...endpoint, url: "https://example.org/other" }} />
+      </I18nextProvider>,
+    );
+    expect(screen.queryByTestId("endpoint-data")).toBeNull();
+  });
+
+  it("takes only an https Endpoint origin", () => {
+    expect(dataOrigin("https://api.stage.joinedcontext.com/api/endpoint/abc/")).toBe("https://api.stage.joinedcontext.com");
+    expect(dataOrigin("http://api.stage.joinedcontext.com/api/endpoint/abc/")).toBeUndefined();
+    expect(dataOrigin("javascript:alert(1)")).toBeUndefined();
+    expect(dataOrigin("not a url")).toBeUndefined();
   });
 
   it("tells an unknown or private dataset apart from a failure, and offers the way back", async () => {

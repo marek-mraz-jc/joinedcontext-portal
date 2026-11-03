@@ -434,7 +434,7 @@ impl Driver {
                     .as_ref()
                     .ok()
                     .and_then(|c| serde_json::to_value(c).ok());
-                match self.change_resource(call, &answer, last).await? {
+                match self.change_asked(call, text, &answer, last).await? {
                     Worked::Done(prose) => return Ok(prose),
                     Worked::Again(reason) => {
                         drafts += 1;
@@ -505,7 +505,8 @@ impl Driver {
                         "error: the person asked for a pipeline that keeps the indicator updated \
                          (a period, a schedule or a target space), not one number: answer with \
                          draft_kpi_pipeline for the same indicator, its sourceEndpoint, a \
-                         targetSpace and `every` (\"15m\" when no period is named)"
+                         targetSpace and `every` (\"24h\" for daily, \"1h\" for hourly, \"15m\" when \
+                         no period is named)"
                             .to_owned(),
                     ));
                     continue;
@@ -531,6 +532,13 @@ impl Driver {
                 };
                 if text.starts_with("opened ") && !answer.contains("\"jc_ask\"") {
                     let prose = share::prose_of(&answer);
+                    // A page opened after reads, with no word on them, answers nothing: the
+                    // model says what it read before the turn ends (T-6533, S-07).
+                    if prose.is_empty() && !results.is_empty() && !last {
+                        drafts += 1;
+                        results.push((drafted("jc_ui_navigate", None), unsaid(&text)));
+                        continue;
+                    }
                     let prose = if prose.is_empty() { text } else { prose };
                     self.thought(&prose).await?;
                     return Ok(prose);
@@ -784,7 +792,8 @@ sentences and then ONE fenced JSON block, nothing else:
 }}
 ```
 
-Give `every` or `"onChange": true`, never both. When the person names no period, use "15m". The
+Give `every` or `"onChange": true`, never both. `every` follows the person's words: daily is
+"24h", hourly "1h"; only when they name no period, "15m". The
 platform drafts the Bento pipeline, drafts the indicator space when it does not exist, and tests
 the pipeline on a page of the source. A refused plan or a red test comes back to you with the
 reason and the page it ran on: look at the data again and draft it anew. A green draft opens its
@@ -958,7 +967,7 @@ dashboard editor with them; the person proposes it there.
         if self.may_change("RoleBinding", Verb::Propose).is_ok() {
             pack.push_str(&format!(
                 r#"
-## WHEN THE PERSON ASKS TO GIVE SOMEBODY A ROLE
+## WHEN THE PERSON ASKS TO GIVE SOMEBODY A ROLE OR REMOVE THEM
 
 A request to give a person or a group a role: "make jana.kovacova a steward on helsinki". The
 organization's roles are {roles}. A role applies to the whole organization, to one project or to
@@ -978,8 +987,18 @@ them in the grant form on the Members page and send no call. `subjects` may name
 `{{ "group": "<group>" }}`; `scope` is exactly one of
 `{{ "organization": true }}`, `{{ "project": "<name>" }}` or `{{ "contextSpace": "<name>" }}`. The
 platform checks that the person holds everything the role grants there and opens the grant form
-filled in; the person proposes it there. You never grant anything yourself. Taking a role away is
-a removal of its binding with change_resource.
+filled in; the person proposes it there. You never grant anything yourself.
+
+Removing somebody from the project, or taking a role away, removes the RoleBindings that name
+them, never a Policy. Find them by name:
+
+```json
+{{ "tool": "jc_member_list", "arguments": {{ "search": "<part of their name>" }} }}
+```
+
+Each of their `bindings` names a RoleBinding: one whose `subjects` is 1 goes with change_resource
+`"kind": "RoleBinding"`, its name and `"delete": true`, one call per binding. One naming others
+too would remove them as well: say so and send no call for it.
 "#,
                 roles = self.names_of("Role").join(", "),
                 project = self.project
@@ -1043,13 +1062,17 @@ change_resource that ContextSpace; a patch replaces the whole list, so keep its 
         let mut shapes = String::new();
         if creatable.contains(&"ContextSpace") {
             shapes.push_str(
-                "- **ContextSpace**: `{\"defaultLocale\": \"en\", \"isSandbox\": false}`. Nothing \
-                 else; its data models, endpoints and policies come afterwards.\n",
+                "- **ContextSpace**: `{\"defaultLocale\": \"en\", \"isSandbox\": false}`, plus \
+                 any history asked for: `\"retention\": [{\"entityType\": \"BikeCounter\", \
+                 \"history\": \"P365D\"}]`. Its models, endpoints and policies come later.\n",
             );
         }
         if creatable.contains(&"Role") {
             shapes.push_str(
-                "- **Role**: `{\"rules\": [{\"kinds\": [\"Endpoint\"], \"verbs\":                  [\"read\"]}]}`, verbs from read, propose, approve, delete. Running a pipeline                  takes propose and approve on Pipeline; say so when the person asked for no                  writes.\n",
+                "- **Role**: `{\"rules\": [{\"kinds\": [\"Endpoint\"], \"verbs\": \
+                 [\"read\"]}]}`, verbs from read, propose, approve, delete. Running a pipeline \
+                 takes propose and approve on Pipeline, both writes: when the person asked for \
+                 no writes, draft read only and ask.\n",
             );
         }
         if creatable.contains(&"DataSource") {
@@ -1120,15 +1143,16 @@ manifest's fields, and `metadata.title` its title in the language of the request
 
 {shapes}
 A **dashboard** is created the same way, with `create: true`, and carries the layers its pages
-draw: its own section below says how. Nothing else is created from the chat — a data model is drawn
-in the model editor, a space is completed from files, an endpoint is shared, a role goes to a person by a grant.
+draw: its own section below says how.
 
 The platform checks the manifest, tests what that kind tests, keeps it as the person's draft and
 opens the kind's page with the form filled from it; the person reads it there and proposes it. What
 the check refuses comes back to you with the reason: send the call again with the fields fixed. A
-test that is not green still opens the form, with what it found, because a pipeline's mapping is
-finished in the editor. You never propose it yourself, and never with `jc_resource_propose` — a change nobody read must
+red test comes back too, with the rows it ran on: map their columns in `compute`. You never propose it yourself, and never with `jc_resource_propose` — a change nobody read must
 not reach the approval queue.
+
+Asked for several resources, draft first what the others need and list the rest in order as
+`"next": [{{"kind": "DataModel", "name": "<its name>"}}]`.
 "#,
             kinds = creatable.join(", "),
         ));
@@ -1156,7 +1180,10 @@ patch, applied in order:
 The other operations are `addClass` {name, is_a: "Entity"}, `removeClass` {name}, `renameClass`
 {name, to}, `attachSlot` and `detachSlot` {class, slot}, and `setSlot` {name, field, value} for
 `range`, `required`, `multivalued` or `description`. A range is `string`, `integer`, `float`,
-`boolean`, `date`, `datetime`, `uri` or a class of the model. A relationship is two ends in one
+`boolean`, `date`, `datetime`, `uri`, a class or an enum of the model. Values a slot takes from a
+list are an enum first: "direction (enum in, out)" is `addEnum` {name: "DirectionEnum"}, then
+`addEnumValue` {enum: "DirectionEnum", value} for `in` and for `out`, then `addSlot` with range
+`DirectionEnum`. A relationship is two ends in one
 `addRelationship` {from, to, name, inverse, cardinality, required, inverseRequired, onDelete}:
 "a school has many users, a user belongs to one school" is from `School` to `User`, `one-to-many`,
 name `users`, inverse `school`, `inverseRequired: true`; the others are `one-to-one`, `many-to-one`,
@@ -1430,7 +1457,7 @@ const PLAYBOOKS: &[(&str, &str, &[Option<Path>])] = &[
         &[Some(Path::BuildDashboard)],
     ),
     (
-        "## WHEN THE PERSON ASKS TO GIVE SOMEBODY A ROLE",
+        "## WHEN THE PERSON ASKS TO GIVE SOMEBODY A ROLE OR REMOVE THEM",
         "grant-role",
         &[Some(Path::ShareData)],
     ),
@@ -1493,6 +1520,14 @@ fn earlier_turns(turns: &[(String, String)]) -> String {
         out.push_str(line);
     }
     out
+}
+
+/// What goes back to a model that opened a page with no word after reading data (T-6533, S-07).
+fn unsaid(opened: &str) -> String {
+    format!(
+        "{opened}. The page does not answer the person: say now in plain sentences what you read \
+         (how many, which names, which values), and call no tool"
+    )
 }
 
 /// The pack as the path sends it: its own playbooks whole, every other one folded to a line that
@@ -2353,6 +2388,7 @@ mod tests {
             "DataModel",
             "Role",
             "RoleBinding",
+            "SyncSource",
         ]
         .iter()
         .map(|kind| json!({ "kind": kind, "verbs": ["read", "propose"] }))
@@ -2428,6 +2464,37 @@ mod tests {
             create.contains("**Role**") && create.contains("\"rules\""),
             "{create}"
         );
+    }
+
+    /// T-6533: the walk's S-25, S-32 and S-07 each have their way in what a free turn sends: the
+    /// pause operation is offered, the role playbook's folded line names a removal and hands out
+    /// the member read and the binding's removal, and a page opened after reads asks for words.
+    #[test]
+    fn a_free_turn_pauses_a_sync_removes_a_member_and_answers_in_words() {
+        let driver = everything();
+        let (_, user) = turn_tokens(&driver, None);
+        assert!(Path::offers(None, "jc_syncsource_pause"));
+        assert!(user.contains("`jc_syncsource_pause`"), "{user}");
+        assert!(
+            user.contains("give somebody a role or remove them"),
+            "{user}"
+        );
+        let pack = proposing(&["RoleBinding"], &[]).conversation_pack(&[], "remove jana", None);
+        let grant = playbook(&pack, "grant-role").expect("the role playbook");
+        for said in [
+            "\"jc_member_list\"",
+            "\"kind\": \"RoleBinding\"",
+            "\"delete\": true",
+            "never a Policy",
+        ] {
+            assert!(grant.contains(said), "{said}\n{grant}");
+        }
+        let again = unsaid("opened /projects/helsinki/explore");
+        assert!(
+            again.starts_with("opened /projects/helsinki/explore."),
+            "{again}"
+        );
+        assert!(again.contains("call no tool"), "{again}");
     }
 
     /// T-3079: ten long turns in, a turn's own part (what follows the cached pack) holds the

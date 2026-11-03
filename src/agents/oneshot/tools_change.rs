@@ -5,6 +5,18 @@ use super::*;
 /// jc-core's words for a manifest its kind cannot read: an unknown field, a wrong type.
 const NOT_PARSED: &str = "manifest does not parse";
 
+/// The operation that does what a model tried with a field the kind does not have: a SyncSource
+/// pauses through its loop's switch, never its manifest (T-6533, S-25).
+fn not_a_field(kind: &str, findings: &str) -> Option<&'static str> {
+    let switch = ["paused", "suspended", "enabled", "disabled", "active"]
+        .iter()
+        .any(|field| findings.contains(&format!("unknown field `{field}`")));
+    (kind == "SyncSource" && findings.contains(NOT_PARSED) && switch).then_some(
+        "a SyncSource has no such field: pause it, or resume it, with jc_syncsource_pause \
+         {\"name\": \"<the SyncSource>\", \"paused\": true or false}, which changes no manifest",
+    )
+}
+
 /// What the kind's page opens on: the resource a change touches (`?edit=`), or the draft of a new
 /// one, which the form loads by its name (`?draft=`, AG-45).
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -271,6 +283,48 @@ impl Driver {
         let untested = info.kind == "Pipeline" && !change::reaches_the_test(&current, &manifest);
         self.open_change(
             info, name, manifest, answer, TOOL, input, started, last, route, draft, untested,
+        )
+        .await
+    }
+
+    /// `change_resource` for the person's message `asked`: a Role that grants writes the person
+    /// said they do not want goes back to the model with each write it grants, and on the last
+    /// draft the person reads why nothing was drafted (T-6534, walk S-28).
+    pub(super) async fn change_asked(
+        &self,
+        call: Result<change::ChangeResource, String>,
+        asked: &str,
+        answer: &str,
+        last: bool,
+    ) -> Result<Worked, String> {
+        let Some(reason) = call
+            .as_ref()
+            .ok()
+            .and_then(|params| change::wider_than_asked(params, asked))
+        else {
+            return self.change_resource(call, answer, last).await;
+        };
+        let input = call
+            .ok()
+            .and_then(|params| serde_json::to_value(params).ok())
+            .unwrap_or(Value::Null);
+        self.event(
+            "tool",
+            failed_step(
+                "change_resource",
+                std::time::Instant::now(),
+                &input,
+                &reason,
+            ),
+        )
+        .await?;
+        self.again(
+            last,
+            format!("error: {reason}"),
+            "Nothing was drafted: you asked for no writes, and what the role should do needs a \
+             write verb (running a pipeline needs propose and approve on Pipeline). Say whether \
+             the role may hold it, or keep the role to reading."
+                .to_owned(),
         )
         .await
     }
@@ -1034,6 +1088,11 @@ impl Driver {
                 }),
             )
             .await?;
+            if let Some(instead) = not_a_field(info.kind, &findings) {
+                return Ok(Worked::Again(format!(
+                    "error: the platform's check refuses the change: {findings}; {instead}"
+                )));
+            }
             if let Some(reason) = self.schema_reply(info.kind, &findings, &manifest).await? {
                 return Ok(Worked::Again(reason));
             }
@@ -1078,20 +1137,31 @@ impl Driver {
                     }),
                 )
                 .await?;
-                if opening == Opening::Change || last {
+                // A red test goes back to the model while rounds are left, a new resource's too:
+                // a new pipeline drafted as `root = this` opened its form red with every row's
+                // finding pasted, and nobody wrote the mapping from the source's columns
+                // (T-6532, live walk T-6490 S-20).
+                if opening == Opening::Change || !last {
+                    let hint = if info.kind == "Pipeline" {
+                        " Write spec.compute.bloblang from the columns of the rows it ran on: \
+                         `id` as urn:ngsi-ld:<Type>:<the row's key column>, `type`, and one \
+                         attribute per column the target's model has; then send the call again."
+                    } else {
+                        ""
+                    };
                     return self
                         .again(
                             last,
-                            format!("error: the change's test is not green: {findings}; what it ran on: {card}; the changed manifest was {manifest}"),
+                            format!("error: the change's test is not green: {findings}; what it ran on: {card}; the changed manifest was {manifest}.{hint}"),
                             format!("The change to '{name}' does not pass its test: {findings}"),
                         )
                         .await;
                 }
-                // A new resource whose test is not green still opens its form: a pipeline's
-                // mapping is written in the editor, with the editor's own test beside it, and a
-                // sentence in the chat is not where a person writes Bloblang (AG-45). The draft
-                // is kept without a verdict, so the strict gate refuses a proposal until the
-                // person has checked it there (PF-57), and the finding is what they read first.
+                // On the last round a new resource whose test is not green still opens its form:
+                // the mapping is finished in the editor, with the editor's own test beside it
+                // (AG-45). The draft is kept without a verdict, so the strict gate refuses a
+                // proposal until the person has checked it there (PF-57), and the finding is
+                // what they read first.
                 half_written = Some(findings);
                 Tested {
                     card: Some(card),
@@ -1163,9 +1233,21 @@ impl Driver {
         if let Some(findings) = &half_written {
             // The person reads what is still wrong with it before they read the form (AG-45).
             prose = format!(
-                "{prose}\n\nIts test is not green yet: {findings}. The form is open on it; finish                  it there and check it before you propose it."
+                "{prose}\n\nIts test is not green yet: {findings}. The form is open on it; finish \
+                 it there and check it before you propose it."
             );
         }
+        // The rest of a request for several resources, each with its page (T-6531).
+        let steps: Vec<change::NextStep> = input
+            .get("next")
+            .and_then(|next| serde_json::from_value(next.clone()).ok())
+            .unwrap_or_default();
+        prose.push_str(&change::next_steps(
+            &self.project,
+            &steps,
+            workspace.as_deref(),
+            |kind| self.may_change(kind, Verb::Propose).is_ok(),
+        ));
         self.thought(&prose).await?;
         // A new resource opens the page on its own draft, and the form loads that draft itself:
         // handing the manifest over as the form's values as well would fill the form twice, the
@@ -1637,6 +1719,26 @@ fn first_served_type(page: &str) -> Option<String> {
         .iter()
         .find_map(Value::as_str)
         .map(str::to_owned)
+}
+
+#[cfg(test)]
+mod not_a_field_tests {
+    use super::not_a_field;
+
+    /// T-6533, S-25: the walk's invented `spec.paused` is answered with the pause operation, as
+    /// jc-core words the refusal; other kinds and other refusals keep the schema reply.
+    #[test]
+    fn a_paused_syncsource_field_names_the_pause_operation() {
+        let findings = "bad request: spec is not a valid SyncSource: manifest does not parse: \
+                        spec: unknown field `paused`, expected one of `source`, `schedule`";
+        let instead = not_a_field("SyncSource", findings).expect("the pause operation");
+        assert!(instead.contains("jc_syncsource_pause"), "{instead}");
+        assert_eq!(not_a_field("Pipeline", findings), None);
+        let other = "manifest does not parse: spec: unknown field `interval`";
+        assert_eq!(not_a_field("SyncSource", other), None);
+        let blank = "invalid schedule.interval ``: interval must be a positive number";
+        assert_eq!(not_a_field("SyncSource", blank), None);
+    }
 }
 
 #[cfg(test)]
@@ -2628,5 +2730,44 @@ mod unparsed_tests {
                 .is_some_and(|error| error.contains(NOT_PARSED))
         });
         assert!(parsed, "{tools:?}");
+    }
+
+    /// T-6534, walk S-28: the Role drafted for "run pipelines, no writes" granted Pipeline
+    /// propose and approve. It goes back to the model naming each write, keeps no draft and opens
+    /// no page; on the last draft the person reads why and what to decide.
+    #[tokio::test]
+    async fn a_role_with_writes_the_person_said_no_to_is_never_drafted() {
+        let (driver, state) = steward();
+        let asked = "Create a role Analyst: read all Endpoints, run pipelines, no writes.";
+        let analyst = || ChangeResource {
+            kind: "Role".into(),
+            name: "analyst".into(),
+            create: true,
+            patch: Some(json!({ "spec": { "rules": [
+                { "kinds": ["Endpoint"], "verbs": ["read"] },
+                { "kinds": ["Pipeline"], "verbs": ["propose", "approve"] },
+            ] } })),
+            ..Default::default()
+        };
+        let again = driver
+            .change_asked(Ok(analyst()), asked, "", false)
+            .await
+            .expect("no event failed");
+        let Worked::Again(reason) = again else {
+            panic!("the Role was drafted");
+        };
+        assert!(reason.contains("approve on Pipeline"), "{reason}");
+        let done = driver
+            .change_asked(Ok(analyst()), asked, "", true)
+            .await
+            .expect("no event failed");
+        let Worked::Done(prose) = done else {
+            panic!("the last draft went back to the model");
+        };
+        assert!(prose.contains("you asked for no writes"), "{prose}");
+        assert!(logged(&state, "navigate").await.is_empty());
+        let failed = logged(&state, "tool").await;
+        assert_eq!(failed.len(), 2, "{failed:?}");
+        assert!(failed.iter().all(|step| step["status"] == "failed"));
     }
 }

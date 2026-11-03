@@ -169,7 +169,7 @@ pub(super) fn reach(state: &AppState, project: &str, endpoint: &ResourceEnvelope
 
 /// The classes of `space`'s data model: the one its `dataModelRef` names, else every DataModel
 /// of the project whose `contextSpaceRef` is the space.
-fn space_classes(state: &AppState, project: &str, space: &str) -> Vec<String> {
+pub(crate) fn space_classes(state: &AppState, project: &str, space: &str) -> Vec<String> {
     let named = crate::api::assistant_context::model_classes(&state.mirror, project, space);
     if !named.is_empty() {
         return named;

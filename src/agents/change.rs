@@ -29,6 +29,76 @@ pub struct ChangeResource {
     pub create: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub layers: Vec<NewLayer>,
+    /// The rest of a request for several resources, in order (T-6531): the person reads each one
+    /// with its page after this draft opens.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub next: Vec<NextStep>,
+}
+
+/// One resource a request asks for beyond the one drafted now.
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+pub struct NextStep {
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub name: String,
+}
+
+/// The most next steps one answer lists: a longer list is a plan, made with jc_change_plan.
+const MAX_NEXT: usize = 8;
+
+/// The lines that tell the person what their request still needs after this draft, each with its
+/// kind's page (T-6531), or nothing. The model's words never reach the text: a kind is one the
+/// Portal knows and a name is a resource name, else it is left out. `may` says whether the person
+/// may propose the kind; `workspace` keeps each page inside the copy the draft is in.
+pub fn next_steps(
+    project: &str,
+    steps: &[NextStep],
+    workspace: Option<&str>,
+    may: impl Fn(&str) -> bool,
+) -> String {
+    let lines: Vec<String> = steps
+        .iter()
+        .filter_map(|step| {
+            let info = crate::resource::by_kind(step.kind.trim())
+                .filter(|info| info.scope.allows_project() || info.scope.allows_organization())?;
+            let name = step.name.trim();
+            let named = if is_name(name) {
+                format!("{} '{name}'", info.kind)
+            } else {
+                info.kind.to_owned()
+            };
+            if !may(info.kind) {
+                return Some(format!(
+                    "- {named}: you may not propose a {}; ask a steward of the project",
+                    info.kind
+                ));
+            }
+            let mut route = create_route(project, info.kind, info.plural);
+            if let Some(workspace) = workspace {
+                route = format!("{route}?workspace={workspace}");
+            }
+            Some(format!("- {named}: on [its page]({route})"))
+        })
+        .take(MAX_NEXT)
+        .collect();
+    if lines.is_empty() {
+        return String::new();
+    }
+    format!(
+        "\n\nStill to do for your request, in this order; ask me for the next one when this \
+         draft is proposed:\n{}",
+        lines.join("\n")
+    )
+}
+
+/// A resource name: lowercase letters, digits and hyphens, at most 63.
+fn is_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 63
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
 }
 
 /// A Layer a new dashboard draws, created with it (UI-18).
@@ -38,6 +108,71 @@ pub struct NewLayer {
     pub name: String,
     #[serde(default)]
     pub spec: Value,
+}
+
+/// Words by which a person asks for a Role that changes nothing (T-6534), English and Slovak,
+/// matched in the lower-cased request. ponytail: a fixed phrase list, a model-read intent when a
+/// third language needs it.
+const NO_WRITES: [&str; 11] = [
+    "no write",
+    "without writ",
+    "read-only",
+    "read only",
+    "only read",
+    "bez zápis",
+    "bez zapis",
+    "len na čítanie",
+    "iba na čítanie",
+    "len čítať",
+    "iba čítať",
+];
+
+/// Why a Role draft grants more than the person asked for, if it does (T-6534, walk S-28): the
+/// person said no writes, and a rule holds a verb other than `read`. Propose opens changes,
+/// approve merges them and delete removes manifests: each is a write, so the draft goes back
+/// to the model, which says what the ask needs and asks the person instead of granting it.
+pub fn wider_than_asked(call: &ChangeResource, asked: &str) -> Option<String> {
+    if call.kind.trim() != "Role" || call.delete {
+        return None;
+    }
+    let asked = asked.to_lowercase();
+    if !NO_WRITES.iter().any(|words| asked.contains(words)) {
+        return None;
+    }
+    let rules = call.patch.as_ref()?.pointer("/spec/rules")?.as_array()?;
+    let mut writes: Vec<String> = rules
+        .iter()
+        .flat_map(|rule| {
+            let kinds = rule["kinds"]
+                .as_array()
+                .map(|kinds| {
+                    kinds
+                        .iter()
+                        .filter_map(Value::as_str)
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                })
+                .unwrap_or_default();
+            rule["verbs"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter_map(Value::as_str)
+                .filter(|verb| *verb != "read")
+                .map(move |verb| format!("{verb} on {kinds}"))
+        })
+        .collect();
+    if writes.is_empty() {
+        return None;
+    }
+    writes.dedup();
+    Some(format!(
+        "the person asked for no writes, and this Role grants {}: propose opens changes, approve \
+         merges them and delete removes manifests, so each is a write. Draft the Role with read \
+         rules only, and say plainly what the rest of the ask needs (running a pipeline needs \
+         propose and approve on Pipeline, both writes) and ask the person whether to grant it",
+        writes.join("; ")
+    ))
 }
 
 /// A manifest of this project's `kind`, as a new resource is written.
@@ -325,6 +460,121 @@ pub fn route(project: &str, kind: &str, plural: &str, name: &str, delete: bool) 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn step(kind: &str, name: &str) -> NextStep {
+        NextStep {
+            kind: kind.into(),
+            name: name.into(),
+        }
+    }
+
+    /// T-6531 (walk T-6490, S-26 and S-91): the rest of a several-resource request is named with
+    /// each kind's page, inside the copy; a kind the person may not propose says who can.
+    #[test]
+    fn the_rest_of_a_request_is_named_with_each_page() {
+        let steps = [
+            step("DataModel", "vendor-model"),
+            step("Endpoint", "vendor-write"),
+            step("Policy", "vendor-read"),
+        ];
+        let text = next_steps("helsinki", &steps, Some("vendor"), |kind| kind != "Policy");
+        assert!(text.contains("Still to do"), "{text}");
+        assert!(
+            text.contains("- DataModel 'vendor-model': on [its page](/projects/helsinki/models?workspace=vendor)"),
+            "{text}"
+        );
+        assert!(
+            text.contains("- Endpoint 'vendor-write': on [its page]("),
+            "{text}"
+        );
+        assert!(
+            text.contains("- Policy 'vendor-read': you may not propose"),
+            "{text}"
+        );
+        assert!(
+            text.find("DataModel") < text.find("Endpoint"),
+            "kept in the model's order: {text}"
+        );
+    }
+
+    /// The model's words never reach the person's text: an unknown kind is left out and a name
+    /// that is no resource name is not quoted.
+    #[test]
+    fn a_next_step_carries_only_known_kinds_and_resource_names() {
+        let steps = [
+            step("Spaceship", "x"),
+            step("Pipeline", "](https://evil.example) click"),
+        ];
+        let text = next_steps("helsinki", &steps, None, |_| true);
+        assert!(!text.contains("Spaceship"), "{text}");
+        assert!(!text.contains("evil"), "{text}");
+        assert!(
+            text.contains("- Pipeline: on [its page](/projects/helsinki/"),
+            "{text}"
+        );
+        assert_eq!(next_steps("helsinki", &[], None, |_| true), "");
+        assert_eq!(
+            next_steps("helsinki", &[step("Nope", "a")], None, |_| true),
+            ""
+        );
+        let many: Vec<NextStep> = (0..20)
+            .map(|i| step("Pipeline", &format!("p{i}")))
+            .collect();
+        assert_eq!(
+            next_steps("helsinki", &many, None, |_| true)
+                .matches("\n- ")
+                .count(),
+            MAX_NEXT
+        );
+    }
+
+    fn role(rules: Value) -> ChangeResource {
+        ChangeResource {
+            kind: "Role".into(),
+            name: "analyst".into(),
+            patch: Some(json!({ "spec": { "rules": rules } })),
+            create: true,
+            ..ChangeResource::default()
+        }
+    }
+
+    /// T-6534, walk S-28: "no writes" with "run pipelines" drafted Pipeline propose + approve;
+    /// that Role goes back with each write it grants, and a read-only one passes.
+    #[test]
+    fn a_role_with_writes_is_refused_when_the_person_asked_for_none() {
+        let asked = "Create a role Analyst: read all Endpoints, run pipelines, no writes.";
+        let walked = role(json!([
+            { "kinds": ["Endpoint"], "verbs": ["read"] },
+            { "kinds": ["Pipeline"], "verbs": ["propose", "approve"] }
+        ]));
+        let reason = wider_than_asked(&walked, asked).expect("refused");
+        assert!(
+            reason.contains("propose on Pipeline; approve on Pipeline"),
+            "{reason}"
+        );
+        assert!(reason.contains("ask the person"), "{reason}");
+        let read_only = role(json!([
+            { "kinds": ["Endpoint", "Pipeline"], "verbs": ["read"] }
+        ]));
+        assert_eq!(wider_than_asked(&read_only, asked), None);
+        // The same writes asked for in words pass, as does a Slovak "read only" Role without them.
+        assert_eq!(
+            wider_than_asked(&walked, "Create a role Operator that runs pipelines"),
+            None
+        );
+        assert!(wider_than_asked(&walked, "Rola Analytik, len na čítanie").is_some());
+        // Another kind and a removal are not a Role's grants.
+        let pipeline = ChangeResource {
+            kind: "Pipeline".into(),
+            ..walked.clone()
+        };
+        assert_eq!(wider_than_asked(&pipeline, asked), None);
+        let removal = ChangeResource {
+            delete: true,
+            ..walked
+        };
+        assert_eq!(wider_than_asked(&removal, asked), None);
+    }
 
     /// T-6489, walk S-28: a Role is drafted with its rules, and the empty form the model asked
     /// for first answers how, instead of sending it to a list.

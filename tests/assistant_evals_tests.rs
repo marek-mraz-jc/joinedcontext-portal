@@ -57,7 +57,7 @@ const UNRECORDED_CASES_ON_2026_10_06: usize = 5;
 /// Workflows the matrix gained after 2026-09-25, each still owing its first recording, with the
 /// task that added it. They are counted apart, so the 23 of that day can still only fall; an entry
 /// goes the moment its recording lands, and the guard below refuses one that is recorded.
-const UNRECORDED_LATER: [(&str, &str); 7] = [
+const UNRECORDED_LATER: [(&str, &str); 8] = [
     ("knowledge", "T-3057"),
     ("navigation", "T-3238"),
     ("feedback", "T-3272"),
@@ -65,18 +65,29 @@ const UNRECORDED_LATER: [(&str, &str); 7] = [
     ("pipeline-access", "T-4863"),
     ("mqttbroker", "T-4880"),
     ("endpoint-access", "T-5615"),
+    ("grafana", "T-6509"),
 ];
 
 /// Case conversations added after 2026-10-06, each owing its recording with the task that added
 /// it, counted apart like [`UNRECORDED_LATER`].
-const UNRECORDED_CASES_LATER: [(&str, &str); 7] = [
+const UNRECORDED_CASES_LATER: [(&str, &str); 17] = [
+    ("datamodel--enum-slot", "T-6530"),
     ("datasource--api-key", "T-6488"),
+    ("endpoint--unknown-class", "T-6530"),
     ("endpoint--hide-attribute", "T-6488"),
+    ("pipeline--daily-kpi", "T-6532"),
+    ("pipeline--from-columns", "T-6532"),
     ("pipeline--sample-source", "T-6489"),
+    ("pipeline--several-resources", "T-6531"),
     ("pipeline--wrote-nothing", "T-6489"),
     ("project--new-role", "T-6489"),
     ("sharing--embed", "T-6489"),
     ("space--quality-rule", "T-6489"),
+    ("space--retention", "T-6530"),
+    ("space--several-resources", "T-6531"),
+    ("syncsource--pause", "T-6533"),
+    ("project--remove-member", "T-6533"),
+    ("endpoint--what-it-shows", "T-6533"),
 ];
 
 /// What separates a workflow from its case in a conversation's file name.
@@ -87,8 +98,9 @@ fn workflow_of(file: &str) -> &str {
     file.split_once(CASE).map_or(file, |(workflow, _)| workflow)
 }
 /// The conversation's own tools beside the registry's operations (`oneshot::conversation`).
-const CONVERSATION_TOOLS: [&str; 6] = [
+const CONVERSATION_TOOLS: [&str; 7] = [
     "change_resource",
+    "draft_kpi_pipeline",
     "search_catalog",
     "describe_tool",
     "jc_ask",
