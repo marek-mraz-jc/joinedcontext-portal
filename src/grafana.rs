@@ -576,6 +576,9 @@ pub(crate) fn spawn_periodic(state: AppState) {
 
 #[cfg(test)]
 mod tests {
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, ResponseTemplate};
+
     use super::*;
 
     fn row(kind: Kind) -> Visualization {
@@ -655,5 +658,85 @@ mod tests {
         let uid = datasource_uid(&"n".repeat(63), &"s".repeat(32));
         assert_eq!(uid.len(), MAX_UID);
         assert!(uid.ends_with("-ssssssss"));
+    }
+
+    fn config(server: &wiremock::MockServer) -> GrafanaConfig {
+        GrafanaConfig {
+            url: server.uri(),
+            public_url: "https://dev.example/grafana".into(),
+            user: "grafana_admin".into(),
+            password: "unused".into(),
+        }
+    }
+
+    async fn answer_with(server: &wiremock::MockServer, verb: &str, route: &str, body: Value) {
+        Mock::given(method(verb))
+            .and(path(route))
+            .respond_with(ResponseTemplate::new(200).set_body_json(body))
+            .mount(server)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn the_datasources_of_an_organization_are_those_reading_an_endpoint() {
+        let server = wiremock::MockServer::start().await;
+        answer_with(
+            &server,
+            "GET",
+            "/api/datasources",
+            json!([
+                { "type": PLUGIN, "uid": "air", "url": "http://gw:8080/api/endpoint/airslug" },
+                { "type": PLUGIN, "uid": "other", "url": "http://elsewhere" },
+                { "type": "prometheus", "uid": "metrics", "url": "http://gw/api/endpoint/x" },
+            ]),
+        )
+        .await;
+        let config = config(&server);
+        let held = Client::new(&config).datasources(7).await.expect("a list");
+        assert_eq!(
+            held,
+            [Datasource {
+                slug: "airslug".into(),
+                uid: "air".into()
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn a_push_makes_a_public_datasource_and_stops_at_a_closed_endpoint() {
+        let server = wiremock::MockServer::start().await;
+        answer_with(&server, "GET", "/api/datasources", json!([])).await;
+        answer_with(&server, "POST", "/api/datasources", json!({})).await;
+        answer_with(&server, "POST", "/api/dashboards/db", json!({})).await;
+        let config = config(&server);
+        let client = Client::new(&config);
+        let mut settings = crate::config::Config::for_tests();
+        settings.gateway_url = Some("http://gw:8080".into());
+        let state = AppState::new(settings, None);
+        let row = row(Kind::Stat);
+
+        let closed = Source {
+            name: "air",
+            slug: "airslug",
+            public: false,
+        };
+        assert!(!push(&state, &client, 7, &row, &closed, "air")
+            .await
+            .expect("an answer"));
+
+        let open = Source {
+            public: true,
+            ..closed
+        };
+        assert!(push(&state, &client, 7, &row, &open, "air")
+            .await
+            .expect("an answer"));
+        let requests = server.received_requests().await.expect("recorded");
+        let posted: Vec<&str> = requests
+            .iter()
+            .filter(|request| request.method.as_str() == "POST")
+            .map(|request| request.url.path())
+            .collect();
+        assert_eq!(posted, ["/api/datasources", "/api/dashboards/db"]);
     }
 }

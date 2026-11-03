@@ -577,3 +577,270 @@ pub fn router() -> Router<AppState> {
             delete(remove_visualization),
         )
 }
+
+#[cfg(test)]
+mod tests {
+    use serde_json::json;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    use super::*;
+    use crate::auth::session::Session;
+    use crate::config::{Config, GrafanaConfig};
+    use crate::pipeline_validation::ModelSchema;
+    use crate::resource::{ObjectMeta, API_VERSION};
+
+    const PROJECT: &str = "helsinki";
+
+    /// `groups` decides the rights: Config::for_tests names `portal-approver` its administrators.
+    fn person(groups: &[&str]) -> CurrentUser {
+        CurrentUser(Session {
+            identity: Identity {
+                client: None,
+                subject: "sub-pia".into(),
+                username: "pia".into(),
+                email: Some("pia@hel.fi".into()),
+                name: None,
+                roles: Vec::new(),
+                groups: groups.iter().map(|group| (*group).to_owned()).collect(),
+                second_factor: false,
+            },
+            expires_at: 9_999_999_999,
+            issued_at: 1000,
+            signed_in_at: None,
+            id_token: "dummy".into(),
+            access_expires_at: 9_999_999_999,
+            refresh_token: None,
+        })
+    }
+
+    fn admin() -> CurrentUser {
+        person(&["portal-approver"])
+    }
+
+    fn outsider() -> CurrentUser {
+        person(&[])
+    }
+
+    /// One closed and one public Endpoint, each naming its space by a typed reference as a
+    /// manifest may, and a model on that space.
+    fn world(grafana: Option<&MockServer>) -> AppState {
+        let mut config = Config::for_tests();
+        config.grafana = grafana.map(|server| GrafanaConfig {
+            url: server.uri(),
+            public_url: "https://dev.example/grafana".into(),
+            user: "grafana_admin".into(),
+            password: "unused".into(),
+        });
+        let state = AppState::new(config, None);
+        for (name, slug, audience) in [
+            ("closed", "closedslug", "private"),
+            ("open", "openslug", "public"),
+        ] {
+            state.mirror.upsert(ResourceEnvelope {
+                api_version: API_VERSION.to_owned(),
+                kind: "Endpoint".to_owned(),
+                metadata: ObjectMeta::new(name, PROJECT),
+                spec: json!({
+                    "contextSpaceRef": { "kind": "ContextSpace", "name": "air" },
+                    "slug": slug,
+                    "audience": audience,
+                }),
+                status: None,
+            });
+        }
+        let schema = json!({ "definitions": { "AirQualityObserved": { "type": "object", "properties": {
+            "pm25": { "type": "number", "x-ngsi-ld-kind": "Property" },
+        }}}});
+        let model = ModelSchema::compile(
+            "air",
+            "1.0.0",
+            &schema,
+            &["AirQualityObserved".to_owned()],
+            false,
+        );
+        state
+            .model_schemas
+            .replace(std::collections::HashMap::from([(
+                (PROJECT.to_owned(), "air".to_owned()),
+                std::sync::Arc::new(model),
+            )]));
+        state
+    }
+
+    async fn grafana_of_the_project() -> MockServer {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(format!("/api/orgs/name/{PROJECT}")))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "id": 7 })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path("/api/datasources"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+            .mount(&server)
+            .await;
+        server
+    }
+
+    fn new_visualization(endpoint: &str, attribute: &str) -> NewVisualization {
+        NewVisualization {
+            title: "PM2.5".into(),
+            endpoint: endpoint.into(),
+            entity_type: "AirQualityObserved".into(),
+            attribute: attribute.into(),
+            kind: Kind::Timeseries,
+        }
+    }
+
+    async fn save(
+        user: CurrentUser,
+        state: &AppState,
+        new: NewVisualization,
+    ) -> Result<(StatusCode, Json<VisualizationItem>), ApiError> {
+        save_visualization(
+            user,
+            State(state.clone()),
+            Path(PROJECT.to_owned()),
+            Ok(Json(new)),
+        )
+        .await
+    }
+
+    async fn options(
+        user: CurrentUser,
+        state: &AppState,
+        endpoint: Option<&str>,
+    ) -> Result<Json<GrafanaOptions>, ApiError> {
+        let asked = OptionsAsked {
+            endpoint: endpoint.map(str::to_owned),
+            entity_type: None
+        };
+        grafana_options(
+            user,
+            State(state.clone()),
+            Path(PROJECT.to_owned()),
+            Ok(Query(asked)),
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn the_page_says_why_there_is_no_grafana() {
+        let state = world(None);
+        let Json(page) = grafana_page(admin(), State(state), Path(PROJECT.to_owned()))
+            .await
+            .expect("a page");
+        assert!(!page.ready && page.may_create);
+        assert_eq!(page.reason, Some(no_grafana()));
+        assert!(page.items.is_empty());
+    }
+
+    #[tokio::test]
+    async fn the_page_names_a_project_grafana_does_not_hold() {
+        let server = MockServer::start().await;
+        let state = world(Some(&server));
+        let Json(page) = grafana_page(admin(), State(state), Path(PROJECT.to_owned()))
+            .await
+            .expect("a page");
+        assert!(!page.ready);
+        assert_eq!(page.reason, Some(no_organization(PROJECT)));
+    }
+
+    #[tokio::test]
+    async fn an_outsider_meets_no_project_on_any_door() {
+        let state = world(None);
+        let page = grafana_page(outsider(), State(state.clone()), Path(PROJECT.to_owned())).await;
+        assert!(matches!(page, Err(ApiError::NotFound(_))));
+        assert!(matches!(
+            options(outsider(), &state, None).await,
+            Err(ApiError::NotFound(_))
+        ));
+        assert!(matches!(
+            save(outsider(), &state, new_visualization("open", "pm25")).await,
+            Err(ApiError::NotFound(_))
+        ));
+        let removed = remove_visualization(
+            outsider(),
+            State(state),
+            Path((PROJECT.to_owned(), "ab12".to_owned())),
+        )
+        .await;
+        assert!(matches!(removed, Err(ApiError::NotFound(_))));
+    }
+
+    #[tokio::test]
+    async fn the_form_offers_a_public_endpoint_and_flags_a_closed_one_without_a_datasource() {
+        let server = grafana_of_the_project().await;
+        let state = world(Some(&server));
+        let Json(answer) = options(admin(), &state, None).await.expect("options");
+        let usable: Vec<(&str, bool)> = answer
+            .endpoints
+            .iter()
+            .map(|endpoint| (endpoint.name.as_str(), endpoint.usable))
+            .collect();
+        assert_eq!(usable, [("closed", false), ("open", true)]);
+    }
+
+    #[tokio::test]
+    async fn the_form_reads_the_model_of_a_typed_space_reference() {
+        let state = world(None);
+        let Json(answer) = options(admin(), &state, Some("open"))
+            .await
+            .expect("options");
+        assert_eq!(answer.types.len(), 1, "{answer:?}");
+    }
+
+    #[tokio::test]
+    async fn the_form_knows_no_endpoint_outside_the_project() {
+        let state = world(None);
+        assert!(matches!(
+            options(admin(), &state, Some("elsewhere")).await,
+            Err(ApiError::NotFound(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn a_save_refuses_each_field_before_it_writes() {
+        let state = world(None);
+        let mut blank = new_visualization("open", "pm25");
+        blank.title = "  ".into();
+        assert!(matches!(
+            save(admin(), &state, blank).await,
+            Err(ApiError::Unprocessable { .. })
+        ));
+        let Err(ApiError::Denied(detail)) =
+            save(admin(), &state, new_visualization("elsewhere", "pm25")).await
+        else {
+            panic!("an unknown Endpoint is refused");
+        };
+        assert!(detail.starts_with("endpoint:"), "{detail}");
+        let Err(ApiError::Unprocessable { errors, .. }) =
+            save(admin(), &state, new_visualization("open", "noise")).await
+        else {
+            panic!("an unknown attribute is refused");
+        };
+        assert!(
+            errors[..]
+                .iter()
+                .any(|error| error.starts_with("attribute:")),
+            "{errors:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_save_and_a_remove_need_a_database() {
+        let state = world(None);
+        assert!(matches!(
+            save(admin(), &state, new_visualization("open", "pm25")).await,
+            Err(ApiError::Unavailable(_))
+        ));
+        let removed = remove_visualization(
+            admin(),
+            State(state),
+            Path((PROJECT.to_owned(), "ab12".to_owned())),
+        )
+        .await;
+        assert!(matches!(removed, Err(ApiError::Unavailable(_))));
+    }
+}
