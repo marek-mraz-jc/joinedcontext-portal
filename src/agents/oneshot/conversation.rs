@@ -2378,6 +2378,7 @@ mod tests {
             "DataModel",
             "Role",
             "RoleBinding",
+            "SyncSource",
         ]
         .iter()
         .map(|kind| json!({ "kind": kind, "verbs": ["read", "propose"] }))

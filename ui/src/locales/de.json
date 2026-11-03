@@ -11327,7 +11327,7 @@
       "access": "liest Rollen, Bindungen, Gruppen und Dienstkonten",
       "publish": "liest den Katalog und den CKAN-Status",
       "apps": "liest Apps und ihre Läufe",
-      "operate": "liest Aktivität, Änderungen und Sync-Status; pausiert oder startet eine Sync-Quelle wieder",
+      "operate": "liest Aktivität, Änderungen und Sync-Status",
       "knowledge": "liest Wissensquellen, ihren Crawl-Stand und Passagen",
       "admin": "alle Vorgaben oben"
     },

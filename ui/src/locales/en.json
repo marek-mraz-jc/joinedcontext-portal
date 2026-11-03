@@ -11327,7 +11327,7 @@
       "access": "reads roles, bindings, groups and service accounts",
       "publish": "reads the catalogue and CKAN status",
       "apps": "reads Apps and their runs",
-      "operate": "reads activity, changes and sync status; pauses or resumes a sync source",
+      "operate": "reads activity, changes and sync status",
       "knowledge": "reads knowledge sources, their crawl state and passages",
       "admin": "every preset above"
     },
