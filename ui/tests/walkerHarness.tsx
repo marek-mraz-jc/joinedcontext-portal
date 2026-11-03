@@ -47,6 +47,7 @@ export const ADDRESSES: Record<string, string[]> = {
   "/accessibility": ["/accessibility"],
   "/connect/$project/$name": ["/connect/bbsk/otvorene-data"],
   "/projects/$project/home": ["/projects/helsinki/home"],
+  "/projects/$project/grafana": ["/projects/helsinki/grafana"],
   "/projects/$project/inbox": ["/projects/helsinki/inbox"],
   "/playground": ["/playground"],
   "/organization": ["/organization"],

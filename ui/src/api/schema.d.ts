@@ -2882,6 +2882,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/projects/{project}/grafana": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Grafana Visualizations
+         * @description The visualizations saved into the project's Grafana folder whose Endpoint the caller may read, and whether Grafana is ready for the project. Changes no data.
+         */
+        get: operations["grafana_page"];
+        put?: never;
+        /**
+         * Save A Grafana Visualization
+         * @description Saves one visualization of an Endpoint into the project's Grafana folder. Needs propose on Dashboard and read on the Endpoint. A closed Endpoint needs its datasource from the deployment; a public one gets an anonymous datasource here. A panel reads as whoever opens it.
+         */
+        post: operations["save_visualization"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/grafana/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Grafana Form Options
+         * @description What the visualization form may offer the caller: the Endpoints they may read, the types of the chosen Endpoint's model and the attributes of the chosen type, each with the visualization kinds that can draw it. Changes no data.
+         */
+        get: operations["grafana_options"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/grafana/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove A Grafana Visualization
+         * @description Takes one saved visualization out of the project's Grafana folder. Needs propose on Dashboard.
+         */
+        delete: operations["remove_visualization"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects/{project}/health-checks": {
         parameters: {
             query?: never;
@@ -7593,6 +7657,11 @@ export interface components {
             reason?: string | null;
             type: string;
         };
+        /** @description One attribute and what can draw it. */
+        AttributeOption: {
+            kinds: components["schemas"]["Kind"][];
+            name: string;
+        };
         /**
          * @description One attribute of one type: how many entities carry it and, for numbers, their range and the
          *     values far outside the rest.
@@ -9050,6 +9119,15 @@ export interface components {
             name: string;
             project: string;
         };
+        /** @description One Endpoint the caller may read. */
+        EndpointOption: {
+            name: string;
+            public: boolean;
+            slug: string;
+            title: string;
+            /** @description Grafana can read it: public, or its slug is in the project's datasources. */
+            usable: boolean;
+        };
         /** @description What a public Endpoint's page shows under "Standards". */
         EndpointStandards: {
             /** @description The Endpoint's public address, ending in `/`: every sample a developer page shows starts here. */
@@ -9373,6 +9451,23 @@ export interface components {
             /** @description LinkML YAML, exactly as the editor holds it. */
             source: string;
         };
+        /** @description What the form's dropdowns may offer this person now. */
+        GrafanaOptions: {
+            attributes: components["schemas"]["AttributeOption"][];
+            endpoints: components["schemas"]["EndpointOption"][];
+            types: string[];
+        };
+        /** @description The project's page. */
+        GrafanaPage: {
+            /** @description Those whose Endpoint the caller may read, newest first. */
+            items: components["schemas"]["VisualizationItem"][];
+            /** @description The caller may save and remove visualizations here. */
+            mayCreate: boolean;
+            /** @description Grafana answers and holds this project's organization. */
+            ready: boolean;
+            /** @description What a person reads when it does not. */
+            reason?: string | null;
+        };
         /** @description One rule in force, with the binding and role it came through, so a refusal can be traced. */
         Grant: {
             binding: string;
@@ -9660,6 +9755,11 @@ export interface components {
             /** @description The NGSI-LD entity as the person read it, normalized. */
             entity: Record<string, never>;
         };
+        /**
+         * @description What a visualization draws.
+         * @enum {string}
+         */
+        Kind: "timeseries" | "stat" | "table" | "map";
         /** @description The body of `POST …/kpis/check`. */
         KpiCheckRequest: {
             /** @description The draft `joinedcontext.com/v1alpha2` Pipeline with one `kpi` step. */
@@ -10000,6 +10100,23 @@ export interface components {
             types: components["schemas"]["TypeGrant"][];
             /** @description The grant's end, RFC 3339; none is no end. */
             until?: string | null;
+        };
+        /**
+         * @description A new visualization.
+         * @example {
+         *       "attribute": "pm25",
+         *       "endpoint": "helsinki-air-quality",
+         *       "kind": "timeseries",
+         *       "title": "PM2.5 by station",
+         *       "type": "AirQualityObserved"
+         *     }
+         */
+        NewVisualization: {
+            attribute: string;
+            endpoint: string;
+            kind: components["schemas"]["Kind"];
+            title: string;
+            type: string;
         };
         /** @description One object in the graph. */
         Node: {
@@ -12142,6 +12259,20 @@ export interface components {
         ViewList: {
             /** @description The views of the space this caller sees, oldest first. */
             items: components["schemas"]["DataView"][];
+        };
+        /** @description One saved visualization. */
+        VisualizationItem: {
+            attribute: string;
+            createdAt: string;
+            endpoint: string;
+            /** @description The Endpoint's title, the name its dropdown shows. */
+            endpointTitle: string;
+            id: string;
+            kind: components["schemas"]["Kind"];
+            /** @description Where it opens in Grafana; `None` until the organization is known. */
+            openUrl?: string | null;
+            title: string;
+            type: string;
         };
         /** @description What the watch answers. */
         Watched: {
@@ -21375,6 +21506,260 @@ export interface operations {
                 };
             };
             /** @description The git forge is not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    grafana_page: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The page */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrafanaPage"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project the caller has a part in */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    save_visualization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NewVisualization"];
+            };
+        };
+        responses: {
+            /** @description Saved */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VisualizationItem"];
+                };
+            };
+            /** @description A body that does not parse */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not save dashboards, or may not read the Endpoint */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project the caller has a part in */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Grafana is not set up for the project */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A field names what the page does not offer; the errors name it */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Grafana or the database did not answer */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    grafana_options: {
+        parameters: {
+            query?: {
+                /** @description The Endpoint chosen so far: the answer then lists its types. */
+                endpoint?: string;
+                /** @description The type chosen so far: the answer then lists its attributes. */
+                type?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The options */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrafanaOptions"];
+                };
+            };
+            /** @description An unknown query parameter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project, or an Endpoint the caller may not read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    remove_visualization: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name */
+                project: string;
+                /** @description The visualization */
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Removed */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not change dashboards */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such project or visualization */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Grafana is not set up for the project */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Grafana or the database did not answer */
             503: {
                 headers: {
                     [name: string]: unknown;
