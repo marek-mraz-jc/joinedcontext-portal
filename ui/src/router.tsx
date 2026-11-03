@@ -29,6 +29,7 @@ const InboxPage = lazy(() => import("./pages/inbox/InboxPage").then((module) => 
 import { FormRouteHost } from "./components/forms/FormRoute";
 import type { FormTarget } from "./components/forms/FormRoute";
 import { ActivityPage } from "./routes/ActivityPage";
+import { GrafanaPage } from "./pages/grafana/GrafanaPage";
 import { HealthPage } from "./pages/health/HealthLog";
 const SecretFormPage = lazy(() => import("./pages/secrets/SecretFormPage").then((module) => ({ default: module.SecretFormPage })));
 const ApprovalsPage = lazy(() => import("./routes/ApprovalsPage").then((module) => ({ default: module.ApprovalsPage })));
@@ -539,6 +540,20 @@ const activityRoute = createRoute({
     return (
       <Shell project={project}>
         <ActivityPage project={project} kind={kind} />
+      </Shell>
+    );
+  },
+});
+
+/** A person's visualizations in the project's Grafana (T-6509). */
+const grafanaRoute = createRoute({
+  getParentRoute: () => protectedRoute,
+  path: "/projects/$project/grafana",
+  component: function GrafanaRoute() {
+    const { project } = grafanaRoute.useParams();
+    return (
+      <Shell project={project}>
+        <GrafanaPage project={project} />
       </Shell>
     );
   },
@@ -1474,6 +1489,7 @@ export const routeTree = rootRoute.addChildren([
     indexRoute,
     homeRoute,
     activityRoute,
+    grafanaRoute,
     healthRoute,
     approvalsRoute,
     approvalDetailRoute,

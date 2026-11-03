@@ -349,6 +349,8 @@ pub async fn serve(config: Config) -> std::io::Result<()> {
     crate::erasure::spawn_periodic(state.clone());
     // The assistant's kept answers, forgotten when a Policy or an Endpoint changes (T-4731).
     crate::answers::spawn_periodic(state.clone());
+    // What a restart of Grafana took, put back from the Portal's rows (T-6509).
+    crate::grafana::spawn_periodic(state.clone());
 
     let router = app(state);
     axum::serve(listener, router)

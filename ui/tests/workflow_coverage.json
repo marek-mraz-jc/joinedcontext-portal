@@ -1,5 +1,27 @@
 {
   "workflows": {
+    "grafana": {
+      "save": {
+        "live": {
+          "spec": "grafana.spec.ts",
+          "test": "a person saves an Endpoint's data into Grafana and removes it"
+        },
+        "personOnly": "a saved visualization is a person's choice on the Grafana page; an agent proposes a Dashboard with jc_resource_propose",
+        "routes": [
+          "POST /api/v1/projects/{project}/grafana"
+        ]
+      },
+      "remove": {
+        "live": {
+          "spec": "grafana.spec.ts",
+          "test": "a person saves an Endpoint's data into Grafana and removes it"
+        },
+        "personOnly": "a saved visualization is a person's choice on the Grafana page; an agent proposes a Dashboard with jc_resource_propose",
+        "routes": [
+          "DELETE /api/v1/projects/{project}/grafana/{id}"
+        ]
+      }
+    },
     "mqttbroker": {
       "clear-capture": {
         "live": {
