@@ -532,6 +532,13 @@ impl Driver {
                 };
                 if text.starts_with("opened ") && !answer.contains("\"jc_ask\"") {
                     let prose = share::prose_of(&answer);
+                    // A page opened after reads, with no word on them, answers nothing: the
+                    // model says what it read before the turn ends (T-6533, S-07).
+                    if prose.is_empty() && !results.is_empty() && !last {
+                        drafts += 1;
+                        results.push((drafted("jc_ui_navigate", None), unsaid(&text)));
+                        continue;
+                    }
                     let prose = if prose.is_empty() { text } else { prose };
                     self.thought(&prose).await?;
                     return Ok(prose);
@@ -960,7 +967,7 @@ dashboard editor with them; the person proposes it there.
         if self.may_change("RoleBinding", Verb::Propose).is_ok() {
             pack.push_str(&format!(
                 r#"
-## WHEN THE PERSON ASKS TO GIVE SOMEBODY A ROLE
+## WHEN THE PERSON ASKS TO GIVE SOMEBODY A ROLE OR REMOVE THEM
 
 A request to give a person or a group a role: "make jana.kovacova a steward on helsinki". The
 organization's roles are {roles}. A role applies to the whole organization, to one project or to
@@ -980,8 +987,18 @@ them in the grant form on the Members page and send no call. `subjects` may name
 `{{ "group": "<group>" }}`; `scope` is exactly one of
 `{{ "organization": true }}`, `{{ "project": "<name>" }}` or `{{ "contextSpace": "<name>" }}`. The
 platform checks that the person holds everything the role grants there and opens the grant form
-filled in; the person proposes it there. You never grant anything yourself. Taking a role away is
-a removal of its binding with change_resource.
+filled in; the person proposes it there. You never grant anything yourself.
+
+Removing somebody from the project, or taking a role away, removes the RoleBindings that name
+them, never a Policy. Find them by name:
+
+```json
+{{ "tool": "jc_member_list", "arguments": {{ "search": "<part of their name>" }} }}
+```
+
+Each of their `bindings` names a RoleBinding: one whose `subjects` is 1 goes with change_resource
+`"kind": "RoleBinding"`, its name and `"delete": true`, one call per binding. One naming others
+too would remove them as well: say so and send no call for it.
 "#,
                 roles = self.names_of("Role").join(", "),
                 project = self.project
@@ -1438,7 +1455,7 @@ const PLAYBOOKS: &[(&str, &str, &[Option<Path>])] = &[
         &[Some(Path::BuildDashboard)],
     ),
     (
-        "## WHEN THE PERSON ASKS TO GIVE SOMEBODY A ROLE",
+        "## WHEN THE PERSON ASKS TO GIVE SOMEBODY A ROLE OR REMOVE THEM",
         "grant-role",
         &[Some(Path::ShareData)],
     ),
@@ -1501,6 +1518,14 @@ fn earlier_turns(turns: &[(String, String)]) -> String {
         out.push_str(line);
     }
     out
+}
+
+/// What goes back to a model that opened a page with no word after reading data (T-6533, S-07).
+fn unsaid(opened: &str) -> String {
+    format!(
+        "{opened}. The page does not answer the person: say now in plain sentences what you read \
+         (how many, which names, which values), and call no tool"
+    )
 }
 
 /// The pack as the path sends it: its own playbooks whole, every other one folded to a line that
@@ -2361,6 +2386,7 @@ mod tests {
             "DataModel",
             "Role",
             "RoleBinding",
+            "SyncSource",
         ]
         .iter()
         .map(|kind| json!({ "kind": kind, "verbs": ["read", "propose"] }))
@@ -2436,6 +2462,37 @@ mod tests {
             create.contains("**Role**") && create.contains("\"rules\""),
             "{create}"
         );
+    }
+
+    /// T-6533: the walk's S-25, S-32 and S-07 each have their way in what a free turn sends: the
+    /// pause operation is offered, the role playbook's folded line names a removal and hands out
+    /// the member read and the binding's removal, and a page opened after reads asks for words.
+    #[test]
+    fn a_free_turn_pauses_a_sync_removes_a_member_and_answers_in_words() {
+        let driver = everything();
+        let (_, user) = turn_tokens(&driver, None);
+        assert!(Path::offers(None, "jc_syncsource_pause"));
+        assert!(user.contains("`jc_syncsource_pause`"), "{user}");
+        assert!(
+            user.contains("give somebody a role or remove them"),
+            "{user}"
+        );
+        let pack = proposing(&["RoleBinding"], &[]).conversation_pack(&[], "remove jana", None);
+        let grant = playbook(&pack, "grant-role").expect("the role playbook");
+        for said in [
+            "\"jc_member_list\"",
+            "\"kind\": \"RoleBinding\"",
+            "\"delete\": true",
+            "never a Policy",
+        ] {
+            assert!(grant.contains(said), "{said}\n{grant}");
+        }
+        let again = unsaid("opened /projects/helsinki/explore");
+        assert!(
+            again.starts_with("opened /projects/helsinki/explore."),
+            "{again}"
+        );
+        assert!(again.contains("call no tool"), "{again}");
     }
 
     /// T-3079: ten long turns in, a turn's own part (what follows the cached pack) holds the
