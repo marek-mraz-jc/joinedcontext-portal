@@ -156,7 +156,10 @@ describe("the Portal's entity grid", () => {
       </I18nextProvider>,
     );
     await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
-    expect(reads.filter((url) => url.includes("/entities?"))).toHaveLength(1);
+    // One read for the rows and one limit=0 read for the total (T-6541), each once.
+    const entityReads = reads.filter((url) => url.includes("/entities?"));
+    expect(entityReads.filter((url) => !/[?&]limit=0(&|$)/.test(url))).toHaveLength(1);
+    expect(entityReads.filter((url) => /[?&]limit=0(&|$)/.test(url))).toHaveLength(1);
   });
 
   it("reads the endpoint once when the host passes its refusal callback inline (T-6230)", async () => {
@@ -183,7 +186,10 @@ describe("the Portal's entity grid", () => {
     rerender(grid());
     rerender(grid());
     await waitFor(() => expect(screen.getByText("5")).toBeInTheDocument());
-    expect(reads.filter((url) => url.includes("/entities?"))).toHaveLength(1);
+    // One read for the rows and one limit=0 read for the total (T-6541), each once.
+    const entityReads = reads.filter((url) => url.includes("/entities?"));
+    expect(entityReads.filter((url) => !/[?&]limit=0(&|$)/.test(url))).toHaveLength(1);
+    expect(entityReads.filter((url) => /[?&]limit=0(&|$)/.test(url))).toHaveLength(1);
     expect(refused).toContain(false);
   });
 
