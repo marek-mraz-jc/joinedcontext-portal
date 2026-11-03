@@ -4,7 +4,7 @@
  * them says what to do next and offers no button.
  */
 // covers (T-2137, the module gate in gate_modules.test.ts): src/pages/mcp/McpElicitationPage.tsx.
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
@@ -18,7 +18,7 @@ import { InRouter } from "./pageHarness";
 const ID = "eli-0a1b2c3d4e5f6a7b";
 const PAGE = `/api/v1/projects/city/mcp-elicitations/${ID}`;
 
-function serve(status: number) {
+function serve(status: number, consumedOnceAnswered = false) {
   const posted: unknown[] = [];
   let question: Record<string, unknown> = {
     id: ID,
@@ -35,7 +35,8 @@ function serve(status: number) {
       const url = new URL(request.url ?? String(input), "http://localhost");
       const reply = (body: unknown, code = 200) =>
         new Response(JSON.stringify(body), { status: code, headers: { "Content-Type": "application/json" } });
-      if (url.pathname === PAGE && status !== 200) return reply({ status, title: "Not Found", detail: "no open question" }, status);
+      const gone = status !== 200 || (consumedOnceAnswered && question.decision !== null);
+      if (url.pathname === PAGE && gone) return reply({ status: 404, title: "Not Found", detail: "no open question" }, 404);
       if (url.pathname === PAGE) return reply(question);
       if (url.pathname === `${PAGE}/decision`) {
         const body = (await request.json()) as { decision: string };
@@ -49,9 +50,9 @@ function serve(status: number) {
   return posted;
 }
 
-const show = () =>
+const show = (client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) =>
   render(
-    <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+    <QueryClientProvider client={client}>
       <I18nextProvider i18n={i18n}>
         <InRouter>
           <McpElicitationPage project="city" id={ID} />
@@ -80,6 +81,21 @@ describe("the MCP question page", () => {
     await userEvent.click(screen.getByRole("button", { name: en.mcpElicitation.decline }));
     expect(await screen.findByText(en.mcpElicitation.declined)).toBeInTheDocument();
     expect(posted).toEqual([{ decision: "accept" }, { decision: "decline" }]);
+  });
+
+  // T-6501: the client sends its call again, the Portal consumes the answered question, and the
+  // paired tab re-reads every query. The person who accepted here still reads that they accepted.
+  it("keeps the person's answer once the client's call used up the question", async () => {
+    serve(200, true);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    show(client);
+    await userEvent.click(await screen.findByRole("button", { name: en.mcpElicitation.accept }));
+    expect(await screen.findByText(en.mcpElicitation.accepted)).toBeInTheDocument();
+    await client.invalidateQueries();
+    await waitFor(() => expect(client.getQueryState(["mcp-elicitation", "city", ID])?.status).toBe("error"));
+    expect(screen.getByText(en.mcpElicitation.accepted)).toBeInTheDocument();
+    expect(screen.queryByText(en.mcpElicitation.gone)).toBeNull();
+    expect(screen.queryByRole("button", { name: en.mcpElicitation.accept })).toBeNull();
   });
 
   it("says what to do when the question is no longer open, with no button to press", async () => {
