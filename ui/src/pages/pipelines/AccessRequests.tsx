@@ -27,7 +27,7 @@ export interface AccessRequestView {
   endpoint: { project: string; name: string };
   /** Only on the owners' side: the pipeline's side never learns whether a typed name exists. */
   space?: string;
-  operations: "read" | "write";
+  operations: Operation;
   types: { type: string; attrs: string[] }[];
   until: string | null;
   reason: string;
@@ -45,6 +45,7 @@ const KEY = "access-requests";
 /** A typed `project/endpoint`, both DNS-1123 labels as the server checks them. */
 const TYPED_ENDPOINT = /^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?\/[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$/;
 
+type Operation = components["schemas"]["Operations"];
 type NewRequest = components["schemas"]["NewRequest"];
 
 /** The list routes answer `{ items }` of the view above (API/01 §47). */
@@ -60,7 +61,7 @@ export type RequestableEndpoint = components["schemas"]["Requestable"];
 export interface AccessPrefill {
   /** `project/endpoint`. */
   endpoint: string;
-  operations: "read" | "write";
+  operations: Operation;
   type?: string;
 }
 
@@ -128,7 +129,7 @@ function FormActions({ nested, pending, onSend, onCancel }: { nested?: boolean; 
 export function requestBody(form: {
   project: string;
   endpoint: string;
-  operations: "read" | "write";
+  operations: Operation;
   rows: { type: string; attrs: string[] }[];
   until: string;
   reason: string;
@@ -204,7 +205,7 @@ export function PipelineAccessRequests({
   const [initial] = useState(() => initialRequest(prefill));
   const [open, setOpen] = useState(initial.open);
   const [chosen, setChosen] = useState(initial.endpoint);
-  const [operations, setOperations] = useState<"read" | "write">(initial.operations);
+  const [operations, setOperations] = useState<Operation>(initial.operations);
   const [rows, setRows] = useState<{ type: string; attrs: string[] }[]>([{ type: initial.type, attrs: [] }]);
   const [until, setUntil] = useState("");
   const [reason, setReason] = useState("");
@@ -333,6 +334,7 @@ export function PipelineAccessRequests({
             options={[
               { value: "read", label: t("pipelines.access.operations.read") },
               { value: "write", label: t("pipelines.access.operations.write") },
+              { value: "history", label: t("pipelines.access.operations.history") },
             ]}
           />
           <fieldset className="flex flex-col gap-2">

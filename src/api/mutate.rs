@@ -77,6 +77,9 @@ pub fn find_literal_secret(val: &Value) -> Option<String> {
                 if SECRET_KEYS.contains(&k.as_str()) && scalar {
                     return Some(k.clone());
                 }
+                if let Some(header) = (k == "headers").then(|| credential_header(v)).flatten() {
+                    return Some(format!("headers.{header}"));
+                }
                 if let Some(found) = find_literal_secret(v) {
                     return Some(found);
                 }
@@ -93,6 +96,22 @@ pub fn find_literal_secret(val: &Value) -> Option<String> {
         }
         _ => None,
     }
+}
+
+/// The first request header in `headers` that holds a credential as plain text: a header's name
+/// is the vendor's (`X-Api-Key`), so [`SECRET_KEYS`] never meets it. A value naming a `${VAR}`
+/// holds none (T-6488).
+fn credential_header(headers: &Value) -> Option<&str> {
+    const WORDS: [&str; 6] = ["auth", "token", "secret", "password", "key", "cookie"];
+    headers.as_object()?.iter().find_map(|(name, value)| {
+        let plain: String = name
+            .chars()
+            .filter(char::is_ascii_alphanumeric)
+            .collect::<String>()
+            .to_ascii_lowercase();
+        let holds = value.as_str().is_some_and(|text| !text.contains("${"));
+        (holds && WORDS.iter().any(|word| plain.contains(word))).then_some(name.as_str())
+    })
 }
 
 /// Whether `value` is exactly one runner variable reference, `${NAME}` with `NAME` a shell name.
@@ -3596,6 +3615,31 @@ mod tests {
     /// T-3972: a credential field of a runner step names the pipeline's secret as `${VAR}`, which
     /// is a reference and no secret; jc-core holds which names a manifest may read (PL-15). A
     /// value that is anything more than one whole reference is still a literal.
+    #[test]
+    fn a_credential_in_a_request_header_is_a_literal_secret() {
+        let spec = |headers: Value| json!({ "spec": { "http": { "headers": headers } } });
+        for name in [
+            "X-Api-Key",
+            "x_api_key",
+            "Authorization",
+            "X-Auth-Token",
+            "Cookie",
+        ] {
+            assert_eq!(
+                find_literal_secret(&spec(json!({ name: "abc123pastedkey456" }))),
+                Some(format!("headers.{name}"))
+            );
+            assert_eq!(
+                find_literal_secret(&spec(json!({ name: "${API_KEY}" }))),
+                None
+            );
+        }
+        assert_eq!(
+            find_literal_secret(&spec(json!({ "Accept": "text/csv", "User-Agent": "jc" }))),
+            None
+        );
+    }
+
     #[test]
     fn a_whole_variable_reference_is_no_literal_secret() {
         let step = |password: Value| {

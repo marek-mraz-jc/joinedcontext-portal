@@ -3,7 +3,7 @@
 //! Each version that builds and holds tests is tested before the run offers publication, the way
 //! the build lane tests it: one ConfigMap carries the version's files (gzipped JSON), one Job on
 //! the lane's own builder image links the release's installed packages into it, runs `vitest`
-//! once and prints one line, `JC-TESTS {json}`, which is read back from the pod's log. The
+//! and `tsc -b` once and prints one line, `JC-TESTS {json}`, which is read back from the pod's log. The
 //! namespace is the fence: no traffic in or out, the restricted Pod Security Standard, a pod cap
 //! (deployment `components/portal/charts/namespaces/templates/app-tests.yaml`). The pod holds no
 //! token and no secret; the Job stops at 1 CPU, 1 GiB and [`DEADLINE_SECS`]. Both objects are
@@ -32,7 +32,7 @@ pub struct SandboxSettings {
 }
 
 /// How long one Job may run before Kubernetes stops it.
-pub const DEADLINE_SECS: u64 = 120;
+pub const DEADLINE_SECS: u64 = 170;
 /// How long the Portal waits for a result, a little past the deadline so a stopped Job is seen.
 const WAIT: Duration = Duration::from_secs(DEADLINE_SECS + 30);
 const POLL: Duration = Duration::from_secs(2);
@@ -41,7 +41,7 @@ const POLL: Duration = Duration::from_secs(2);
 ///
 /// - `JC_TEST_TIMEOUT_MS` — how many milliseconds the lane's `test-project` gives the whole test
 ///   run before it reports the tests as not finished.
-const TEST_TIMEOUT_MS: u64 = 100_000;
+const TEST_TIMEOUT_MS: u64 = 150_000;
 /// A ConfigMap holds at most 1 MiB; the gzipped project leaves room for the object around it.
 const MAX_PROJECT_BYTES: usize = 900 * 1024;
 const LOG_BYTES: u64 = 256 * 1024;
@@ -578,7 +578,7 @@ mod tests {
         assert_eq!(config_map["binaryData"]["project.json.gz"], "Z3o=");
         let pod = &job["spec"]["template"]["spec"];
         assert_eq!(job["spec"]["backoffLimit"], 0);
-        assert_eq!(job["spec"]["activeDeadlineSeconds"], 120);
+        assert_eq!(job["spec"]["activeDeadlineSeconds"], 170);
         assert_eq!(pod["automountServiceAccountToken"], false);
         assert_eq!(pod["enableServiceLinks"], false);
         assert!(pod.get("serviceAccountName").is_none());

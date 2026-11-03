@@ -15,12 +15,17 @@
 use serde_json::{json, Value};
 
 use joinedcontext_portal::agents::share::{
-    edit, prose_of, render, EditEndpoint, ProposeEndpoint, RateLimits, MAX_REQUESTS_PER_MINUTE,
-    REPRESENTATIONS,
+    self, known_representations, prose_of, render, EditEndpoint, ProposeEndpoint, RateLimits,
+    MAX_REQUESTS_PER_MINUTE,
 };
 use joinedcontext_portal::resource::{is_dns1123, API_VERSION};
 
 const PROJECT: &str = "helsinki";
+
+/// An edit in these cases adds no calendar, so it reads no served type.
+fn edit(endpoints: &[Value], params: &EditEndpoint) -> Result<share::Edit, String> {
+    share::edit(endpoints, params, |_| Vec::new())
+}
 
 fn share() -> ProposeEndpoint {
     ProposeEndpoint {
@@ -230,7 +235,7 @@ fn a_representation_the_catalogue_does_not_know_is_refused() {
         assert!(refused.contains("representation"), "{bad:?}: {refused}");
     }
     // Every name the catalogue does know renders.
-    for good in REPRESENTATIONS {
+    for good in known_representations() {
         let mut params = share();
         params.representations = vec![format!("  {good}  ")];
         let rendered = render(PROJECT, &params, &[]).expect("a known representation");
@@ -260,7 +265,7 @@ fn a_retired_file_is_refused_on_a_share_and_dropped_by_an_edit() {
     params.representations = vec!["ngsi-ld".to_owned(), "xlsx".to_owned()];
     let refused = render(PROJECT, &params, &[]).expect_err("xlsx is retired");
     assert!(refused.contains("'xlsx'"), "{refused}");
-    assert!(refused.contains("ngsi-ld, csv"), "{refused}");
+    assert!(refused.contains("ngsi-ld, mcp, csv"), "{refused}");
 
     let mut stored = bikes();
     stored[0]["spec"]["enabledRepresentations"] = json!(["ngsi-ld", "geojson", "zip"]);

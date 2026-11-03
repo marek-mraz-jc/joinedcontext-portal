@@ -429,7 +429,7 @@ pub async fn delete_with_identity(
     // What a caller may not read is not there (R20, PF-59): the same 404 for a resource that
     // exists as for one that does not, before anything is looked up (T-2563). A caller who reads
     // it and lacks `delete` still gets the 403 that names the missing grant, below.
-    let effective = crate::permissions::for_request(state, identity, project);
+    let effective = crate::groups::for_removal(state, identity, project, kind_info.kind, name);
     if !effective.may_read_some(kind_info.kind) {
         return Err(not_found());
     }
