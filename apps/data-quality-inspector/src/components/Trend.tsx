@@ -85,11 +85,11 @@ export function Trend({ lang, server }: { lang: Lang; server: Server }) {
                 {runs.map((run) => (
                   <tr key={run.id}>
                     <th scope="row">{when(lang, run.ran_at)}</th>
-                    <td className="jc-num">{number(lang, run.entities)}</td>
-                    <td className="jc-num">{percent(lang, run.completeness)}</td>
-                    <td className="jc-num">{percent(lang, run.valid)}</td>
-                    <td className="jc-num">{number(lang, run.findings)}</td>
-                    <td>
+                    <td className="jc-num" data-label={t(lang, "entitiesColumn")}>{number(lang, run.entities)}</td>
+                    <td className="jc-num" data-label={t(lang, "completeColumn")}>{percent(lang, run.completeness)}</td>
+                    <td className="jc-num" data-label={t(lang, "validColumn")}>{percent(lang, run.valid)}</td>
+                    <td className="jc-num" data-label={t(lang, "findingsColumn")}>{number(lang, run.findings)}</td>
+                    <td data-label={t(lang, "fullReport")}>
                       <button
                         type="button"
                         className="jc-button"
