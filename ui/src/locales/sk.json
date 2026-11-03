@@ -242,8 +242,8 @@
     "ownProposal": "Nemôžete schváliť ani zamietnuť vlastný návrh.",
     "ownAccessChange": "Zmeny prístupu schvaľuje druhá osoba: vlastnú zmenu rolí, skupín či servisných účtov schváli iný administrátor.",
     "ownModelChange": "Zmenu dátového modelu schvaľuje druhá osoba: vlastnú zmenu modelu schváli iný administrátor.",
-    "confirmPrompt": "Pre červenú úroveň zadajte názov prostriedku pre potvrdenie:",
-    "confirmLabel": "Názov prostriedku pre potvrdenie",
+    "confirmPrompt": "Na potvrdenie napíšte tento názov:",
+    "confirmLabel": "Na potvrdenie napíšte názov",
     "diffAdded": "Pridané",
     "diffChanged": "Zmenené",
     "diffRemoved": "Odstránené",
@@ -467,7 +467,9 @@
     "accepted": "Navrhnuté ako zmena:",
     "review": "Otvoriť v Schvaľovaní",
     "approvedAsProposed": "Schválené pri navrhnutí, nasadzuje sa:",
-    "open": "Otvoriť zmenu"
+    "open": "Otvoriť zmenu",
+    "waitingApprover": "Čaká na schvaľovateľa",
+    "whoApproves": "Ďalej: rozhodne niekto iný s právom schvaľovať v tomto projekte. Nájde to v Schváleniach a toto zobrazenie sa aktualizuje samo."
   },
   "resourceDelete": {
     "title": "Odstrániť {name}",
@@ -673,11 +675,28 @@
       "files": "Súbory",
       "dropHint": "Pretiahnite súbory sem alebo ich vyberte",
       "action": "Doplniť",
+      "checkFile": "Skontrolovať súbor",
+      "fileGiven": "Súbor: {name}",
       "proposeAll": "Navrhnúť všetko",
       "open": "Otvoriť",
       "noDrafts": "Zatiaľ nie sú doplnené žiadne návrhy.",
       "needInput": "Zadajte URL endpointu alebo pridajte súbor.",
-      "filesHint": "Ukážka údajov ako CSV, Excel (.xlsx), JSON alebo GeoJSON, s manifestmi, README alebo .env, ktoré opisujú zdroj; spolu do 10 MB. Príklad: stanice.xlsx."
+      "filesHint": "Ukážka údajov ako CSV, Excel (.xlsx), JSON alebo GeoJSON, s manifestmi, README alebo .env, ktoré opisujú zdroj; spolu do 10 MB. Príklad: stanice.xlsx.",
+      "review": {
+        "title": "Navrhnutý dátový model {type}: {count, plural, one {# atribút} few {# atribúty} other {# atribútov}}",
+        "hint": "Porovnajte každý typ s hodnotou zo súboru. Ak návrh zle prečítal stĺpec, zmeňte typ tu, napríklad PSČ prečítané ako číslo má byť text.",
+        "sample": "Príklad zo súboru: {value}",
+        "noSample": "V súbore nie je hodnota",
+        "range": {
+          "string": "Text",
+          "integer": "Celé číslo",
+          "float": "Desatinné číslo",
+          "boolean": "Áno alebo nie",
+          "date": "Dátum",
+          "datetime": "Dátum a čas"
+        }
+      },
+      "spaceHint": "Existujúci priestor na doplnenie alebo názov nového, napríklad mestske-garaze."
     },
     "segment": "v identifikátoroch entít: {segment}",
     "quality": {
@@ -1166,10 +1185,10 @@
       "noSlots": "Navrhnutý model nedeklaruje pre tento typ žiadne polia: nie je čo zapísať.",
       "write": "{count, plural, =0 {Nie je čo zapísať} one {Zapísať # riadok} few {Zapísať # riadky} other {Zapísať # riadkov}}",
       "done": "{written, plural, =0 {Nezapísal sa žiadny riadok} one {Zapísaný # riadok} few {Zapísané # riadky} other {Zapísaných # riadkov}}, {refused, plural, =0 {žiadny odmietnutý.} other {odmietnutých: #.}}",
-      "preview": "Náhľad {count, plural, one {prvej # entity} few {prvých # entít} other {prvých # entít}} ako NGSI-LD",
+      "preview": "Náhľad {count, plural, one {prvej # entity} few {prvých # entít} other {prvých # entít}} v uloženej podobe",
       "firstRefusal": "Riadok {row}: {reason}",
       "liveNow": "Zmena je aktívna. Zapíšte riadky do {space} ako {type}. Opätovný zápis toho istého súboru aktualizuje tie isté entity.",
-      "goingLive": "Schválené. Do niekoľkých minút sa zmena prejaví a toto tlačidlo sa odomkne samo; zostaňte na tejto stránke.",
+      "goingLive": "Schválené. Do minúty sa to spustí a toto tlačidlo sa odomkne samo; zostaňte tu.",
       "openSpace": "Otvoriť priestor"
     },
     "toolbar": {
@@ -3279,7 +3298,8 @@
       "operationsLegend": "Čo tam pipeline robí",
       "operations": {
         "read": "Čítanie",
-        "write": "Zápis"
+        "write": "Zápis",
+        "history": "Čítanie aj história"
       },
       "types": "Typy a atribúty",
       "typesHelp": "Uveďte každý typ entity a každý atribút, ktorý pipeline potrebuje. Žiadosť nikdy nežiada o všetky.",
@@ -3499,7 +3519,7 @@
     },
     "kpiEditor": {
       "title": "Nový ukazovateľ z viacerých zdrojov",
-      "lead": "Vyberte dva až päť endpointov, určte, ako sa ich riadky spoja a čo sa má vypočítať. Každé pole sa kontroluje počas písania; Náhľad vypočíta hodnotu z toho, čo endpointy poskytujú teraz. Nič sa nezapíše, kým zmenu neschváli schvaľovateľ.",
+      "lead": "Vyberte zdroje, určte, ako sa ich riadky spoja a čo sa má vypočítať. Nič sa nezapíše, kým zmenu neschváli schvaľovateľ.",
       "name": "Názov ukazovateľa",
       "titleField": "Nadpis",
       "sources": "Zdroje",
@@ -3523,7 +3543,8 @@
       "joinHint": {
         "time": "Jeden ukazovateľ za beh zo všetkých riadkov, ktoré zdroje vrátili.",
         "area": "Jeden ukazovateľ za každú hodnotu oblasti, ktorú majú všetky zdroje; k názvu sa pridá jej skratka.",
-        "entity": "Jeden ukazovateľ za každú entitu, ktorú uvádzajú všetky zdroje; k názvu sa pridá jej skratka."
+        "entity": "Jeden ukazovateľ za každú entitu, ktorú uvádzajú všetky zdroje; k názvu sa pridá jej skratka.",
+        "change": "Všetky riadky behu: zmena je jedna hodnota za celý zdroj."
       },
       "key": {
         "area": "Atribút oblasti",
@@ -3537,7 +3558,8 @@
         "sum": "Súčet čísla prvého zdroja",
         "average": "Priemer čísla prvého zdroja",
         "share": "Podiel: prvý súčet delený druhým súčtom",
-        "per": "Prvý súčet na riadok druhého zdroja"
+        "per": "Prvý súčet na riadok druhého zdroja",
+        "change": "Zmena oproti minulému týždňu"
       },
       "writes": "Vzorec, ktorý zapíše: {formula}",
       "advanced": "Pokročilé: napísať vzorec",
@@ -3555,6 +3577,7 @@
       "runPreview": "Vypočítať teraz",
       "previewing": "Počíta sa…",
       "previewHint": "Prečíta najviac 100 riadkov každého zdroja tak, ako ich vidíte vy, a vypočíta {formula}.",
+      "previewHintChange": "Prečíta najviac 100 riadkov zdroja tak, ako ich vidíte vy, teraz a spred týždňa, a vypočíta rozdiel.",
       "partial": "Náhľad sa zastavil pri {rows} riadkoch zdroja, preto táto hodnota nie je konečná: beh prečíta všetky riadky.",
       "noKeys": "Žiadny kľúč sa nenachádza vo všetkých zdrojoch, teraz by sa teda nezapísal žiadny ukazovateľ.",
       "indicator": "Ukazovateľ",
@@ -3581,9 +3604,13 @@
         "target": "Endpoint priestoru ukazovateľov, cez ktorý sa zapisuje, napríklad kpi-writer.",
         "formula": "sum, avg, min, max z input.attribute a count(input), s + - * / a zátvorkami, napríklad sum(parking.occupiedSpotNumber) / count(stops).",
         "areaKey": "Atribút s názvom alebo kódom oblasti v tomto zdroji, napríklad district.",
-        "entityKey": "id pre samotnú entitu alebo vzťah, ktorý ju pomenúva, napríklad refParkingSite."
+        "entityKey": "id pre samotnú entitu alebo vzťah, ktorý ju pomenúva, napríklad refParkingSite.",
+        "change": "Číta históriu tohto zdroja: stačí jeden zdroj a priestor musí mať toto číslo uložené aspoň týždeň. Dovtedy beh nezapíše nič a povie prečo."
       },
-      "previewFirst": "Náhľad sa spustí, keď sú všetky polia skontrolované bez problému."
+      "previewFirst": "Náhľad sa spustí, keď sú všetky polia skontrolované bez problému.",
+      "rowsBack": "{name}, pred {period}: {count} riadkov",
+      "rowsWeekBack": "{name} pred týždňom: {count} riadkov",
+      "noPreviewYet": "Hodnota zatiaľ nie je: vypočítate ju tlačidlom."
     }
   },
   "dashboards": {

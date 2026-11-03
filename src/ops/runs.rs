@@ -116,10 +116,34 @@ fn run_output_schema() -> Value {
             "kind": { "type": "string" },
             "status": { "type": "string" },
             "createdBy": { "type": "string" },
-            "createdAt": { "type": "string", "format": "date-time" }
+            "createdAt": { "type": "string", "format": "date-time" },
+            "url": { "type": "string", "description": "The Portal page following this run" },
+            "previewUrl": { "type": "string", "description": "The preview once a version is built" }
         },
         "required": ["id", "status"]
     })
+}
+
+/// A run as a tool answers it (T-6487): its page in the Portal as `url` and the preview's full
+/// address, which the record keeps relative to the Portal. An MCP client has no Portal to resolve
+/// it against.
+pub(super) fn with_pages(state: &crate::state::AppState, mut run: Value) -> Value {
+    let base = state.config.public_base_url.as_str().trim_end_matches('/');
+    let (Some(project), Some(id)) = (run["project"].as_str(), run["id"].as_str()) else {
+        return run;
+    };
+    let url = format!("{base}/projects/{project}/apps?run={id}");
+    let preview = run["previewUrl"]
+        .as_str()
+        .filter(|path| path.starts_with('/'))
+        .map(|path| format!("{base}{path}"));
+    if let Some(doc) = run.as_object_mut() {
+        doc.insert("url".into(), json!(url));
+        if let Some(preview) = preview {
+            doc.insert("previewUrl".into(), json!(preview));
+        }
+    }
+    run
 }
 
 /// The caller as the route's handlers read them.
@@ -294,7 +318,7 @@ pub fn operations() -> Vec<Operation> {
                 Box::pin(async move {
                     refuse_agent(caller, "jc_run_create")?;
                     let request = super::parse_input(val)?;
-                    let (_, Json(created)) = crate::api::agent_runs::create_run(
+                    let (_, Json(mut created)) = crate::api::agent_runs::create_run(
                         as_user(caller),
                         // Through the registry a run is a person's: no header reaches it (AG-93).
                         crate::agents::run::RunOrigin::Person,
@@ -306,7 +330,11 @@ pub fn operations() -> Vec<Operation> {
                         Json(request),
                     )
                     .await?;
-                    Ok(serde_json::to_value(created)?)
+                    // A ticket is for who drives the workspace, never a model's transcript.
+                    if caller.via == super::Via::Mcp {
+                        created.ticket = None;
+                    }
+                    Ok(with_pages(state, serde_json::to_value(created)?))
                 })
             },
         },
@@ -490,6 +518,34 @@ mod tests {
             .expect("op");
         let kinds = (op.input)()["properties"]["kind"]["enum"].clone();
         assert!(!kinds.to_string().contains("conversation"), "{kinds}");
+    }
+
+    /// T-6487: a run's answer names its Portal page and a preview an MCP client can open.
+    #[tokio::test]
+    async fn a_run_names_its_page_and_a_whole_preview_address() {
+        let state = crate::state::AppState::new(crate::config::Config::for_tests(), None);
+        let base = state
+            .config
+            .public_base_url
+            .as_str()
+            .trim_end_matches('/')
+            .to_owned();
+        let run = with_pages(
+            &state,
+            json!({
+                "id": "r1",
+                "project": "doprava",
+                "previewUrl": "/api/v1/projects/doprava/agent-runs/r1/preview?v=2",
+            }),
+        );
+        assert_eq!(run["url"], format!("{base}/projects/doprava/apps?run=r1"));
+        assert_eq!(
+            run["previewUrl"],
+            format!("{base}/api/v1/projects/doprava/agent-runs/r1/preview?v=2")
+        );
+        // Before the first version there is no preview to name.
+        let queued = with_pages(&state, json!({ "id": "r1", "project": "doprava" }));
+        assert!(queued.get("previewUrl").is_none());
     }
 
     /// JC2-23: jc_run_publish answers what its outputSchema declares, the Change wrapped as

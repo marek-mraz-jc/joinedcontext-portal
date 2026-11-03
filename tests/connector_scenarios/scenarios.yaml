@@ -1051,6 +1051,35 @@
   expect: 'binding removed; jana''s connectors lose the project at their next call'
   deny: 'none'
   script:
+    # The model takes the binding's name from jc_member_list (T-6485: the live walk could only
+    # guess it) and opens the change that deletes it; what follows proves the effect.
+    - proves: expect
+      manifest: { kind: Group, name: s32-people, spec: { members: [{ user: scn.project-admin@hel.fi }] } }
+    - proves: expect
+      manifest: { kind: DelegationPolicy, name: s32-access, spec: { subjects: [{ kind: Group, name: s32-people }], projects: ['{project}'], segments: [access], writes: true, maxExpiry: P90D } }
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s32-access, segments: [access], writes: true, scope: [{ project: '{project}', access: write }], expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      via: connector
+      call: jc_member_list
+      args: { search: jana }
+      contains: ['"binding":"scn-member-jana-{project}"', '"subjects":1', 'Jana Nováková']
+      absent: ['jana.novakova@hel.fi']
+    - proves: expect
+      via: connector
+      call: jc_change_plan
+      args: { changes: [{ op: delete, kind: RoleBinding, name: 'scn-member-jana-{project}' }] }
+      keep: planId
+      contains: ['"planId"', 'scn-member-jana-{project}']
+    - proves: expect
+      via: connector
+      call: jc_change_apply
+      args: { planId: '{planId}' }
+      contains: ['changeRequests']
     - proves: expect
       as: viewer
       rest:
@@ -1222,10 +1251,41 @@
       contains: ['endpointRef']
 - id: S-39
   segment: apps
-  as: steward
+  as: project-admin
   says: "Create an App that lists today's events from Endpoint Y."
-  expect: 'app run created, built, preview URL answers'
-  deny: 'none'
+  expect: 'app run created under the person, its answer names the builder page that shows the preview'
+  deny: 'writes off -> no build; a connector narrowed to one Endpoint -> refused'
+  script:
+    - proves: expect
+      manifest: { kind: Group, name: builders, spec: { members: [{ user: scn.project-admin@hel.fi }] } }
+    - proves: expect
+      manifest: { kind: DelegationPolicy, name: builders-apps, spec: { subjects: [{ kind: Group, name: builders }], projects: ['{project}'], segments: [apps], writes: true, maxExpiry: P90D } }
+    - proves: expect
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s39-build, segments: [apps], scope: [{ project: '{project}', access: write }], writes: true, expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: expect
+      via: connector
+      contains: ['jc_run_create']
+    - proves: expect
+      via: connector
+      accepted: true
+      call: jc_run_create
+      args: { appName: todays-counters, appClass: ui, visibility: project, kind: application, endpointName: '{project}-counters', dataNeeds: [{ contextSpaceRef: { kind: ContextSpace, name: doprava }, types: [BikeCounter], operations: [retrieveOps] }], prompt: "Lists today's counters." }
+      contains: ['"appName":"todays-counters"', '"status":"queued"', '/apps?run=']
+    - proves: deny
+      rest:
+        method: POST
+        path: /connectors
+        body: { name: s39-narrow, segments: [apps], scope: [{ project: '{project}', endpoint: '{project}-counters', access: write }], writes: true, expiresAt: '{in7days}' }
+      contains: ['"state":"active"']
+    - proves: deny
+      via: connector
+      call: jc_run_create
+      args: { appName: todays-counters-2, appClass: ui, visibility: project, kind: application, endpointName: '{project}-counters', dataNeeds: [{ contextSpaceRef: { kind: ContextSpace, name: doprava }, types: [BikeCounter], operations: [retrieveOps] }], prompt: "Lists today's counters." }
+      refused: true
 - id: S-40
   segment: apps
   as: steward
@@ -1249,7 +1309,7 @@
   expect: 'Portal assistant: ui navigate + open_form prefilled, nothing submitted; Claude: MCP App diff view or a Portal link'
   deny: 'UI action tries to submit -> not possible (no such tool)'
   script:
-    # Claude's half: a plan's diff names where the person opens that change in the Portal. The
+    # Claude's half: a read and a plan's diff name where the person opens the object in the Portal. The
     # Portal assistant's half (jc_ui_open_form and jc_ui_show_diff opening the pipeline editor
     # prefilled, nothing saved) runs in the browser and is proven in
     # src/agents/oneshot/connector_turn.rs and ui/e2e/assistant_ui_actions.spec.ts (T-5959). The
@@ -1258,7 +1318,14 @@
     - proves: expect
       call: jc_change_plan
       args: { changes: [{ op: patch, kind: DataModel, name: bike-counter, patch: { spec: { version: 0.1.0, lifecycle: draft } } }] }
-      contains: ['"planId"', '"portal":"/projects/{project}/models?edit=bike-counter"']
+      contains: ['"planId"', '"portal":"https://portal.test/projects/{project}/models?edit=bike-counter"']
+    # Reading the object alone already names its page, with the host a client cannot guess: a
+    # viewer gets it too, since the address says no more than the read did.
+    - proves: expect
+      as: viewer
+      call: jc_resource_get
+      args: { kind: DataModel, name: bike-counter }
+      contains: ['"portal":"https://portal.test/projects/{project}/models?edit=bike-counter"']
     # No door submits a form: neither the MCP tool list nor a call names one. An apps connector
     # with no paired tab lists no UI tool either; with one it adds the five of API/14 §2.2
     # (src/mcp/connector.rs, T-5967).

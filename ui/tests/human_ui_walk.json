@@ -6,6 +6,16 @@
   ],
   "enforce": false,
   "modules": {
+    "src/components/ChangeNotice.tsx": {
+      "walkedBy": "worker-t6456",
+      "date": "2026-11-02",
+      "screenshots": [
+        "evidence/T-6456/stub/dock-attached-1440.png",
+        "evidence/T-6456/stub/dock-attached-400.png",
+        "evidence/T-6456/stub/dock-live-1440.png",
+        "evidence/T-6456/stub/dock-live-400.png"
+      ]
+    },
     "src/components/grid/ManifestGrid.tsx": {
       "walkedBy": "worker-t6115",
       "date": "2026-10-30",

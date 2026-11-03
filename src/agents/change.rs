@@ -279,6 +279,32 @@ pub fn create_route(project: &str, kind: &str, plural: &str) -> String {
     list_address(project, kind, plural)
 }
 
+/// The page one held object opens on (T-6486): an Endpoint's own page, an organization's Role or
+/// Group on its tab of the Organization page, any other object in the editor of its kind.
+pub fn object_route(project: &str, kind: &str, plural: &str, name: &str) -> String {
+    if project == crate::permissions::ORG_NAMESPACE && organization_tab(kind).is_none() {
+        let tab = match kind {
+            "Role" => "roles",
+            "Group" => "groups",
+            "RoleBinding" => "members",
+            "ServiceAccount" => "service-accounts",
+            _ => "settings",
+        };
+        return format!("/organization/{tab}");
+    }
+    match kind {
+        "Endpoint" => format!("{}/{name}", list_address(project, kind, plural)),
+        _ => route(project, kind, plural, name, false),
+    }
+}
+
+/// A Portal route as the whole address a person outside the Portal opens: a connector's client
+/// has no host to resolve a path against.
+pub fn address(config: &crate::config::Config, route: &str) -> String {
+    let base = config.public_base_url.as_str().trim_end_matches('/');
+    format!("{base}{route}")
+}
+
 pub fn route(project: &str, kind: &str, plural: &str, name: &str, delete: bool) -> String {
     let list = list_address(project, kind, plural);
     match (kind, delete) {
@@ -532,6 +558,66 @@ mod tests {
 
     // T-2845: an organization kind opens on its Organization tab, where its form reads the
     // draft kept under `org`, never on a project's list of it.
+    /// T-6486: the page a read names is the object's own, in the project or the organization
+    /// that holds it, and the address carries the instance's host.
+    #[test]
+    fn a_held_object_names_its_own_page() {
+        for (project, kind, plural, name, page) in [
+            (
+                "hel",
+                "Pipeline",
+                "pipelines",
+                "p",
+                "/projects/hel/pipelines?edit=p",
+            ),
+            (
+                "hel",
+                "DataModel",
+                "datamodels",
+                "m",
+                "/projects/hel/models?edit=m",
+            ),
+            (
+                "hel",
+                "Endpoint",
+                "endpoints",
+                "e",
+                "/projects/hel/endpoints/e",
+            ),
+            (
+                "hel",
+                "Role",
+                "roles",
+                "r",
+                "/projects/hel/settings/roles?edit=r",
+            ),
+            ("org", "Role", "roles", "r", "/organization/roles"),
+            ("org", "Group", "groups", "g", "/organization/groups"),
+            (
+                "org",
+                "Organization",
+                "organizations",
+                "o",
+                "/organization/settings",
+            ),
+            (
+                "org",
+                "Blueprint",
+                "blueprints",
+                "b",
+                "/organization/blueprints?edit=b",
+            ),
+        ] {
+            assert_eq!(object_route(project, kind, plural, name), page);
+        }
+        let mut config = crate::config::Config::for_tests();
+        config.public_base_url = "https://portal.example.org/".parse().expect("url");
+        assert_eq!(
+            address(&config, "/projects/hel/pipelines?edit=p"),
+            "https://portal.example.org/projects/hel/pipelines?edit=p"
+        );
+    }
+
     #[test]
     fn an_organization_kind_opens_on_its_organization_tab_not_in_the_project() {
         for (kind, plural) in [

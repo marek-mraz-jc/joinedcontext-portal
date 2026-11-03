@@ -635,6 +635,36 @@ fn only_an_organization_scoped_binding_gives_the_organization() {
         .is_empty());
 }
 
+#[test]
+fn a_service_account_in_an_organization_binding_joins_no_derived_group() {
+    let mirror = mirror_with(vec![
+        organizational("Organization", "hel", json!({})),
+        organizational("Project", "doprava", json!({ "organizationRef": "hel" })),
+        organizational(
+            "Role",
+            "steward",
+            json!({ "rules": [{ "kinds": ["*"], "verbs": ["read", "propose"] }] }),
+        ),
+        bound_in("lead", LEAD, json!({ "organization": "hel" })),
+        bound_in(
+            "lane",
+            "service-account-jc-build-lane",
+            json!({ "organization": "hel" }),
+        ),
+    ]);
+    let projects = [("doprava".to_owned(), "doprava".to_owned())]
+        .into_iter()
+        .collect();
+    for group in derived_groups(&mirror, &projects, chrono::Utc::now()) {
+        assert_eq!(
+            group.members.iter().collect::<Vec<_>>(),
+            vec![LEAD],
+            "{}",
+            group.name
+        );
+    }
+}
+
 #[tokio::test]
 async fn a_projects_derived_groups_follow_its_bindings_and_never_take_a_manifests_name() {
     let keycloak = realm().await;

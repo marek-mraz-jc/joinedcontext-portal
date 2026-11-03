@@ -14960,7 +14960,7 @@
           "pipelines"
         ],
         "summary": "Check A KPI Over Several Sources",
-        "description": "Checks a v1alpha2 Pipeline draft with one kpi step by jc-core's admission rules (PL-102, PL-103), with each attribute's unit from its space's model, and says of each source whether the pipeline's account may read it. `preview: true` also computes the indicator on each source Endpoint's current page, read as the person (PL-105). Needs propose on Pipeline in the project, from a person's session; a source in a space the caller may not read is named as unknown. Changes no data.",
+        "description": "Checks a v1alpha2 Pipeline draft with one kpi step by jc-core's admission rules (PL-102, PL-103), with each attribute's unit from its space's model, and says of each source whether the pipeline's account may read it. `preview: true` also computes the indicator on each source Endpoint's current page, read as the person (PL-105), and a `prev` term on its history (PL-117). Needs propose on Pipeline in the project, from a person's session; a source in a space the caller may not read is named as unknown. Changes no data.",
         "operationId": "check_kpi",
         "parameters": [
           {
@@ -20650,21 +20650,24 @@
                     "type": "object"
                   },
                   "representations": {
-                    "description": "Formats served; ngsi-ld and csv when absent",
+                    "description": "Default ngsi-ld, csv",
                     "items": {
                       "enum": [
                         "ngsi-ld",
-                        "csv",
                         "mcp",
+                        "csv",
                         "ogc-features",
-                        "sta"
+                        "sta",
+                        "odata",
+                        "websocket",
+                        "ical"
                       ],
                       "type": "string"
                     },
                     "type": "array"
                   },
                   "title": {
-                    "description": "The endpoint's title as people read it",
+                    "description": "The endpoint's title",
                     "maxLength": 256,
                     "type": "string"
                   }
@@ -21918,7 +21921,7 @@
     },
     "/api/v1/projects/{project}/ops/jc_member_list": {
       "post": {
-        "description": "People with a role in this project: user id for a RoleBinding, name, roles",
+        "description": "Project members: user id, name, roles and the RoleBinding of each role",
         "operationId": "jc_member_list",
         "parameters": [
           {
@@ -21959,6 +21962,35 @@
                     "members": {
                       "items": {
                         "properties": {
+                          "bindings": {
+                            "description": "The RoleBindings behind the roles. To remove the member, delete a binding by name with jc_change_plan where subjects is 1 and no group is named; else take the member out of its subjects, or out of the Group",
+                            "items": {
+                              "properties": {
+                                "binding": {
+                                  "description": "The RoleBinding's metadata.name",
+                                  "type": "string"
+                                },
+                                "group": {
+                                  "description": "The Group that carries this member, where the binding names one",
+                                  "type": "string"
+                                },
+                                "role": {
+                                  "type": "string"
+                                },
+                                "subjects": {
+                                  "description": "Subjects the binding names: deleting it removes them all",
+                                  "type": "integer"
+                                }
+                              },
+                              "required": [
+                                "binding",
+                                "role",
+                                "subjects"
+                              ],
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
                           "name": {
                             "type": [
                               "string",
@@ -21979,7 +22011,8 @@
                         "required": [
                           "user",
                           "name",
-                          "roles"
+                          "roles",
+                          "bindings"
                         ],
                         "type": "object"
                       },
@@ -27141,7 +27174,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "description": "The manifest with its status",
+                  "description": "The manifest with its status, and `portal`: the address of its Portal page",
                   "type": "object"
                 }
               }
@@ -27771,10 +27804,18 @@
                     "kind": {
                       "type": "string"
                     },
+                    "previewUrl": {
+                      "description": "The preview once a version is built",
+                      "type": "string"
+                    },
                     "project": {
                       "type": "string"
                     },
                     "status": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "description": "The Portal page following this run",
                       "type": "string"
                     }
                   },
@@ -27984,10 +28025,18 @@
                     "kind": {
                       "type": "string"
                     },
+                    "previewUrl": {
+                      "description": "The preview once a version is built",
+                      "type": "string"
+                    },
                     "project": {
                       "type": "string"
                     },
                     "status": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "description": "The Portal page following this run",
                       "type": "string"
                     }
                   },
@@ -28124,10 +28173,18 @@
                     "kind": {
                       "type": "string"
                     },
+                    "previewUrl": {
+                      "description": "The preview once a version is built",
+                      "type": "string"
+                    },
                     "project": {
                       "type": "string"
                     },
                     "status": {
+                      "type": "string"
+                    },
+                    "url": {
+                      "description": "The Portal page following this run",
                       "type": "string"
                     }
                   },
@@ -28298,10 +28355,18 @@
                           "kind": {
                             "type": "string"
                           },
+                          "previewUrl": {
+                            "description": "The preview once a version is built",
+                            "type": "string"
+                          },
                           "project": {
                             "type": "string"
                           },
                           "status": {
+                            "type": "string"
+                          },
+                          "url": {
+                            "description": "The Portal page following this run",
                             "type": "string"
                           }
                         },
@@ -29017,6 +29082,9 @@
               "application/json": {
                 "schema": {
                   "properties": {
+                    "alreadyLive": {
+                      "type": "boolean"
+                    },
                     "change": {
                       "type": [
                         "object",
@@ -29050,7 +29118,8 @@
                     "found",
                     "drafts",
                     "proposeReady",
-                    "lane"
+                    "lane",
+                    "alreadyLive"
                   ],
                   "type": "object"
                 }
@@ -47180,11 +47249,11 @@
               "string",
               "null"
             ],
-            "description": "Why nothing is computed: a division by zero, an average over nothing, a source that did\nnot answer (PL-104)."
+            "description": "Why nothing is computed: a division by zero, an average over nothing, a source that did\nnot answer (PL-104), no history for a `prev` term (PL-117)."
           },
           "rows": {
             "type": "object",
-            "description": "The rows each source's page held, at most 100.",
+            "description": "The rows each source's page held, at most 100; a read back goes by `parking@P7D`.",
             "additionalProperties": {
               "type": "integer",
               "minimum": 0
@@ -47239,7 +47308,7 @@
           },
           "readable": {
             "type": "boolean",
-            "description": "Whether the pipeline's account reads the source's type through the Endpoint now: a\nPolicy grants it, or the Endpoint is public (PL-55, PL-90)."
+            "description": "Whether the pipeline's account reads the source's type through the Endpoint now: a\nPolicy grants it, its history too for a `prev` term, or the Endpoint is public (PL-55,\nPL-90, PL-117)."
           }
         }
       },
@@ -48553,7 +48622,8 @@
         "description": "What the pipeline asks to do through the Endpoint.",
         "enum": [
           "read",
-          "write"
+          "write",
+          "history"
         ]
       },
       "OrganizationLimits": {

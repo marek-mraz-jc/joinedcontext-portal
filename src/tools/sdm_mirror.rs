@@ -9,12 +9,29 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use super::model_tools::{is_catalogue_id, Catalogue};
+use super::model_tools::Catalogue;
 
 /// The index the mirror's nightly run wrote.
 const INDEX: &str = "index.json";
 /// The file of one model under `<subject>/<model>/`.
 const MODEL_FILE: &str = "linkml.yaml";
+
+/// A catalogue identifier is `dataModel.<Subject>/<Model>`: two segments of the characters the
+/// catalogue itself uses. Anything else — a URL, a scheme, a traversal, a query — is refused
+/// before a request is built, so no caller can point the fetch at a host of their choosing.
+pub(crate) fn is_catalogue_id(model: &str) -> bool {
+    let Some((subject, name)) = model.split_once('/') else {
+        return false;
+    };
+    let segment_ok = |s: &str| {
+        !s.is_empty()
+            && s.len() <= 128
+            && s.chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_')
+            && !s.starts_with('.')
+    };
+    segment_ok(subject) && segment_ok(name)
+}
 
 /// What the mirror holds for one model.
 #[derive(Debug, PartialEq)]
