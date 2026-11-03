@@ -22,7 +22,7 @@ const WIDTHS = [1440, 400];
 const GRID_BUDGET_MS = 2_000;
 const MAP_BUDGET_MS = 3_000;
 /** A step that never comes is written down as missing after this long. */
-const STEP_CUT_MS = 30_000;
+const STEP_CUT_MS = 20_000;
 
 interface Step {
   ms: number | null;
@@ -106,11 +106,11 @@ test("Praha's big datasets show their card, first rows and first places in time"
       const page = await context.newPage();
       rows.push({ dataset: name, type, width, phase: "cold", ...(await measure(page, name)) });
       rows.push({ dataset: name, type, width, phase: "warm", ...(await measure(page, name)) });
+      // Written after each page, so a run cut short keeps what it measured.
+      writeFileSync(join(dir, `times-${env}.json`), JSON.stringify(rows, null, 2));
       await context.close();
     }
   }
-  writeFileSync(join(dir, `times-${env}.json`), JSON.stringify(rows, null, 2));
-
   const late = rows.filter(
     (r) => r.width === 1440 && r.phase === "warm" && (r.grid.ms === null || r.grid.ms > GRID_BUDGET_MS || (r.map.ms ?? 0) > MAP_BUDGET_MS),
   );

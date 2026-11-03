@@ -156,6 +156,43 @@ test.describe("the public catalogue", () => {
     });
   }
 
+  // T-6541: Praha Tree's count outlasted the gateway's 10 s cut (503) while its rows came in 0.2 s;
+  // the grid and the map show their rows and say no total instead of failing the page.
+  for (const width of [1440, 400]) {
+    test(`a dataset too big to count in time still shows its rows and first places (${width} px)`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      const asked: string[] = [];
+      await stubApi(page, []);
+      await page.route(
+        (url) => url.pathname.endsWith(`/api/endpoint/${SLUG}/ngsi-ld/v1/entities`),
+        (route) => {
+          const url = new URL(route.request().url());
+          asked.push(url.search);
+          if (url.searchParams.get("count") === "true") {
+            return route.fulfill({
+              status: 503,
+              contentType: "application/problem+json",
+              body: JSON.stringify({ title: "Service Unavailable", status: 503, detail: "the read took longer than the 10 s a read may take" }),
+            });
+          }
+          return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(KPI_ROWS) });
+        },
+      );
+      await page.route((url) => url.pathname === "/api/v1/catalogue/datasets/bbsk-kpi/map", (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ...MAP, total: null }) }),
+      );
+      await page.goto("/catalogue/bbsk-kpi?lang=en");
+      const data = page.locator('section[aria-labelledby="catalogue-data"]');
+      await expect(data.getByRole("grid").getByText("Unemployment")).toBeVisible();
+      await expect(page.getByText("The map shows the first 3 places; the dataset holds more.")).toBeVisible();
+      await expect(page.getByRole("alert")).toHaveCount(0);
+      // The rows were asked without a count, the count on its own.
+      expect(asked.some((query) => !query.includes("count=true") && query.includes("limit=") && !query.includes("limit=0"))).toBe(true);
+      expect(await axeViolations(page)).toEqual([]);
+      await shot(page, `dataset-uncounted-en-${width}`);
+    });
+  }
+
   // T-5628: a citizen sees where a dataset's things are, on the dataset page, in either language.
   for (const lang of ["en", "sk"]) {
     for (const width of [1440, 400]) {
