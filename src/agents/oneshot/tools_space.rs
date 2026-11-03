@@ -849,41 +849,58 @@ mod tests {
     }
 
     /// T-6532 (live walk T-6490, S-36): an indicator space drafted with the pipeline has no
-    /// Endpoint yet, and the test saying so kept every such draft red; the draft is green on the
-    /// rest and says its Endpoint's write is checked once both are approved.
-    #[tokio::test]
-    async fn an_endpoint_drafted_with_the_pipeline_does_not_turn_its_test_red() {
-        let (driver, state, _source) = kpi_run(200).await;
-        let mut chosen = vec![crate::agents::endpoints::RunEndpoint {
-            name: "helsinki-all".into(),
-            slug: "allslug".into(),
-            space: "helsinki".into(),
-        }];
+    /// Endpoint yet, and the test saying so kept every such draft red. Those findings go, for that
+    /// Endpoint only, and the verdict says its write is checked once both are approved; any other
+    /// finding keeps the draft red.
+    #[test]
+    fn an_endpoint_drafted_with_the_pipeline_does_not_turn_its_test_red() {
+        let endpoints = [json!({
+            "metadata": { "name": "helsinki-all" },
+            "spec": { "contextSpaceRef": "helsinki", "slug": "allslug" }
+        })];
+        let spaces = ["helsinki".to_owned()];
+        let world = crate::agents::kpi_pipeline::World {
+            project: "helsinki",
+            org_domain: "hel.fi",
+            endpoints: &endpoints,
+            spaces: &spaces,
+            policies: &[],
+            run_endpoint: Some("helsinki-all"),
+            new_slug: "newslug",
+        };
         let mut call = bikes();
         call.target_space = Some("helsinki-bikes-kpi".into());
-        call.every = Some("24h".into());
-        let worked = driver
-            .kpi_pipeline(Ok(call), "", &mut chosen, &mut Vec::new(), false)
-            .await
-            .expect("the run goes on");
-        let super::Worked::Done(prose) = worked else {
-            panic!("a draft green but for its new Endpoint opens its form, never another round");
+        let plan = crate::agents::kpi_pipeline::plan(&call, &world).expect("a plan");
+        assert_eq!(plan.target_endpoint, "helsinki-bikes-kpi");
+        let not_there = |endpoint: &str| {
+            vec![
+                json!({ "path": "records[0]", "message": format!("endpoint: Endpoint {endpoint} is not in this project") }),
+                json!({ "path": "records[0]", "message": format!("endpoint: Endpoint {endpoint} has no view on the broker yet: the reconciler has not read it; test again once it has") }),
+            ]
         };
-        assert!(
-            prose.contains("helsinki-bikes-kpi does not exist yet"),
-            "{prose}"
+        let (verdict, awaits) = super::without_awaited(
+            json!({ "ok": false, "findings": not_there("helsinki-bikes-kpi") }),
+            &plan,
         );
-        let events = tool_events(&state).await;
-        let last = events.last().expect("a tool event");
-        assert_eq!(last["status"], "ok", "{last}");
-        let verdict = &last["output"]["verdict"];
+        assert!(awaits, "{verdict}");
+        assert_eq!(verdict["findings"], json!([]));
         assert!(
             verdict["awaits"]
                 .as_str()
                 .is_some_and(|a| a.contains("helsinki-bikes-kpi")),
             "{verdict}"
         );
-        assert_eq!(last["output"]["pipeline"]["spec"]["period"], "24h");
+        let mut more = not_there("helsinki-bikes-kpi");
+        more.push(json!({ "path": "records[0].kpiValue", "message": "kpiValue: not a number" }));
+        let (verdict, awaits) =
+            super::without_awaited(json!({ "ok": false, "findings": more }), &plan);
+        assert!(!awaits);
+        assert_eq!(verdict["findings"].as_array().map(Vec::len), Some(1));
+        let (verdict, awaits) = super::without_awaited(
+            json!({ "ok": false, "findings": not_there("someone-else") }),
+            &plan,
+        );
+        assert!(!awaits && verdict.get("awaits").is_none(), "{verdict}");
     }
 
     /// JC1-29: a source page that cannot be read fails the step; the pipeline is never tested

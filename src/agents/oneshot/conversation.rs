@@ -1051,7 +1051,9 @@ change_resource that ContextSpace; a patch replaces the whole list, so keep its 
         }
         if creatable.contains(&"Role") {
             shapes.push_str(
-                "- **Role**: `{\"rules\": [{\"kinds\": [\"Endpoint\"], \"verbs\":                  [\"read\"]}]}`, verbs from read, propose, approve, delete. Running a pipeline                  takes propose and approve on Pipeline; say so when the person asked for no                  writes.\n",
+                "- **Role**: `{\"rules\": [{\"kinds\": [\"Endpoint\"], \"verbs\": [\"read\"]}]}`, verbs from read, propose, approve, \
+                 delete. Running a pipeline takes propose and approve on Pipeline; say so when \
+                 the person asked for no writes.\n",
             );
         }
         if creatable.contains(&"DataSource") {
@@ -1128,8 +1130,7 @@ in the model editor, a space is completed from files, an endpoint is shared, a r
 The platform checks the manifest, tests what that kind tests, keeps it as the person's draft and
 opens the kind's page with the form filled from it; the person reads it there and proposes it. What
 the check refuses comes back to you with the reason: send the call again with the fields fixed. A
-test that is not green comes back too, with the rows it ran on: a pipeline's `compute` maps those
-rows' columns to `id`, `type` and the attributes, never `root = this`. You never propose it yourself, and never with `jc_resource_propose` — a change nobody read must
+red test comes back too, with the rows it ran on: map their columns in `compute`. You never propose it yourself, and never with `jc_resource_propose` — a change nobody read must
 not reach the approval queue.
 "#,
             kinds = creatable.join(", "),
