@@ -155,7 +155,14 @@ test.describe("ready-made set-ups on Data sources", () => {
     await expect(page.getByText("Give the path as names joined by dots, for example data.stations.")).toBeVisible();
     await shot(page, "records-refused");
     await records.fill("data.stations");
+    await expect(page.getByText("Give the path as names joined by dots, for example data.stations.")).toBeHidden();
     await shot(page, "records-filled");
+    await page.getByRole("button", { name: "Fill the form and check" }).click();
+    // The template fills the form that is saved: the connection's own field holds the path.
+    const form = page.getByRole("group", { name: "HTTP endpoint" });
+    await expect(form.getByRole("textbox", { name: "Records are in" })).toHaveValue("data.stations");
+    await expect(form.getByRole("textbox", { name: /URL/ })).toHaveValue("https://gbfs.example.org/gbfs/2.2/helsinki/en/station_information.json");
+    await shot(page, "records-applied");
     expect(await axeViolations(page)).toEqual([]);
   });
 });
