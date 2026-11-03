@@ -4927,6 +4927,21 @@ POST /api/v1/projects/{project}/secrets   → 202 Change
 - The page `/projects/{project}/secrets/new?name=…&key=…` is the form; `jc_change_plan` answers
   its link in `needsSecret` for each `secretRef` the repository does not hold (API/14 §4.3).
 
+## 60. A person's Grafana visualizations (T-6509)
+
+```text
+GET    /api/v1/projects/{project}/grafana                the saved visualizations, and whether Grafana is ready → 200
+GET    /api/v1/projects/{project}/grafana/options        what the form may offer the caller → 200
+POST   /api/v1/projects/{project}/grafana                save one → 201
+DELETE /api/v1/projects/{project}/grafana/{id}           remove one → 204
+```
+
+- **API-601** [mvp] — The Portal writes each visualization into the project's Grafana organization with the local administrator. That credential comes from a Secret reference and never reaches a browser.
+- **API-602** [mvp] — The options list only Endpoints the caller may read. `POST` checks the Endpoint, type, attribute, kind and title again and answers `403` or `422` naming the field.
+- **API-603** [mvp] — A panel reads as whoever opens it. A private Endpoint reads through a datasource that forwards that person's token and that the deployment provisions; a public Endpoint reads anonymously through a datasource the Portal adds.
+- **API-604** [mvp] — Saving and removing need `propose` on `Dashboard` in the project. Reading needs a role in the project, and a row shows only when the caller may read its Endpoint.
+- **API-605** [mvp] — The Portal's table is the record: Grafana's database lives in its pod, and the Portal puts back a lost dashboard within five minutes.
+
 ## Related
 
 - [00-intro](00-intro.md) — all API surfaces.
