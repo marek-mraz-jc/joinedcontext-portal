@@ -235,6 +235,8 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
         <div className="grid items-start gap-section lg:grid-cols-2">
         <Card className="flex flex-col gap-4">
           {read.matches.length === 0 ? <p className="text-body text-fg-muted">{t("spaces.upload.noMatch")}</p> : null}
+          {/* With no Smart Data Models type to choose, a one-option radio is no choice: the type name alone. */}
+          {read.matches.length > 0 ? (
           <RadioGroup
             name="upload-type"
             legend={t("spaces.upload.type")}
@@ -251,9 +253,10 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
               { value: "", label: t("spaces.upload.own") },
             ]}
           />
+          ) : null}
           {choice === "" ? (
             <Field id="upload-own-type" label={t("spaces.upload.ownType")} help={t("spaces.upload.ownTypeHint")}>
-              <Input id="upload-own-type" value={ownType} onChange={(e) => setOwnType(e.target.value)} />
+              <Input id="upload-own-type" className="font-mono" value={ownType} onChange={(e) => setOwnType(e.target.value)} />
             </Field>
           ) : null}
           <Field id="upload-space" label={t("spaces.upload.space")} help={t("spaces.upload.spaceHint")}>
@@ -270,7 +273,8 @@ export function UploadCsv({ project, space: given = "" }: { project: string; spa
           ) : null}
         </Card>
         {draft?.key === draftKey ? (
-          <Card>
+          // On a phone the model comes first: it is what Propose sends.
+          <Card className="order-first lg:order-none">
             <DraftedModel source={draft.source} type={typeName} table={read.table} />
           </Card>
         ) : null}
