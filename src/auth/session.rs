@@ -412,7 +412,7 @@ impl FromRequestParts<AppState> for CurrentUser {
         // cookie on this request still carries the one before it.
         let session = match parts.extensions.get::<Session>() {
             Some(refreshed) => refreshed.clone(),
-            None => load_with(&parts.headers, &state).ok_or(ApiError::Unauthorized)?,
+            None => load_with(&parts.headers, state).ok_or(ApiError::Unauthorized)?,
         };
         if session.access_expired(now_unix()) || state.is_revoked(&session) {
             return Err(ApiError::Unauthorized);
