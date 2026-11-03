@@ -275,7 +275,7 @@ geometry is edited in `GeoEditor`, reviewed ("Point moved 38 m") and applied by 
 `coordinates` + `geoproperty`.
 
 ### Dashboard
-`<Dashboard config={parseDashboardConfig(raw).config!} source={endpointSource(useEndpoint()!.slug, transportFor(useClient().config))} />`, `raw` = `src/dashboard.json`: `{ grid, filters?: [{ attr, op, value }], colour?: { attr, bands: [{ below?, tone, label }] }, chart?: { x, y, agg }, kpis?: [{ label, agg, attr?, where? }] }`.
+`<Dashboard config={parseDashboardConfig(raw).config!} source={endpointSource(useEndpoint()!.slug, transportFor(useClient().config))} />`, `raw` = `src/dashboard.json`: `{ grid: { source: { kind: "endpoint", slug }, type, columns, pageSize? }, filters?: [{ attr, op, value }], colour?: { attr, bands: [{ below?, tone, label }] }, chart?: { x, y, agg }, kpis?: [{ label, agg, attr?, where? }] }`.
 
 ### Geometry: view and edit (UI-72, SDK-29)
 ```ts

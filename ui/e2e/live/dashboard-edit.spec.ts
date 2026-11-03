@@ -18,11 +18,12 @@ import { APPROVER, STEWARD, VIEWER, approve, csrf, goSignedIn, removeCompletely,
 
 const PROJECT = process.env.DASHBOARD_PROJECT ?? "helsinki";
 const ENDPOINT = process.env.DASHBOARD_ENDPOINT ?? "app-helsinki-bikes";
+const SLUG = process.env.DASHBOARD_SLUG ?? "jbbdk2657lsp3mp7bt76ukc4ac";
 const NAME = process.env.DASHBOARD_APP ?? "t6429-bike-dashboard";
 const DIR = process.env.DASHBOARD_DIR ?? "test-results/dashboard-edit";
 const APPS_URL = process.env.APPS_URL ?? "https://dev.joinedcontext.com";
 const PROMPT =
-  "A dashboard of the shared bike stations, kept in src/dashboard.json and drawn by Dashboard alone: a grid of the stations with their free bikes and total slots, and a tile counting the empty ones. src/App.tsx renders Dashboard and nothing else: no map, no chart, no other component. One page, no other pages.";
+  "A dashboard of the shared bike stations, kept in src/dashboard.json and drawn by Dashboard alone: a grid of the stations with their free bikes and total slots, and a tile counting the empty ones. src/App.tsx renders Dashboard and nothing else: no map, no chart, no other component. One page, no other pages. grid.source is { kind: \"endpoint\", slug: \"" + SLUG + "\" }. src/App.tsx passes source={endpointSource(useEndpoint()!.slug, transportFor(useClient().config))} and changes no test file of the template.";
 const FORMULA = "availableBikeNumber / totalSlotNumber * 100";
 const COLUMN = "Occupancy %";
 const ROUTE = `/api/v1/projects/${PROJECT}/apps/${NAME}/dashboard`;
