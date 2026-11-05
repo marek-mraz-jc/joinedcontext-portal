@@ -158,7 +158,7 @@ for (const width of [1440, 400]) {
       world.save = { status: 403, body: { status: 403, title: "Forbidden", detail: "You may not propose dashboards in helsinki." } };
       await page.getByLabel("Name", { exact: true }).fill("PM2.5 by station, daily");
       await page.getByRole("button", { name: "Save to Grafana" }).click();
-      await expect(page.getByText("Not saved: you may not do this")).toBeVisible();
+      await expect(page.getByRole("alert").filter({ hasText: "Not saved: you may not do this" })).toBeVisible();
       await shot(page, "error-forbidden", width);
     });
 
