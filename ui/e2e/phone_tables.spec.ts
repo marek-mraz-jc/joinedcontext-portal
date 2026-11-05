@@ -112,8 +112,7 @@ test("a space at 400: the types are a picker above the grid, and the assistant s
   await stubApi(page);
   await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
 
-  // The Filters row holds the Type picker and starts closed on a phone.
-  await page.getByRole("button", { name: /^Filters/ }).click();
+  // The phone has no filter row (T-6463): the Type picker stands above the grid.
   const picker = page.getByRole("combobox", { name: "Type", exact: true });
   await expect(picker).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Entity types" })).toHaveCount(0);
@@ -134,8 +133,6 @@ test("a space at 400: the types are a picker above the grid, and the assistant s
   await picker.selectOption("Vehicle");
   await read;
   await expect(page.getByRole("button", { name: `Open: ${EVENTS[0].name.value}` })).toHaveCount(0);
-  // A picked type is a new grid: the phone's filter row is folded again, and the picker with it.
-  await page.getByRole("button", { name: /^Filters/ }).click();
   await expect(picker).toHaveValue("Vehicle");
   await shot(page, "space-400-picked");
 

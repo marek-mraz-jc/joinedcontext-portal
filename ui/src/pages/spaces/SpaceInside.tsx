@@ -798,7 +798,8 @@ function SpaceData({
   // The views are drawn while the probe is under way (T-5598): waiting for it put one more round
   // trip before the grid's own read, 0.6 s on a phone's network. A refusal still replaces them.
   const readable = type !== "" && !probe.isError;
-  const typeInGrid = view === "grid" && readable && !hasSavedViews;
+  // A phone hides the grid's filter row (T-6463), the Type column's own place, so it keeps the picker.
+  const typeInGrid = view === "grid" && readable && !hasSavedViews && !phone;
 
   // The type and its attributes as the model titles them, the key where it gives no title; an
   // entity is led by its name, its URN the open button's tooltip (T-4264, T-4160 #6).

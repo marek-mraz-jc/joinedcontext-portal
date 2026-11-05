@@ -1,7 +1,7 @@
 // covers (T-2137, the module gate in gate_modules.test.ts): the cases in this file drive
 // src/pages/catalogue/CataloguePage.tsx, DatasetPage.tsx, DatasetMap.tsx, search.ts and snippets.ts through the
 // router, signed in and anonymous (EP-81, EP-82, T-2726).
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -482,6 +482,7 @@ describe("the dataset map on its own (T-5628)", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it("draws the places it is given and counts them", async () => {
@@ -489,6 +490,29 @@ describe("the dataset map on its own (T-5628)", () => {
     expect(await screen.findByRole("application", { name: "Map of AirQualityObserved" })).toBeInTheDocument();
     expect(screen.getByText("The map shows the first 2 of 14 places.")).toBeInTheDocument();
     expect(drawn.layers[0].popupProperties).toEqual(["Name", "PM10"]);
+  });
+
+  it("draws the map only once its frame comes into sight (T-6600)", async () => {
+    const seen: ((entries: { isIntersecting: boolean }[]) => void)[] = [];
+    vi.stubGlobal(
+      "IntersectionObserver",
+      class {
+        constructor(callback: (entries: { isIntersecting: boolean }[]) => void) {
+          seen.push(callback);
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    renderMap({ status: 200, body: MAP });
+    expect(await screen.findByText("The map shows the first 2 of 14 places.")).toBeInTheDocument();
+    expect(screen.getByText("Loading the map…")).toBeInTheDocument();
+    // The lazy map module loads in a tick: wait past it, the frame still out of sight.
+    await expect(screen.findByRole("application", {}, { timeout: 300 })).rejects.toThrow();
+    act(() => seen.forEach((callback) => callback([{ isIntersecting: false }])));
+    await expect(screen.findByRole("application", {}, { timeout: 300 })).rejects.toThrow();
+    act(() => seen.forEach((callback) => callback([{ isIntersecting: true }])));
+    expect(await screen.findByRole("application", { name: "Map of AirQualityObserved" })).toBeInTheDocument();
   });
 
   it("renders nothing for a dataset without places or without an endpoint", async () => {

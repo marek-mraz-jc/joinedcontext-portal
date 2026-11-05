@@ -46,9 +46,17 @@ test("a CSV is read in the browser and waits for a type and a space before anyth
     buffer: Buffer.from("name,capacity\nNorth,120\nSouth,80\n"),
   });
 
-  await expect(page.getByText(/No Smart Data Models type names enough/)).toBeVisible();
-  await expect(page.getByRole("radio", { name: "My own model" })).toBeChecked();
-  await expect(page.getByRole("button", { name: "Propose the change" })).toBeDisabled();
+  await expect(page.getByText(/None of the Smart Data Models types fits these columns/)).toBeVisible();
+  // No type fits: no one-option radio, the type name alone (T-6567).
+  await expect(page.getByRole("radio")).toHaveCount(0);
+  // The sheet names the space and the type (T-6567); without a type name Propose holds back with its reason.
+  await expect(page.getByRole("combobox", { name: "Context Space", exact: true })).toHaveValue("garages");
+  const typeName = page.getByLabel("Type name");
+  await expect(typeName).toHaveValue("Garage");
+  await typeName.fill("");
+  const propose = page.getByRole("button", { name: "Propose the change" });
+  await expect(propose).toHaveAttribute("aria-disabled", "true");
+  await expect(propose).toHaveAccessibleDescription(/Choose a type, or write your own type name/);
   expect(await axeViolations(page)).toEqual([]);
   expect(writes, "nothing is written before the change is proposed").toEqual([]);
 });
@@ -69,9 +77,10 @@ for (const width of [1440, 400]) {
       mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       buffer: Buffer.from(zip({ "xl/worksheets/sheet1.xml": sheet })),
     });
-    await expect(page.getByText(/No Smart Data Models type names enough/)).toBeVisible();
+    await expect(page.getByText(/None of the Smart Data Models types fits these columns/)).toBeVisible();
     await expect(page.getByText("garages.xlsx: 2 rows, 2 columns.")).toBeVisible();
-    await expect(page.getByRole("radio", { name: "My own model" })).toBeChecked();
+    // No type fits: no one-option radio, the type name alone (T-6567).
+    await expect(page.getByRole("radio")).toHaveCount(0);
     expect(await axeViolations(page)).toEqual([]);
     expect(writes, "nothing is written before the change is proposed").toEqual([]);
     await page.screenshot({ path: `test-results/T-6372/upload-xlsx-${width}.png`, fullPage: true });

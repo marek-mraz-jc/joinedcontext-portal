@@ -153,6 +153,14 @@ async function shot(page: Page, name: string): Promise<void> {
   if (dir) await page.screenshot({ path: `${dir}/${name}.png` });
 }
 
+/** Opens a toolbar tool by its label; a phone holds them in one Tools menu (T-6463). */
+async function openTool(page: Page, label: string): Promise<void> {
+  const toolbar = page.getByTestId("grid-toolbar");
+  const item = toolbar.locator("summary", { hasText: label });
+  if (!(await item.isVisible())) await toolbar.locator("summary", { hasText: "Tools" }).click();
+  await item.click();
+}
+
 for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400", 400, 860]] as const) {
   test(`The space grid works like Baserow (${label})`, async ({ page }) => {
     const asked: string[] = [];
@@ -163,9 +171,11 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
 
     // One toolbar row, the grid's own per-column filter row under the header (grid rework), numbered rows of one line.
     const toolbar = page.getByTestId("grid-toolbar");
-    await expect(toolbar.getByText("Filter", { exact: true })).toBeVisible();
+    // A phone folds the tools into one Tools menu and drops the filter row (T-6463).
+    const phone = width < 640;
+    await expect(phone ? toolbar.locator("summary", { hasText: "Tools" }) : toolbar.getByText("Filter", { exact: true })).toBeVisible();
     await expect(page.getByText("Workshop for Families").first()).toBeVisible();
-    await expect(page.locator(".jc-grid-filter-row")).toHaveCount(1);
+    await expect(page.locator(".jc-grid-filter-row")).toHaveCount(phone ? 0 : 1);
     await expect(page.locator(".jc-grid")).toHaveAttribute("data-row-size", "medium");
     // The row-number column holds the row's checkbox since the grid rework: no number is drawn.
     await expect(page.locator("tbody td.jc-grid-rownum").first().getByRole("checkbox", { name: /^Select row: / })).toBeVisible();
@@ -176,7 +186,7 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await shot(page, `grid-toolbar-${label}`);
 
     // Filter: two conditions, OR, sent to the endpoint as q.
-    await toolbar.getByText("Filter", { exact: true }).click();
+    await openTool(page, "Filter");
     await page.getByRole("button", { name: "Add condition", exact: true }).click();
     await page.getByRole("textbox", { name: "Value", exact: true }).fill("cafe");
     await page.getByRole("button", { name: "Add condition", exact: true }).click();
@@ -222,7 +232,7 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await shot(page, `grid-delete-refused-${label}`);
 
     // Row height: four lines.
-    await toolbar.locator("summary", { hasText: "Row height" }).click();
+    await openTool(page, "Row height");
     await page.getByRole("radio", { name: "Large: four lines" }).check();
     await expect(page.locator(".jc-grid")).toHaveAttribute("data-row-size", "large");
     await page.keyboard.press("Escape");
@@ -244,7 +254,6 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await page.setViewportSize({ width, height });
     await stubApi(page, seen.asked, seen.deleted, { linkml: LINKML_STATUS, seen });
     await page.goto(`/projects/${PROJECT}/spaces/${SPACE}?lang=en`);
-    const toolbar = page.getByTestId("grid-toolbar");
 
     // A live change reads the rows again and flashes the one that changed, its reason named.
     await expect(page.getByText("Renamed while you looked")).toBeVisible();
@@ -253,7 +262,7 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await shot(page, `grid-live-flash-${label}`);
 
     // Colour by an enum field: one rule per value.
-    await toolbar.locator("summary", { hasText: "Row colour" }).click();
+    await openTool(page, "Row colour");
     await page.getByRole("combobox", { name: "Colour by field" }).selectOption("status");
     await expect(page.getByRole("textbox", { name: "When" })).toHaveCount(2);
     await expect(page.getByRole("textbox", { name: "When" }).first()).toHaveValue('status=="open"');
@@ -285,7 +294,7 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await page.keyboard.press("Escape");
 
     // Share the view: the public Endpoint proposal opens from the toolbar with the view's fields.
-    await toolbar.locator("summary", { hasText: "Share view" }).click();
+    await openTool(page, "Share view");
     await expect(page.getByRole("textbox", { name: "Endpoint name" })).toBeVisible();
     await expect(page.getByText("the view's filter is not part of it")).toBeVisible();
     const sideways = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
@@ -342,7 +351,7 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await expect(page.getByText("Workshop for Families").first()).toBeVisible();
 
     // Sort: empty says what to do; two keys, the first turned round.
-    await toolbar.locator("summary", { hasText: "Sort" }).click();
+    await openTool(page, "Sort");
     await expect(page.getByText("No order set: the rows come as the endpoint keeps them.", { exact: false })).toBeVisible();
     await shot(page, `grid-sort-empty-${label}`);
     await page.getByRole("button", { name: "Add a sort key" }).click();
@@ -357,7 +366,7 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await expect(toolbar.locator("summary", { hasText: "Sort" })).toContainText("2");
 
     // Group by the start: the rows come ordered by it first, each date under a counted header.
-    await toolbar.locator("summary", { hasText: "Group" }).click();
+    await openTool(page, "Group");
     await page.getByRole("button", { name: "Add a group field" }).click();
     await page.getByRole("combobox", { name: "Group rows by, field 1" }).selectOption("startDate");
     await expect.poll(() => orders.at(-1)).toBe("startDate;desc,name");
@@ -373,7 +382,7 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await shot(page, `grid-grouped-${label}`);
 
     // A second group level under the first.
-    await toolbar.locator("summary", { hasText: "Group" }).click();
+    await openTool(page, "Group");
     await page.getByRole("button", { name: "Add a group field" }).click();
     await page.getByRole("combobox", { name: "Group rows by, field 2" }).selectOption("name");
     await page.keyboard.press("Escape");
@@ -452,11 +461,13 @@ test.describe("The space page at phone width with touch", () => {
 
       expect(await smallTouchTargets(page), "every control is at least 44 x 44 px").toEqual([]);
       // The filter chips under the toolbar keep the finger's size too (T-6161).
-      await page.getByTestId("grid-toolbar").getByText("Filter", { exact: true }).click();
+      await openTool(page, "Filter");
       await page.getByRole("button", { name: "Add condition", exact: true }).click();
       await page.getByRole("textbox", { name: "Value", exact: true }).fill("cafe");
       await page.getByRole("button", { name: "Add condition", exact: true }).click();
-      await page.keyboard.press("Escape");
+      // A finger closes the phone's Tools menu by its Close button (T-6463).
+      await page.getByTestId("grid-toolbar").getByRole("button", { name: "Close" }).tap();
+      await expect(page.getByRole("button", { name: "Add condition", exact: true })).toBeHidden();
       await expect(page.getByRole("list", { name: "Active filters" }).getByRole("listitem")).toHaveCount(3);
       expect(await smallTouchTargets(page), "every chip control is at least 44 x 44 px").toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth), "nothing scrolls sideways").toBeLessThanOrEqual(width);

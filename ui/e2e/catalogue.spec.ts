@@ -208,6 +208,8 @@ test.describe("the public catalogue", () => {
         await page.goto(`/catalogue/bbsk-kpi?lang=${lang}`);
         const label = lang === "en" ? "Map of AirQualityObserved" : "Mapa: AirQualityObserved";
         await expect(page.getByRole("heading", { level: 2, name: lang === "en" ? "Places on the map" : "Miesta na mape" })).toBeVisible();
+        // The map draws once its frame is scrolled to (T-6600).
+        await page.locator("section", { has: page.getByRole("heading", { level: 2, name: lang === "en" ? "Places on the map" : "Miesta na mape" }) }).scrollIntoViewIfNeeded();
         await expect(page.getByRole("application", { name: label })).toBeVisible();
         await expect(page.getByText(lang === "en" ? "The map shows the first 3 of 14 places." : "Mapa ukazuje prvých 3 z 14 miest.")).toBeVisible();
         expect(asked).toContain(`/api/v1/catalogue/datasets/bbsk-kpi/map?lang=${lang}`);
