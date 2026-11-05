@@ -6759,7 +6759,7 @@
       "confirm": "Odstrániť z Grafany",
       "keep": "Ponechať",
       "emptyTitle": "Zatiaľ nič uložené",
-      "empty": "Vyplňte formulár vyššie a uložte prvú vizualizáciu.",
+      "empty": "Vyplňte formulár a uložte prvú vizualizáciu.",
       "emptyReader": "Keď niekto v projekte uloží vizualizáciu, zobrazí sa tu."
     },
     "form": {
@@ -6800,7 +6800,7 @@
       "saveFailedTitle": "Neuložené",
       "saveFailed": "Vizualizáciu sa nepodarilo uložiť. Skúste to o minútu znova.",
       "saveFieldsTitle": "Neuložené: skontrolujte označené pole",
-      "saveFieldsBody": "Zmeňte to, čo uvádza označené pole, a uložte znova.",
+      "saveFieldsBody": "V označenom poli vyberte inú možnosť a uložte znova.",
       "saveForbiddenTitle": "Neuložené: na toto nemáte právo",
       "saveForbidden": "Ak to potrebujete, požiadajte vlastníka projektu."
     }

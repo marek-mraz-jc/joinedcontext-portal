@@ -367,7 +367,7 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
   const errorsOf = (field: string) =>
     fieldErrors(save.error, field).map((line) => `${line.charAt(0).toUpperCase()}${line.slice(1)}${/[.!?]$/.test(line) ? "" : "."}`);
   return (
-    <div className="grid items-start gap-card lg:grid-cols-5 [&>*]:min-w-0">
+    <div className="grid items-start gap-section lg:grid-cols-5 [&>*]:min-w-0">
       <Card className="lg:col-span-3">
         <CardHeader as="h2" title={t("grafana.form.title")} className="mb-3" />
         <form
@@ -462,7 +462,7 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
           ) : null}
         </form>
       </Card>
-      <div className="flex flex-col gap-card lg:col-span-2">
+      <div className="flex flex-col gap-section lg:col-span-2">
         {chosen && form.type && form.attribute ? (
           <VisualizationPreview slug={chosen.slug} type={form.type} attribute={form.attribute} />
         ) : (
@@ -565,11 +565,11 @@ export function GrafanaPage({ project }: { project: string }): JSX.Element {
       )}
       {ready && mayCreate ? <VisualizationForm project={project} aside={saved} /> : null}
       {ready && !mayCreate ? (
-        <div className="flex flex-col gap-card lg:max-w-3xl">
-          <Alert tone="info" title={t("grafana.readOnlyTitle")}>
+        <div className="grid items-start gap-section lg:grid-cols-5 [&>*]:min-w-0">
+          <Alert tone="info" title={t("grafana.readOnlyTitle")} className="lg:order-last lg:col-span-2">
             {t("grafana.readOnly")}
           </Alert>
-          {saved}
+          <div className="lg:col-span-3">{saved}</div>
         </div>
       ) : null}
     </div>

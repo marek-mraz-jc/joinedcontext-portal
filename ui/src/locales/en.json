@@ -6759,7 +6759,7 @@
       "confirm": "Remove from Grafana",
       "keep": "Keep",
       "emptyTitle": "Nothing saved yet",
-      "empty": "Fill in the form above and save your first visualization.",
+      "empty": "Fill in the form and save your first visualization.",
       "emptyReader": "When someone in this project saves a visualization, it appears here."
     },
     "form": {
@@ -6800,7 +6800,7 @@
       "saveFailedTitle": "Not saved",
       "saveFailed": "The visualization could not be saved. Try again in a minute.",
       "saveFieldsTitle": "Not saved: check the marked field",
-      "saveFieldsBody": "Change what the marked field says and save again.",
+      "saveFieldsBody": "Choose another option in the marked field and save again.",
       "saveForbiddenTitle": "Not saved: you may not do this",
       "saveForbidden": "Ask a project owner if you need it."
     }

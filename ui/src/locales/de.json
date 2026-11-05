@@ -6759,7 +6759,7 @@
       "confirm": "Aus Grafana entfernen",
       "keep": "Behalten",
       "emptyTitle": "Noch nichts gespeichert",
-      "empty": "Füllen Sie das Formular oben aus und speichern Sie Ihre erste Visualisierung.",
+      "empty": "Füllen Sie das Formular aus und speichern Sie Ihre erste Visualisierung.",
       "emptyReader": "Sobald jemand im Projekt eine Visualisierung speichert, erscheint sie hier."
     },
     "form": {
@@ -6800,7 +6800,7 @@
       "saveFailedTitle": "Nicht gespeichert",
       "saveFailed": "Die Visualisierung konnte nicht gespeichert werden. Versuchen Sie es in einer Minute erneut.",
       "saveFieldsTitle": "Nicht gespeichert: prüfen Sie das markierte Feld",
-      "saveFieldsBody": "Ändern Sie, was das markierte Feld nennt, und speichern Sie erneut.",
+      "saveFieldsBody": "Wählen Sie im markierten Feld eine andere Option und speichern Sie erneut.",
       "saveForbiddenTitle": "Nicht gespeichert: dazu fehlt Ihnen das Recht",
       "saveForbidden": "Fragen Sie die Projektverantwortlichen, wenn Sie es brauchen."
     }
