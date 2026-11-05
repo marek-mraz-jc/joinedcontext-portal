@@ -4,7 +4,7 @@
  * Endpoint's display, the model or jc-core's field order chooses, and the same places as a list
  * a keyboard and a screen reader reach. A dataset without locations shows nothing at all.
  */
-import { Suspense, lazy } from "react";
+import { Suspense, lazy, useCallback, useRef, useState } from "react";
 import type { JSX } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
@@ -51,8 +51,33 @@ export function mapCollection(map: CatalogueMap): {
   };
 }
 
+/**
+ * A ref for a box and whether it has come into the viewport yet. The map below the fold of a phone
+ * draws only when scrolled to: MapLibre's first draw blocked the page's main thread for ~0.8 s of
+ * a phone's load (web-performance TBT, T-6600). A browser without IntersectionObserver draws at once.
+ */
+function useInSight(): [(box: Element | null) => void, boolean] {
+  const [seen, setSeen] = useState(() => typeof IntersectionObserver === "undefined");
+  const watching = useRef<IntersectionObserver | null>(null);
+  const ref = useCallback(
+    (box: Element | null) => {
+      watching.current?.disconnect();
+      watching.current = null;
+      if (!box || seen) return;
+      const observer = new IntersectionObserver((entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) setSeen(true);
+      });
+      observer.observe(box);
+      watching.current = observer;
+    },
+    [seen],
+  );
+  return [ref, seen];
+}
+
 export function DatasetMap({ name }: { name: string }): JSX.Element | null {
   const { t, i18n } = useTranslation();
+  const [frame, inSight] = useInSight();
   const lang = (i18n.resolvedLanguage ?? i18n.language ?? "en").slice(0, 2);
   const map = useQuery({
     queryKey: [...datasetKey(name), "map", lang],
@@ -96,6 +121,7 @@ export function DatasetMap({ name }: { name: string }): JSX.Element | null {
     data.fields.length > 0
       ? data.fields
       : [{ slot: "", label: t("catalogue.dataset.mapPlace") }];
+  const loading = <p className="p-3 text-body text-fg-muted">{t("catalogue.dataset.mapLoading")}</p>;
   return (
     <Section>
       <p role="status" className="text-caption text-fg-muted">
@@ -108,33 +134,32 @@ export function DatasetMap({ name }: { name: string }): JSX.Element | null {
               })
             : t("catalogue.dataset.mapCount", { count: shown })}
       </p>
-      <div className="h-72 overflow-hidden rounded-lg border border-border sm:h-96">
-        <Suspense
-          fallback={
-            <p className="p-3 text-body text-fg-muted">
-              {t("catalogue.dataset.mapLoading")}
-            </p>
-          }
-        >
-          <MapLibreView
-            project={data.basemap ?? undefined}
-            label={t("catalogue.dataset.mapLabel", { type: data.type })}
-            layers={[
-              {
-                name: "dataset-features",
-                url: "",
-                data: mapCollection(data),
-                style: "circle",
-                // MapLibre clusters points alone.
-                cluster: data.features.every(
-                  (feature) =>
-                    (feature.geometry as { type?: unknown }).type === "Point",
-                ),
-                popupProperties: data.fields.map((field) => field.label),
-              },
-            ]}
-          />
-        </Suspense>
+      <div ref={frame} className="h-72 overflow-hidden rounded-lg border border-border sm:h-96">
+        {inSight ? (
+          <Suspense fallback={loading}>
+            <MapLibreView
+              fill
+              project={data.basemap ?? undefined}
+              label={t("catalogue.dataset.mapLabel", { type: data.type })}
+              layers={[
+                {
+                  name: "dataset-features",
+                  url: "",
+                  data: mapCollection(data),
+                  style: "circle",
+                  // MapLibre clusters points alone.
+                  cluster: data.features.every(
+                    (feature) =>
+                      (feature.geometry as { type?: unknown }).type === "Point",
+                  ),
+                  popupProperties: data.fields.map((field) => field.label),
+                },
+              ]}
+            />
+          </Suspense>
+        ) : (
+          loading
+        )}
       </div>
       <details className="text-body">
         <summary className="focus-ring w-fit cursor-pointer rounded-sm text-primary-soft-fg">

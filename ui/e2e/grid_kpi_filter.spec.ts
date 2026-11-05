@@ -85,22 +85,42 @@ for (const width of [1440, 400]) {
     await expect(grid.getByText(/^1\.\s1\.\s2012\s–\u2060?\s31\.\s12\.\s2012$/).first()).toBeVisible();
     await page.screenshot({ path: join(dir, `kpi-filled-${width}.png`) });
 
-    // On a phone the row folds under one Filters button (T-5415).
-    if (width === 400) await page.getByRole("button", { name: /^Filtre/ }).click();
-    await grid.getByRole("combobox", { name: /^Filter: Vydané/ }).selectOption("gte");
-    const date = grid.getByLabel(/^Hodnota: Vydané/);
-    await expect(date).toHaveAttribute("type", "date");
-    await date.fill("2018-01-01");
-    await expect.poll(() => asked.at(-1)?.searchParams.get("q")).toBe("dateIssued>=2018-01-01");
+    if (width === 1440) {
+      await grid.getByRole("combobox", { name: /^Filter: Vydané/ }).selectOption("gte");
+      const date = grid.getByLabel(/^Hodnota: Vydané/);
+      await expect(date).toHaveAttribute("type", "date");
+      await date.fill("2018-01-01");
+      await expect.poll(() => asked.at(-1)?.searchParams.get("q")).toBe("dateIssued>=2018-01-01");
 
-    await grid.getByRole("combobox", { name: /^Filter: Kategória/ }).selectOption("anyOf");
-    await grid.getByRole("combobox", { name: /^Hodnota: Kategória/ }).selectOption("zdravie");
-    await expect.poll(() => asked.at(-1)?.searchParams.get("q")).toBe('category=="zdravie";dateIssued>=2018-01-01');
+      await grid.getByRole("combobox", { name: /^Filter: Kategória/ }).selectOption("anyOf");
+      await grid.getByRole("combobox", { name: /^Hodnota: Kategória/ }).selectOption("zdravie");
+      await expect.poll(() => asked.at(-1)?.searchParams.get("q")).toBe('category=="zdravie";dateIssued>=2018-01-01');
+    } else {
+      // A phone has no filter row (T-6463): the same date picker and values sit in Tools, Filter.
+      await expect(grid.getByRole("combobox", { name: /^Filter: Vydané/ })).toHaveCount(0);
+      const toolbar = page.getByTestId("grid-toolbar");
+      await toolbar.locator("summary", { hasText: "Nástroje" }).click();
+      await toolbar.locator("summary", { hasText: "Filter" }).click();
+      await page.getByRole("button", { name: "Pridať podmienku", exact: true }).click();
+      await page.getByRole("combobox", { name: "Pole" }).first().selectOption("dateIssued");
+      await page.getByRole("combobox", { name: "Operátor" }).first().selectOption("gte");
+      const date = page.getByLabel("Hodnota", { exact: true }).first();
+      await expect(date).toHaveAttribute("type", "date");
+      await date.fill("2018-01-01");
+      await expect.poll(() => asked.at(-1)?.searchParams.get("q")).toBe("dateIssued>=2018-01-01");
+
+      await page.getByRole("button", { name: "Pridať podmienku", exact: true }).click();
+      await page.getByRole("combobox", { name: "Pole" }).nth(1).selectOption("category");
+      await page.locator("select").filter({ has: page.locator('option[value="zdravie"]') }).selectOption("zdravie");
+      await expect.poll(() => asked.at(-1)?.searchParams.get("q")).toMatch(/^(category=="zdravie";dateIssued>=2018-01-01|dateIssued>=2018-01-01;category=="zdravie")$/);
+      await page.keyboard.press("Escape");
+    }
     // The stub applies q: only health indicators from 2018 on are left.
     await expect(grid.getByText("Dopravné nehody s usmrtením 2015")).toHaveCount(0);
     await expect(page.getByRole("list", { name: "Aktívne filtre" })).toBeVisible();
     await page.screenshot({ path: join(dir, `kpi-row-filtered-${width}.png`) });
-    await page.getByRole("button", { name: "Zrušiť všetky filtre" }).click();
+    // The filter row clears its own; the toolbar's filters clear under their chips.
+    await page.getByRole("button", { name: width === 1440 ? "Zrušiť všetky filtre" : "Zrušiť filtre", exact: true }).first().click();
     await expect.poll(() => asked.at(-1)?.searchParams.get("q")).toBeNull();
 
     // Two clicks from the header: the funnel, then Only on a value.

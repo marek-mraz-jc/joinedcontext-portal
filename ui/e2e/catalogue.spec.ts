@@ -208,7 +208,13 @@ test.describe("the public catalogue", () => {
         await page.goto(`/catalogue/bbsk-kpi?lang=${lang}`);
         const label = lang === "en" ? "Map of AirQualityObserved" : "Mapa: AirQualityObserved";
         await expect(page.getByRole("heading", { level: 2, name: lang === "en" ? "Places on the map" : "Miesta na mape" })).toBeVisible();
+        // The map draws once its frame is scrolled to (T-6600).
+        await page.locator("section", { has: page.getByRole("heading", { level: 2, name: lang === "en" ? "Places on the map" : "Miesta na mape" }) }).scrollIntoViewIfNeeded();
         await expect(page.getByRole("application", { name: label })).toBeVisible();
+        // The map fills its frame, so the fit's padding keeps every place inside what is shown.
+        const frame = await page.locator('section[aria-labelledby="catalogue-map"] .overflow-hidden').first().boundingBox();
+        const map = await page.getByRole("application", { name: label }).boundingBox();
+        expect(Math.abs((map?.height ?? 0) - (frame?.height ?? 0))).toBeLessThanOrEqual(2);
         await expect(page.getByText(lang === "en" ? "The map shows the first 3 of 14 places." : "Mapa ukazuje prvých 3 z 14 miest.")).toBeVisible();
         expect(asked).toContain(`/api/v1/catalogue/datasets/bbsk-kpi/map?lang=${lang}`);
         // The list is the keyboard's way to every place.

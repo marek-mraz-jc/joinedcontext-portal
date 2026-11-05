@@ -363,10 +363,8 @@ for (const [label, width, height] of [["desktop-1440", 1440, 900], ["phone-400",
     await expect(grid.getByText("District 3", { exact: true })).toBeVisible();
     await shot(page, `grid-rows-${label}`);
 
-    // A phone keeps the filter row folded behind its toggle.
-    const toggle = page.getByRole("button", { name: /^Filters/ });
-    if (await toggle.isVisible()) await toggle.click();
-    await expect(grid.getByRole("row", { name: "Filters" })).toBeVisible();
+    // A phone has no filter row (T-6463): the header's funnel filters there too.
+    await expect(grid.getByRole("row", { name: "Filters" })).toHaveCount(width < 640 ? 0 : 1);
     await grid.getByRole("button", { name: "Filter column: Value" }).click();
     await shot(page, `grid-filter-row-${label}`);
     // The popover lies above the frozen checkbox column: its title is what a press there reaches.

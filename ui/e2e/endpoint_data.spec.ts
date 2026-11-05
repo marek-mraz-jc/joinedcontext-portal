@@ -135,14 +135,20 @@ for (const width of [1440, 400]) {
 
     // The space grid's own toolbar (T-6303): Hide fields names each column as the header does.
     const toolbar = section.getByTestId("grid-toolbar");
-    await toolbar.getByText("Hide fields", { exact: true }).click();
+    // A phone holds every tool in one Tools menu (T-6463).
+    const tool = async (label: string) => {
+      const item = toolbar.getByText(label, { exact: true });
+      if (!(await item.isVisible())) await toolbar.locator("summary", { hasText: "Tools" }).click();
+      await item.click();
+    };
+    await tool("Hide fields");
     await expect(section.getByRole("checkbox", { name: "PM10" })).toBeChecked();
     await page.screenshot({ path: join(dir, `data-hide-${width}.png`) });
     await page.keyboard.press("Escape");
 
     // Filter: a condition of the panel reaches the endpoint as `q`, and the CSV downloads those rows.
-    await toolbar.getByText("Filter", { exact: true }).click();
-    const panel = toolbar.locator("details[open]");
+    await tool("Filter");
+    const panel = toolbar.locator("details[open]").last();
     await panel.getByRole("button", { name: "Add condition", exact: true }).click();
     await panel.getByRole("combobox", { name: "Field" }).selectOption("pm10");
     await panel.getByRole("combobox", { name: "Operator" }).selectOption("gt");

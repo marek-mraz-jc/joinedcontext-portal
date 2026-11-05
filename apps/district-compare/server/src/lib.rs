@@ -331,7 +331,7 @@ fn kept_today() -> Result<bool, sql::Error> {
 /// The job `keep-metrics` (app.yaml `spec.server.jobs`): keeps today's figures once, and an hour
 /// later again after a run the feeds failed. Reading the five feeds takes longer than the 5 s a
 /// request may run, and the job has 60 s (T-6503).
-fn keep_metrics() -> Result<(), String> {
+pub fn keep_metrics() -> Result<(), String> {
     if kept_today().map_err(|err| err.to_string())? {
         return Ok(());
     }
