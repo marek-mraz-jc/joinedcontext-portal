@@ -138,16 +138,21 @@ function valueText(raw: unknown): { text: string; at?: string } {
   return { text: unit ? `${text} ${unit}` : text, at: cell.at };
 }
 
-/** A row's own name, else the last part of its id. */
-function rowName(row: PreviewRow): string {
-  const name = cellOf(row.name);
-  return name.kind === "text" && name.text !== "—" ? name.text : (row.id.split(":").pop() ?? row.id);
-}
-
 interface PreviewRow {
   id: string;
   name?: unknown;
   [attribute: string]: unknown;
+}
+
+/** A row's own name in the reader's language (else English, else any), or the last part of its id. */
+function rowName(row: PreviewRow, language: string): string {
+  const texts = (row.name as { languageMap?: Record<string, unknown> } | undefined)?.languageMap;
+  if (texts && typeof texts === "object") {
+    const text = [texts[language.split("-")[0]], texts.en, ...Object.values(texts)].find((one) => typeof one === "string");
+    if (typeof text === "string") return text;
+  }
+  const name = cellOf(row.name);
+  return name.kind === "text" && name.text !== "—" ? name.text : (row.id.split(":").pop() ?? row.id);
 }
 
 /**
@@ -194,7 +199,7 @@ export function VisualizationPreview({
             const value = valueText(row[attribute]);
             return (
               <div key={row.id} className="flex justify-between gap-3 border-b border-border py-1.5 last:border-b-0">
-                <dt className="min-w-0 break-words text-body text-fg-muted">{rowName(row)}</dt>
+                <dt className="min-w-0 break-words text-body text-fg-muted">{rowName(row, i18n.language)}</dt>
                 <dd className="shrink-0 text-right">
                   <span className="block text-body font-medium text-fg">{value.text}</span>
                   {value.at ? (

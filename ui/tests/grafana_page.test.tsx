@@ -183,6 +183,17 @@ describe("the preview", () => {
     expect(await screen.findByText(/holds no rows/)).toBeInTheDocument();
   });
 
+  it("names a row in the reader's language, else in the one it has", async () => {
+    const rows = [
+      { id: "urn:x:1", type: "T", name: { type: "LanguageProperty", languageMap: { fi: "Kallio 2", en: "Kallio two" } }, x: { type: "Property", value: 1 } },
+      { id: "urn:x:2", type: "T", name: { type: "LanguageProperty", languageMap: { fi: "Ilola" } }, x: { type: "Property", value: 2 } },
+    ];
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(rows), { status: 200 }));
+    renderInClient(<VisualizationPreview slug="d" type="T" attribute="x" />);
+    expect(await screen.findByText("Kallio two")).toBeInTheDocument();
+    expect(screen.getByText("Ilola")).toBeInTheDocument();
+  });
+
   it("shows a place by its coordinates, never as raw JSON", async () => {
     const rows = [{ id: "urn:x:7", type: "T", location: { type: "GeoProperty", value: { type: "Point", coordinates: [24.9, 60.1] } } }];
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(rows), { status: 200 }));

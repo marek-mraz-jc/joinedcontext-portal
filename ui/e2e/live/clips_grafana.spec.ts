@@ -53,7 +53,7 @@ async function openInGrafana(page: Page, href: string): Promise<void> {
 }
 
 /** What a drawn panel holds: a chart or map canvas, a table, a number, or Grafana's own "No data". */
-const DRAWN = "canvas, [role='table'], table, [data-testid='data-testid panel content'] span, :text-is('No data')";
+const DRAWN = "canvas, [role='table'], [role='grid'], table, [data-testid='data-testid panel content'] span, :text-is('No data')";
 
 /** What Grafana drew: panel errors and "No data" are both a failed visualization. */
 async function drawn(page: Page): Promise<{ errors: number; noData: number }> {
