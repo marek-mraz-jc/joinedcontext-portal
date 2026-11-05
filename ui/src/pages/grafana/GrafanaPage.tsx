@@ -260,8 +260,8 @@ export function BesideSave({
 }: {
   /** The first field still empty, top to bottom. */
   missing?: "endpoint" | "type" | "attribute" | "name";
-  /** What the last save was refused for: a field (change it) or the person's role (ask). */
-  refused?: "field" | "role";
+  /** A field refusal: Save waits for a change. A role refusal says nothing here; its alert and the empty list do. */
+  refused: boolean;
   /** Just saved: Save waits for a change, so a second click makes no twin. */
   saved: boolean;
   preview: { isError: boolean; error: unknown; refetch: () => unknown };
@@ -269,7 +269,7 @@ export function BesideSave({
   const { t } = useTranslation();
   const line = "text-body text-fg-muted";
   if (missing) return <p className={line}>{t(`grafana.form.missing.${missing}`)}</p>;
-  if (refused) return <p className={line}>{t(refused === "role" ? "grafana.form.saveNeedsRole" : "grafana.form.saveRefused")}</p>;
+  if (refused) return <p className={line}>{t("grafana.form.saveRefused")}</p>;
   if (saved) return <p className={line}>{t("grafana.form.savedChangeFirst")}</p>;
   if (!preview.isError) return null;
   const denied = preview.error instanceof ApiError && (preview.error.status === 403 || preview.error.status === 404);
@@ -529,7 +529,7 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
             >
               {t("grafana.form.save")}
             </Button>
-            <BesideSave missing={missing} refused={refused ? (roleRefused ? "role" : "field") : undefined} saved={save.isSuccess} preview={preview} />
+            <BesideSave missing={missing} refused={refused && !roleRefused} saved={save.isSuccess} preview={preview} />
           </div>
           {save.isError ? (
             <div className="sm:col-span-2">

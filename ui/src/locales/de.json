@@ -6768,7 +6768,7 @@
     "form": {
       "title": "Neue Visualisierung",
       "endpoint": "Endpoint",
-      "endpointHelp": "Die zu zeichnenden Daten, zum Beispiel Helsinki air quality. Die Liste enthält die Endpoints, die Sie in diesem Projekt nutzen können.",
+      "endpointHelp": "Die zu zeichnenden Daten, zum Beispiel Helsinki air quality.",
       "type": "Typ",
       "typeHelp": "Was jede Zeile darstellt, zum Beispiel eine Luftqualitätsmessung.",
       "chooseEndpointFirst": "Wählen Sie zuerst einen Endpoint.",
@@ -6798,7 +6798,6 @@
       "previewLoading": "Die ersten Zeilen werden gelesen…",
       "previewForbiddenTitle": "Sie dürfen diese Zeilen nicht lesen",
       "previewNote": "Die Vorschau konnte diese Zeilen nicht lesen; das Dashboard bleibt für Sie womöglich leer.",
-      "saveNeedsRole": "Zum Speichern brauchen Sie eine Rolle, die Dashboards vorschlagen darf.",
       "savedChangeFirst": "Gespeichert. Ändern Sie eine Auswahl, um eine weitere zu speichern.",
       "notInGrafanaOption": "{title} (noch nicht in Grafana)",
       "missing": {

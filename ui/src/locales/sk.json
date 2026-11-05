@@ -6768,7 +6768,7 @@
     "form": {
       "title": "Nová vizualizácia",
       "endpoint": "Endpoint",
-      "endpointHelp": "Údaje na vykreslenie, napríklad Helsinki air quality. Zoznam obsahuje Endpointy, ktoré môžete v tomto projekte použiť.",
+      "endpointHelp": "Údaje na vykreslenie, napríklad Helsinki air quality.",
       "type": "Typ",
       "typeHelp": "Čo predstavuje každý riadok, napríklad meranie kvality ovzdušia.",
       "chooseEndpointFirst": "Najprv vyberte Endpoint.",
@@ -6798,7 +6798,6 @@
       "previewLoading": "Načítavam prvé riadky…",
       "previewForbiddenTitle": "Tieto riadky nesmiete čítať",
       "previewNote": "Náhľad tieto riadky neprečítal; dashboard môže byť pre vás prázdny.",
-      "saveNeedsRole": "Uloženie vyžaduje rolu, ktorá smie navrhovať dashboardy.",
       "savedChangeFirst": "Uložené. Ak chcete uložiť ďalšiu, zmeňte niektorú voľbu.",
       "notInGrafanaOption": "{title} (zatiaľ nie v Grafane)",
       "missing": {
