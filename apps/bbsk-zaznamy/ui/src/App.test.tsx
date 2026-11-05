@@ -151,13 +151,20 @@ describe("the records of one publisher", () => {
 
   it("asks the endpoint for one page of one type, and says how many match", async () => {
     show();
-    // The table's page, not the charts' read of one cube.
-    await waitFor(() => expect(calls.some((call) => call.path.includes("/entities") && !cubeOf(call.path))).toBe(true));
-    const table = calls.find((call) => call.path.includes("/entities") && !cubeOf(call.path));
-    const asked = new URL(table?.path ?? "", "http://localhost");
-    expect(asked.searchParams.get("type")).toBe("KeyPerformanceIndicator");
-    expect(asked.searchParams.get("limit")).toBe("25");
-    expect(asked.searchParams.get("count")).toBe("true");
+    // The table's reads, not the charts' read of one cube: one page of rows and, beside it, the
+    // total in a read of its own (limit 0), so a slow count never holds the rows back (T-6541).
+    const table = () =>
+      calls
+        .filter((call) => call.path.includes("/entities") && !cubeOf(call.path))
+        .map((call) => new URL(call.path, "http://localhost").searchParams);
+    await waitFor(() => expect(table().some((asked) => asked.get("limit") === "25")).toBe(true));
+    await waitFor(() => expect(table().some((asked) => asked.get("limit") === "0")).toBe(true));
+    const page = table().find((asked) => asked.get("limit") === "25");
+    const counted = table().find((asked) => asked.get("limit") === "0");
+    expect(page?.get("type")).toBe("KeyPerformanceIndicator");
+    expect(page?.get("count")).not.toBe("true");
+    expect(counted?.get("type")).toBe("KeyPerformanceIndicator");
+    expect(counted?.get("count")).toBe("true");
   });
 });
 
