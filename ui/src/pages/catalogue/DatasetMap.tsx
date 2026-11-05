@@ -138,6 +138,7 @@ export function DatasetMap({ name }: { name: string }): JSX.Element | null {
         {inSight ? (
           <Suspense fallback={loading}>
             <MapLibreView
+              fill
               project={data.basemap ?? undefined}
               label={t("catalogue.dataset.mapLabel", { type: data.type })}
               layers={[
