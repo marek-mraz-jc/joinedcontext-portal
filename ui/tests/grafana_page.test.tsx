@@ -135,6 +135,18 @@ describe("the Grafana page", () => {
     expect(screen.queryByRole("button", { name: "Remove PM2.5" })).toBeNull();
   });
 
+  it("turns the empty list's invitation into who can help once a save is refused for the role", async () => {
+    answers["POST /api/v1/projects/helsinki/grafana"] = {
+      status: 403,
+      body: { status: 403, title: "Forbidden", detail: "you may not propose dashboards in helsinki" },
+    };
+    renderInClient(<GrafanaPage project="helsinki" />);
+    expect(await screen.findByText("Fill in the form and save your first visualization.")).toBeInTheDocument();
+    await saveFilled();
+    expect(await screen.findByText(/Nothing can be saved with your role yet/)).toBeInTheDocument();
+    expect(screen.queryByText("Fill in the form and save your first visualization.")).toBeNull();
+  });
+
   it("tells what to do next on an empty list", async () => {
     renderInClient(<GrafanaPage project="helsinki" />);
     expect(await screen.findByText("Nothing saved yet")).toBeInTheDocument();

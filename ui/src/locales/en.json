@@ -6762,6 +6762,7 @@
       "keep": "Keep",
       "emptyTitle": "Nothing saved yet",
       "empty": "Fill in the form and save your first visualization.",
+      "emptyNoRole": "Nothing can be saved with your role yet. A project owner can give you a role that may propose dashboards.",
       "emptyReader": "When someone in this project saves a visualization, it appears here."
     },
     "form": {
@@ -6797,6 +6798,7 @@
       "previewLoading": "Reading the first rows…",
       "previewForbiddenTitle": "You may not read these rows",
       "previewNote": "The preview could not read these rows; the dashboard may be empty for you.",
+      "saveNeedsRole": "Saving needs a role that may propose dashboards.",
       "savedChangeFirst": "Saved. Change any choice to save another.",
       "notInGrafanaOption": "{title} (not in Grafana yet)",
       "missing": {

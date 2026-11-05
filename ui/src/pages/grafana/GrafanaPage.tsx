@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { JSX, ReactNode } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useMutationState, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Link } from "@tanstack/react-router";
 import { api, ApiError, fieldErrors, reasonOf, unwrap } from "../../api/client";
@@ -34,6 +34,7 @@ type Options = components["schemas"]["GrafanaOptions"];
 const KINDS: readonly Kind[] = ["timeseries", "stat", "table", "map"];
 
 const pageKey = (project: string) => ["projects", project, "grafana"];
+const saveKey = (project: string) => ["grafana-save", project];
 
 function useOptions(project: string, endpoint: string, type: string) {
   return useQuery({
@@ -201,7 +202,7 @@ export function VisualizationPreview({
         <p className="text-body text-fg-muted">{t("grafana.form.previewNoRows")}</p>
       ) : null}
       {rows.isSuccess && rows.data.length > 0 ? (
-        <dl>
+        <dl className={refusedAs ? "opacity-60" : undefined}>
           {rows.data.map((row) => {
             const value = valueText(row[attribute]);
             return (
@@ -257,17 +258,19 @@ export function BesideSave({
   saved,
   preview,
 }: {
-  /** The first field still empty, top to bottom. A role refusal is neither: its alert says who can help. */
+  /** The first field still empty, top to bottom. */
   missing?: "endpoint" | "type" | "attribute" | "name";
-  refused: boolean;
+  /** What the last save was refused for: a field (change it) or the person's role (ask). */
+  refused?: "field" | "role";
   /** Just saved: Save waits for a change, so a second click makes no twin. */
   saved: boolean;
   preview: { isError: boolean; error: unknown; refetch: () => unknown };
 }): JSX.Element | null {
   const { t } = useTranslation();
-  if (missing) return <p className="text-caption text-fg-muted">{t(`grafana.form.missing.${missing}`)}</p>;
-  if (refused) return <p className="text-caption text-fg-muted">{t("grafana.form.saveRefused")}</p>;
-  if (saved) return <p className="text-caption text-fg-muted">{t("grafana.form.savedChangeFirst")}</p>;
+  const line = "text-body text-fg-muted";
+  if (missing) return <p className={line}>{t(`grafana.form.missing.${missing}`)}</p>;
+  if (refused) return <p className={line}>{t(refused === "role" ? "grafana.form.saveNeedsRole" : "grafana.form.saveRefused")}</p>;
+  if (saved) return <p className={line}>{t("grafana.form.savedChangeFirst")}</p>;
   if (!preview.isError) return null;
   const denied = preview.error instanceof ApiError && (preview.error.status === 403 || preview.error.status === 404);
   return (
@@ -381,6 +384,7 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
   const queryClient = useQueryClient();
   const form = useChoices(project);
   const save = useMutation({
+    mutationKey: saveKey(project),
     mutationFn: async () =>
       unwrap(
         await api.POST("/api/v1/projects/{project}/grafana", {
@@ -525,7 +529,7 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
             >
               {t("grafana.form.save")}
             </Button>
-            <BesideSave missing={missing} refused={refused && !roleRefused} saved={save.isSuccess} preview={preview} />
+            <BesideSave missing={missing} refused={refused ? (roleRefused ? "role" : "field") : undefined} saved={save.isSuccess} preview={preview} />
           </div>
           {save.isError ? (
             <div className="sm:col-span-2">
@@ -611,6 +615,11 @@ export function GrafanaPage({ project }: { project: string }): JSX.Element {
     queryFn: async () =>
       unwrap(await api.GET("/api/v1/projects/{project}/grafana", { params: { path: { project } } })),
   });
+  // A save refused for the role (403) turns the empty list's "save your first" into who can help.
+  const roleRefused = useMutationState({
+    filters: { mutationKey: saveKey(project), status: "error" },
+    select: (mutation) => mutation.state.error instanceof ApiError && mutation.state.error.status === 403,
+  }).includes(true);
   const header = <PageHeader title={t("grafana.title")} description={t("grafana.lead")} />;
   if (page.isPending) {
     return <PageLoading label={t("grafana.title")} />;
@@ -646,7 +655,7 @@ export function GrafanaPage({ project }: { project: string }): JSX.Element {
           bare
           icon="dashboards"
           title={t("grafana.saved.emptyTitle")}
-          description={t(mayCreate ? "grafana.saved.empty" : "grafana.saved.emptyReader")}
+          description={t(!mayCreate ? "grafana.saved.emptyReader" : roleRefused ? "grafana.saved.emptyNoRole" : "grafana.saved.empty")}
         />
       ) : (
         <ul>

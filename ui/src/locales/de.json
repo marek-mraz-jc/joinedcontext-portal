@@ -6762,6 +6762,7 @@
       "keep": "Behalten",
       "emptyTitle": "Noch nichts gespeichert",
       "empty": "Füllen Sie das Formular aus und speichern Sie Ihre erste Visualisierung.",
+      "emptyNoRole": "Mit Ihrer Rolle können Sie noch nichts speichern. Die Projektverantwortlichen können Ihnen eine Rolle geben, die Dashboards vorschlagen darf.",
       "emptyReader": "Sobald jemand im Projekt eine Visualisierung speichert, erscheint sie hier."
     },
     "form": {
@@ -6797,6 +6798,7 @@
       "previewLoading": "Die ersten Zeilen werden gelesen…",
       "previewForbiddenTitle": "Sie dürfen diese Zeilen nicht lesen",
       "previewNote": "Die Vorschau konnte diese Zeilen nicht lesen; das Dashboard bleibt für Sie womöglich leer.",
+      "saveNeedsRole": "Zum Speichern brauchen Sie eine Rolle, die Dashboards vorschlagen darf.",
       "savedChangeFirst": "Gespeichert. Ändern Sie eine Auswahl, um eine weitere zu speichern.",
       "notInGrafanaOption": "{title} (noch nicht in Grafana)",
       "missing": {

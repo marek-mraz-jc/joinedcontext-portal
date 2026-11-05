@@ -6762,6 +6762,7 @@
       "keep": "Ponechat",
       "emptyTitle": "Zatím nic uloženo",
       "empty": "Vyplňte formulář a uložte první vizualizaci.",
+      "emptyNoRole": "Se svou rolí zatím nemůžete nic uložit. Vlastník projektu vám může dát roli, která smí navrhovat dashboardy.",
       "emptyReader": "Když někdo v projektu uloží vizualizaci, zobrazí se zde."
     },
     "form": {
@@ -6797,6 +6798,7 @@
       "previewLoading": "Načítám první řádky…",
       "previewForbiddenTitle": "Tyto řádky nesmíte číst",
       "previewNote": "Náhled tyto řádky nepřečetl; dashboard může být pro vás prázdný.",
+      "saveNeedsRole": "Uložení vyžaduje roli, která smí navrhovat dashboardy.",
       "savedChangeFirst": "Uloženo. Chcete-li uložit další, změňte některou volbu.",
       "notInGrafanaOption": "{title} (zatím není v Grafaně)",
       "missing": {
