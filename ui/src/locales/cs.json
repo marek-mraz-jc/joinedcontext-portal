@@ -6740,6 +6740,8 @@
     "notReady": "Požádejte provozovatele, aby pro tento projekt zapnul Grafanu, a pak se vraťte.",
     "notReadyTitle": "Grafana pro tento projekt ještě není připravena",
     "forbiddenTitle": "Grafanu v tomto projektu nesmíte otevřít",
+    "toProject": "Zpět na projekt",
+    "toProjects": "Přejít na vaše projekty",
     "readOnlyTitle": "Jen ke čtení: tyto můžete otevírat, nové přidávat ne",
     "readOnly": "K ukládání potřebujete roli, která v tomto projektu navrhuje dashboardy; požádejte vlastníka projektu. Uložené vizualizace můžete nadále otevírat.",
     "kind": {
@@ -6801,8 +6803,9 @@
       "saveFailedTitle": "Neuloženo",
       "saveFailed": "Vizualizaci se nepodařilo uložit. Zkuste to za minutu znovu.",
       "saveFieldsTitle": "Neuloženo: zkontrolujte označené pole",
-      "saveFieldsBody": "V označeném poli vyberte jinou možnost a uložte znovu.",
+      "saveFieldsBody": "Nic se neuložilo; ostatní volby zůstávají.",
       "kindRefused": "{kind} neumí zobrazit {attribute}. Vyberte jinou vizualizaci, například Tabulka.",
+      "attributeRefused": "{type} už nemá {attribute}. Vyberte jiný atribut ze seznamu.",
       "saveForbiddenTitle": "Neuloženo: na tohle nemáte právo",
       "saveForbidden": "Pokud to potřebujete, požádejte vlastníka projektu."
     }

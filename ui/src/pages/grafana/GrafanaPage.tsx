@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { JSX, ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
+import { Link } from "@tanstack/react-router";
 import { api, ApiError, fieldErrors, reasonOf, unwrap } from "../../api/client";
 import type { components } from "../../api/schema";
 import {
@@ -408,7 +409,11 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
               ))}
             </Select>
           </Field>
-          <Field id="grafana-attribute" label={t("grafana.form.attribute")} help={t("grafana.form.attributeHelp")} errors={refusalsOf(save.error, "attribute")}>
+          <Field id="grafana-attribute" label={t("grafana.form.attribute")} help={t("grafana.form.attributeHelp")} errors={
+              refusalsOf(save.error, "attribute").length > 0
+                ? [t("grafana.form.attributeRefused", { type: columnLabel(undefined, form.type, i18n.language), attribute: columnLabel(undefined, form.attribute, i18n.language) })]
+                : []
+            }>
             <Select
               id="grafana-attribute"
               value={form.attribute}
@@ -482,9 +487,15 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
   );
 }
 
-/** The server words a refusal as a clause ("a stat cannot draw name; …"): shown as a sentence. */
+/** A server clause ("a stat cannot draw name; …") as a sentence: capital first, a full stop last. */
+export function sentence(line: string): string {
+  const text = line.trim();
+  return text === "" ? "" : `${text.charAt(0).toUpperCase()}${text.slice(1)}${/[.!?]$/.test(text) ? "" : "."}`;
+}
+
+/** The server's refusals of one field, each as a sentence. */
 export function refusalsOf(error: unknown, field: string): string[] {
-  return fieldErrors(error, field).map((line) => `${line.charAt(0).toUpperCase()}${line.slice(1)}${/[.!?]$/.test(line) ? "" : "."}`);
+  return fieldErrors(error, field).map(sentence);
 }
 
 /**
@@ -497,7 +508,7 @@ export function SaveFailed({ error }: { error: unknown }): JSX.Element {
   if (status === 403) {
     return (
       <Alert tone="danger" title={t("grafana.form.saveForbiddenTitle")}>
-        {reasonOf(error)} {t("grafana.form.saveForbidden")}
+        {sentence(reasonOf(error))} {t("grafana.form.saveForbidden")}
       </Alert>
     );
   }
@@ -510,7 +521,7 @@ export function SaveFailed({ error }: { error: unknown }): JSX.Element {
   }
   return (
     <Alert tone="danger" title={t("grafana.form.saveFailedTitle")}>
-      {reasonOf(error, t("grafana.form.saveFailed"))}
+      {sentence(reasonOf(error, t("grafana.form.saveFailed")))}
     </Alert>
   );
 }
@@ -535,7 +546,12 @@ export function GrafanaPage({ project }: { project: string }): JSX.Element {
           <EmptyState
             icon="lock"
             title={t("grafana.forbiddenTitle")}
-            description={`${reasonOf(page.error)} ${t("app.error.forbiddenHint")}`}
+            description={`${sentence(reasonOf(page.error))} ${t("app.error.forbiddenHint")}`}
+            action={
+              <Link to="/" className={buttonClass("secondary", "sm")}>
+                {t("grafana.toProjects")}
+              </Link>
+            }
           />
         ) : (
           <PageFailed error={page.error} onRetry={() => void page.refetch()} />
@@ -570,17 +586,22 @@ export function GrafanaPage({ project }: { project: string }): JSX.Element {
         <EmptyState
           icon="dashboards"
           title={t("grafana.notReadyTitle")}
-          description={reason ?? t("grafana.notReady")}
+          description={reason ? sentence(reason) : t("grafana.notReady")}
+          action={
+            <Link to="/projects/$project/home" params={{ project }} className={buttonClass("secondary", "sm")}>
+              {t("grafana.toProject")}
+            </Link>
+          }
         />
       )}
       {ready && mayCreate ? <VisualizationForm project={project} aside={saved} /> : null}
       {ready && !mayCreate ? (
-        <div className="grid items-start gap-section lg:grid-cols-5 [&>*]:min-w-0">
-          <Alert tone="info" title={t("grafana.readOnlyTitle")} className="lg:order-last lg:col-span-2">
+        <>
+          <Alert tone="info" title={t("grafana.readOnlyTitle")}>
             {t("grafana.readOnly")}
           </Alert>
-          <div className="lg:col-span-3">{saved}</div>
-        </div>
+          {saved}
+        </>
       ) : null}
     </div>
   );

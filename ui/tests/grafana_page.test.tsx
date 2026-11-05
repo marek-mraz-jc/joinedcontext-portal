@@ -6,6 +6,14 @@ import type { ReactNode } from "react";
 import { GrafanaPage, SavedVisualization, VisualizationForm, VisualizationPreview, notReachable } from "../src/pages/grafana/GrafanaPage";
 import i18n from "../src/i18n";
 
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ to, params, children, ...rest }: { to: string; params?: Record<string, string>; children: ReactNode }) => (
+    <a href={to.replace(/\$(\w+)/g, (_, key: string) => params?.[key] ?? "")} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
 const options = {
   endpoints: [
     { name: "air", title: "Air quality", slug: "airslug", public: true, usable: true },
@@ -102,8 +110,9 @@ describe("the Grafana page", () => {
     renderInClient(<GrafanaPage project="helsinki" />);
     expect(await screen.findByRole("heading", { level: 1, name: "Grafana" })).toBeInTheDocument();
     expect(await screen.findByText("You may not open Grafana in this project")).toBeInTheDocument();
-    expect(screen.getByText(/you are not a member of helsinki/)).toHaveTextContent("A project owner or an organization administrator");
+    expect(screen.getByText(/You are not a member of helsinki\./)).toHaveTextContent("A project owner or an organization administrator");
     expect(screen.queryByLabelText("Endpoint")).toBeNull();
+    expect(screen.getByRole("link", { name: "Go to your projects" })).toHaveAttribute("href", "/");
   });
 
   it("says why when Grafana is not ready and offers no form", async () => {
@@ -111,7 +120,8 @@ describe("the Grafana page", () => {
       body: { ready: false, reason: "Grafana is not set up", mayCreate: true, items: [] },
     };
     renderInClient(<GrafanaPage project="helsinki" />);
-    expect(await screen.findByText("Grafana is not set up")).toBeInTheDocument();
+    expect(await screen.findByText("Grafana is not set up.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to the project" })).toHaveAttribute("href", "/projects/helsinki/home");
     expect(screen.queryByRole("button", { name: /save to grafana/i })).toBeNull();
   });
 
@@ -196,6 +206,19 @@ describe("the form", () => {
     expect(screen.getByLabelText("Visualization")).not.toHaveAttribute("aria-invalid", "true");
   });
 
+  it("words an attribute refusal with the names the form shows", async () => {
+    answers["POST /api/v1/projects/helsinki/grafana"] = {
+      status: 422,
+      body: { status: 422, title: "Unprocessable", detail: "a field is refused", errors: [{ path: "attribute", message: "AirQualityObserved has no attribute pm25; choose one from the list" }] },
+    };
+    renderInClient(<VisualizationForm project="helsinki" />);
+    await saveFilled();
+    expect(await screen.findByText("Nothing was saved; your other choices are kept.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Attribute")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Attribute")).toHaveAccessibleDescription(/Air quality observed no longer has PM2\.5\. Choose another attribute/);
+    expect(screen.queryByText(/AirQualityObserved|pm25/)).toBeNull();
+  });
+
   it("says who can help when the person may not save", async () => {
     answers["POST /api/v1/projects/helsinki/grafana"] = {
       status: 403,
@@ -205,7 +228,7 @@ describe("the form", () => {
     await saveFilled();
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Not saved: you may not do this");
-    expect(alert).toHaveTextContent("you may not propose dashboards in helsinki");
+    expect(alert).toHaveTextContent("You may not propose dashboards in helsinki. Ask a project owner");
     expect(alert).toHaveTextContent("Ask a project owner");
   });
 

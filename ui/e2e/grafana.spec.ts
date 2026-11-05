@@ -136,14 +136,14 @@ for (const width of [1440, 400]) {
 
     test("a refused save names the field and a missing role says who can help", async ({ page }) => {
       const world: World = {
-        save: { status: 422, body: { status: 422, title: "Unprocessable", detail: "a field is refused", errors: [{ path: "kind", message: "a timeseries cannot draw pm25; choose another kind" }] } },
+        save: { status: 422, body: { status: 422, title: "Unprocessable", detail: "a field is refused", errors: [{ path: "attribute", message: "AirQualityObserved has no attribute pm25; choose one from the list" }] } },
       };
       await stubApi(page, world);
       await page.goto("/projects/helsinki/grafana");
       await fill(page);
       await page.getByRole("button", { name: "Save to Grafana" }).click();
       await expect(page.getByText("Not saved: check the marked field")).toBeVisible();
-      await expect(page.getByLabel("Visualization", { exact: true })).toHaveAttribute("aria-invalid", "true");
+      await expect(page.getByLabel("Attribute", { exact: true })).toHaveAttribute("aria-invalid", "true");
       await shot(page, "error-field", width);
       world.save = { status: 403, body: { status: 403, title: "Forbidden", detail: "You may not propose dashboards in helsinki." } };
       await page.getByLabel("Name", { exact: true }).fill("PM2.5 by station, daily");
@@ -161,6 +161,7 @@ for (const width of [1440, 400]) {
       await shot(page, "preview-loading", width);
       world.preview = { status: 403, body: { status: 403, title: "Forbidden", detail: "not yours" } };
       await page.getByLabel("Attribute", { exact: true }).selectOption("location");
+      await page.getByLabel("Name", { exact: true }).fill("Station locations");
       await expect(page.getByText("You may not read these rows")).toBeVisible();
       await shot(page, "preview-forbidden", width);
       world.preview = { status: 503, body: { status: 503, title: "Unavailable", detail: "The broker did not answer in time." } };
