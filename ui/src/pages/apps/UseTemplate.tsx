@@ -2,20 +2,11 @@ import { useId, useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, ApiError, queryKeys, unwrap } from "../../api/client";
+import { api, ApiError, fieldErrors, queryKeys, unwrap } from "../../api/client";
 import { asManifests, isChange, localized } from "../../api/manifest";
 import type { Change } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { Alert, Button, Field, Input, Select } from "../../components/ui";
-
-/** The server's refusals of one field, as `errors` names them (`name: …`, `endpointName: …`). */
-export function fieldErrors(error: unknown, field: string): string[] {
-  const errors = error instanceof ApiError ? (error.problem?.errors ?? []) : [];
-  const prefix = `${field}: `;
-  return errors
-    .filter((entry): entry is string => typeof entry === "string" && entry.startsWith(prefix))
-    .map((entry) => entry.slice(prefix.length));
-}
 
 /**
  * A template used as it ships (T-5617): the App's name and the Endpoint it reads, nothing else.

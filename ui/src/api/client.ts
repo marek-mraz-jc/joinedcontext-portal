@@ -93,6 +93,15 @@ export function reasonOf(error: unknown, fallback = ""): string {
   return error instanceof Error && error.message.trim() !== "" ? error.message : fallback;
 }
 
+/** The server's refusals of one field, as `errors` names them (`name: …`, `endpointName: …`). */
+export function fieldErrors(error: unknown, field: string): string[] {
+  const errors = error instanceof ApiError ? (error.problem?.errors ?? []) : [];
+  const prefix = `${field}: `;
+  return errors
+    .filter((entry): entry is string => typeof entry === "string" && entry.startsWith(prefix))
+    .map((entry) => entry.slice(prefix.length));
+}
+
 export function readCsrfToken(): string | undefined {
   if (typeof document === "undefined" || !document.cookie) {
     return undefined;

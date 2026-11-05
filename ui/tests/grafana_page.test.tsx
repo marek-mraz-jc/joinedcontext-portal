@@ -85,7 +85,26 @@ async function fill() {
   return user;
 }
 
+async function saveFilled() {
+  const user = await fill();
+  await user.selectOptions(screen.getByLabelText("Attribute"), "pm25");
+  await user.type(screen.getByLabelText("Name"), "x");
+  await user.click(screen.getByRole("button", { name: /save to grafana/i }));
+  return user;
+}
+
 describe("the Grafana page", () => {
+  it("tells a person outside the project that they may not open it", async () => {
+    answers["GET /api/v1/projects/helsinki/grafana"] = {
+      status: 403,
+      body: { status: 403, title: "Forbidden", detail: "you are not a member of helsinki" },
+    };
+    renderInClient(<GrafanaPage project="helsinki" />);
+    expect(await screen.findByRole("heading", { level: 1, name: "Grafana" })).toBeInTheDocument();
+    expect(await screen.findByText(/you are not a member of helsinki/)).toBeInTheDocument();
+    expect(screen.queryByLabelText("Endpoint")).toBeNull();
+  });
+
   it("says why when Grafana is not ready and offers no form", async () => {
     answers["GET /api/v1/projects/helsinki/grafana"] = {
       body: { ready: false, reason: "Grafana is not set up", mayCreate: true, items: [] },
@@ -156,21 +175,56 @@ describe("the form", () => {
     });
   });
 
-  it("shows the server's refusal beside the form", async () => {
+  it("marks the field the server refused and keeps what was typed", async () => {
     answers["POST /api/v1/projects/helsinki/grafana"] = {
       status: 422,
-      body: { status: 422, title: "Unprocessable", detail: "a stat cannot draw name; choose another kind" },
+      body: { status: 422, title: "Unprocessable", detail: "a field is refused", errors: [{ path: "kind", message: "a stat cannot draw name; choose another kind" }] },
     };
     renderInClient(<VisualizationForm project="helsinki" />);
-    const user = await fill();
-    await user.selectOptions(screen.getByLabelText("Attribute"), "pm25");
-    await user.type(screen.getByLabelText("Name"), "x");
-    await user.click(screen.getByRole("button", { name: /save to grafana/i }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("choose another kind");
+    const user = await saveFilled();
+    expect(await screen.findByText("Not saved: check the marked field")).toBeInTheDocument();
+    expect(screen.getByLabelText("Visualization")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Visualization")).toHaveAccessibleDescription(/choose another kind/);
+    expect(screen.getByLabelText("Name")).toHaveValue("x");
+    await user.type(screen.getByLabelText("Name"), "y");
+    await waitFor(() => expect(screen.queryAllByRole("alert")).toEqual([]));
+    expect(screen.getByLabelText("Visualization")).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("says who can help when the person may not save", async () => {
+    answers["POST /api/v1/projects/helsinki/grafana"] = {
+      status: 403,
+      body: { status: 403, title: "Forbidden", detail: "you may not propose dashboards in helsinki" },
+    };
+    renderInClient(<VisualizationForm project="helsinki" />);
+    await saveFilled();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Not saved: you may not do this");
+    expect(alert).toHaveTextContent("you may not propose dashboards in helsinki");
+    expect(alert).toHaveTextContent("Ask a project owner");
+  });
+
+  it("gives the reason of a failed save and keeps the form", async () => {
+    answers["POST /api/v1/projects/helsinki/grafana"] = {
+      status: 503,
+      body: { status: 503, title: "Unavailable", detail: "the saved visualizations could not be read or written" },
+    };
+    renderInClient(<VisualizationForm project="helsinki" />);
+    await saveFilled();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Not saved");
+    expect(alert).toHaveTextContent("could not be read or written");
+    expect(screen.getByRole("button", { name: /save to grafana/i })).not.toHaveAttribute("aria-disabled", "true");
   });
 });
 
 describe("the preview", () => {
+  it("waits with a skeleton that says what it reads", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(new Promise<Response>(() => undefined));
+    renderInClient(<VisualizationPreview slug="w" type="T" attribute="x" />);
+    expect(await screen.findByRole("status")).toHaveTextContent("Reading the first rows…");
+  });
+
   it("says so when a person may not read the rows or there are none", async () => {
     const refused = new Response(JSON.stringify({ status: 403, title: "Forbidden", detail: "not yours" }), {
       status: 403,
@@ -178,11 +232,26 @@ describe("the preview", () => {
     });
     vi.mocked(fetch).mockResolvedValueOnce(refused);
     const first = renderInClient(<VisualizationPreview slug="a" type="T" attribute="x" />);
-    expect(await screen.findByText("not yours")).toBeInTheDocument();
+    expect(await screen.findByText("You may not read these rows")).toBeInTheDocument();
+    expect(screen.getByText(/Grafana would draw nothing for you either/)).toBeInTheDocument();
     first.unmount();
     vi.mocked(fetch).mockResolvedValueOnce(new Response("[]", { status: 200 }));
     renderInClient(<VisualizationPreview slug="b" type="T" attribute="x" />);
     expect(await screen.findByText(/holds no rows/)).toBeInTheDocument();
+  });
+
+  it("gives the reason of a failed read and asks again on a press", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: 503, title: "Unavailable", detail: "the broker is busy" }), {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    renderInClient(<VisualizationPreview slug="e" type="AirQualityObserved" attribute="pm25" />);
+    expect(await screen.findByText("The preview could not be read")).toBeInTheDocument();
+    expect(screen.getByText("the broker is busy")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Kallio")).toBeInTheDocument();
   });
 
   it("names a row in the reader's language, else in the one it has", async () => {

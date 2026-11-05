@@ -6790,7 +6790,17 @@
       "previewEmptyTitle": "Náhľad",
       "previewEmpty": "Vyberte Endpoint, typ a atribút a uvidíte riadky, ktoré vizualizácia zobrazí.",
       "noEndpointsTitle": "Nie je z čoho kresliť",
-      "noEndpoints": "V tomto projekte zatiaľ nesmiete čítať žiadny Endpoint. Požiadajte vlastníka projektu o prístup alebo najprv vytvorte Endpoint."
+      "noEndpoints": "V tomto projekte zatiaľ nesmiete čítať žiadny Endpoint. Požiadajte vlastníka projektu o prístup alebo najprv vytvorte Endpoint.",
+      "previewLoading": "Načítavam prvé riadky…",
+      "previewForbiddenTitle": "Tieto riadky nesmiete čítať",
+      "previewForbidden": "Grafana by vám tiež nič nenakreslila. Vyberte iný Endpoint alebo požiadajte vlastníka projektu o prístup na čítanie.",
+      "previewFailedTitle": "Náhľad sa nepodarilo načítať",
+      "retry": "Skúsiť znova",
+      "saveFailedTitle": "Neuložené",
+      "saveFailed": "Vizualizáciu sa nepodarilo uložiť. Skúste to o minútu znova.",
+      "saveFieldsTitle": "Neuložené: skontrolujte označené pole",
+      "saveForbiddenTitle": "Neuložené: na toto nemáte právo",
+      "saveForbidden": "Ak to potrebujete, požiadajte vlastníka projektu."
     }
   },
   "activity": {

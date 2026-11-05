@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { JSX } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, reasonOf, unwrap } from "../../api/client";
+import { api, ApiError, fieldErrors, reasonOf, unwrap } from "../../api/client";
 import type { components } from "../../api/schema";
 import {
   Alert,
@@ -13,7 +13,6 @@ import {
   CardHeader,
   EmptyState,
   Field,
-  InlineError,
   Input,
   PageFailed,
   PageHeader,
@@ -193,8 +192,8 @@ export function VisualizationPreview({
   return (
     <Card>
       <CardHeader as="h2" title={t("grafana.form.preview")} className="mb-2" />
-      {rows.isPending ? <Skeleton className="h-24" /> : null}
-      {rows.isError ? <InlineError>{reasonOf(rows.error, t("grafana.form.previewFailed"))}</InlineError> : null}
+      {rows.isPending ? <PreviewLoading label={t("grafana.form.previewLoading")} /> : null}
+      {rows.isError ? <PreviewFailed error={rows.error} onRetry={() => void rows.refetch()} /> : null}
       {rows.isSuccess && rows.data.length === 0 ? (
         <p className="text-body text-fg-muted">{t("grafana.form.previewNoRows")}</p>
       ) : null}
@@ -203,12 +202,12 @@ export function VisualizationPreview({
           {rows.data.map((row) => {
             const value = valueText(row[attribute]);
             return (
-              <div key={row.id} className="flex justify-between gap-3 border-b border-border py-1.5 last:border-b-0">
+              <div key={row.id} className="flex items-baseline justify-between gap-3 border-b border-border py-1.5 last:border-b-0">
                 <dt className="min-w-0 break-words text-body text-fg-muted">{rowName(row, i18n.language)}</dt>
-                <dd className="shrink-0 text-right">
-                  <span className="block text-body font-medium text-fg">{value.text}</span>
+                <dd className="flex shrink-0 flex-wrap items-baseline justify-end gap-x-2 text-right">
+                  <span className="text-body font-medium text-fg">{value.text}</span>
                   {value.at ? (
-                    <time className="block text-caption text-fg-muted" dateTime={value.at}>
+                    <time className="text-caption text-fg-muted" dateTime={value.at}>
                       {when.format(new Date(value.at))}
                     </time>
                   ) : null}
@@ -219,6 +218,49 @@ export function VisualizationPreview({
         </dl>
       ) : null}
     </Card>
+  );
+}
+
+/** The preview's wait: one bar pair per row it will show, announced once in words. */
+export function PreviewLoading({ label }: { label: string }): JSX.Element {
+  return (
+    <div role="status" aria-busy="true">
+      <span className="sr-only">{label}</span>
+      {[0, 1, 2, 3, 4].map((row) => (
+        <div key={row} aria-hidden="true" className="flex justify-between gap-3 border-b border-border py-2.5 last:border-b-0">
+          <Skeleton className="h-4 w-full max-w-48" />
+          <Skeleton className="h-4 w-20" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Why the preview shows no rows: a refusal of the person's own read says Grafana would draw
+ * nothing for them either; any other failure gives the reason and a way to ask again.
+ */
+export function PreviewFailed({ error, onRetry }: { error: unknown; onRetry: () => void }): JSX.Element {
+  const { t } = useTranslation();
+  if (error instanceof ApiError && (error.status === 403 || error.status === 404)) {
+    return (
+      <Alert tone="warning" title={t("grafana.form.previewForbiddenTitle")}>
+        {t("grafana.form.previewForbidden")}
+      </Alert>
+    );
+  }
+  return (
+    <Alert
+      tone="danger"
+      title={t("grafana.form.previewFailedTitle")}
+      actions={
+        <Button variant="secondary" size="sm" onClick={onRetry}>
+          {t("grafana.form.retry")}
+        </Button>
+      }
+    >
+      {reasonOf(error, t("grafana.form.previewFailed"))}
+    </Alert>
   );
 }
 
@@ -316,33 +358,33 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
     );
   }
   const safe = safeHref(save.data?.openUrl);
+  const errorsOf = (field: string) => fieldErrors(save.error, field);
   return (
-    <div className="grid items-start gap-card lg:grid-cols-2 [&>*]:min-w-0">
-      <Card>
+    <div className="grid items-start gap-card lg:grid-cols-5 [&>*]:min-w-0">
+      <Card className="lg:col-span-3">
         <CardHeader as="h2" title={t("grafana.form.title")} className="mb-3" />
         <form
-          className="flex flex-col gap-3"
+          className="grid gap-x-4 gap-y-3 sm:grid-cols-2"
+          onChange={() => save.reset()}
           onSubmit={(event) => {
             event.preventDefault();
             if (ready) save.mutate();
           }}
         >
-          <Field id="grafana-endpoint" label={t("grafana.form.endpoint")} help={t("grafana.form.endpointHelp")}>
-            <Select id="grafana-endpoint" value={form.endpoint} onChange={(event) => form.chooseEndpoint(event.target.value)}>
-              <option value="">{t("grafana.form.choose")}</option>
-              {usable.map((endpoint) => (
-                <option key={endpoint.name} value={endpoint.name}>
-                  {endpoint.title}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          {closed.length > 0 ? (
-            <p className="text-caption text-fg-muted">
-              {notReachable(closed, t)}
-            </p>
-          ) : null}
-          <Field id="grafana-type" label={t("grafana.form.type")} help={t("grafana.form.typeHelp")}>
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <Field id="grafana-endpoint" label={t("grafana.form.endpoint")} help={t("grafana.form.endpointHelp")} errors={errorsOf("endpoint")}>
+              <Select id="grafana-endpoint" value={form.endpoint} onChange={(event) => form.chooseEndpoint(event.target.value)}>
+                <option value="">{t("grafana.form.choose")}</option>
+                {usable.map((endpoint) => (
+                  <option key={endpoint.name} value={endpoint.name}>
+                    {endpoint.title}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            {closed.length > 0 ? <p className="text-caption text-fg-muted">{notReachable(closed, t)}</p> : null}
+          </div>
+          <Field id="grafana-type" label={t("grafana.form.type")} help={t("grafana.form.typeHelp")} errors={errorsOf("type")}>
             <Select
               id="grafana-type"
               value={form.type}
@@ -358,7 +400,7 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
               ))}
             </Select>
           </Field>
-          <Field id="grafana-attribute" label={t("grafana.form.attribute")} help={t("grafana.form.attributeHelp")}>
+          <Field id="grafana-attribute" label={t("grafana.form.attribute")} help={t("grafana.form.attributeHelp")} errors={errorsOf("attribute")}>
             <Select
               id="grafana-attribute"
               value={form.attribute}
@@ -374,7 +416,7 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
               ))}
             </Select>
           </Field>
-          <Field id="grafana-kind" label={t("grafana.form.kind")} help={t("grafana.form.kindHelp")}>
+          <Field id="grafana-kind" label={t("grafana.form.kind")} help={t("grafana.form.kindHelp")} errors={errorsOf("kind")}>
             <Select id="grafana-kind" value={form.kind} onChange={(event) => form.setKind(event.target.value as Kind)}>
               {kindsFor(form.options.data, form.attribute).map((kind) => (
                 <option key={kind} value={kind}>
@@ -383,10 +425,10 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
               ))}
             </Select>
           </Field>
-          <Field id="grafana-title" label={t("grafana.form.name")} help={t("grafana.form.nameHelp")}>
+          <Field id="grafana-title" label={t("grafana.form.name")} help={t("grafana.form.nameHelp")} errors={errorsOf("title")}>
             <Input id="grafana-title" value={form.title} maxLength={120} onChange={(event) => form.setTitle(event.target.value)} />
           </Field>
-          <div>
+          <div className="sm:col-span-2">
             <Button
               variant="primary"
               type="submit"
@@ -396,9 +438,13 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
               {t("grafana.form.save")}
             </Button>
           </div>
-          {save.isError ? <Alert tone="danger">{reasonOf(save.error)}</Alert> : null}
+          {save.isError ? (
+            <div className="sm:col-span-2">
+              <SaveFailed error={save.error} />
+            </div>
+          ) : null}
           {save.isSuccess ? (
-            <Alert tone="success">
+            <Alert tone="success" className="sm:col-span-2">
               {t("grafana.form.saved", { title: save.data.title })}{" "}
               {safe ? (
                 <a className="underline" href={safe} target="_blank" rel="noopener noreferrer">
@@ -409,19 +455,39 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
           ) : null}
         </form>
       </Card>
-      {chosen && form.type && form.attribute ? (
-        <VisualizationPreview slug={chosen.slug} type={form.type} attribute={form.attribute} />
-      ) : (
-        <Card>
-          <EmptyState
-            bare
-            icon="dashboards"
-            title={t("grafana.form.previewEmptyTitle")}
-            description={t("grafana.form.previewEmpty")}
-          />
-        </Card>
-      )}
+      <div className="lg:col-span-2">
+        {chosen && form.type && form.attribute ? (
+          <VisualizationPreview slug={chosen.slug} type={form.type} attribute={form.attribute} />
+        ) : (
+          <Card>
+            <CardHeader as="h2" title={t("grafana.form.previewEmptyTitle")} className="mb-1" />
+            <p className="text-body text-fg-muted">{t("grafana.form.previewEmpty")}</p>
+          </Card>
+        )}
+      </div>
     </div>
+  );
+}
+
+/**
+ * Why a save did not land, worded by who can fix it: a role the person lacks (403), a field the
+ * server refused (422, the field itself carries the words), or a failure to try again later.
+ */
+export function SaveFailed({ error }: { error: unknown }): JSX.Element {
+  const { t } = useTranslation();
+  const status = error instanceof ApiError ? error.status : 0;
+  if (status === 403) {
+    return (
+      <Alert tone="danger" title={t("grafana.form.saveForbiddenTitle")}>
+        {reasonOf(error)} {t("grafana.form.saveForbidden")}
+      </Alert>
+    );
+  }
+  const fields = error instanceof ApiError && (error.problem?.errors ?? []).length > 0;
+  return (
+    <Alert tone="danger" title={t(fields ? "grafana.form.saveFieldsTitle" : "grafana.form.saveFailedTitle")}>
+      {reasonOf(error, t("grafana.form.saveFailed"))}
+    </Alert>
   );
 }
 
