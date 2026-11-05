@@ -200,7 +200,6 @@ describe("the form", () => {
     await saveFilled();
     expect(await screen.findByText(/Grafana cannot read the private Endpoint Air quality yet; .*choose another\./)).toBeInTheDocument();
     expect(screen.getByText(/Not in Grafana yet: Bike operations, Air quality/)).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: "Air quality (not in Grafana yet)" })).toBeInTheDocument();
     expect(await screen.findByText(/Grafana cannot read this Endpoint yet, so it would draw none of them/)).toBeInTheDocument();
     const button = screen.getByRole("button", { name: /save to grafana/i });
     expect(button).toHaveAttribute("aria-disabled", "true");

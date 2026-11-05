@@ -451,7 +451,7 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
                 <option value="">{t("grafana.form.choose")}</option>
                 {usable.map((endpoint) => (
                   <option key={endpoint.name} value={endpoint.name}>
-                    {endpointRefused && endpoint.name === chosen?.name ? t("grafana.form.notInGrafanaOption", { title: endpoint.title }) : endpoint.title}
+                    {endpoint.title}
                   </option>
                 ))}
               </Select>

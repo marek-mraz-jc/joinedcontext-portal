@@ -6799,7 +6799,6 @@
       "previewForbiddenTitle": "Tyto řádky nesmíte číst",
       "previewNote": "Náhled tyto řádky nepřečetl; dashboard může být pro vás prázdný.",
       "savedChangeFirst": "Uloženo. Chcete-li uložit další, změňte některou volbu.",
-      "notInGrafanaOption": "{title} (zatím není v Grafaně)",
       "missing": {
         "endpoint": "Nejprve vyberte Endpoint.",
         "type": "Dále vyberte typ.",

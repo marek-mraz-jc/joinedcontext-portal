@@ -6799,7 +6799,6 @@
       "previewForbiddenTitle": "You may not read these rows",
       "previewNote": "The preview could not read these rows; the dashboard may be empty for you.",
       "savedChangeFirst": "Saved. Change any choice to save another.",
-      "notInGrafanaOption": "{title} (not in Grafana yet)",
       "missing": {
         "endpoint": "Choose an Endpoint first.",
         "type": "Next, choose a type.",

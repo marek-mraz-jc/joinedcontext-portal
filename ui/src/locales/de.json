@@ -6799,7 +6799,6 @@
       "previewForbiddenTitle": "Sie dürfen diese Zeilen nicht lesen",
       "previewNote": "Die Vorschau konnte diese Zeilen nicht lesen; das Dashboard bleibt für Sie womöglich leer.",
       "savedChangeFirst": "Gespeichert. Ändern Sie eine Auswahl, um eine weitere zu speichern.",
-      "notInGrafanaOption": "{title} (noch nicht in Grafana)",
       "missing": {
         "endpoint": "Wählen Sie zuerst einen Endpoint.",
         "type": "Wählen Sie als Nächstes einen Typ.",
