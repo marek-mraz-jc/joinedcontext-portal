@@ -6739,6 +6739,7 @@
     "lead": "Zobrazte data z Endpointu jako graf, číslo, tabulku nebo mapu a uložte je do složky projektu v Grafaně.",
     "notReady": "Požádejte provozovatele, aby pro tento projekt zapnul Grafanu, a pak se vraťte.",
     "notReadyTitle": "Grafana pro tento projekt ještě není připravena",
+    "forbiddenTitle": "Grafanu v tomto projektu nesmíte otevřít",
     "readOnlyTitle": "Jen ke čtení: tyto můžete otevírat, nové přidávat ne",
     "readOnly": "K ukládání potřebujete roli, která v tomto projektu navrhuje dashboardy; požádejte vlastníka projektu. Uložené vizualizace můžete nadále otevírat.",
     "kind": {
@@ -6784,7 +6785,7 @@
       "incomplete": "Nejprve vyplňte všechna pole.",
       "saved": "Vizualizace {title} je uložena v Grafaně.",
       "openSaved": "Otevřít",
-      "preview": "Náhled: řádky, které teď můžete číst",
+      "preview": "První řádky, které teď smíte číst, tak jak je Grafana nakreslí.",
       "previewFailed": "Řádky se nepodařilo přečíst. Zkuste to za chvíli znovu.",
       "previewNoRows": "Tento Endpoint zatím nemá řádky tohoto typu.",
       "previewEmptyTitle": "Náhled",
@@ -6799,6 +6800,7 @@
       "saveFailedTitle": "Neuloženo",
       "saveFailed": "Vizualizaci se nepodařilo uložit. Zkuste to za minutu znovu.",
       "saveFieldsTitle": "Neuloženo: zkontrolujte označené pole",
+      "saveFieldsBody": "Změňte to, co uvádí označené pole, a uložte znovu.",
       "saveForbiddenTitle": "Neuloženo: na tohle nemáte právo",
       "saveForbidden": "Pokud to potřebujete, požádejte vlastníka projektu."
     }

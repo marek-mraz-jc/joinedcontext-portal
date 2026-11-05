@@ -6739,6 +6739,7 @@
     "lead": "Draw an Endpoint's data as a chart, a number, a table or a map, and save it into your project's Grafana folder.",
     "notReady": "Ask your operator to enable Grafana for this project, then come back.",
     "notReadyTitle": "Grafana is not ready for this project",
+    "forbiddenTitle": "You may not open Grafana in this project",
     "readOnlyTitle": "View only: you can open these, not add new ones",
     "readOnly": "Saving here needs a role that proposes dashboards in this project; ask a project owner. You can still open what is saved.",
     "kind": {
@@ -6784,7 +6785,7 @@
       "incomplete": "Fill in every field first.",
       "saved": "Saved {title} to Grafana.",
       "openSaved": "Open it",
-      "preview": "Preview: the rows you can read now",
+      "preview": "The first rows you can read now, as Grafana will draw them.",
       "previewFailed": "The rows could not be read. Try again in a minute.",
       "previewNoRows": "This Endpoint holds no rows of this type yet.",
       "previewEmptyTitle": "Preview",
@@ -6799,6 +6800,7 @@
       "saveFailedTitle": "Not saved",
       "saveFailed": "The visualization could not be saved. Try again in a minute.",
       "saveFieldsTitle": "Not saved: check the marked field",
+      "saveFieldsBody": "Change what the marked field says and save again.",
       "saveForbiddenTitle": "Not saved: you may not do this",
       "saveForbidden": "Ask a project owner if you need it."
     }

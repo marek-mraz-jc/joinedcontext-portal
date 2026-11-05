@@ -101,7 +101,8 @@ describe("the Grafana page", () => {
     };
     renderInClient(<GrafanaPage project="helsinki" />);
     expect(await screen.findByRole("heading", { level: 1, name: "Grafana" })).toBeInTheDocument();
-    expect(await screen.findByText(/you are not a member of helsinki/)).toBeInTheDocument();
+    expect(await screen.findByText("You may not open Grafana in this project")).toBeInTheDocument();
+    expect(screen.getByText(/you are not a member of helsinki/)).toHaveTextContent("A project owner or an organization administrator");
     expect(screen.queryByLabelText("Endpoint")).toBeNull();
   });
 
@@ -184,7 +185,8 @@ describe("the form", () => {
     const user = await saveFilled();
     expect(await screen.findByText("Not saved: check the marked field")).toBeInTheDocument();
     expect(screen.getByLabelText("Visualization")).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByLabelText("Visualization")).toHaveAccessibleDescription(/choose another kind/);
+    expect(screen.getByLabelText("Visualization")).toHaveAccessibleDescription(/A stat cannot draw name; choose another kind\./);
+    expect(screen.queryByText("a field is refused")).toBeNull();
     expect(screen.getByLabelText("Name")).toHaveValue("x");
     await user.type(screen.getByLabelText("Name"), "y");
     await waitFor(() => expect(screen.queryAllByRole("alert")).toEqual([]));

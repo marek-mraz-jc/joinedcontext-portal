@@ -77,7 +77,7 @@ async function pickPreviewSave(clip: Clip, title: string): Promise<string> {
     await page.getByLabel("Name", { exact: true }).scrollIntoViewIfNeeded();
   });
   await clip.step("The preview: the rows you can read now", async () => {
-    const preview = page.getByText("Preview: the rows you can read now");
+    const preview = page.getByText("The first rows you can read now, as Grafana will draw them.");
     await expect(preview).toBeVisible({ timeout: 30_000 });
     await expect(page.locator("dl dd").first()).toBeVisible({ timeout: 30_000 });
     await preview.scrollIntoViewIfNeeded();

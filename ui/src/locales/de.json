@@ -6739,6 +6739,7 @@
     "lead": "Stellen Sie die Daten eines Endpoints als Diagramm, Zahl, Tabelle oder Karte dar und speichern Sie sie im Grafana-Ordner Ihres Projekts.",
     "notReady": "Bitten Sie Ihren Betreiber, Grafana für dieses Projekt einzuschalten, und kommen Sie dann zurück.",
     "notReadyTitle": "Grafana ist für dieses Projekt noch nicht bereit",
+    "forbiddenTitle": "Sie dürfen Grafana in diesem Projekt nicht öffnen",
     "readOnlyTitle": "Nur Lesen: Sie können diese öffnen, aber keine neuen hinzufügen",
     "readOnly": "Zum Speichern brauchen Sie eine Rolle, die in diesem Projekt Dashboards vorschlägt; fragen Sie den Projektinhaber. Gespeicherte Visualisierungen können Sie weiterhin öffnen.",
     "kind": {
@@ -6784,7 +6785,7 @@
       "incomplete": "Füllen Sie zuerst alle Felder aus.",
       "saved": "{title} wurde in Grafana gespeichert.",
       "openSaved": "Öffnen",
-      "preview": "Vorschau: die Zeilen, die Sie jetzt lesen können",
+      "preview": "Die ersten Zeilen, die Sie jetzt lesen dürfen, so wie Grafana sie zeichnet.",
       "previewFailed": "Die Zeilen konnten nicht gelesen werden. Versuchen Sie es gleich noch einmal.",
       "previewNoRows": "Dieser Endpoint hat noch keine Zeilen dieses Typs.",
       "previewEmptyTitle": "Vorschau",
@@ -6799,6 +6800,7 @@
       "saveFailedTitle": "Nicht gespeichert",
       "saveFailed": "Die Visualisierung konnte nicht gespeichert werden. Versuchen Sie es in einer Minute erneut.",
       "saveFieldsTitle": "Nicht gespeichert: prüfen Sie das markierte Feld",
+      "saveFieldsBody": "Ändern Sie, was das markierte Feld nennt, und speichern Sie erneut.",
       "saveForbiddenTitle": "Nicht gespeichert: dazu fehlt Ihnen das Recht",
       "saveForbidden": "Fragen Sie die Projektverantwortlichen, wenn Sie es brauchen."
     }

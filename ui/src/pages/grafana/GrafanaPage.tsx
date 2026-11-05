@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { JSX } from "react";
+import type { JSX, ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { api, ApiError, fieldErrors, reasonOf, unwrap } from "../../api/client";
@@ -191,7 +191,12 @@ export function VisualizationPreview({
   });
   return (
     <Card>
-      <CardHeader as="h2" title={t("grafana.form.preview")} className="mb-2" />
+      <CardHeader
+        as="h2"
+        title={t("grafana.form.previewEmptyTitle")}
+        description={rows.isSuccess && rows.data.length > 0 ? t("grafana.form.preview") : undefined}
+        className="mb-2"
+      />
       {rows.isPending ? <PreviewLoading label={t("grafana.form.previewLoading")} /> : null}
       {rows.isError ? <PreviewFailed error={rows.error} onRetry={() => void rows.refetch()} /> : null}
       {rows.isSuccess && rows.data.length === 0 ? (
@@ -319,7 +324,7 @@ function useChoices(project: string) {
  * again on the save, and a refusal names its field here. The preview reads through the Endpoint
  * with the person's own session, so it shows what they would see in Grafana.
  */
-export function VisualizationForm({ project }: { project: string }): JSX.Element {
+export function VisualizationForm({ project, aside }: { project: string; aside?: ReactNode }): JSX.Element {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const form = useChoices(project);
@@ -358,7 +363,9 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
     );
   }
   const safe = safeHref(save.data?.openUrl);
-  const errorsOf = (field: string) => fieldErrors(save.error, field);
+  // The server words a refusal as a clause ("a stat cannot draw name; …"): shown as a sentence.
+  const errorsOf = (field: string) =>
+    fieldErrors(save.error, field).map((line) => `${line.charAt(0).toUpperCase()}${line.slice(1)}${/[.!?]$/.test(line) ? "" : "."}`);
   return (
     <div className="grid items-start gap-card lg:grid-cols-5 [&>*]:min-w-0">
       <Card className="lg:col-span-3">
@@ -455,7 +462,7 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
           ) : null}
         </form>
       </Card>
-      <div className="lg:col-span-2">
+      <div className="flex flex-col gap-card lg:col-span-2">
         {chosen && form.type && form.attribute ? (
           <VisualizationPreview slug={chosen.slug} type={form.type} attribute={form.attribute} />
         ) : (
@@ -464,6 +471,7 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
             <p className="text-body text-fg-muted">{t("grafana.form.previewEmpty")}</p>
           </Card>
         )}
+        {aside}
       </div>
     </div>
   );
@@ -483,9 +491,15 @@ export function SaveFailed({ error }: { error: unknown }): JSX.Element {
       </Alert>
     );
   }
-  const fields = error instanceof ApiError && (error.problem?.errors ?? []).length > 0;
+  if (error instanceof ApiError && (error.problem?.errors ?? []).length > 0) {
+    return (
+      <Alert tone="danger" title={t("grafana.form.saveFieldsTitle")}>
+        {t("grafana.form.saveFieldsBody")}
+      </Alert>
+    );
+  }
   return (
-    <Alert tone="danger" title={t(fields ? "grafana.form.saveFieldsTitle" : "grafana.form.saveFailedTitle")}>
+    <Alert tone="danger" title={t("grafana.form.saveFailedTitle")}>
       {reasonOf(error, t("grafana.form.saveFailed"))}
     </Alert>
   );
@@ -507,11 +521,38 @@ export function GrafanaPage({ project }: { project: string }): JSX.Element {
     return (
       <div className="flex flex-col gap-section">
         {header}
-        <PageFailed error={page.error} />
+        {page.error instanceof ApiError && page.error.status === 403 ? (
+          <EmptyState
+            icon="lock"
+            title={t("grafana.forbiddenTitle")}
+            description={`${reasonOf(page.error)} ${t("app.error.forbiddenHint")}`}
+          />
+        ) : (
+          <PageFailed error={page.error} onRetry={() => void page.refetch()} />
+        )}
       </div>
     );
   }
   const { ready, reason, mayCreate, items } = page.data;
+  const saved = (
+    <Card>
+      <CardHeader as="h2" title={t("grafana.saved.title")} className="mb-1" />
+      {items.length === 0 ? (
+        <EmptyState
+          bare
+          icon="dashboards"
+          title={t("grafana.saved.emptyTitle")}
+          description={t(mayCreate ? "grafana.saved.empty" : "grafana.saved.emptyReader")}
+        />
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <SavedVisualization key={item.id} project={project} item={item} mayRemove={mayCreate} />
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
   return (
     <div className="flex flex-col gap-section">
       {header}
@@ -522,31 +563,14 @@ export function GrafanaPage({ project }: { project: string }): JSX.Element {
           description={reason ?? t("grafana.notReady")}
         />
       )}
-      {ready && mayCreate ? <VisualizationForm project={project} /> : null}
+      {ready && mayCreate ? <VisualizationForm project={project} aside={saved} /> : null}
       {ready && !mayCreate ? (
-        <Card>
-          <CardHeader as="h2" title={t("grafana.readOnlyTitle")} className="mb-1" />
-          <p className="text-body text-fg-muted">{t("grafana.readOnly")}</p>
-        </Card>
-      ) : null}
-      {ready ? (
-        <Card>
-          <CardHeader as="h2" title={t("grafana.saved.title")} className="mb-1" />
-          {items.length === 0 ? (
-            <EmptyState
-              bare
-              icon="dashboards"
-              title={t("grafana.saved.emptyTitle")}
-              description={t(mayCreate ? "grafana.saved.empty" : "grafana.saved.emptyReader")}
-            />
-          ) : (
-            <ul>
-              {items.map((item) => (
-                <SavedVisualization key={item.id} project={project} item={item} mayRemove={mayCreate} />
-              ))}
-            </ul>
-          )}
-        </Card>
+        <div className="flex flex-col gap-card lg:max-w-3xl">
+          <Alert tone="info" title={t("grafana.readOnlyTitle")}>
+            {t("grafana.readOnly")}
+          </Alert>
+          {saved}
+        </div>
       ) : null}
     </div>
   );

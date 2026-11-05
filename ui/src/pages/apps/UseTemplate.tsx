@@ -8,6 +8,9 @@ import type { Change } from "../../api/manifest";
 import { ChangeNotice } from "../../components/ChangeNotice";
 import { Alert, Button, Field, Input, Select } from "../../components/ui";
 
+/** The server's refusals of one field; one copy in the API client, which other forms read too. */
+export { fieldErrors };
+
 /**
  * A template used as it ships (T-5617): the App's name and the Endpoint it reads, nothing else.
  * The Portal lands the template's source in a repository of its own and proposes the App as a

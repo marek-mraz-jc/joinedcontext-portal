@@ -42,7 +42,7 @@ const SAVED = {
   createdAt: "2026-11-02T22:00:00Z",
   openUrl: "https://dev.joinedcontext.com/grafana/d/pv-ab12?orgId=2",
 };
-const STATIONS = ["Kallio 2", "Mäkelänkatu", "Vartiokylä Huivipolku"].map((name, index) => ({
+const STATIONS = ["Kallio 2", "Mäkelänkatu", "Vartiokylä Huivipolku", "Vantaa Tikkurila Neilikkatie", "Espoo Leppävaara Läkkisepänkuja"].map((name, index) => ({
   id: `urn:ngsi-ld:AirQualityObserved:station-${index}`,
   type: "AirQualityObserved",
   name: { type: "LanguageProperty", languageMap: { fi: name } },
@@ -51,13 +51,18 @@ const STATIONS = ["Kallio 2", "Mäkelänkatu", "Vartiokylä Huivipolku"].map((na
 
 interface World {
   page?: object;
+  pageStatus?: number;
   save?: { status: number; body: unknown };
+  /** The preview's read: an answer, or "hang" to film the wait. */
+  preview?: { status: number; body: unknown } | "hang";
 }
 
 async function stubApi(page: Page, world: World): Promise<void> {
   const items: object[] = [];
   await page.route(/\/api\/endpoint\//, async (route) => {
-    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(STATIONS) });
+    if (world.preview === "hang") return;
+    const answer = world.preview ?? { status: 200, body: STATIONS };
+    await route.fulfill({ status: answer.status, contentType: "application/json", body: JSON.stringify(answer.body) });
   });
   await page.route("**/api/v1/**", async (route) => {
     const url = new URL(route.request().url());
@@ -70,7 +75,7 @@ async function stubApi(page: Page, world: World): Promise<void> {
       return json(save.body, save.status);
     }
     if (url.pathname.endsWith("/grafana")) {
-      return json(world.page ?? { ready: true, mayCreate: true, items });
+      return json(world.page ?? { ready: true, mayCreate: true, items }, world.pageStatus);
     }
     if (url.pathname.endsWith("/auth/me")) return json(IDENTITY);
     if (url.pathname === "/api/v1/projects") return json({ kind: "ProjectList", items: [{ name: "helsinki" }] });
@@ -126,6 +131,53 @@ for (const width of [1440, 400]) {
       await expect(page.getByRole("alert")).toContainText("operator");
       await expect(page.getByLabel("Name", { exact: true })).toHaveValue("PM2.5 by station");
       await shot(page, "error", width);
+    });
+
+    test("a refused save names the field and a missing role says who can help", async ({ page }) => {
+      const world: World = {
+        save: { status: 422, body: { status: 422, title: "Unprocessable", detail: "a field is refused", errors: [{ path: "kind", message: "a timeseries cannot draw location; choose another kind" }] } },
+      };
+      await stubApi(page, world);
+      await page.goto("/projects/helsinki/grafana");
+      await fill(page);
+      await page.getByRole("button", { name: "Save to Grafana" }).click();
+      await expect(page.getByText("Not saved: check the marked field")).toBeVisible();
+      await expect(page.getByLabel("Visualization", { exact: true })).toHaveAttribute("aria-invalid", "true");
+      await shot(page, "error-field", width);
+      world.save = { status: 403, body: { status: 403, title: "Forbidden", detail: "You may not propose dashboards in helsinki." } };
+      await page.getByLabel("Name", { exact: true }).fill("PM2.5 by station, daily");
+      await page.getByRole("button", { name: "Save to Grafana" }).click();
+      await expect(page.getByText("Not saved: you may not do this")).toBeVisible();
+      await shot(page, "error-forbidden", width);
+    });
+
+    test("the preview waits, then says why it has no rows", async ({ page }) => {
+      const world: World = { preview: "hang" };
+      await stubApi(page, world);
+      await page.goto("/projects/helsinki/grafana");
+      await fill(page);
+      await expect(page.getByRole("status").filter({ hasText: "Reading the first rows" })).toBeAttached();
+      await shot(page, "preview-loading", width);
+      world.preview = { status: 403, body: { status: 403, title: "Forbidden", detail: "not yours" } };
+      await page.getByLabel("Attribute", { exact: true }).selectOption("location");
+      await expect(page.getByText("You may not read these rows")).toBeVisible();
+      await shot(page, "preview-forbidden", width);
+      world.preview = { status: 503, body: { status: 503, title: "Unavailable", detail: "The broker did not answer in time." } };
+      await page.reload();
+      await fill(page);
+      await expect(page.getByText("The preview could not be read")).toBeVisible();
+      await shot(page, "preview-error", width);
+      world.preview = undefined;
+      await page.getByRole("button", { name: "Try again" }).click();
+      await expect(page.getByText("Vartiokylä Huivipolku")).toBeVisible();
+    });
+
+    test("a person outside the project is told who can give access", async ({ page }) => {
+      await stubApi(page, { pageStatus: 403, page: { status: 403, title: "Forbidden", detail: "You are not a member of helsinki." } });
+      await page.goto("/projects/helsinki/grafana");
+      await expect(page.getByRole("heading", { level: 1, name: "Grafana" })).toBeVisible();
+      await expect(page.getByText(/not a member of helsinki/)).toBeVisible();
+      await shot(page, "refusal-403", width);
     });
 
     test("a reader sees what is saved and no form", async ({ page }) => {
