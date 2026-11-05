@@ -97,9 +97,13 @@ describe("what deck.gl can be handed", () => {
 describe("the map's own attribution", () => {
   it("underlines its link, because colour is not the only way to tell it from the text", () => {
     const css = readFileSync(join(__dirname, "..", "src", "index.css"), "utf8");
-    const rule = /\.maplibregl-ctrl-attrib a\s*\{[^}]*text-decoration:\s*underline/;
+    const rule = /\.maplibregl-ctrl-attrib a\[href\]\s*\{[^}]*text-decoration:\s*underline/;
 
     expect(css, "the rule lives in index.css: the element belongs to maplibre-gl").toMatch(rule);
+    // maplibre-gl.css is unlayered: a rule inside `@layer` loses to it at any specificity (T-6602).
+    const before = css.slice(0, css.search(rule)).replace(/\/\*[\s\S]*?\*\//g, "");
+    const depth = [...before].reduce((n, c) => n + (c === "{" ? 1 : c === "}" ? -1 : 0), 0);
+    expect(depth, "the rule sits at the top level, outside every @layer").toBe(0);
   });
 });
 

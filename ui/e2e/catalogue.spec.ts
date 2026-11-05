@@ -222,6 +222,8 @@ test.describe("the public catalogue", () => {
         await list.focus();
         await page.keyboard.press("Enter");
         await expect(page.getByRole("table", { name: label }).getByText("Praha 8 - Karlín")).toBeVisible();
+        // MapLibre's own link is told from its line by an underline, not colour alone (T-6602).
+        await expect(page.locator('.maplibregl-ctrl-attrib a[href$="maplibre.org/"]')).toHaveCSS("text-decoration-line", "underline");
         expect(await axeViolations(page)).toEqual([]);
         await shot(page, `dataset-map-filled-${lang}-${width}`);
       });
