@@ -6778,6 +6778,8 @@
       "nameHelp": "Zobrazí se v Grafaně, například PM2.5 podle stanic.",
       "choose": "Vyberte…",
       "notReachable": "Zatím nejsou v Grafaně: {names}. Požádejte operátora o jejich přidání.",
+      "notReachableOthers": "{count, plural, one {# další} few {# další} other {# dalších}}",
+      "notReachableCount": "{count, plural, one {# Endpoint zatím není} few {# Endpointy zatím nejsou} other {# Endpointů zatím není}} v Grafaně. Požádejte operátora o jejich přidání.",
       "save": "Uložit do Grafany",
       "incomplete": "Nejprve vyplňte všechna pole.",
       "saved": "Vizualizace {title} je uložena v Grafaně.",

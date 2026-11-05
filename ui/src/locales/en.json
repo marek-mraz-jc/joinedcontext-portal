@@ -6778,6 +6778,8 @@
       "nameHelp": "Shown in Grafana, for example PM2.5 by station.",
       "choose": "Choose…",
       "notReachable": "Not in Grafana yet: {names}. Ask your operator to add them.",
+      "notReachableOthers": "{count, plural, one {# other} other {# others}}",
+      "notReachableCount": "{count, plural, one {# Endpoint is} other {# Endpoints are}} not in Grafana yet. Ask your operator to add them.",
       "save": "Save to Grafana",
       "incomplete": "Fill in every field first.",
       "saved": "Saved {title} to Grafana.",

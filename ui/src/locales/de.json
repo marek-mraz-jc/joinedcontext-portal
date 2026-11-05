@@ -6778,6 +6778,8 @@
       "nameHelp": "Erscheint in Grafana, zum Beispiel PM2.5 nach Station.",
       "choose": "Wählen…",
       "notReachable": "Noch nicht in Grafana: {names}. Bitten Sie Ihren Betreiber, sie hinzuzufügen.",
+      "notReachableOthers": "{count, plural, one {# weiterer} other {# weitere}}",
+      "notReachableCount": "{count, plural, one {# Endpoint ist} other {# Endpoints sind}} noch nicht in Grafana. Bitten Sie Ihren Betreiber, sie hinzuzufügen.",
       "save": "In Grafana speichern",
       "incomplete": "Füllen Sie zuerst alle Felder aus.",
       "saved": "{title} wurde in Grafana gespeichert.",
