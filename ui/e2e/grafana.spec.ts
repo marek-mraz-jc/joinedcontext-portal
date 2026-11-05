@@ -45,8 +45,8 @@ const SAVED = {
 const STATIONS = ["Kallio 2", "Mäkelänkatu", "Vartiokylä Huivipolku"].map((name, index) => ({
   id: `urn:ngsi-ld:AirQualityObserved:station-${index}`,
   type: "AirQualityObserved",
-  name,
-  pm25: 4.2 + index,
+  name: { type: "LanguageProperty", languageMap: { fi: name } },
+  pm25: { type: "Property", value: 4.2 + index, unitCode: "GQ", observedAt: "2026-11-05T09:00:00Z" },
 }));
 
 interface World {
@@ -111,7 +111,7 @@ for (const width of [1440, 400]) {
       await page.getByRole("button", { name: "Save to Grafana" }).click();
       await expect(page.getByRole("link", { name: "Open it" })).toHaveAttribute("href", SAVED.openUrl);
       await expect(page.getByRole("link", { name: "Open PM2.5 by station in Grafana" })).toBeVisible();
-      await expect(page.getByText("Helsinki air quality: AirQualityObserved, pm25")).toBeVisible();
+      await expect(page.getByText("Helsinki air quality: Air quality observed, PM2.5")).toBeVisible();
       await shot(page, "saved", width);
       expect(await page.evaluate(pageFindings, { namespaces: NAMESPACES, layout: true })).toEqual([]);
     });

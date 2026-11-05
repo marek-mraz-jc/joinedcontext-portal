@@ -3,8 +3,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
-import { GrafanaPage, SavedVisualization, VisualizationForm, VisualizationPreview } from "../src/pages/grafana/GrafanaPage";
-import "../src/i18n";
+import { GrafanaPage, SavedVisualization, VisualizationForm, VisualizationPreview, notReachable } from "../src/pages/grafana/GrafanaPage";
+import i18n from "../src/i18n";
 
 const options = {
   endpoints: [
@@ -37,7 +37,14 @@ beforeEach(() => {
       const text = request.method === "GET" ? "" : await request.clone().text();
       sent.push({ method: request.method, url: url.pathname + url.search, body: text ? JSON.parse(text) : undefined });
       const key = `${request.method} ${url.pathname}`;
-      const rows: Answer | undefined = url.pathname.startsWith("/api/endpoint/") ? { body: [{ id: "urn:ngsi-ld:A:one", name: "Kallio", pm25: 4.2 }] } : undefined;
+      const rows: Answer | undefined = url.pathname.startsWith("/api/endpoint/") ? {
+        body: [{
+          id: "urn:ngsi-ld:A:one",
+          type: "A",
+          name: { type: "Property", value: "Kallio" },
+          pm25: { type: "Property", value: 4.2, unitCode: "GQ", observedAt: "2026-11-05T09:30:00Z" },
+        }],
+      } : undefined;
       const answer = rows ?? answers[key] ?? (key.endsWith("/grafana/options") ? { body: options } : undefined);
       if (!answer) return new Response("{}", { status: 404 });
       if (answer.status === 204) return new Response(null, { status: 204 });
@@ -109,12 +116,17 @@ describe("the form", () => {
     renderInClient(<VisualizationForm project="helsinki" />);
     await fill();
     expect(screen.getByRole("option", { name: "Air quality" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Air quality observed" })).toHaveValue("AirQualityObserved");
+    expect(screen.getByRole("option", { name: "PM2.5" })).toHaveValue("pm25");
     expect(screen.queryByRole("option", { name: "Bike operations" })).toBeNull();
     expect(screen.getByText(/Not in Grafana yet: Bike operations/)).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText("Attribute"), "pm25");
     expect(await screen.findByText("Kallio")).toBeInTheDocument();
-    expect(screen.getByText("4.2")).toBeInTheDocument();
-    expect(sent.find((call) => call.url.startsWith("/api/endpoint/airslug/"))?.url).toContain("attrs=name%2Cpm25");
+    expect(screen.getByText("4.2 µg/m³")).toBeInTheDocument();
+    expect(document.querySelector("time")).toHaveAttribute("dateTime", "2026-11-05T09:30:00Z");
+    const read = sent.find((call) => call.url.startsWith("/api/endpoint/airslug/"))?.url;
+    expect(read).toContain("attrs=name%2Cpm25");
+    expect(read).not.toContain("keyValues");
   });
 
   it("keeps the kind to what the attribute can draw", async () => {
@@ -173,12 +185,37 @@ describe("the preview", () => {
     expect(await screen.findByText(/holds no rows/)).toBeInTheDocument();
   });
 
+  it("names a row in the reader's language, else in the one it has", async () => {
+    const rows = [
+      { id: "urn:x:1", type: "T", name: { type: "LanguageProperty", languageMap: { fi: "Kallio 2", en: "Kallio two" } }, x: { type: "Property", value: 1 } },
+      { id: "urn:x:2", type: "T", name: { type: "LanguageProperty", languageMap: { fi: "Ilola" } }, x: { type: "Property", value: 2 } },
+    ];
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(rows), { status: 200 }));
+    renderInClient(<VisualizationPreview slug="d" type="T" attribute="x" />);
+    expect(await screen.findByText("Kallio two")).toBeInTheDocument();
+    expect(screen.getByText("Ilola")).toBeInTheDocument();
+  });
+
   it("shows a place by its coordinates, never as raw JSON", async () => {
-    const rows = [{ id: "urn:x:7", location: { type: "Point", coordinates: [24.9, 60.1] } }];
+    const rows = [{ id: "urn:x:7", type: "T", location: { type: "GeoProperty", value: { type: "Point", coordinates: [24.9, 60.1] } } }];
     vi.mocked(fetch).mockResolvedValueOnce(new Response(JSON.stringify(rows), { status: 200 }));
     renderInClient(<VisualizationPreview slug="c" type="T" attribute="location" />);
     expect(await screen.findByText("24.9, 60.1")).toBeInTheDocument();
     expect(screen.getByText("7")).toBeInTheDocument();
+  });
+});
+
+describe("what Grafana cannot read yet", () => {
+  const t = i18n.t.bind(i18n) as (key: string, options?: Record<string, unknown>) => string;
+  it("names titled Endpoints and only counts the internal ones", () => {
+    const closed = [
+      { name: "ops", title: "Bike operations" },
+      { name: "app-t6429-bike-live", title: "app-t6429-bike-live" },
+      { name: "app-x", title: "app-x" },
+    ];
+    expect(notReachable(closed, t)).toBe("Not in Grafana yet: Bike operations, 2 others. Ask your operator to add them.");
+    expect(notReachable(closed.slice(1, 2), t)).toBe("1 Endpoint is not in Grafana yet. Ask your operator to add them.");
+    expect(notReachable(closed.slice(0, 1), t)).not.toContain("other");
   });
 });
 

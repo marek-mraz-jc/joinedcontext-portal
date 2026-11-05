@@ -22,6 +22,9 @@ import {
   Skeleton,
   safeHref,
 } from "../../components/ui";
+import { cellOf } from "../../components/ui/recordView";
+import { columnLabel } from "../../components/entities/displayOrder";
+import { unitSymbol } from "../../units";
 
 type Item = components["schemas"]["VisualizationItem"];
 type Kind = components["schemas"]["Kind"];
@@ -56,7 +59,7 @@ export function SavedVisualization({
   item: Item;
   mayRemove: boolean;
 }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [asking, setAsking] = useState(false);
   const remove = useMutation({
@@ -74,7 +77,11 @@ export function SavedVisualization({
       <div className="min-w-0 flex-1 basis-full sm:basis-60">
         <p className="break-words text-body font-medium text-fg">{item.title}</p>
         <p className="break-words text-caption text-fg-muted">
-          {t("grafana.saved.reads", { endpoint: item.endpointTitle, type: item.type, attribute: item.attribute })}
+          {t("grafana.saved.reads", {
+            endpoint: item.endpointTitle,
+            type: columnLabel(undefined, item.type, i18n.language),
+            attribute: columnLabel(undefined, item.attribute, i18n.language),
+          })}
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -127,17 +134,30 @@ export function SavedVisualization({
 }
 
 /** A value as a line of text; a place by its first coordinates, never as raw JSON. */
-function valueText(value: unknown): string {
-  const coordinates = (value as { coordinates?: unknown } | null)?.coordinates;
-  if (Array.isArray(coordinates)) return coordinates.flat(3).slice(0, 2).join(", ");
-  if (value === undefined || value === null) return "–";
-  return typeof value === "object" ? "…" : String(value);
+/** A preview cell: the value with its unit symbol, and when it was observed. */
+function valueText(raw: unknown): { text: string; at?: string } {
+  const cell = cellOf(raw);
+  if (cell.kind === "nested") return { text: "…", at: cell.at };
+  const text = cell.text.replace(/^Point /, "");
+  const unit = cell.unit ? unitSymbol(cell.unit) || cell.unit : "";
+  return { text: unit ? `${text} ${unit}` : text, at: cell.at };
 }
 
 interface PreviewRow {
   id: string;
   name?: unknown;
   [attribute: string]: unknown;
+}
+
+/** A row's own name in the reader's language (else English, else any), or the last part of its id. */
+function rowName(row: PreviewRow, language: string): string {
+  const texts = (row.name as { languageMap?: Record<string, unknown> } | undefined)?.languageMap;
+  if (texts && typeof texts === "object") {
+    const text = [texts[language.split("-")[0]], texts.en, ...Object.values(texts)].find((one) => typeof one === "string");
+    if (typeof text === "string") return text;
+  }
+  const name = cellOf(row.name);
+  return name.kind === "text" && name.text !== "—" ? name.text : (row.id.split(":").pop() ?? row.id);
 }
 
 /**
@@ -153,11 +173,12 @@ export function VisualizationPreview({
   type: string;
   attribute: string;
 }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const when = new Intl.DateTimeFormat(i18n.language, { dateStyle: "short", timeStyle: "short" });
   const rows = useQuery({
     queryKey: ["grafana-preview", slug, type, attribute],
     queryFn: async (): Promise<PreviewRow[]> => {
-      const query = new URLSearchParams({ type, attrs: `name,${attribute}`, limit: "5", options: "keyValues" });
+      const query = new URLSearchParams({ type, attrs: `name,${attribute}`, limit: "5" });
       const response = await fetch(`/api/endpoint/${slug}/ngsi-ld/v1/entities?${query}`, {
         credentials: "same-origin",
         headers: { Accept: "application/json" },
@@ -179,18 +200,38 @@ export function VisualizationPreview({
       ) : null}
       {rows.isSuccess && rows.data.length > 0 ? (
         <dl>
-          {rows.data.map((row) => (
-            <div key={row.id} className="flex justify-between gap-3 border-b border-border py-1.5 last:border-b-0">
-              <dt className="min-w-0 break-words text-body text-fg-muted">
-                {typeof row.name === "string" ? row.name : row.id.split(":").pop()}
-              </dt>
-              <dd className="text-body font-medium text-fg">{valueText(row[attribute])}</dd>
-            </div>
-          ))}
+          {rows.data.map((row) => {
+            const value = valueText(row[attribute]);
+            return (
+              <div key={row.id} className="flex justify-between gap-3 border-b border-border py-1.5 last:border-b-0">
+                <dt className="min-w-0 break-words text-body text-fg-muted">{rowName(row, i18n.language)}</dt>
+                <dd className="shrink-0 text-right">
+                  <span className="block text-body font-medium text-fg">{value.text}</span>
+                  {value.at ? (
+                    <time className="block text-caption text-fg-muted" dateTime={value.at}>
+                      {when.format(new Date(value.at))}
+                    </time>
+                  ) : null}
+                </dd>
+              </div>
+            );
+          })}
         </dl>
       ) : null}
     </Card>
   );
+}
+
+/**
+ * The Endpoints Grafana cannot read yet, by their titles. One with no title of its own (an App's
+ * internal Endpoint such as app-t6429-bike-live) is only counted: its name tells a person nothing.
+ */
+export function notReachable(closed: readonly { name: string; title: string }[], t: (key: string, options?: Record<string, unknown>) => string): string {
+  const titled = closed.filter((endpoint) => endpoint.title !== endpoint.name).map((endpoint) => endpoint.title);
+  const untitled = closed.length - titled.length;
+  if (titled.length === 0) return t("grafana.form.notReachableCount", { count: untitled });
+  const names = untitled > 0 ? [...titled, t("grafana.form.notReachableOthers", { count: untitled })] : titled;
+  return t("grafana.form.notReachable", { names: names.join(", ") });
 }
 
 /** The kinds the chosen attribute can be drawn as, or all of them until one is chosen. */
@@ -237,7 +278,7 @@ function useChoices(project: string) {
  * with the person's own session, so it shows what they would see in Grafana.
  */
 export function VisualizationForm({ project }: { project: string }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const form = useChoices(project);
   const save = useMutation({
@@ -298,7 +339,7 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
           </Field>
           {closed.length > 0 ? (
             <p className="text-caption text-fg-muted">
-              {t("grafana.form.notReachable", { names: closed.map((endpoint) => endpoint.title).join(", ") })}
+              {notReachable(closed, t)}
             </p>
           ) : null}
           <Field id="grafana-type" label={t("grafana.form.type")} help={t("grafana.form.typeHelp")}>
@@ -312,7 +353,7 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
               <option value="">{t("grafana.form.choose")}</option>
               {(form.options.data?.types ?? []).map((type) => (
                 <option key={type} value={type}>
-                  {type}
+                  {columnLabel(undefined, type, i18n.language)}
                 </option>
               ))}
             </Select>
@@ -328,7 +369,7 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
               <option value="">{t("grafana.form.choose")}</option>
               {attributes.map((attribute) => (
                 <option key={attribute.name} value={attribute.name}>
-                  {attribute.name}
+                  {columnLabel(undefined, attribute.name, i18n.language)}
                 </option>
               ))}
             </Select>
