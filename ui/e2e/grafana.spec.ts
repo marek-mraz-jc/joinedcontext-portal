@@ -177,8 +177,8 @@ for (const width of [1440, 400]) {
       world.preview = { status: 503, body: { status: 503, title: "Unavailable", detail: "The broker did not answer in time." } };
       await page.reload();
       await fill(page);
-      await expect(page.getByText("The preview could not be read")).toBeVisible();
-      await expect(page.getByText("The preview could not read these rows; the dashboard may be empty for you.")).toBeVisible();
+      await expect(page.getByText("The preview could not be read", { exact: true })).toBeVisible();
+      await expect(page.getByText("The preview could not be read just now; the dashboard itself may still draw.")).toBeVisible();
       await shot(page, "preview-error", width);
       world.preview = undefined;
       await page.getByRole("button", { name: "Try again" }).first().click();

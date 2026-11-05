@@ -199,7 +199,9 @@ describe("the form", () => {
     renderInClient(<VisualizationForm project="helsinki" />);
     await fill();
     expect(screen.getByRole("button", { name: /save to grafana/i })).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getAllByText("Fill in every field first.").some((node) => !node.classList.contains("sr-only"))).toBe(true);
+    expect(screen.getAllByText("Next, choose an attribute.").some((node) => !node.classList.contains("sr-only"))).toBe(true);
+    await userEvent.selectOptions(screen.getByLabelText("Attribute"), "pm25");
+    expect(screen.getAllByText("Last, give it a name.").some((node) => !node.classList.contains("sr-only"))).toBe(true);
   });
 
   it("offers a retry beside Save when the preview failed for a reason other than a refusal", async () => {
@@ -211,11 +213,11 @@ describe("the form", () => {
     const user = await fill();
     await user.selectOptions(screen.getByLabelText("Attribute"), "pm25");
     await user.type(screen.getByLabelText("Name"), "x");
-    expect(await screen.findByText(/the dashboard may be empty for you/)).toBeInTheDocument();
+    expect(await screen.findByText("The preview could not be read just now; the dashboard itself may still draw.")).toBeInTheDocument();
     delete answers["GET /api/endpoint/airslug/ngsi-ld/v1/entities"];
     const [beside] = screen.getAllByRole("button", { name: "Try again" });
     await user.click(beside);
-    await waitFor(() => expect(screen.queryByText(/the dashboard may be empty for you/)).toBeNull());
+    await waitFor(() => expect(screen.queryByText(/could not be read just now/)).toBeNull());
   });
 
   it("keeps the kind to what the attribute can draw", async () => {
@@ -276,6 +278,7 @@ describe("the form", () => {
     expect(screen.getByLabelText("Attribute")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("Attribute")).toHaveAccessibleDescription(/Air quality observed no longer has PM2\.5\. Choose another attribute/);
     expect(screen.queryByText(/AirQualityObserved|pm25/)).toBeNull();
+    expect(await screen.findByText("Rows written before the model dropped PM2.5. Grafana would not draw them.")).toBeInTheDocument();
   });
 
   it("says who can help when the person may not save", async () => {
@@ -289,6 +292,7 @@ describe("the form", () => {
     expect(alert).toHaveTextContent("Not saved: you may not do this");
     expect(alert).toHaveTextContent("You may not propose dashboards in helsinki. Each visualization is a Grafana dashboard");
     expect(alert).toHaveTextContent("ask a project owner for a role");
+    expect(screen.getByRole("button", { name: /save to grafana/i })).toHaveAttribute("aria-disabled", "true");
   });
 
   it("gives the reason of a failed save and keeps the form", async () => {
