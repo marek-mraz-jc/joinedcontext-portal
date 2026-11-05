@@ -363,23 +363,20 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
     );
   }
   const safe = safeHref(save.data?.openUrl);
-  // The server words a refusal as a clause ("a stat cannot draw name; …"): shown as a sentence.
-  const errorsOf = (field: string) =>
-    fieldErrors(save.error, field).map((line) => `${line.charAt(0).toUpperCase()}${line.slice(1)}${/[.!?]$/.test(line) ? "" : "."}`);
   return (
     <div className="grid items-start gap-section lg:grid-cols-5 [&>*]:min-w-0">
       <Card className="lg:col-span-3">
         <CardHeader as="h2" title={t("grafana.form.title")} className="mb-3" />
         <form
           className="grid gap-x-4 gap-y-3 sm:grid-cols-2"
-          onChange={() => save.reset()}
+          onChange={save.reset}
           onSubmit={(event) => {
             event.preventDefault();
             if (ready) save.mutate();
           }}
         >
           <div className="flex flex-col gap-1.5 sm:col-span-2">
-            <Field id="grafana-endpoint" label={t("grafana.form.endpoint")} help={t("grafana.form.endpointHelp")} errors={errorsOf("endpoint")}>
+            <Field id="grafana-endpoint" label={t("grafana.form.endpoint")} help={t("grafana.form.endpointHelp")} errors={refusalsOf(save.error, "endpoint")}>
               <Select id="grafana-endpoint" value={form.endpoint} onChange={(event) => form.chooseEndpoint(event.target.value)}>
                 <option value="">{t("grafana.form.choose")}</option>
                 {usable.map((endpoint) => (
@@ -391,7 +388,7 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
             </Field>
             {closed.length > 0 ? <p className="text-caption text-fg-muted">{notReachable(closed, t)}</p> : null}
           </div>
-          <Field id="grafana-type" label={t("grafana.form.type")} help={t("grafana.form.typeHelp")} errors={errorsOf("type")}>
+          <Field id="grafana-type" label={t("grafana.form.type")} help={t("grafana.form.typeHelp")} errors={refusalsOf(save.error, "type")}>
             <Select
               id="grafana-type"
               value={form.type}
@@ -407,7 +404,7 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
               ))}
             </Select>
           </Field>
-          <Field id="grafana-attribute" label={t("grafana.form.attribute")} help={t("grafana.form.attributeHelp")} errors={errorsOf("attribute")}>
+          <Field id="grafana-attribute" label={t("grafana.form.attribute")} help={t("grafana.form.attributeHelp")} errors={refusalsOf(save.error, "attribute")}>
             <Select
               id="grafana-attribute"
               value={form.attribute}
@@ -423,7 +420,7 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
               ))}
             </Select>
           </Field>
-          <Field id="grafana-kind" label={t("grafana.form.kind")} help={t("grafana.form.kindHelp")} errors={errorsOf("kind")}>
+          <Field id="grafana-kind" label={t("grafana.form.kind")} help={t("grafana.form.kindHelp")} errors={refusalsOf(save.error, "kind")}>
             <Select id="grafana-kind" value={form.kind} onChange={(event) => form.setKind(event.target.value as Kind)}>
               {kindsFor(form.options.data, form.attribute).map((kind) => (
                 <option key={kind} value={kind}>
@@ -432,7 +429,7 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
               ))}
             </Select>
           </Field>
-          <Field id="grafana-title" label={t("grafana.form.name")} help={t("grafana.form.nameHelp")} errors={errorsOf("title")}>
+          <Field id="grafana-title" label={t("grafana.form.name")} help={t("grafana.form.nameHelp")} errors={refusalsOf(save.error, "title")}>
             <Input id="grafana-title" value={form.title} maxLength={120} onChange={(event) => form.setTitle(event.target.value)} />
           </Field>
           <div className="sm:col-span-2">
@@ -475,6 +472,11 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
       </div>
     </div>
   );
+}
+
+/** The server words a refusal as a clause ("a stat cannot draw name; …"): shown as a sentence. */
+export function refusalsOf(error: unknown, field: string): string[] {
+  return fieldErrors(error, field).map((line) => `${line.charAt(0).toUpperCase()}${line.slice(1)}${/[.!?]$/.test(line) ? "" : "."}`);
 }
 
 /**
