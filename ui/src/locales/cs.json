@@ -6771,7 +6771,7 @@
       "chooseTypeFirst": "Nejprve vyberte typ.",
       "saving": "Ukládá se…",
       "attribute": "Atribut",
-      "attributeHelp": "Hodnota k zobrazení, například pm25. Odkazy na jiné entity jsou vynechány.",
+      "attributeHelp": "Hodnota k zobrazení, například PM2,5. Odkazy na jiné entity jsou vynechány.",
       "kind": "Vizualizace",
       "kindHelp": "Časová řada a Číslo potřebují číselnou hodnotu, Mapa potřebuje polohu. Tabulka vezme jakoukoli hodnotu.",
       "name": "Název",

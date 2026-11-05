@@ -6771,7 +6771,7 @@
       "chooseTypeFirst": "Choose a type first.",
       "saving": "Saving…",
       "attribute": "Attribute",
-      "attributeHelp": "The value to draw, for example pm25. Links to other entities are left out.",
+      "attributeHelp": "The value to draw, for example PM2.5. Links to other entities are left out.",
       "kind": "Visualization",
       "kindHelp": "Time series and Number need a numeric value, Map needs a location. Table takes any value.",
       "name": "Name",

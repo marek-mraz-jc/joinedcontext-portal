@@ -6771,7 +6771,7 @@
       "chooseTypeFirst": "Wählen Sie zuerst einen Typ.",
       "saving": "Wird gespeichert…",
       "attribute": "Attribut",
-      "attributeHelp": "Der darzustellende Wert, zum Beispiel pm25. Verweise auf andere Entitäten fehlen hier.",
+      "attributeHelp": "Der darzustellende Wert, zum Beispiel PM2.5. Verweise auf andere Entitäten fehlen hier.",
       "kind": "Visualisierung",
       "kindHelp": "Zeitreihe und Zahl brauchen einen Zahlenwert, Karte einen Ort. Tabelle nimmt jeden Wert.",
       "name": "Name",
