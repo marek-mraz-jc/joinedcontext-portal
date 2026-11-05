@@ -53,7 +53,7 @@ beforeEach(() => {
           pm25: { type: "Property", value: 4.2, unitCode: "GQ", observedAt: "2026-11-05T09:30:00Z" },
         }],
       } : undefined;
-      const answer = rows ?? answers[key] ?? (key.endsWith("/grafana/options") ? { body: options } : undefined);
+      const answer = answers[key] ?? rows ?? (key.endsWith("/grafana/options") ? { body: options } : undefined);
       if (!answer) return new Response("{}", { status: 404 });
       if (answer.status === 204) return new Response(null, { status: 204 });
       return new Response(JSON.stringify(answer.body), {
@@ -157,6 +157,37 @@ describe("the form", () => {
     const read = sent.find((call) => call.url.startsWith("/api/endpoint/airslug/"))?.url;
     expect(read).toContain("attrs=name%2Cpm25");
     expect(read).not.toContain("keyValues");
+    expect(screen.queryByText(/The preview could not read these rows/)).toBeNull();
+  });
+
+  it("warns beside Save when the preview may not read the rows, and still lets the person save", async () => {
+    answers["GET /api/endpoint/airslug/ngsi-ld/v1/entities"] = {
+      status: 403,
+      body: { status: 403, title: "Forbidden", detail: "not yours" },
+    };
+    renderInClient(<VisualizationForm project="helsinki" />);
+    const user = await fill();
+    await user.selectOptions(screen.getByLabelText("Attribute"), "pm25");
+    await user.type(screen.getByLabelText("Name"), "x");
+    expect(await screen.findByText("The preview could not read these rows; the dashboard may be empty for you.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /save to grafana/i })).not.toHaveAttribute("aria-disabled", "true");
+    expect(sent.filter((call) => call.url.startsWith("/api/endpoint/airslug/"))).toHaveLength(1);
+  });
+
+  it("adds a refused Endpoint to the line of Endpoints Grafana cannot read yet", async () => {
+    answers["POST /api/v1/projects/helsinki/grafana"] = {
+      status: 422,
+      body: {
+        status: 422,
+        title: "Unprocessable",
+        detail: "Grafana cannot read the private Endpoint Air quality yet",
+        errors: [{ path: "endpoint", message: "Grafana cannot read the private Endpoint Air quality yet; ask your operator to add it to this project's Grafana, or choose another" }],
+      },
+    };
+    renderInClient(<VisualizationForm project="helsinki" />);
+    await saveFilled();
+    expect(await screen.findByText(/Grafana cannot read the private Endpoint Air quality yet; .*choose another\./)).toBeInTheDocument();
+    expect(screen.getByText(/Not in Grafana yet: Bike operations, Air quality/)).toBeInTheDocument();
   });
 
   it("keeps the kind to what the attribute can draw", async () => {

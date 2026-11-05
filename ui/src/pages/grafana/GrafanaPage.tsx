@@ -14,6 +14,7 @@ import {
   CardHeader,
   EmptyState,
   Field,
+  Icon,
   Input,
   PageFailed,
   PageHeader,
@@ -174,22 +175,8 @@ export function VisualizationPreview({
   attribute: string;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
-  const when = new Intl.DateTimeFormat(i18n.language, { dateStyle: "short", timeStyle: "short" });
-  const rows = useQuery({
-    queryKey: ["grafana-preview", slug, type, attribute],
-    queryFn: async (): Promise<PreviewRow[]> => {
-      const query = new URLSearchParams({ type, attrs: `name,${attribute}`, limit: "5" });
-      const response = await fetch(`/api/endpoint/${slug}/ngsi-ld/v1/entities?${query}`, {
-        credentials: "same-origin",
-        headers: { Accept: "application/json" },
-      });
-      if (!response.ok) {
-        const error: unknown = await response.json().catch(() => undefined);
-        await unwrap({ error, response });
-      }
-      return (await response.json()) as PreviewRow[];
-    },
-  });
+  const when = new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" });
+  const rows = usePreviewRows(slug, type, attribute);
   return (
     <Card>
       <CardHeader
@@ -225,6 +212,29 @@ export function VisualizationPreview({
       ) : null}
     </Card>
   );
+}
+
+/**
+ * The preview's read: the first rows through the Endpoint with the person's own session. The form
+ * asks the same query (one request, one cache entry) to warn beside Save when the read fails.
+ */
+export function usePreviewRows(slug: string, type: string, attribute: string, enabled = true) {
+  return useQuery({
+    enabled,
+    queryKey: ["grafana-preview", slug, type, attribute],
+    queryFn: async (): Promise<PreviewRow[]> => {
+      const query = new URLSearchParams({ type, attrs: `name,${attribute}`, limit: "5" });
+      const response = await fetch(`/api/endpoint/${slug}/ngsi-ld/v1/entities?${query}`, {
+        credentials: "same-origin",
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) {
+        const error: unknown = await response.json().catch(() => undefined);
+        await unwrap({ error, response });
+      }
+      return (await response.json()) as PreviewRow[];
+    },
+  });
 }
 
 /** The preview's wait: one bar pair per row it will show, announced once in words. */
@@ -355,6 +365,12 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
   const chosen = usable.find((endpoint) => endpoint.name === form.endpoint);
   const attributes = form.options.data?.attributes ?? [];
   const ready = Boolean(form.title.trim() && chosen && form.type && form.attribute);
+  const preview = usePreviewRows(chosen?.slug ?? "", form.type, form.attribute, Boolean(chosen && form.type && form.attribute));
+  // A refused Endpoint joins the "not in Grafana yet" line, so the line and the refusal agree.
+  const notInGrafana =
+    chosen && refusalsOf(save.error, "endpoint").length > 0 && !closed.some((endpoint) => endpoint.name === chosen.name)
+      ? [...closed, chosen]
+      : closed;
   if (form.options.isError) {
     return <PageFailed error={form.options.error} />;
   }
@@ -391,7 +407,7 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
                 ))}
               </Select>
             </Field>
-            {closed.length > 0 ? <p className="text-caption text-fg-muted">{notReachable(closed, t)}</p> : null}
+            {notInGrafana.length > 0 ? <p className="text-caption text-fg-muted">{notReachable(notInGrafana, t)}</p> : null}
           </div>
           <Field id="grafana-type" label={t("grafana.form.type")} help={t("grafana.form.typeHelp")} errors={refusalsOf(save.error, "type")}>
             <Select
@@ -445,7 +461,7 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
           <Field id="grafana-title" label={t("grafana.form.name")} help={t("grafana.form.nameHelp")} errors={refusalsOf(save.error, "title")}>
             <Input id="grafana-title" value={form.title} maxLength={120} onChange={(event) => form.setTitle(event.target.value)} />
           </Field>
-          <div className="sm:col-span-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 sm:col-span-2">
             <Button
               variant="primary"
               type="submit"
@@ -454,6 +470,12 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
             >
               {t("grafana.form.save")}
             </Button>
+            {preview.isError ? (
+              <p className="flex items-center gap-1.5 text-caption text-fg-muted">
+                <Icon name="warning" className="size-4 shrink-0 text-warning" />
+                {t("grafana.form.previewNote")}
+              </p>
+            ) : null}
           </div>
           {save.isError ? (
             <div className="sm:col-span-2">

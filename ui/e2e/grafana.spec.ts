@@ -124,12 +124,21 @@ for (const width of [1440, 400]) {
 
     test("a refusal names the field and keeps what was typed", async ({ page }) => {
       await stubApi(page, {
-        save: { status: 422, body: { status: 422, title: "Unprocessable", detail: "Grafana cannot read the private Endpoint Helsinki air quality yet; ask your operator to add it to this project's Grafana, or choose another" } },
+        save: {
+          status: 422,
+          body: {
+            status: 422,
+            title: "Unprocessable",
+            detail: "Grafana cannot read the private Endpoint Helsinki air quality yet",
+            errors: [{ path: "endpoint", message: "Grafana cannot read the private Endpoint Helsinki air quality yet; ask your operator to add it to this project's Grafana, or choose another" }],
+          },
+        },
       });
       await page.goto("/projects/helsinki/grafana");
       await fill(page);
       await page.getByRole("button", { name: "Save to Grafana" }).click();
-      await expect(page.getByRole("alert")).toContainText("operator");
+      await expect(page.getByText(/Grafana cannot read the private Endpoint Helsinki air quality yet; ask your operator/)).toBeVisible();
+      await expect(page.getByText(/Not in Grafana yet: City bike operations, Helsinki air quality/)).toBeVisible();
       await expect(page.getByLabel("Name", { exact: true })).toHaveValue("PM2.5 by station");
       await shot(page, "error", width);
     });
@@ -163,11 +172,13 @@ for (const width of [1440, 400]) {
       await page.getByLabel("Attribute", { exact: true }).selectOption("location");
       await page.getByLabel("Name", { exact: true }).fill("Station locations");
       await expect(page.getByText("You may not read these rows")).toBeVisible();
+      await expect(page.getByText("The preview could not read these rows; the dashboard may be empty for you.")).toBeVisible();
       await shot(page, "preview-forbidden", width);
       world.preview = { status: 503, body: { status: 503, title: "Unavailable", detail: "The broker did not answer in time." } };
       await page.reload();
       await fill(page);
       await expect(page.getByText("The preview could not be read")).toBeVisible();
+      await expect(page.getByText("The preview could not read these rows; the dashboard may be empty for you.")).toBeVisible();
       await shot(page, "preview-error", width);
       world.preview = undefined;
       await page.getByRole("button", { name: "Try again" }).click();

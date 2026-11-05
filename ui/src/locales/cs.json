@@ -6797,6 +6797,7 @@
       "noEndpoints": "V tomto projektu zatím nesmíte číst žádný Endpoint. Požádejte vlastníka projektu o přístup nebo nejprve vytvořte Endpoint.",
       "previewLoading": "Načítám první řádky…",
       "previewForbiddenTitle": "Tyto řádky nesmíte číst",
+      "previewNote": "Náhled tyto řádky nepřečetl; dashboard může být pro vás prázdný.",
       "previewForbidden": "Grafana by vám také nic nenakreslila. Vyberte jiný Endpoint nebo požádejte vlastníka projektu o přístup ke čtení.",
       "previewFailedTitle": "Náhled se nepodařilo načíst",
       "retry": "Zkusit znovu",

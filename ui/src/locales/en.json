@@ -6797,6 +6797,7 @@
       "noEndpoints": "You may read no Endpoint of this project yet. Ask a project owner for read access, or create an Endpoint first.",
       "previewLoading": "Reading the first rows…",
       "previewForbiddenTitle": "You may not read these rows",
+      "previewNote": "The preview could not read these rows; the dashboard may be empty for you.",
       "previewForbidden": "Grafana would draw nothing for you either. Choose another Endpoint, or ask a project owner for read access.",
       "previewFailedTitle": "The preview could not be read",
       "retry": "Try again",
