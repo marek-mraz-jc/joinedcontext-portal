@@ -1,7 +1,7 @@
 /**
  * Own KPIs, validated on dev (T-4865, PL-102…PL-105): a person with no code builds their own
  * indicators in the KPI editor from what the project publishes: one per formula kind, one across two
- * spaces, and meets each refusal with what to do next. `KPI_SHOTS` names the evidence folder.
+ * spaces, one per area, and meets each refusal with what to do next. `KPI_SHOTS` names the evidence folder.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
@@ -36,9 +36,11 @@ interface Kpi {
   title: string;
   sources: [Source, Source];
   join?: "time" | "area" | "entity";
-  choice?: "count" | "sum" | "average" | "share" | "per";
+  choice?: "count" | "sum" | "average" | "share" | "rest" | "per";
   typed?: string;
   unit: string;
+  /** The keys an area join must answer: the stations' districts, and only those. */
+  areas?: string[];
 }
 
 const PARKING = { endpoint: "helsinki-transport", type: "OffStreetParking" };
@@ -93,6 +95,28 @@ const KPIS: Kpi[] = [
       { ...STOPS, name: "stops" },
     ],
     typed: "count(zones) / count(stops)",
+    unit: "C62",
+  },
+  {
+    name: "pm25-district",
+    title: "Average PM2.5 per district",
+    sources: [
+      { name: "air", endpoint: "helsinki-air-quality", type: "AirQualityObserved", attribute: "pm25", key: "districtCode" },
+      { name: "districts", endpoint: "helsinki-districts", type: "AdministrativeArea", key: "districtCode" },
+    ],
+    join: "area",
+    choice: "average",
+    unit: "GQ",
+    areas: ["02", "12", "22", "43", "45"],
+  },
+  {
+    name: "departures",
+    title: "Scheduled departures today",
+    sources: [
+      { name: "departures", endpoint: "helsinki-transport", type: "GtfsDailyDepartures", attribute: "scheduledDepartures" },
+      { ...STOPS, name: "stops" },
+    ],
+    choice: "sum",
     unit: "C62",
   },
 ];
@@ -212,7 +236,7 @@ test("each refusal says what is wrong beside its field and keeps Propose shut", 
 });
 
 test("a person builds each indicator in the editor, previews its value and proposes it", async ({ browser }) => {
-  test.setTimeout(900_000);
+  test.setTimeout(1_200_000);
   const { page, context } = await signIn(browser, EDITOR, "/");
   const timings: Record<string, unknown> = {};
   for (const kpi of KPIS) {
@@ -223,6 +247,7 @@ test("a person builds each indicator in the editor, previews its value and propo
     const preview = await previewed(page, editor);
     expect(preview.problem, `${kpi.name} previews a value`).toBeUndefined();
     expect(preview.values.length, kpi.name).toBeGreaterThan(0);
+    if (kpi.areas) expect(preview.values.map((value) => value.key).sort(), kpi.name).toEqual(kpi.areas);
     await expect(editor.getByRole("table")).toBeVisible();
     await editor.getByRole("table").scrollIntoViewIfNeeded();
     await shot(page, `${kpi.name}-2-previewed`);
