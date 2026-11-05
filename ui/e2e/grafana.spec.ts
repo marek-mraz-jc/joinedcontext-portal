@@ -151,7 +151,7 @@ for (const width of [1440, 400]) {
       await page.goto("/projects/helsinki/grafana");
       await fill(page);
       await page.getByRole("button", { name: "Save to Grafana" }).click();
-      await expect(page.getByText("Not saved: check the marked field")).toBeVisible();
+      await expect(page.getByRole("alert").filter({ hasText: "Not saved: check the marked field" })).toBeVisible();
       await expect(page.getByLabel("Attribute", { exact: true })).toHaveAttribute("aria-invalid", "true");
       await shot(page, "error-field", width);
       world.save = { status: 403, body: { status: 403, title: "Forbidden", detail: "You may not propose dashboards in helsinki." } };
@@ -181,7 +181,7 @@ for (const width of [1440, 400]) {
       await expect(page.getByText("The preview could not read these rows; the dashboard may be empty for you.")).toBeVisible();
       await shot(page, "preview-error", width);
       world.preview = undefined;
-      await page.getByRole("button", { name: "Try again" }).click();
+      await page.getByRole("button", { name: "Try again" }).first().click();
       await expect(page.getByText("Vartiokylä Huivipolku")).toBeVisible();
     });
 

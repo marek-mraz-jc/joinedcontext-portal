@@ -6798,6 +6798,7 @@
       "previewLoading": "Die ersten Zeilen werden gelesen…",
       "previewForbiddenTitle": "Sie dürfen diese Zeilen nicht lesen",
       "previewNote": "Die Vorschau konnte diese Zeilen nicht lesen; das Dashboard bleibt für Sie womöglich leer.",
+      "previewNotInGrafana": "Die ersten Zeilen, die Sie jetzt lesen können. Grafana kann diesen Endpoint noch nicht lesen und würde keine davon zeichnen.",
       "previewForbidden": "Grafana würde auch für Sie nichts zeichnen. Wählen Sie einen anderen Endpoint oder bitten Sie die Projektverantwortlichen um Lesezugriff.",
       "previewFailedTitle": "Die Vorschau konnte nicht gelesen werden",
       "retry": "Erneut versuchen",

@@ -6798,6 +6798,7 @@
       "previewLoading": "Načítavam prvé riadky…",
       "previewForbiddenTitle": "Tieto riadky nesmiete čítať",
       "previewNote": "Náhľad tieto riadky neprečítal; dashboard môže byť pre vás prázdny.",
+      "previewNotInGrafana": "Prvé riadky, ktoré teraz môžete čítať vy. Grafana tento Endpoint zatiaľ čítať nemôže, takže by z nich nenakreslila nič.",
       "previewForbidden": "Grafana by vám tiež nič nenakreslila. Vyberte iný Endpoint alebo požiadajte vlastníka projektu o prístup na čítanie.",
       "previewFailedTitle": "Náhľad sa nepodarilo načítať",
       "retry": "Skúsiť znova",

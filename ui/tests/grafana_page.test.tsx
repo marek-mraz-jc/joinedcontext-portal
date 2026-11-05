@@ -188,6 +188,34 @@ describe("the form", () => {
     await saveFilled();
     expect(await screen.findByText(/Grafana cannot read the private Endpoint Air quality yet; .*choose another\./)).toBeInTheDocument();
     expect(screen.getByText(/Not in Grafana yet: Bike operations, Air quality/)).toBeInTheDocument();
+    expect(await screen.findByText(/Grafana cannot read this Endpoint yet, so it would draw none of them/)).toBeInTheDocument();
+    const button = screen.getByRole("button", { name: /save to grafana/i });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    await userEvent.type(screen.getByLabelText("Name"), "y");
+    expect(button).not.toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("says beside a disabled Save what is missing", async () => {
+    renderInClient(<VisualizationForm project="helsinki" />);
+    await fill();
+    expect(screen.getByRole("button", { name: /save to grafana/i })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getAllByText("Fill in every field first.").some((node) => !node.classList.contains("sr-only"))).toBe(true);
+  });
+
+  it("offers a retry beside Save when the preview failed for a reason other than a refusal", async () => {
+    answers["GET /api/endpoint/airslug/ngsi-ld/v1/entities"] = {
+      status: 503,
+      body: { status: 503, title: "Unavailable", detail: "the broker is busy" },
+    };
+    renderInClient(<VisualizationForm project="helsinki" />);
+    const user = await fill();
+    await user.selectOptions(screen.getByLabelText("Attribute"), "pm25");
+    await user.type(screen.getByLabelText("Name"), "x");
+    expect(await screen.findByText(/the dashboard may be empty for you/)).toBeInTheDocument();
+    delete answers["GET /api/endpoint/airslug/ngsi-ld/v1/entities"];
+    const [beside] = screen.getAllByRole("button", { name: "Try again" });
+    await user.click(beside);
+    await waitFor(() => expect(screen.queryByText(/the dashboard may be empty for you/)).toBeNull());
   });
 
   it("keeps the kind to what the attribute can draw", async () => {
@@ -226,7 +254,7 @@ describe("the form", () => {
     };
     renderInClient(<VisualizationForm project="helsinki" />);
     const user = await saveFilled();
-    expect(await screen.findByText("Not saved: check the marked field")).toBeInTheDocument();
+    expect((await screen.findAllByRole("alert")).some((node) => node.textContent?.includes("Not saved: check the marked field"))).toBe(true);
     expect(screen.getByLabelText("Visualization")).toHaveAttribute("aria-invalid", "true");
     expect(screen.getByLabelText("Visualization")).toHaveAccessibleDescription(/Time series cannot draw PM2\.5\. Choose another visualization/);
     expect(screen.queryByText(/timeseries/)).toBeNull();

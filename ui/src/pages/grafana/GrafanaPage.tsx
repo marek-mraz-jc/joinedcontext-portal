@@ -169,10 +169,13 @@ export function VisualizationPreview({
   slug,
   type,
   attribute,
+  notInGrafana = false,
 }: {
   slug: string;
   type: string;
   attribute: string;
+  /** The save refused the Endpoint: Grafana cannot read it yet, so the rows are only the person's. */
+  notInGrafana?: boolean;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const when = new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" });
@@ -182,7 +185,7 @@ export function VisualizationPreview({
       <CardHeader
         as="h2"
         title={t("grafana.form.previewEmptyTitle")}
-        description={rows.isSuccess && rows.data.length > 0 ? t("grafana.form.preview") : undefined}
+        description={rows.isSuccess && rows.data.length > 0 ? t(notInGrafana ? "grafana.form.previewNotInGrafana" : "grafana.form.preview") : undefined}
         className="mb-2"
       />
       {rows.isPending ? <PreviewLoading label={t("grafana.form.previewLoading")} /> : null}
@@ -237,11 +240,42 @@ export function usePreviewRows(slug: string, type: string, attribute: string, en
   });
 }
 
+/**
+ * The line beside Save: what is still missing while Save is off, or, when the preview's read
+ * failed, that the dashboard may be empty for this person (with a retry for a failure that is no
+ * refusal). A field refusal says nothing here: the banner under the form and the field do.
+ */
+export function BesideSave({
+  ready,
+  refused,
+  preview,
+}: {
+  ready: boolean;
+  refused: boolean;
+  preview: { isError: boolean; error: unknown; refetch: () => unknown };
+}): JSX.Element | null {
+  const { t } = useTranslation();
+  if (!ready) return <p className="text-caption text-fg-muted">{t("grafana.form.incomplete")}</p>;
+  if (refused || !preview.isError) return null;
+  const denied = preview.error instanceof ApiError && (preview.error.status === 403 || preview.error.status === 404);
+  return (
+    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body text-fg">
+      <Icon name="warning" className="size-4 shrink-0 text-warning" />
+      <span className="min-w-0 flex-1">{t("grafana.form.previewNote")}</span>
+      {denied ? null : (
+        <Button variant="secondary" size="sm" onClick={() => void preview.refetch()}>
+          {t("grafana.form.retry")}
+        </Button>
+      )}
+    </p>
+  );
+}
+
 /** The preview's wait: one bar pair per row it will show, announced once in words. */
 export function PreviewLoading({ label }: { label: string }): JSX.Element {
   return (
     <div role="status" aria-busy="true">
-      <span className="sr-only">{label}</span>
+      <p className="text-caption text-fg-muted">{label}</p>
       {[0, 1, 2, 3, 4].map((row) => (
         <div key={row} aria-hidden="true" className="flex justify-between gap-3 border-b border-border py-2.5 last:border-b-0">
           <Skeleton className="h-4 w-full max-w-48" />
@@ -367,8 +401,11 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
   const ready = Boolean(form.title.trim() && chosen && form.type && form.attribute);
   const preview = usePreviewRows(chosen?.slug ?? "", form.type, form.attribute, Boolean(chosen && form.type && form.attribute));
   // A refused Endpoint joins the "not in Grafana yet" line, so the line and the refusal agree.
+  // A field refusal holds Save until the next edit (the form resets the save on any change).
+  const refused = save.error instanceof ApiError && (save.error.problem?.errors ?? []).length > 0;
+  const endpointRefused = refusalsOf(save.error, "endpoint").length > 0;
   const notInGrafana =
-    chosen && refusalsOf(save.error, "endpoint").length > 0 && !closed.some((endpoint) => endpoint.name === chosen.name)
+    chosen && endpointRefused && !closed.some((endpoint) => endpoint.name === chosen.name)
       ? [...closed, chosen]
       : closed;
   if (form.options.isError) {
@@ -465,17 +502,12 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
             <Button
               variant="primary"
               type="submit"
-              disabled={!ready || save.isPending}
-              disabledReason={ready ? t("grafana.form.saving") : t("grafana.form.incomplete")}
+              disabled={!ready || save.isPending || refused}
+              disabledReason={!ready ? t("grafana.form.incomplete") : refused ? t("grafana.form.saveFieldsTitle") : t("grafana.form.saving")}
             >
               {t("grafana.form.save")}
             </Button>
-            {preview.isError ? (
-              <p className="flex items-center gap-1.5 text-caption text-fg-muted">
-                <Icon name="warning" className="size-4 shrink-0 text-warning" />
-                {t("grafana.form.previewNote")}
-              </p>
-            ) : null}
+            <BesideSave ready={ready} refused={refused} preview={preview} />
           </div>
           {save.isError ? (
             <div className="sm:col-span-2">
@@ -496,7 +528,7 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
       </Card>
       <div className="flex flex-col gap-section lg:col-span-2">
         {chosen && form.type && form.attribute ? (
-          <VisualizationPreview slug={chosen.slug} type={form.type} attribute={form.attribute} />
+          <VisualizationPreview slug={chosen.slug} type={form.type} attribute={form.attribute} notInGrafana={endpointRefused} />
         ) : (
           <Card>
             <CardHeader as="h2" title={t("grafana.form.previewEmptyTitle")} className="mb-1" />
