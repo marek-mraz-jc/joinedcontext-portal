@@ -117,6 +117,7 @@ for (const width of [1440, 400]) {
       await expect(page.getByRole("link", { name: "Open it" })).toHaveAttribute("href", SAVED.openUrl);
       await expect(page.getByRole("link", { name: "Open PM2.5 by station in Grafana" })).toBeVisible();
       await expect(page.getByText("Helsinki air quality: Air quality observed, PM2.5")).toBeVisible();
+      await expect(page.getByLabel("Name", { exact: true })).toHaveValue("");
       await shot(page, "saved", width);
       expect(await page.evaluate(pageFindings, { namespaces: NAMESPACES, layout: true })).toEqual([]);
     });
@@ -135,7 +136,7 @@ for (const width of [1440, 400]) {
 
     test("a refused save names the field and a missing role says who can help", async ({ page }) => {
       const world: World = {
-        save: { status: 422, body: { status: 422, title: "Unprocessable", detail: "a field is refused", errors: [{ path: "kind", message: "a timeseries cannot draw location; choose another kind" }] } },
+        save: { status: 422, body: { status: 422, title: "Unprocessable", detail: "a field is refused", errors: [{ path: "kind", message: "a timeseries cannot draw pm25; choose another kind" }] } },
       };
       await stubApi(page, world);
       await page.goto("/projects/helsinki/grafana");

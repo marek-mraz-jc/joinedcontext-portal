@@ -6789,6 +6789,7 @@
       "previewFailed": "The rows could not be read. Try again in a minute.",
       "previewNoRows": "This Endpoint holds no rows of this type yet.",
       "previewEmptyTitle": "Preview",
+      "previewEmptyHeading": "Nothing to draw yet",
       "previewEmpty": "Choose an Endpoint, a type and an attribute to see the rows this visualization will draw.",
       "noEndpointsTitle": "No Endpoint to draw from",
       "noEndpoints": "You may read no Endpoint of this project yet. Ask a project owner for read access, or create an Endpoint first.",
@@ -6801,6 +6802,7 @@
       "saveFailed": "The visualization could not be saved. Try again in a minute.",
       "saveFieldsTitle": "Not saved: check the marked field",
       "saveFieldsBody": "Choose another option in the marked field and save again.",
+      "kindRefused": "{kind} cannot draw {attribute}. Choose another visualization, for example Table.",
       "saveForbiddenTitle": "Not saved: you may not do this",
       "saveForbidden": "Ask a project owner if you need it."
     }

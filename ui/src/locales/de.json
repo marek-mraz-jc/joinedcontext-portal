@@ -6789,6 +6789,7 @@
       "previewFailed": "Die Zeilen konnten nicht gelesen werden. Versuchen Sie es gleich noch einmal.",
       "previewNoRows": "Dieser Endpoint hat noch keine Zeilen dieses Typs.",
       "previewEmptyTitle": "Vorschau",
+      "previewEmptyHeading": "Noch nichts darzustellen",
       "previewEmpty": "Wählen Sie Endpoint, Typ und Attribut, um die Zeilen dieser Visualisierung zu sehen.",
       "noEndpointsTitle": "Keine Daten zum Darstellen",
       "noEndpoints": "Sie dürfen in diesem Projekt noch keinen Endpoint lesen. Fragen Sie den Projektinhaber nach Zugriff oder legen Sie zuerst einen Endpoint an.",
@@ -6801,6 +6802,7 @@
       "saveFailed": "Die Visualisierung konnte nicht gespeichert werden. Versuchen Sie es in einer Minute erneut.",
       "saveFieldsTitle": "Nicht gespeichert: prüfen Sie das markierte Feld",
       "saveFieldsBody": "Wählen Sie im markierten Feld eine andere Option und speichern Sie erneut.",
+      "kindRefused": "{kind} kann {attribute} nicht darstellen. Wählen Sie eine andere Visualisierung, zum Beispiel Tabelle.",
       "saveForbiddenTitle": "Nicht gespeichert: dazu fehlt Ihnen das Recht",
       "saveForbidden": "Fragen Sie die Projektverantwortlichen, wenn Sie es brauchen."
     }

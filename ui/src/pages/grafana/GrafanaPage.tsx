@@ -98,7 +98,7 @@ export function SavedVisualization({
         ) : null}
         {mayRemove && !asking ? (
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
             aria-label={t("grafana.saved.remove", { title: item.title })}
             onClick={() => setAsking(true)}
@@ -342,7 +342,11 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
           },
         }),
       ),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: pageKey(project) }),
+    onSuccess: () => {
+      // A second click would save a twin: the next visualization starts with an empty Name.
+      form.setTitle("");
+      return queryClient.invalidateQueries({ queryKey: pageKey(project) });
+    },
   });
   const endpoints = form.options.data?.endpoints ?? [];
   const usable = endpoints.filter((endpoint) => endpoint.usable);
@@ -420,7 +424,11 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
               ))}
             </Select>
           </Field>
-          <Field id="grafana-kind" label={t("grafana.form.kind")} help={t("grafana.form.kindHelp")} errors={refusalsOf(save.error, "kind")}>
+          <Field id="grafana-kind" label={t("grafana.form.kind")} help={t("grafana.form.kindHelp")} errors={
+              refusalsOf(save.error, "kind").length > 0
+                ? [t("grafana.form.kindRefused", { kind: t(`grafana.kind.${form.kind}`), attribute: columnLabel(undefined, form.attribute, i18n.language) })]
+                : []
+            }>
             <Select id="grafana-kind" value={form.kind} onChange={(event) => form.setKind(event.target.value as Kind)}>
               {kindsFor(form.options.data, form.attribute).map((kind) => (
                 <option key={kind} value={kind}>
@@ -465,7 +473,7 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
         ) : (
           <Card>
             <CardHeader as="h2" title={t("grafana.form.previewEmptyTitle")} className="mb-1" />
-            <p className="text-body text-fg-muted">{t("grafana.form.previewEmpty")}</p>
+            <EmptyState bare icon="dashboards" title={t("grafana.form.previewEmptyHeading")} description={t("grafana.form.previewEmpty")} />
           </Card>
         )}
         {aside}

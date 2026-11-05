@@ -6789,6 +6789,7 @@
       "previewFailed": "Řádky se nepodařilo přečíst. Zkuste to za chvíli znovu.",
       "previewNoRows": "Tento Endpoint zatím nemá řádky tohoto typu.",
       "previewEmptyTitle": "Náhled",
+      "previewEmptyHeading": "Zatím není co zobrazit",
       "previewEmpty": "Vyberte Endpoint, typ a atribut a uvidíte řádky, které vizualizace zobrazí.",
       "noEndpointsTitle": "Není z čeho kreslit",
       "noEndpoints": "V tomto projektu zatím nesmíte číst žádný Endpoint. Požádejte vlastníka projektu o přístup nebo nejprve vytvořte Endpoint.",
@@ -6801,6 +6802,7 @@
       "saveFailed": "Vizualizaci se nepodařilo uložit. Zkuste to za minutu znovu.",
       "saveFieldsTitle": "Neuloženo: zkontrolujte označené pole",
       "saveFieldsBody": "V označeném poli vyberte jinou možnost a uložte znovu.",
+      "kindRefused": "{kind} neumí zobrazit {attribute}. Vyberte jinou vizualizaci, například Tabulka.",
       "saveForbiddenTitle": "Neuloženo: na tohle nemáte právo",
       "saveForbidden": "Pokud to potřebujete, požádejte vlastníka projektu."
     }

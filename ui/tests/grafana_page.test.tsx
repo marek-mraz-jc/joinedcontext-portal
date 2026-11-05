@@ -167,6 +167,8 @@ describe("the form", () => {
     await user.type(screen.getByLabelText("Name"), "PM2.5");
     await user.click(screen.getByRole("button", { name: /save to grafana/i }));
     expect(await screen.findByRole("link", { name: "Open it" })).toHaveAttribute("href", item.openUrl);
+    expect(screen.getByLabelText("Name")).toHaveValue("");
+    expect(screen.getByRole("button", { name: /save to grafana/i })).toHaveAttribute("aria-disabled", "true");
     expect(sent.find((call) => call.method === "POST")?.body).toEqual({
       title: "PM2.5",
       endpoint: "air",
@@ -185,7 +187,8 @@ describe("the form", () => {
     const user = await saveFilled();
     expect(await screen.findByText("Not saved: check the marked field")).toBeInTheDocument();
     expect(screen.getByLabelText("Visualization")).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByLabelText("Visualization")).toHaveAccessibleDescription(/A stat cannot draw name; choose another kind\./);
+    expect(screen.getByLabelText("Visualization")).toHaveAccessibleDescription(/Time series cannot draw PM2\.5\. Choose another visualization/);
+    expect(screen.queryByText(/timeseries/)).toBeNull();
     expect(screen.queryByText("a field is refused")).toBeNull();
     expect(screen.getByLabelText("Name")).toHaveValue("x");
     await user.type(screen.getByLabelText("Name"), "y");
