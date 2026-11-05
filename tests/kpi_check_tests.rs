@@ -491,12 +491,17 @@ async fn a_kpi_draft_meets_the_indicator_model_of_its_space() {
     let mut body = draft("sum(parking.occupied) / count(stops)", "stops");
     let manifest = &mut body["pipeline"];
     manifest["spec"]["outputs"][0]["type"] = json!("KeyPerformanceIndicator");
-    held(json!({ "items": { "type": "string" }, "minItems": 1, "type": ["string", "array"], "x-ngsi-ld-kind": "Property" }));
+    held(
+        json!({ "items": { "type": "string" }, "minItems": 1, "type": ["string", "array"], "x-ngsi-ld-kind": "Property" }),
+    );
     let green = records_verdict(&rig.state, "city", manifest).expect("a verdict");
     assert!(green.ok && green.checked == 1, "{green:?}");
     held(string.clone());
     let red = records_verdict(&rig.state, "city", manifest).expect("a verdict");
-    assert!(!red.ok, "a model taking one string still refuses the list: {red:?}");
+    assert!(
+        !red.ok,
+        "a model taking one string still refuses the list: {red:?}"
+    );
 }
 
 /// Any other Pipeline keeps its test on a sample.
