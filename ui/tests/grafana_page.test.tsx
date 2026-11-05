@@ -116,6 +116,8 @@ describe("the form", () => {
     renderInClient(<VisualizationForm project="helsinki" />);
     await fill();
     expect(screen.getByRole("option", { name: "Air quality" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Air quality observed" })).toHaveValue("AirQualityObserved");
+    expect(screen.getByRole("option", { name: "PM2.5" })).toHaveValue("pm25");
     expect(screen.queryByRole("option", { name: "Bike operations" })).toBeNull();
     expect(screen.getByText(/Not in Grafana yet: Bike operations/)).toBeInTheDocument();
     await userEvent.selectOptions(screen.getByLabelText("Attribute"), "pm25");

@@ -23,6 +23,7 @@ import {
   safeHref,
 } from "../../components/ui";
 import { cellOf } from "../../components/ui/recordView";
+import { columnLabel } from "../../components/entities/displayOrder";
 import { unitSymbol } from "../../units";
 
 type Item = components["schemas"]["VisualizationItem"];
@@ -58,7 +59,7 @@ export function SavedVisualization({
   item: Item;
   mayRemove: boolean;
 }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const [asking, setAsking] = useState(false);
   const remove = useMutation({
@@ -76,7 +77,11 @@ export function SavedVisualization({
       <div className="min-w-0 flex-1 basis-full sm:basis-60">
         <p className="break-words text-body font-medium text-fg">{item.title}</p>
         <p className="break-words text-caption text-fg-muted">
-          {t("grafana.saved.reads", { endpoint: item.endpointTitle, type: item.type, attribute: item.attribute })}
+          {t("grafana.saved.reads", {
+            endpoint: item.endpointTitle,
+            type: columnLabel(undefined, item.type, i18n.language),
+            attribute: columnLabel(undefined, item.attribute, i18n.language),
+          })}
         </p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
@@ -273,7 +278,7 @@ function useChoices(project: string) {
  * with the person's own session, so it shows what they would see in Grafana.
  */
 export function VisualizationForm({ project }: { project: string }): JSX.Element {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const form = useChoices(project);
   const save = useMutation({
@@ -348,7 +353,7 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
               <option value="">{t("grafana.form.choose")}</option>
               {(form.options.data?.types ?? []).map((type) => (
                 <option key={type} value={type}>
-                  {type}
+                  {columnLabel(undefined, type, i18n.language)}
                 </option>
               ))}
             </Select>
@@ -364,7 +369,7 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
               <option value="">{t("grafana.form.choose")}</option>
               {attributes.map((attribute) => (
                 <option key={attribute.name} value={attribute.name}>
-                  {attribute.name}
+                  {columnLabel(undefined, attribute.name, i18n.language)}
                 </option>
               ))}
             </Select>

@@ -428,6 +428,7 @@ pub fn dashboard_of(row: &Visualization, datasource: &str, named: bool) -> Value
         }
     };
     let mut options = json!({});
+    let mut transformations = json!([]);
     let panel = match row.kind {
         Kind::Timeseries => {
             target["queryType"] = json!("temporal");
@@ -455,6 +456,21 @@ pub fn dashboard_of(row: &Visualization, datasource: &str, named: bool) -> Value
                 .chain([row.attribute.as_str()])
                 .collect();
             target["attributes"] = json!(columns);
+            // The plugin adds id and type first; a person reads the name, the value, then the time.
+            let order: serde_json::Map<String, Value> = columns
+                .iter()
+                .chain(&["observedAt"])
+                .enumerate()
+                .map(|(at, column)| ((*column).to_owned(), json!(at)))
+                .collect();
+            transformations = json!([{
+                "id": "organize",
+                "options": {
+                    "excludeByName": { "id": true, "type": true },
+                    "indexByName": order,
+                    "renameByName": { "observedAt": "Observed at" },
+                },
+            }]);
             "table"
         }
         Kind::Map => {
@@ -469,6 +485,14 @@ pub fn dashboard_of(row: &Visualization, datasource: &str, named: bool) -> Value
                     "name": row.title,
                     "location": { "mode": "auto" },
                     "tooltip": true,
+                    // Grafana's default marker is a small dark green dot, lost on the dark basemap.
+                    "config": {
+                        "style": {
+                            "size": { "fixed": 9 },
+                            "color": { "fixed": "#FF9830" },
+                            "opacity": 0.9,
+                        },
+                    },
                 }],
             });
             "geomap"
@@ -492,6 +516,7 @@ pub fn dashboard_of(row: &Visualization, datasource: &str, named: bool) -> Value
             "gridPos": { "x": 0, "y": 0, "w": 24, "h": 18 },
             "targets": [target],
             "options": options,
+            "transformations": transformations,
         }],
     })
 }
@@ -641,11 +666,24 @@ mod tests {
         assert_eq!(map["panels"][0]["targets"][0]["geoproperty"], "pm25");
         assert!(map["panels"][0]["targets"][0].get("entityName").is_none());
 
+        let style = &map["panels"][0]["options"]["layers"][0]["config"]["style"];
+        assert_eq!(style["size"]["fixed"], 9);
+
         let table = dashboard_of(&row(Kind::Table), "air", true);
         assert_eq!(
             table["panels"][0]["targets"][0]["attributes"],
             json!(["name", "pm25"])
         );
+        let organize = &table["panels"][0]["transformations"][0]["options"];
+        assert_eq!(
+            organize["excludeByName"],
+            json!({ "id": true, "type": true })
+        );
+        assert_eq!(
+            organize["indexByName"],
+            json!({ "name": 0, "pm25": 1, "observedAt": 2 })
+        );
+        assert_eq!(series["panels"][0]["transformations"], json!([]));
         assert_eq!(
             dashboard_of(&row(Kind::Stat), "air", true)["panels"][0]["type"],
             "stat"
