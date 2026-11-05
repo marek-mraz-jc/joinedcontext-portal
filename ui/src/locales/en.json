@@ -6767,7 +6767,7 @@
     "form": {
       "title": "New visualization",
       "endpoint": "Endpoint",
-      "endpointHelp": "The data to draw. The list holds the Endpoints you may read, for example Helsinki air quality.",
+      "endpointHelp": "The data to draw, for example Helsinki air quality. The list holds the Endpoints you can use in this project.",
       "type": "Type",
       "typeHelp": "What each row is, for example an air quality reading.",
       "chooseEndpointFirst": "Choose an Endpoint first.",
@@ -6797,6 +6797,8 @@
       "previewLoading": "Reading the first rows…",
       "previewForbiddenTitle": "You may not read these rows",
       "previewNote": "The preview could not read these rows; the dashboard may be empty for you.",
+      "savedChangeFirst": "Saved. Change any choice to save another.",
+      "notInGrafanaOption": "{title} (not in Grafana yet)",
       "missing": {
         "endpoint": "Choose an Endpoint first.",
         "type": "Next, choose a type.",

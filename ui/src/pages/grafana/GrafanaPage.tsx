@@ -250,21 +250,26 @@ export function usePreviewRows(slug: string, type: string, attribute: string, en
 /**
  * The line beside Save: what is still missing while Save is off, or, when the preview's read
  * failed, that the dashboard may be empty for this person (with a retry for a failure that is no
- * refusal). A field refusal says nothing here: the banner under the form and the field do.
+ * refusal). After a refusal or a save it says Save waits for a change.
  */
 export function BesideSave({
   missing,
   refused,
+  saved,
   preview,
 }: {
   /** The first field still empty, top to bottom. */
   missing?: "endpoint" | "type" | "attribute" | "name";
   refused: boolean;
+  /** Just saved: Save waits for a change, so a second click makes no twin. */
+  saved: boolean;
   preview: { isError: boolean; error: unknown; refetch: () => unknown };
 }): JSX.Element | null {
   const { t } = useTranslation();
   if (missing) return <p className="text-caption text-fg-muted">{t(`grafana.form.missing.${missing}`)}</p>;
-  if (refused || !preview.isError) return null;
+  if (refused) return <p className="text-caption text-fg-muted">{t("grafana.form.saveRefused")}</p>;
+  if (saved) return <p className="text-caption text-fg-muted">{t("grafana.form.savedChangeFirst")}</p>;
+  if (!preview.isError) return null;
   const denied = preview.error instanceof ApiError && (preview.error.status === 403 || preview.error.status === 404);
   return (
     <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body text-fg">
@@ -395,11 +400,9 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
           },
         }),
       ),
-    onSuccess: () => {
-      // A second click would save a twin: the next visualization starts with an empty Name.
-      form.setTitle("");
-      return queryClient.invalidateQueries({ queryKey: pageKey(project) });
-    },
+    // A second click would save a twin: Save stays off after a save until the next edit, which
+    // resets the save (the form's onChange).
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: pageKey(project) }),
   });
   const endpoints = form.options.data?.endpoints ?? [];
   const usable = endpoints.filter((endpoint) => endpoint.usable);
@@ -450,7 +453,7 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
                 <option value="">{t("grafana.form.choose")}</option>
                 {usable.map((endpoint) => (
                   <option key={endpoint.name} value={endpoint.name}>
-                    {endpoint.title}
+                    {endpointRefused && endpoint.name === chosen?.name ? t("grafana.form.notInGrafanaOption", { title: endpoint.title }) : endpoint.title}
                   </option>
                 ))}
               </Select>
@@ -513,12 +516,20 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
             <Button
               variant="primary"
               type="submit"
-              disabled={!ready || save.isPending || refused}
-              disabledReason={missing ? t(`grafana.form.missing.${missing}`) : refused ? t("grafana.form.saveRefused") : t("grafana.form.saving")}
+              disabled={!ready || save.isPending || refused || save.isSuccess}
+              disabledReason={
+                missing
+                  ? t(`grafana.form.missing.${missing}`)
+                  : refused
+                    ? t("grafana.form.saveRefused")
+                    : save.isSuccess
+                      ? t("grafana.form.savedChangeFirst")
+                      : t("grafana.form.saving")
+              }
             >
               {t("grafana.form.save")}
             </Button>
-            <BesideSave missing={missing} refused={refused} preview={preview} />
+            <BesideSave missing={missing} refused={refused} saved={save.isSuccess} preview={preview} />
           </div>
           {save.isError ? (
             <div className="sm:col-span-2">

@@ -188,6 +188,7 @@ describe("the form", () => {
     await saveFilled();
     expect(await screen.findByText(/Grafana cannot read the private Endpoint Air quality yet; .*choose another\./)).toBeInTheDocument();
     expect(screen.getByText(/Not in Grafana yet: Bike operations, Air quality/)).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Air quality (not in Grafana yet)" })).toBeInTheDocument();
     expect(await screen.findByText(/Grafana cannot read this Endpoint yet, so it would draw none of them/)).toBeInTheDocument();
     const button = screen.getByRole("button", { name: /save to grafana/i });
     expect(button).toHaveAttribute("aria-disabled", "true");
@@ -238,8 +239,11 @@ describe("the form", () => {
     await user.type(screen.getByLabelText("Name"), "PM2.5");
     await user.click(screen.getByRole("button", { name: /save to grafana/i }));
     expect(await screen.findByRole("link", { name: "Open it" })).toHaveAttribute("href", item.openUrl);
-    expect(screen.getByLabelText("Name")).toHaveValue("");
+    expect(screen.getByLabelText("Name")).toHaveValue("PM2.5");
     expect(screen.getByRole("button", { name: /save to grafana/i })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getAllByText("Saved. Change any choice to save another.").length).toBeGreaterThan(0);
+    await user.type(screen.getByLabelText("Name"), " daily");
+    expect(screen.getByRole("button", { name: /save to grafana/i })).not.toHaveAttribute("aria-disabled", "true");
     expect(sent.find((call) => call.method === "POST")?.body).toEqual({
       title: "PM2.5",
       endpoint: "air",
