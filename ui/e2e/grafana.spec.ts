@@ -118,7 +118,7 @@ for (const width of [1440, 400]) {
       await expect(page.getByRole("link", { name: "Open PM2.5 by station in Grafana" })).toBeVisible();
       await expect(page.getByText("Helsinki air quality: Air quality observed, PM2.5")).toBeVisible();
       await expect(page.getByLabel("Name", { exact: true })).toHaveValue("PM2.5 by station");
-      await expect(page.getByText("Saved. Change any choice to save another.", { exact: true })).toBeVisible();
+      await expect(page.locator("p").getByText("Saved. Change any choice to save another.", { exact: true })).toBeVisible();
       await shot(page, "saved", width);
       expect(await page.evaluate(pageFindings, { namespaces: NAMESPACES, layout: true })).toEqual([]);
     });
