@@ -271,7 +271,7 @@ describe("the endpoint's filter editor and its proof", () => {
     renderPage();
 
     expect(
-      await screen.findByText("Serving 1 of 2 Event · hidden attributes: 1", {}, { timeout: 3000 }),
+      await screen.findByText("Serving 1 of 2 Event · hidden attributes: 1"),
     ).toBeInTheDocument();
     const rows = screen.getAllByTestId("proof-row");
     expect(rows).toHaveLength(2);
@@ -298,7 +298,6 @@ describe("the endpoint's filter editor and its proof", () => {
           'startDate>="2026-09-25"',
         );
       },
-      { timeout: 3000 },
     );
     const last = previews(sent).at(-1);
     expect(last?.body.type).toBe("Event");
@@ -319,7 +318,6 @@ describe("the endpoint's filter editor and its proof", () => {
     await user.click(hideName);
     await waitFor(
       () => expect(previews(sent).at(-1)?.body.hiddenAttributes).toEqual(["source", "name"]),
-      { timeout: 3000 },
     );
 
     await user.click(screen.getByRole("button", { name: en.endpoints.page.filterPropose }));
@@ -348,7 +346,7 @@ describe("the endpoint's filter editor and its proof", () => {
   it("shows a person the space refuses what the endpoint serves today, and says why", async () => {
     const sent = renderPage({ space: "refused" });
 
-    expect(await screen.findByText("Serving 1 Event", {}, { timeout: 3000 })).toBeInTheDocument();
+    expect(await screen.findByText("Serving 1 Event")).toBeInTheDocument();
     expect(screen.getByText(en.endpoints.proof.originalUnreadable)).toBeInTheDocument();
     expect(screen.queryByRole("columnheader", { name: en.endpoints.proof.original })).not.toBeInTheDocument();
     // No draft travels for a person the preview would refuse anyway.
@@ -361,8 +359,6 @@ describe("the endpoint's filter editor and its proof", () => {
     expect(
       await screen.findByText(
         "The draft filter is refused: projection.filter.q: an empty query string filters nothing",
-        {},
-        { timeout: 3000 },
       ),
     ).toBeInTheDocument();
   });
@@ -372,9 +368,9 @@ describe("the endpoint's filter editor and its proof", () => {
     const sent = renderPage();
     const user = userEvent.setup();
 
-    await user.click(await screen.findByText(en.endpoints.proof.title, { selector: "summary" }, { timeout: 3000 }));
+    await user.click(await screen.findByText(en.endpoints.proof.title, { selector: "summary" }));
     expect(
-      await screen.findByText("Serving 1 of 2 Event · hidden attributes: 1", {}, { timeout: 3000 }),
+      await screen.findByText("Serving 1 of 2 Event · hidden attributes: 1"),
     ).toBeInTheDocument();
     const last = previews(sent).at(-1);
     expect(last?.body.hiddenAttributes).toEqual(["source"]);
@@ -388,7 +384,7 @@ describe("the endpoint's filter editor and its proof", () => {
     const user = userEvent.setup();
 
     expect(
-      await screen.findByText(en.endpoints.filterEditor.createsProjection.replace("{name}", NAME), {}, { timeout: 3000 }),
+      await screen.findByText(en.endpoints.filterEditor.createsProjection.replace("{name}", NAME)),
     ).toBeInTheDocument();
     // Every class and slot of the model, nothing hidden: what the endpoint serves today.
     expect(screen.getByRole("checkbox", { name: "Event" })).toBeChecked();
