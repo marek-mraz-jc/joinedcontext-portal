@@ -16,6 +16,8 @@ const ADDRESS = `/projects/${PROJECT}/grafana?lang=en`;
 const ENDPOINT = "helsinki-air-quality";
 const TYPE = "AirQualityObserved";
 const PREFIX = "t6516-";
+/** A readable title the film can show, tagged so the clean-up finds it again. */
+const titled = (words: string) => `${words} (${PREFIX}${Date.now().toString(36)})`;
 
 test.setTimeout(600_000);
 test.skip(!EDITOR.password, "the editor signs in with EDITOR_PASSWORD");
@@ -110,17 +112,22 @@ async function wholePage(browser: Browser, signedIn: BrowserContext, width: numb
 
 async function removeOurs(page: Page): Promise<void> {
   const list = await page.request.get(`/api/v1/projects/${PROJECT}/grafana`);
-  if (!list.ok()) return;
+  if (!list.ok()) throw new Error(`clean-up could not list visualizations: ${list.status()}`);
   const body = (await list.json()) as { items?: { id: string; title: string }[] };
   const headers = { "x-csrf-token": await csrf(page.context()) };
-  for (const item of body.items ?? []) {
-    if (item.title.startsWith(PREFIX)) await page.request.delete(`/api/v1/projects/${PROJECT}/grafana/${item.id}`, { headers });
+  const ours = (body.items ?? []).filter((item) => item.title.startsWith(PREFIX) || item.title.includes(`(${PREFIX}`));
+  const failed: string[] = [];
+  for (const item of ours) {
+    const gone = await page.request.delete(`/api/v1/projects/${PROJECT}/grafana/${item.id}`, { headers });
+    if (!gone.ok()) failed.push(`${item.title}: ${gone.status()}`);
   }
+  console.log(`removed ${ours.length - failed.length} of ${ours.length} test visualizations`);
+  if (failed.length > 0) throw new Error(`clean-up left ${failed.join(", ")}; the next run removes them`);
 }
 
 test("a Grafana time series from a live Endpoint, at 1440 and 400", async ({ browser }) => {
   for (const size of SIZES) {
-    const title = `${PREFIX}pm25 ${size.width} ${Date.now().toString(36)}`;
+    const title = titled("PM2.5 by station");
     const clip = await clipOf(browser, EDITOR, "grafana-create", size, ADDRESS);
     try {
       const href = await pickPreviewSave(clip, title);
@@ -130,7 +137,6 @@ test("a Grafana time series from a live Endpoint, at 1440 and 400", async ({ bro
         expect(await drawn(clip.page)).toEqual({ errors: 0, noData: 0 });
       }, 6_000);
     } finally {
-      await clip.page.goto(ADDRESS).catch(() => undefined);
       await removeOurs(clip.page).catch((failed: unknown) => console.log(String(failed)));
       await clip.finish().catch((failed: unknown) => console.log(String(failed)));
     }
@@ -143,7 +149,7 @@ test("Number, Table and Map draw in Grafana", async ({ browser }) => {
   const seen: Record<string, { errors: number; noData: number }> = {};
   try {
     for (const [kind, attribute] of [["stat", "pm25"], ["table", "pm25"], ["map", "location"]] as const) {
-      const title = `${PREFIX}${kind} ${Date.now().toString(36)}`;
+      const title = titled(`Air quality ${kind}`);
       await page.goto(ADDRESS, { waitUntil: "load" });
       await expect(page.getByRole("button", { name: "Save to Grafana" })).toBeVisible({ timeout: 60_000 });
       await choose(page, kind, attribute, title);
@@ -156,7 +162,6 @@ test("Number, Table and Map draw in Grafana", async ({ browser }) => {
     console.log(`kinds drawn: ${JSON.stringify(seen)}`);
     for (const kind of Object.keys(seen)) expect(seen[kind], kind).toEqual({ errors: 0, noData: 0 });
   } finally {
-    await page.goto(ADDRESS).catch(() => undefined);
     await removeOurs(page).catch((failed: unknown) => console.log(String(failed)));
     await clip.finish().catch((failed: unknown) => console.log(String(failed)));
   }
