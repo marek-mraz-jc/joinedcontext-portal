@@ -249,8 +249,7 @@ export function usePreviewRows(slug: string, type: string, attribute: string, en
 
 /**
  * The line beside Save: what is still missing while Save is off, or, when the preview's read
- * failed, that the dashboard may be empty for this person (with a retry for a failure that is no
- * refusal). After a refusal or a save it says Save waits for a change.
+ * failed, that the dashboard may be empty for this person (the preview card holds the retry). After a refusal or a save it says Save waits for a change.
  */
 export function BesideSave({
   missing,
@@ -258,7 +257,7 @@ export function BesideSave({
   saved,
   preview,
 }: {
-  /** The first field still empty, top to bottom. */
+  /** The first field still empty, top to bottom. A role refusal is neither: its alert says who can help. */
   missing?: "endpoint" | "type" | "attribute" | "name";
   refused: boolean;
   /** Just saved: Save waits for a change, so a second click makes no twin. */
@@ -272,14 +271,9 @@ export function BesideSave({
   if (!preview.isError) return null;
   const denied = preview.error instanceof ApiError && (preview.error.status === 403 || preview.error.status === 404);
   return (
-    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-body text-fg">
+    <p className="flex items-center gap-x-2 text-body text-fg">
       <Icon name="warning" className="size-4 shrink-0 text-warning" />
-      <span className="min-w-0 flex-1">{t(denied ? "grafana.form.previewNote" : "grafana.form.previewFailedNote")}</span>
-      {denied ? null : (
-        <Button variant="secondary" size="sm" onClick={() => void preview.refetch()}>
-          {t("grafana.form.retry")}
-        </Button>
-      )}
+      <span className="min-w-0">{t(denied ? "grafana.form.previewNote" : "grafana.form.previewFailedNote")}</span>
     </p>
   );
 }
@@ -415,8 +409,8 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
   // A refused Endpoint joins the "not in Grafana yet" line, so the line and the refusal agree.
   // A field refusal holds Save until the next edit (the form resets the save on any change).
   // A role refusal (403) holds it too: the same save would fail again.
-  const refused =
-    save.error instanceof ApiError && (save.error.status === 403 || (save.error.problem?.errors ?? []).length > 0);
+  const roleRefused = save.error instanceof ApiError && save.error.status === 403;
+  const refused = roleRefused || (save.error instanceof ApiError && (save.error.problem?.errors ?? []).length > 0);
   const endpointRefused = refusalsOf(save.error, "endpoint").length > 0;
   const notInGrafana =
     chosen && endpointRefused && !closed.some((endpoint) => endpoint.name === chosen.name)
@@ -520,7 +514,9 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
               disabledReason={
                 missing
                   ? t(`grafana.form.missing.${missing}`)
-                  : refused
+                  : roleRefused
+                    ? t("grafana.form.saveForbiddenTitle")
+                    : refused
                     ? t("grafana.form.saveRefused")
                     : save.isSuccess
                       ? t("grafana.form.savedChangeFirst")
@@ -529,7 +525,7 @@ export function VisualizationForm({ project, aside }: { project: string; aside?:
             >
               {t("grafana.form.save")}
             </Button>
-            <BesideSave missing={missing} refused={refused} saved={save.isSuccess} preview={preview} />
+            <BesideSave missing={missing} refused={refused && !roleRefused} saved={save.isSuccess} preview={preview} />
           </div>
           {save.isError ? (
             <div className="sm:col-span-2">

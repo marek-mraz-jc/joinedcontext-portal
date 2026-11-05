@@ -182,7 +182,7 @@ for (const width of [1440, 400]) {
       await expect(page.getByText("The preview could not be read just now; the dashboard itself may still draw.")).toBeVisible();
       await shot(page, "preview-error", width);
       world.preview = undefined;
-      await page.getByRole("button", { name: "Try again" }).first().click();
+      await page.getByRole("button", { name: "Try again" }).click();
       await expect(page.getByText("Vartiokylä Huivipolku")).toBeVisible();
     });
 

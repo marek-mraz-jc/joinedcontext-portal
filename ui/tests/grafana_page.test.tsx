@@ -205,7 +205,7 @@ describe("the form", () => {
     expect(screen.getAllByText("Last, give it a name.").some((node) => !node.classList.contains("sr-only"))).toBe(true);
   });
 
-  it("offers a retry beside Save when the preview failed for a reason other than a refusal", async () => {
+  it("says beside Save that a failed preview read is no refusal, and the preview's retry clears it", async () => {
     answers["GET /api/endpoint/airslug/ngsi-ld/v1/entities"] = {
       status: 503,
       body: { status: 503, title: "Unavailable", detail: "the broker is busy" },
@@ -216,8 +216,7 @@ describe("the form", () => {
     await user.type(screen.getByLabelText("Name"), "x");
     expect(await screen.findByText("The preview could not be read just now; the dashboard itself may still draw.")).toBeInTheDocument();
     delete answers["GET /api/endpoint/airslug/ngsi-ld/v1/entities"];
-    const [beside] = screen.getAllByRole("button", { name: "Try again" });
-    await user.click(beside);
+    await user.click(screen.getByRole("button", { name: "Try again" }));
     await waitFor(() => expect(screen.queryByText(/could not be read just now/)).toBeNull());
   });
 
@@ -297,6 +296,7 @@ describe("the form", () => {
     expect(alert).toHaveTextContent("You may not propose dashboards in helsinki. Each visualization is a Grafana dashboard");
     expect(alert).toHaveTextContent("ask a project owner for a role");
     expect(screen.getByRole("button", { name: /save to grafana/i })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByText("Change the refused choice first.")).toBeNull();
   });
 
   it("gives the reason of a failed save and keeps the form", async () => {
