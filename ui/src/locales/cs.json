@@ -6807,7 +6807,7 @@
       "kindRefused": "{kind} neumí zobrazit {attribute}. Vyberte jinou vizualizaci, například Tabulka.",
       "attributeRefused": "{type} už nemá {attribute}. Vyberte jiný atribut ze seznamu.",
       "saveForbiddenTitle": "Neuloženo: na tohle nemáte právo",
-      "saveForbidden": "Pokud to potřebujete, požádejte vlastníka projektu."
+      "saveForbidden": "Každá vizualizace je dashboard v Grafaně: požádejte vlastníka projektu o roli, která smí navrhovat dashboardy."
     }
   },
   "activity": {

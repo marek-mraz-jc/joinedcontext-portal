@@ -6743,7 +6743,7 @@
     "toProject": "Back to the project",
     "toProjects": "Go to your projects",
     "readOnlyTitle": "View only: you can open these, not add new ones",
-    "readOnly": "Saving needs a role that may add visualizations in this project; ask a project owner. You can still open what is saved.",
+    "readOnly": "Each visualization is a Grafana dashboard, so saving one needs a role that may propose dashboards in this project; ask a project owner. You can still open what is saved.",
     "kind": {
       "timeseries": "Time series",
       "stat": "Number",
@@ -6807,7 +6807,7 @@
       "kindRefused": "{kind} cannot draw {attribute}. Choose another visualization, for example Table.",
       "attributeRefused": "{type} no longer has {attribute}. Choose another attribute from the list.",
       "saveForbiddenTitle": "Not saved: you may not do this",
-      "saveForbidden": "Ask a project owner if you need it."
+      "saveForbidden": "Each visualization is a Grafana dashboard: ask a project owner for a role that may propose dashboards."
     }
   },
   "activity": {

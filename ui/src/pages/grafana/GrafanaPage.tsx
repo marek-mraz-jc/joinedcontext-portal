@@ -545,6 +545,7 @@ export function GrafanaPage({ project }: { project: string }): JSX.Element {
         {page.error instanceof ApiError && page.error.status === 403 ? (
           <EmptyState
             icon="lock"
+            className="mx-auto w-full max-w-2xl"
             title={t("grafana.forbiddenTitle")}
             description={`${sentence(reasonOf(page.error))} ${t("app.error.forbiddenHint")}`}
             action={
@@ -585,6 +586,7 @@ export function GrafanaPage({ project }: { project: string }): JSX.Element {
       {ready ? null : (
         <EmptyState
           icon="dashboards"
+          className="mx-auto w-full max-w-2xl"
           title={t("grafana.notReadyTitle")}
           description={reason ? sentence(reason) : t("grafana.notReady")}
           action={

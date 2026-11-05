@@ -228,8 +228,8 @@ describe("the form", () => {
     await saveFilled();
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Not saved: you may not do this");
-    expect(alert).toHaveTextContent("You may not propose dashboards in helsinki. Ask a project owner");
-    expect(alert).toHaveTextContent("Ask a project owner");
+    expect(alert).toHaveTextContent("You may not propose dashboards in helsinki. Each visualization is a Grafana dashboard");
+    expect(alert).toHaveTextContent("ask a project owner for a role");
   });
 
   it("gives the reason of a failed save and keeps the form", async () => {

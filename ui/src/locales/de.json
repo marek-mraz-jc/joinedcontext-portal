@@ -6807,7 +6807,7 @@
       "kindRefused": "{kind} kann {attribute} nicht darstellen. Wählen Sie eine andere Visualisierung, zum Beispiel Tabelle.",
       "attributeRefused": "{type} hat {attribute} nicht mehr. Wählen Sie ein anderes Attribut aus der Liste.",
       "saveForbiddenTitle": "Nicht gespeichert: dazu fehlt Ihnen das Recht",
-      "saveForbidden": "Fragen Sie die Projektverantwortlichen, wenn Sie es brauchen."
+      "saveForbidden": "Jede Visualisierung ist ein Grafana-Dashboard: Bitten Sie eine Projektverantwortliche Person um eine Rolle, die Dashboards vorschlagen darf."
     }
   },
   "activity": {
