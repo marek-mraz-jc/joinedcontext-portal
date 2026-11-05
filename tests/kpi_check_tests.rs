@@ -451,6 +451,59 @@ async fn a_kpi_draft_gets_its_record_check_from_the_target_it_writes() {
     assert!(!red.ok, "no such Endpoint in the project: {red:?}");
 }
 
+/// T-6593: the indicator is judged against the KPI contract its space declares (seed
+/// key-performance-indicator models): `updatedAt` an NGSI-LD DateTime, `derivedFrom` one source
+/// Endpoint or the list of them (PL-104). The model check read the typed literal as an object and
+/// the seed took one string, so every KPI editor proposal was refused `records_failed` on dev.
+#[tokio::test]
+async fn a_kpi_draft_meets_the_indicator_model_of_its_space() {
+    let rig = rig().await;
+    let string = json!({ "type": "string", "x-ngsi-ld-kind": "Property" });
+    let model = |derived_from: Value| {
+        Arc::new(ModelSchema::compile(
+            "city-kpi",
+            "1.0.0",
+            &json!({ "definitions": {
+                "Any": { "additionalProperties": true, "type": ["null", "boolean", "object", "number", "string"] },
+                "KeyPerformanceIndicator": {
+                    "additionalProperties": false,
+                    "properties": {
+                        "id": { "type": "string" },
+                        "name": string, "calculationFormula": string, "computedBy": string,
+                        "currentValue": { "$ref": "#/definitions/Any", "anyOf": [{ "type": "number" }, { "type": "string" }], "x-ngsi-ld-kind": "Property" },
+                        "calculationPeriod": { "type": "object", "x-ngsi-ld-kind": "Property" },
+                        "updatedAt": { "type": "string", "format": "date-time", "x-ngsi-ld-kind": "Property" },
+                        "derivedFrom": derived_from
+                    },
+                    "required": ["id", "name", "currentValue", "calculationPeriod", "calculationFormula", "derivedFrom", "computedBy", "updatedAt"]
+                }
+            }}),
+            &["KeyPerformanceIndicator".to_owned()],
+            false,
+        ))
+    };
+    let held = |derived_from: Value| {
+        rig.state.model_schemas.replace(HashMap::from([(
+            ("city".to_owned(), "city-kpi".to_owned()),
+            model(derived_from),
+        )]));
+    };
+    let mut body = draft("sum(parking.occupied) / count(stops)", "stops");
+    let manifest = &mut body["pipeline"];
+    manifest["spec"]["outputs"][0]["type"] = json!("KeyPerformanceIndicator");
+    held(
+        json!({ "items": { "type": "string" }, "minItems": 1, "type": ["string", "array"], "x-ngsi-ld-kind": "Property" }),
+    );
+    let green = records_verdict(&rig.state, "city", manifest).expect("a verdict");
+    assert!(green.ok && green.checked == 1, "{green:?}");
+    held(string.clone());
+    let red = records_verdict(&rig.state, "city", manifest).expect("a verdict");
+    assert!(
+        !red.ok,
+        "a model taking one string still refuses the list: {red:?}"
+    );
+}
+
 /// Any other Pipeline keeps its test on a sample.
 #[tokio::test]
 async fn a_pipeline_without_a_kpi_step_gets_no_record_check_here() {
