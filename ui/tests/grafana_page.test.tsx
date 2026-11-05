@@ -6,6 +6,14 @@ import type { ReactNode } from "react";
 import { GrafanaPage, SavedVisualization, VisualizationForm, VisualizationPreview, notReachable } from "../src/pages/grafana/GrafanaPage";
 import i18n from "../src/i18n";
 
+vi.mock("@tanstack/react-router", () => ({
+  Link: ({ to, params, children, ...rest }: { to: string; params?: Record<string, string>; children: ReactNode }) => (
+    <a href={to.replace(/\$(\w+)/g, (_, key: string) => params?.[key] ?? "")} {...rest}>
+      {children}
+    </a>
+  ),
+}));
+
 const options = {
   endpoints: [
     { name: "air", title: "Air quality", slug: "airslug", public: true, usable: true },
@@ -45,7 +53,7 @@ beforeEach(() => {
           pm25: { type: "Property", value: 4.2, unitCode: "GQ", observedAt: "2026-11-05T09:30:00Z" },
         }],
       } : undefined;
-      const answer = rows ?? answers[key] ?? (key.endsWith("/grafana/options") ? { body: options } : undefined);
+      const answer = answers[key] ?? rows ?? (key.endsWith("/grafana/options") ? { body: options } : undefined);
       if (!answer) return new Response("{}", { status: 404 });
       if (answer.status === 204) return new Response(null, { status: 204 });
       return new Response(JSON.stringify(answer.body), {
@@ -85,13 +93,35 @@ async function fill() {
   return user;
 }
 
+async function saveFilled() {
+  const user = await fill();
+  await user.selectOptions(screen.getByLabelText("Attribute"), "pm25");
+  await user.type(screen.getByLabelText("Name"), "x");
+  await user.click(screen.getByRole("button", { name: /save to grafana/i }));
+  return user;
+}
+
 describe("the Grafana page", () => {
+  it("tells a person outside the project that they may not open it", async () => {
+    answers["GET /api/v1/projects/helsinki/grafana"] = {
+      status: 403,
+      body: { status: 403, title: "Forbidden", detail: "you are not a member of helsinki" },
+    };
+    renderInClient(<GrafanaPage project="helsinki" />);
+    expect(await screen.findByRole("heading", { level: 1, name: "Grafana" })).toBeInTheDocument();
+    expect(await screen.findByText("You may not open Grafana in this project")).toBeInTheDocument();
+    expect(screen.getByText(/You are not a member of helsinki\./)).toHaveTextContent("A project owner or an organization administrator");
+    expect(screen.queryByLabelText("Endpoint")).toBeNull();
+    expect(screen.getByRole("link", { name: "Go to your projects" })).toHaveAttribute("href", "/");
+  });
+
   it("says why when Grafana is not ready and offers no form", async () => {
     answers["GET /api/v1/projects/helsinki/grafana"] = {
       body: { ready: false, reason: "Grafana is not set up", mayCreate: true, items: [] },
     };
     renderInClient(<GrafanaPage project="helsinki" />);
-    expect(await screen.findByText("Grafana is not set up")).toBeInTheDocument();
+    expect(await screen.findByText("Grafana is not set up.")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Back to the project" })).toHaveAttribute("href", "/projects/helsinki/home");
     expect(screen.queryByRole("button", { name: /save to grafana/i })).toBeNull();
   });
 
@@ -103,6 +133,18 @@ describe("the Grafana page", () => {
     expect(await screen.findByRole("link", { name: "Open PM2.5 in Grafana" })).toHaveAttribute("href", item.openUrl);
     expect(screen.queryByLabelText("Endpoint")).toBeNull();
     expect(screen.queryByRole("button", { name: "Remove PM2.5" })).toBeNull();
+  });
+
+  it("turns the empty list's invitation into who can help once a save is refused for the role", async () => {
+    answers["POST /api/v1/projects/helsinki/grafana"] = {
+      status: 403,
+      body: { status: 403, title: "Forbidden", detail: "you may not propose dashboards in helsinki" },
+    };
+    renderInClient(<GrafanaPage project="helsinki" />);
+    expect(await screen.findByText("Fill in the form and save your first visualization.")).toBeInTheDocument();
+    await saveFilled();
+    expect(await screen.findByText(/Nothing can be saved with your role yet/)).toBeInTheDocument();
+    expect(screen.queryByText("Fill in the form and save your first visualization.")).toBeNull();
   });
 
   it("tells what to do next on an empty list", async () => {
@@ -127,6 +169,66 @@ describe("the form", () => {
     const read = sent.find((call) => call.url.startsWith("/api/endpoint/airslug/"))?.url;
     expect(read).toContain("attrs=name%2Cpm25");
     expect(read).not.toContain("keyValues");
+    expect(screen.queryByText(/The preview could not read these rows/)).toBeNull();
+  });
+
+  it("warns beside Save when the preview may not read the rows, and still lets the person save", async () => {
+    answers["GET /api/endpoint/airslug/ngsi-ld/v1/entities"] = {
+      status: 403,
+      body: { status: 403, title: "Forbidden", detail: "not yours" },
+    };
+    renderInClient(<VisualizationForm project="helsinki" />);
+    const user = await fill();
+    await user.selectOptions(screen.getByLabelText("Attribute"), "pm25");
+    await user.type(screen.getByLabelText("Name"), "x");
+    expect(await screen.findByText("The preview could not read these rows; the dashboard may be empty for you.")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /save to grafana/i })).not.toHaveAttribute("aria-disabled", "true");
+    expect(sent.filter((call) => call.url.startsWith("/api/endpoint/airslug/"))).toHaveLength(1);
+  });
+
+  it("adds a refused Endpoint to the line of Endpoints Grafana cannot read yet", async () => {
+    answers["POST /api/v1/projects/helsinki/grafana"] = {
+      status: 422,
+      body: {
+        status: 422,
+        title: "Unprocessable",
+        detail: "Grafana cannot read the private Endpoint Air quality yet",
+        errors: [{ path: "endpoint", message: "Grafana cannot read the private Endpoint Air quality yet; ask your operator to add it to this project's Grafana, or choose another" }],
+      },
+    };
+    renderInClient(<VisualizationForm project="helsinki" />);
+    await saveFilled();
+    expect(await screen.findByText(/Grafana cannot read the private Endpoint Air quality yet; .*choose another\./)).toBeInTheDocument();
+    expect(screen.getByText(/Not in Grafana yet: Bike operations, Air quality/)).toBeInTheDocument();
+    expect(await screen.findByText(/Grafana cannot read this Endpoint yet, so it would draw none of them/)).toBeInTheDocument();
+    const button = screen.getByRole("button", { name: /save to grafana/i });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    await userEvent.type(screen.getByLabelText("Name"), "y");
+    expect(button).not.toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("says beside a disabled Save what is missing", async () => {
+    renderInClient(<VisualizationForm project="helsinki" />);
+    await fill();
+    expect(screen.getByRole("button", { name: /save to grafana/i })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getAllByText("Next, choose an attribute.").some((node) => !node.classList.contains("sr-only"))).toBe(true);
+    await userEvent.selectOptions(screen.getByLabelText("Attribute"), "pm25");
+    expect(screen.getAllByText("Last, give it a name.").some((node) => !node.classList.contains("sr-only"))).toBe(true);
+  });
+
+  it("says beside Save that a failed preview read is no refusal, and the preview's retry clears it", async () => {
+    answers["GET /api/endpoint/airslug/ngsi-ld/v1/entities"] = {
+      status: 503,
+      body: { status: 503, title: "Unavailable", detail: "the broker is busy" },
+    };
+    renderInClient(<VisualizationForm project="helsinki" />);
+    const user = await fill();
+    await user.selectOptions(screen.getByLabelText("Attribute"), "pm25");
+    await user.type(screen.getByLabelText("Name"), "x");
+    expect(await screen.findByText("The preview could not be read just now; the dashboard itself may still draw.")).toBeInTheDocument();
+    delete answers["GET /api/endpoint/airslug/ngsi-ld/v1/entities"];
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(screen.queryByText(/could not be read just now/)).toBeNull());
   });
 
   it("keeps the kind to what the attribute can draw", async () => {
@@ -147,6 +249,11 @@ describe("the form", () => {
     await user.type(screen.getByLabelText("Name"), "PM2.5");
     await user.click(screen.getByRole("button", { name: /save to grafana/i }));
     expect(await screen.findByRole("link", { name: "Open it" })).toHaveAttribute("href", item.openUrl);
+    expect(screen.getByLabelText("Name")).toHaveValue("PM2.5");
+    expect(screen.getByRole("button", { name: /save to grafana/i })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getAllByText("Saved. Change any choice to save another.").length).toBeGreaterThan(0);
+    await user.type(screen.getByLabelText("Name"), " daily");
+    expect(screen.getByRole("button", { name: /save to grafana/i })).not.toHaveAttribute("aria-disabled", "true");
     expect(sent.find((call) => call.method === "POST")?.body).toEqual({
       title: "PM2.5",
       endpoint: "air",
@@ -156,21 +263,74 @@ describe("the form", () => {
     });
   });
 
-  it("shows the server's refusal beside the form", async () => {
+  it("marks the field the server refused and keeps what was typed", async () => {
     answers["POST /api/v1/projects/helsinki/grafana"] = {
       status: 422,
-      body: { status: 422, title: "Unprocessable", detail: "a stat cannot draw name; choose another kind" },
+      body: { status: 422, title: "Unprocessable", detail: "a field is refused", errors: [{ path: "kind", message: "a stat cannot draw name; choose another kind" }] },
     };
     renderInClient(<VisualizationForm project="helsinki" />);
-    const user = await fill();
-    await user.selectOptions(screen.getByLabelText("Attribute"), "pm25");
-    await user.type(screen.getByLabelText("Name"), "x");
-    await user.click(screen.getByRole("button", { name: /save to grafana/i }));
-    expect(await screen.findByRole("alert")).toHaveTextContent("choose another kind");
+    const user = await saveFilled();
+    expect((await screen.findAllByRole("alert")).some((node) => node.textContent?.includes("Not saved: check the marked field"))).toBe(true);
+    expect(screen.getByLabelText("Visualization")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Visualization")).toHaveAccessibleDescription(/Time series cannot draw PM2\.5\. Choose another visualization/);
+    expect(screen.queryByText(/timeseries/)).toBeNull();
+    expect(screen.queryByText("a field is refused")).toBeNull();
+    expect(screen.getByLabelText("Name")).toHaveValue("x");
+    await user.type(screen.getByLabelText("Name"), "y");
+    await waitFor(() => expect(screen.queryAllByRole("alert")).toEqual([]));
+    expect(screen.getByLabelText("Visualization")).not.toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("words an attribute refusal with the names the form shows", async () => {
+    answers["POST /api/v1/projects/helsinki/grafana"] = {
+      status: 422,
+      body: { status: 422, title: "Unprocessable", detail: "a field is refused", errors: [{ path: "attribute", message: "AirQualityObserved has no attribute pm25; choose one from the list" }] },
+    };
+    renderInClient(<VisualizationForm project="helsinki" />);
+    await saveFilled();
+    expect(await screen.findByText("Nothing was saved; your other choices are kept.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Attribute")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Attribute")).toHaveAccessibleDescription(/Air quality observed no longer has PM2\.5\. Choose another attribute/);
+    expect(screen.queryByText(/AirQualityObserved|pm25/)).toBeNull();
+    expect(await screen.findByText("Rows written before the model dropped PM2.5. Grafana would not draw them.")).toBeInTheDocument();
+  });
+
+  it("says who can help when the person may not save", async () => {
+    answers["POST /api/v1/projects/helsinki/grafana"] = {
+      status: 403,
+      body: { status: 403, title: "Forbidden", detail: "you may not propose dashboards in helsinki" },
+    };
+    renderInClient(<VisualizationForm project="helsinki" />);
+    await saveFilled();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Not saved: you may not do this");
+    expect(alert).toHaveTextContent("You may not propose dashboards in helsinki. Each visualization is a Grafana dashboard");
+    expect(alert).toHaveTextContent("ask a project owner for a role");
+    expect(screen.getByRole("button", { name: /save to grafana/i })).toHaveAttribute("aria-disabled", "true");
+    expect(screen.queryByText("Change the refused choice first.")).toBeNull();
+  });
+
+  it("gives the reason of a failed save and keeps the form", async () => {
+    answers["POST /api/v1/projects/helsinki/grafana"] = {
+      status: 503,
+      body: { status: 503, title: "Unavailable", detail: "the saved visualizations could not be read or written" },
+    };
+    renderInClient(<VisualizationForm project="helsinki" />);
+    await saveFilled();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Not saved");
+    expect(alert).toHaveTextContent("could not be read or written");
+    expect(screen.getByRole("button", { name: /save to grafana/i })).not.toHaveAttribute("aria-disabled", "true");
   });
 });
 
 describe("the preview", () => {
+  it("waits with a skeleton that says what it reads", async () => {
+    vi.mocked(fetch).mockReturnValueOnce(new Promise<Response>(() => undefined));
+    renderInClient(<VisualizationPreview slug="w" type="T" attribute="x" />);
+    expect(await screen.findByRole("status")).toHaveTextContent("Reading the first rows…");
+  });
+
   it("says so when a person may not read the rows or there are none", async () => {
     const refused = new Response(JSON.stringify({ status: 403, title: "Forbidden", detail: "not yours" }), {
       status: 403,
@@ -178,11 +338,26 @@ describe("the preview", () => {
     });
     vi.mocked(fetch).mockResolvedValueOnce(refused);
     const first = renderInClient(<VisualizationPreview slug="a" type="T" attribute="x" />);
-    expect(await screen.findByText("not yours")).toBeInTheDocument();
+    expect(await screen.findByText("You may not read these rows")).toBeInTheDocument();
+    expect(screen.getByText(/Grafana would draw nothing for you either/)).toBeInTheDocument();
     first.unmount();
     vi.mocked(fetch).mockResolvedValueOnce(new Response("[]", { status: 200 }));
     renderInClient(<VisualizationPreview slug="b" type="T" attribute="x" />);
     expect(await screen.findByText(/holds no rows/)).toBeInTheDocument();
+  });
+
+  it("gives the reason of a failed read and asks again on a press", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: 503, title: "Unavailable", detail: "the broker is busy" }), {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    renderInClient(<VisualizationPreview slug="e" type="AirQualityObserved" attribute="pm25" />);
+    expect(await screen.findByText("The preview could not be read")).toBeInTheDocument();
+    expect(screen.getByText("the broker is busy")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Kallio")).toBeInTheDocument();
   });
 
   it("names a row in the reader's language, else in the one it has", async () => {

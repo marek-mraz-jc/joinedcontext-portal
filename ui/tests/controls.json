@@ -1408,7 +1408,7 @@
     },
     "src/pages/grafana/GrafanaPage.tsx": {
       "controls": {
-        "Button": 4
+        "Button": 5
       },
       "tests": [
         "grafana_page.test.tsx"

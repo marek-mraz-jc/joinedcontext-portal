@@ -13,8 +13,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import i18n from "../src/i18n";
 import en from "../src/locales/en.json";
 import { ApiError } from "../src/api/client";
-import { AppTemplates } from "../src/pages/apps/AppTemplates";
 import { fieldErrors } from "../src/pages/apps/UseTemplate";
+import { AppTemplates } from "../src/pages/apps/AppTemplates";
 import { InRouter } from "./pageHarness";
 
 const MAP = {

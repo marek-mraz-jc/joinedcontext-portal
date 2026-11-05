@@ -1,8 +1,9 @@
 import { useState } from "react";
-import type { JSX } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { JSX, ReactNode } from "react";
+import { useMutation, useMutationState, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { api, reasonOf, unwrap } from "../../api/client";
+import { Link } from "@tanstack/react-router";
+import { api, ApiError, fieldErrors, reasonOf, unwrap } from "../../api/client";
 import type { components } from "../../api/schema";
 import {
   Alert,
@@ -13,7 +14,7 @@ import {
   CardHeader,
   EmptyState,
   Field,
-  InlineError,
+  Icon,
   Input,
   PageFailed,
   PageHeader,
@@ -33,6 +34,7 @@ type Options = components["schemas"]["GrafanaOptions"];
 const KINDS: readonly Kind[] = ["timeseries", "stat", "table", "map"];
 
 const pageKey = (project: string) => ["projects", project, "grafana"];
+const saveKey = (project: string) => ["grafana-save", project];
 
 function useOptions(project: string, endpoint: string, type: string) {
   return useQuery({
@@ -99,7 +101,7 @@ export function SavedVisualization({
         ) : null}
         {mayRemove && !asking ? (
           <Button
-            variant="ghost"
+            variant="secondary"
             size="sm"
             aria-label={t("grafana.saved.remove", { title: item.title })}
             onClick={() => setAsking(true)}
@@ -168,14 +170,68 @@ export function VisualizationPreview({
   slug,
   type,
   attribute,
+  refusedAs,
 }: {
   slug: string;
   type: string;
   attribute: string;
+  /**
+   * The field the save refused: the Endpoint (Grafana cannot read it yet) or the attribute (the
+   * model no longer has it). The rows stay readable for the person; the line says Grafana would not draw them.
+   */
+  refusedAs?: "endpoint" | "attribute";
 }): JSX.Element {
   const { t, i18n } = useTranslation();
-  const when = new Intl.DateTimeFormat(i18n.language, { dateStyle: "short", timeStyle: "short" });
-  const rows = useQuery({
+  const when = new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeStyle: "short" });
+  const rows = usePreviewRows(slug, type, attribute);
+  return (
+    <Card>
+      <CardHeader
+        as="h2"
+        title={t("grafana.form.previewEmptyTitle")}
+        description={rows.isSuccess && rows.data.length > 0 ? refusedAs === "endpoint"
+                ? t("grafana.form.previewNotInGrafana")
+                : refusedAs === "attribute"
+                  ? t("grafana.form.previewOldAttribute", { attribute: columnLabel(undefined, attribute, i18n.language) })
+                  : t("grafana.form.preview") : undefined}
+        className="mb-2"
+      />
+      {rows.isPending ? <PreviewLoading label={t("grafana.form.previewLoading")} /> : null}
+      {rows.isError ? <PreviewFailed error={rows.error} onRetry={() => void rows.refetch()} /> : null}
+      {rows.isSuccess && rows.data.length === 0 ? (
+        <p className="text-body text-fg-muted">{t("grafana.form.previewNoRows")}</p>
+      ) : null}
+      {rows.isSuccess && rows.data.length > 0 ? (
+        <dl className={refusedAs ? "opacity-60" : undefined}>
+          {rows.data.map((row) => {
+            const value = valueText(row[attribute]);
+            return (
+              <div key={row.id} className="flex items-baseline justify-between gap-3 border-b border-border py-1.5 last:border-b-0">
+                <dt className="min-w-0 break-words text-body text-fg-muted">{rowName(row, i18n.language)}</dt>
+                <dd className="flex shrink-0 flex-wrap items-baseline justify-end gap-x-2 text-right">
+                  <span className="text-body font-medium text-fg">{value.text}</span>
+                  {value.at ? (
+                    <time className="text-caption text-fg-muted" dateTime={value.at}>
+                      {when.format(new Date(value.at))}
+                    </time>
+                  ) : null}
+                </dd>
+              </div>
+            );
+          })}
+        </dl>
+      ) : null}
+    </Card>
+  );
+}
+
+/**
+ * The preview's read: the first rows through the Endpoint with the person's own session. The form
+ * asks the same query (one request, one cache entry) to warn beside Save when the read fails.
+ */
+export function usePreviewRows(slug: string, type: string, attribute: string, enabled = true) {
+  return useQuery({
+    enabled,
     queryKey: ["grafana-preview", slug, type, attribute],
     queryFn: async (): Promise<PreviewRow[]> => {
       const query = new URLSearchParams({ type, attrs: `name,${attribute}`, limit: "5" });
@@ -190,35 +246,81 @@ export function VisualizationPreview({
       return (await response.json()) as PreviewRow[];
     },
   });
+}
+
+/**
+ * The line beside Save: what is still missing while Save is off, or, when the preview's read
+ * failed, that the dashboard may be empty for this person (the preview card holds the retry). After a refusal or a save it says Save waits for a change.
+ */
+export function BesideSave({
+  missing,
+  refused,
+  saved,
+  preview,
+}: {
+  /** The first field still empty, top to bottom. */
+  missing?: "endpoint" | "type" | "attribute" | "name";
+  /** A field refusal: Save waits for a change. A role refusal says nothing here; its alert and the empty list do. */
+  refused: boolean;
+  /** Just saved: Save waits for a change, so a second click makes no twin. */
+  saved: boolean;
+  preview: { isError: boolean; error: unknown; refetch: () => unknown };
+}): JSX.Element | null {
+  const { t } = useTranslation();
+  const line = "text-body text-fg-muted";
+  if (missing) return <p className={line}>{t(`grafana.form.missing.${missing}`)}</p>;
+  if (refused) return <p className={line}>{t("grafana.form.saveRefused")}</p>;
+  if (saved) return <p className={line}>{t("grafana.form.savedChangeFirst")}</p>;
+  if (!preview.isError) return null;
+  const denied = preview.error instanceof ApiError && (preview.error.status === 403 || preview.error.status === 404);
   return (
-    <Card>
-      <CardHeader as="h2" title={t("grafana.form.preview")} className="mb-2" />
-      {rows.isPending ? <Skeleton className="h-24" /> : null}
-      {rows.isError ? <InlineError>{reasonOf(rows.error, t("grafana.form.previewFailed"))}</InlineError> : null}
-      {rows.isSuccess && rows.data.length === 0 ? (
-        <p className="text-body text-fg-muted">{t("grafana.form.previewNoRows")}</p>
-      ) : null}
-      {rows.isSuccess && rows.data.length > 0 ? (
-        <dl>
-          {rows.data.map((row) => {
-            const value = valueText(row[attribute]);
-            return (
-              <div key={row.id} className="flex justify-between gap-3 border-b border-border py-1.5 last:border-b-0">
-                <dt className="min-w-0 break-words text-body text-fg-muted">{rowName(row, i18n.language)}</dt>
-                <dd className="shrink-0 text-right">
-                  <span className="block text-body font-medium text-fg">{value.text}</span>
-                  {value.at ? (
-                    <time className="block text-caption text-fg-muted" dateTime={value.at}>
-                      {when.format(new Date(value.at))}
-                    </time>
-                  ) : null}
-                </dd>
-              </div>
-            );
-          })}
-        </dl>
-      ) : null}
-    </Card>
+    <p className="flex items-center gap-x-2 text-body text-fg">
+      <Icon name="warning" className="size-4 shrink-0 text-warning" />
+      <span className="min-w-0">{t(denied ? "grafana.form.previewNote" : "grafana.form.previewFailedNote")}</span>
+    </p>
+  );
+}
+
+/** The preview's wait: one bar pair per row it will show, announced once in words. */
+export function PreviewLoading({ label }: { label: string }): JSX.Element {
+  return (
+    <div role="status" aria-busy="true">
+      <p className="text-caption text-fg-muted">{label}</p>
+      {[0, 1, 2, 3, 4].map((row) => (
+        <div key={row} aria-hidden="true" className="flex justify-between gap-3 border-b border-border py-2.5 last:border-b-0">
+          <Skeleton className="h-4 w-full max-w-48" />
+          <Skeleton className="h-4 w-20" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Why the preview shows no rows: a refusal of the person's own read says Grafana would draw
+ * nothing for them either; any other failure gives the reason and a way to ask again.
+ */
+export function PreviewFailed({ error, onRetry }: { error: unknown; onRetry: () => void }): JSX.Element {
+  const { t } = useTranslation();
+  if (error instanceof ApiError && (error.status === 403 || error.status === 404)) {
+    return (
+      <Alert tone="warning" title={t("grafana.form.previewForbiddenTitle")}>
+        {t("grafana.form.previewForbidden")}
+      </Alert>
+    );
+  }
+  return (
+    <Alert
+      tone="danger"
+      title={t("grafana.form.previewFailedTitle")}
+      actions={
+        <Button variant="secondary" size="sm" onClick={onRetry}>
+          {t("grafana.form.retry")}
+        </Button>
+      }
+    >
+      {reasonOf(error, t("grafana.form.previewFailed"))}
+    </Alert>
   );
 }
 
@@ -277,11 +379,12 @@ function useChoices(project: string) {
  * again on the save, and a refusal names its field here. The preview reads through the Endpoint
  * with the person's own session, so it shows what they would see in Grafana.
  */
-export function VisualizationForm({ project }: { project: string }): JSX.Element {
+export function VisualizationForm({ project, aside }: { project: string; aside?: ReactNode }): JSX.Element {
   const { t, i18n } = useTranslation();
   const queryClient = useQueryClient();
   const form = useChoices(project);
   const save = useMutation({
+    mutationKey: saveKey(project),
     mutationFn: async () =>
       unwrap(
         await api.POST("/api/v1/projects/{project}/grafana", {
@@ -295,6 +398,8 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
           },
         }),
       ),
+    // A second click would save a twin: Save stays off after a save until the next edit, which
+    // resets the save (the form's onChange).
     onSuccess: () => queryClient.invalidateQueries({ queryKey: pageKey(project) }),
   });
   const endpoints = form.options.data?.endpoints ?? [];
@@ -302,7 +407,19 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
   const closed = endpoints.filter((endpoint) => !endpoint.usable);
   const chosen = usable.find((endpoint) => endpoint.name === form.endpoint);
   const attributes = form.options.data?.attributes ?? [];
-  const ready = Boolean(form.title.trim() && chosen && form.type && form.attribute);
+  const missing = !chosen ? "endpoint" : !form.type ? "type" : !form.attribute ? "attribute" : !form.title.trim() ? "name" : undefined;
+  const ready = missing === undefined;
+  const preview = usePreviewRows(chosen?.slug ?? "", form.type, form.attribute, Boolean(chosen && form.type && form.attribute));
+  // A refused Endpoint joins the "not in Grafana yet" line, so the line and the refusal agree.
+  // A field refusal holds Save until the next edit (the form resets the save on any change).
+  // A role refusal (403) holds it too: the same save would fail again.
+  const roleRefused = save.error instanceof ApiError && save.error.status === 403;
+  const refused = roleRefused || (save.error instanceof ApiError && (save.error.problem?.errors ?? []).length > 0);
+  const endpointRefused = refusalsOf(save.error, "endpoint").length > 0;
+  const notInGrafana =
+    chosen && endpointRefused && !closed.some((endpoint) => endpoint.name === chosen.name)
+      ? [...closed, chosen]
+      : closed;
   if (form.options.isError) {
     return <PageFailed error={form.options.error} />;
   }
@@ -317,32 +434,31 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
   }
   const safe = safeHref(save.data?.openUrl);
   return (
-    <div className="grid items-start gap-card lg:grid-cols-2 [&>*]:min-w-0">
-      <Card>
+    <div className="grid items-start gap-section lg:grid-cols-5 [&>*]:min-w-0">
+      <Card className="lg:col-span-3">
         <CardHeader as="h2" title={t("grafana.form.title")} className="mb-3" />
         <form
-          className="flex flex-col gap-3"
+          className="grid gap-x-4 gap-y-3 sm:grid-cols-2"
+          onChange={save.reset}
           onSubmit={(event) => {
             event.preventDefault();
             if (ready) save.mutate();
           }}
         >
-          <Field id="grafana-endpoint" label={t("grafana.form.endpoint")} help={t("grafana.form.endpointHelp")}>
-            <Select id="grafana-endpoint" value={form.endpoint} onChange={(event) => form.chooseEndpoint(event.target.value)}>
-              <option value="">{t("grafana.form.choose")}</option>
-              {usable.map((endpoint) => (
-                <option key={endpoint.name} value={endpoint.name}>
-                  {endpoint.title}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          {closed.length > 0 ? (
-            <p className="text-caption text-fg-muted">
-              {notReachable(closed, t)}
-            </p>
-          ) : null}
-          <Field id="grafana-type" label={t("grafana.form.type")} help={t("grafana.form.typeHelp")}>
+          <div className="flex flex-col gap-1.5 sm:col-span-2">
+            <Field id="grafana-endpoint" label={t("grafana.form.endpoint")} help={t("grafana.form.endpointHelp")} errors={refusalsOf(save.error, "endpoint")}>
+              <Select id="grafana-endpoint" value={form.endpoint} onChange={(event) => form.chooseEndpoint(event.target.value)}>
+                <option value="">{t("grafana.form.choose")}</option>
+                {usable.map((endpoint) => (
+                  <option key={endpoint.name} value={endpoint.name}>
+                    {endpoint.title}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            {notInGrafana.length > 0 ? <p className="text-caption text-fg-muted">{notReachable(notInGrafana, t)}</p> : null}
+          </div>
+          <Field id="grafana-type" label={t("grafana.form.type")} help={t("grafana.form.typeHelp")} errors={refusalsOf(save.error, "type")}>
             <Select
               id="grafana-type"
               value={form.type}
@@ -358,7 +474,11 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
               ))}
             </Select>
           </Field>
-          <Field id="grafana-attribute" label={t("grafana.form.attribute")} help={t("grafana.form.attributeHelp")}>
+          <Field id="grafana-attribute" label={t("grafana.form.attribute")} help={t("grafana.form.attributeHelp")} errors={
+              refusalsOf(save.error, "attribute").length > 0
+                ? [t("grafana.form.attributeRefused", { type: columnLabel(undefined, form.type, i18n.language), attribute: columnLabel(undefined, form.attribute, i18n.language) })]
+                : []
+            }>
             <Select
               id="grafana-attribute"
               value={form.attribute}
@@ -374,7 +494,11 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
               ))}
             </Select>
           </Field>
-          <Field id="grafana-kind" label={t("grafana.form.kind")} help={t("grafana.form.kindHelp")}>
+          <Field id="grafana-kind" label={t("grafana.form.kind")} help={t("grafana.form.kindHelp")} errors={
+              refusalsOf(save.error, "kind").length > 0
+                ? [t("grafana.form.kindRefused", { kind: t(`grafana.kind.${form.kind}`), attribute: columnLabel(undefined, form.attribute, i18n.language) })]
+                : []
+            }>
             <Select id="grafana-kind" value={form.kind} onChange={(event) => form.setKind(event.target.value as Kind)}>
               {kindsFor(form.options.data, form.attribute).map((kind) => (
                 <option key={kind} value={kind}>
@@ -383,22 +507,37 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
               ))}
             </Select>
           </Field>
-          <Field id="grafana-title" label={t("grafana.form.name")} help={t("grafana.form.nameHelp")}>
+          <Field id="grafana-title" label={t("grafana.form.name")} help={t("grafana.form.nameHelp")} errors={refusalsOf(save.error, "title")}>
             <Input id="grafana-title" value={form.title} maxLength={120} onChange={(event) => form.setTitle(event.target.value)} />
           </Field>
-          <div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 sm:col-span-2">
             <Button
               variant="primary"
               type="submit"
-              disabled={!ready || save.isPending}
-              disabledReason={ready ? t("grafana.form.saving") : t("grafana.form.incomplete")}
+              disabled={!ready || save.isPending || refused || save.isSuccess}
+              disabledReason={
+                missing
+                  ? t(`grafana.form.missing.${missing}`)
+                  : roleRefused
+                    ? t("grafana.form.saveForbiddenTitle")
+                    : refused
+                    ? t("grafana.form.saveRefused")
+                    : save.isSuccess
+                      ? t("grafana.form.savedChangeFirst")
+                      : t("grafana.form.saving")
+              }
             >
               {t("grafana.form.save")}
             </Button>
+            <BesideSave missing={missing} refused={refused && !roleRefused} saved={save.isSuccess} preview={preview} />
           </div>
-          {save.isError ? <Alert tone="danger">{reasonOf(save.error)}</Alert> : null}
+          {save.isError ? (
+            <div className="sm:col-span-2">
+              <SaveFailed error={save.error} />
+            </div>
+          ) : null}
           {save.isSuccess ? (
-            <Alert tone="success">
+            <Alert tone="success" className="sm:col-span-2">
               {t("grafana.form.saved", { title: save.data.title })}{" "}
               {safe ? (
                 <a className="underline" href={safe} target="_blank" rel="noopener noreferrer">
@@ -409,19 +548,62 @@ export function VisualizationForm({ project }: { project: string }): JSX.Element
           ) : null}
         </form>
       </Card>
-      {chosen && form.type && form.attribute ? (
-        <VisualizationPreview slug={chosen.slug} type={form.type} attribute={form.attribute} />
-      ) : (
-        <Card>
-          <EmptyState
-            bare
-            icon="dashboards"
-            title={t("grafana.form.previewEmptyTitle")}
-            description={t("grafana.form.previewEmpty")}
+      <div className="flex flex-col gap-section lg:col-span-2">
+        {chosen && form.type && form.attribute ? (
+          <VisualizationPreview
+            slug={chosen.slug}
+            type={form.type}
+            attribute={form.attribute}
+            refusedAs={endpointRefused ? "endpoint" : refusalsOf(save.error, "attribute").length > 0 ? "attribute" : undefined}
           />
-        </Card>
-      )}
+        ) : (
+          <Card>
+            <CardHeader as="h2" title={t("grafana.form.previewEmptyTitle")} className="mb-1" />
+            <EmptyState bare icon="dashboards" title={t("grafana.form.previewEmptyHeading")} description={t("grafana.form.previewEmpty")} />
+          </Card>
+        )}
+        {aside}
+      </div>
     </div>
+  );
+}
+
+/** A server clause ("a stat cannot draw name; …") as a sentence: capital first, a full stop last. */
+export function sentence(line: string): string {
+  const text = line.trim();
+  return text === "" ? "" : `${text.charAt(0).toUpperCase()}${text.slice(1)}${/[.!?]$/.test(text) ? "" : "."}`;
+}
+
+/** The server's refusals of one field, each as a sentence. */
+export function refusalsOf(error: unknown, field: string): string[] {
+  return fieldErrors(error, field).map(sentence);
+}
+
+/**
+ * Why a save did not land, worded by who can fix it: a role the person lacks (403), a field the
+ * server refused (422, the field itself carries the words), or a failure to try again later.
+ */
+export function SaveFailed({ error }: { error: unknown }): JSX.Element {
+  const { t } = useTranslation();
+  const status = error instanceof ApiError ? error.status : 0;
+  if (status === 403) {
+    return (
+      <Alert tone="danger" title={t("grafana.form.saveForbiddenTitle")}>
+        {sentence(reasonOf(error))} {t("grafana.form.saveForbidden")}
+      </Alert>
+    );
+  }
+  if (error instanceof ApiError && (error.problem?.errors ?? []).length > 0) {
+    return (
+      <Alert tone="danger" title={t("grafana.form.saveFieldsTitle")}>
+        {t("grafana.form.saveFieldsBody")}
+      </Alert>
+    );
+  }
+  return (
+    <Alert tone="danger" title={t("grafana.form.saveFailedTitle")}>
+      {sentence(reasonOf(error, t("grafana.form.saveFailed")))}
+    </Alert>
   );
 }
 
@@ -433,6 +615,11 @@ export function GrafanaPage({ project }: { project: string }): JSX.Element {
     queryFn: async () =>
       unwrap(await api.GET("/api/v1/projects/{project}/grafana", { params: { path: { project } } })),
   });
+  // A save refused for the role (403) turns the empty list's "save your first" into who can help.
+  const roleRefused = useMutationState({
+    filters: { mutationKey: saveKey(project), status: "error" },
+    select: (mutation) => mutation.state.error instanceof ApiError && mutation.state.error.status === 403,
+  }).includes(true);
   const header = <PageHeader title={t("grafana.title")} description={t("grafana.lead")} />;
   if (page.isPending) {
     return <PageLoading label={t("grafana.title")} />;
@@ -441,46 +628,68 @@ export function GrafanaPage({ project }: { project: string }): JSX.Element {
     return (
       <div className="flex flex-col gap-section">
         {header}
-        <PageFailed error={page.error} />
+        {page.error instanceof ApiError && page.error.status === 403 ? (
+          <EmptyState
+            icon="lock"
+            className="mx-auto w-full max-w-2xl"
+            title={t("grafana.forbiddenTitle")}
+            description={`${sentence(reasonOf(page.error))} ${t("app.error.forbiddenHint")}`}
+            action={
+              <Link to="/" className={buttonClass("secondary", "sm")}>
+                {t("grafana.toProjects")}
+              </Link>
+            }
+          />
+        ) : (
+          <PageFailed error={page.error} onRetry={() => void page.refetch()} />
+        )}
       </div>
     );
   }
   const { ready, reason, mayCreate, items } = page.data;
+  const saved = (
+    <Card>
+      <CardHeader as="h2" title={t("grafana.saved.title")} className="mb-1" />
+      {items.length === 0 ? (
+        <EmptyState
+          bare
+          icon="dashboards"
+          title={t("grafana.saved.emptyTitle")}
+          description={t(!mayCreate ? "grafana.saved.emptyReader" : roleRefused ? "grafana.saved.emptyNoRole" : "grafana.saved.empty")}
+        />
+      ) : (
+        <ul>
+          {items.map((item) => (
+            <SavedVisualization key={item.id} project={project} item={item} mayRemove={mayCreate} />
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
   return (
     <div className="flex flex-col gap-section">
       {header}
       {ready ? null : (
         <EmptyState
           icon="dashboards"
+          className="mx-auto w-full max-w-2xl"
           title={t("grafana.notReadyTitle")}
-          description={reason ?? t("grafana.notReady")}
+          description={reason ? sentence(reason) : t("grafana.notReady")}
+          action={
+            <Link to="/projects/$project/home" params={{ project }} className={buttonClass("secondary", "sm")}>
+              {t("grafana.toProject")}
+            </Link>
+          }
         />
       )}
-      {ready && mayCreate ? <VisualizationForm project={project} /> : null}
+      {ready && mayCreate ? <VisualizationForm project={project} aside={saved} /> : null}
       {ready && !mayCreate ? (
-        <Card>
-          <CardHeader as="h2" title={t("grafana.readOnlyTitle")} className="mb-1" />
-          <p className="text-body text-fg-muted">{t("grafana.readOnly")}</p>
-        </Card>
-      ) : null}
-      {ready ? (
-        <Card>
-          <CardHeader as="h2" title={t("grafana.saved.title")} className="mb-1" />
-          {items.length === 0 ? (
-            <EmptyState
-              bare
-              icon="dashboards"
-              title={t("grafana.saved.emptyTitle")}
-              description={t(mayCreate ? "grafana.saved.empty" : "grafana.saved.emptyReader")}
-            />
-          ) : (
-            <ul>
-              {items.map((item) => (
-                <SavedVisualization key={item.id} project={project} item={item} mayRemove={mayCreate} />
-              ))}
-            </ul>
-          )}
-        </Card>
+        <>
+          <Alert tone="info" title={t("grafana.readOnlyTitle")}>
+            {t("grafana.readOnly")}
+          </Alert>
+          {saved}
+        </>
       ) : null}
     </div>
   );
