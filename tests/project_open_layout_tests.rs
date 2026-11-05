@@ -72,28 +72,7 @@ async fn received(server: &MockServer, verb: &str, route: &str) -> Vec<Value> {
 
 /// The files the organization's Change wrote, path and decoded content.
 async fn organization_files(server: &MockServer) -> Vec<(String, String)> {
-    server
-        .received_requests()
-        .await
-        .expect("requests")
-        .into_iter()
-        .filter(|r| {
-            r.method.as_str() == "PUT" && r.url.path().starts_with(&format!("{REPO}/contents/"))
-        })
-        .map(|r| {
-            let body: Value = serde_json::from_slice(&r.body).unwrap_or_default();
-            let content = body["content"].as_str().unwrap_or_default();
-            let bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, content)
-                .unwrap_or_default();
-            (
-                r.url
-                    .path()
-                    .trim_start_matches(&format!("{REPO}/contents/"))
-                    .to_owned(),
-                String::from_utf8(bytes).unwrap_or_default(),
-            )
-        })
-        .collect()
+    common::committed_files(server, REPO).await
 }
 
 async fn open(state: &AppState) -> (StatusCode, String) {

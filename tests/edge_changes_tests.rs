@@ -441,21 +441,22 @@ async fn a_change_is_not_readable_through_another_projects_path() {
 // T-1998 `approve_change` and T-1999 `reject_change`
 // -------------------------------------------------------------------------------------------------
 
-/// PF-50: approving and rejecting need `approve` on the change's kind in the project. A reader, a
-/// person no binding covers, and the change's own author without the verb are each refused — and the
-/// forge is asked for nothing: no merge, no close, no review.
+/// PF-50: approving and rejecting need `approve` on the change's kind in the project. A reader and a
+/// person no binding covers are each refused both, and the change's own author without the verb is
+/// refused the approval — and the forge is asked for nothing: no merge, no close, no review. The
+/// author's own reject is a withdrawal (T-6535), covered in tests/changes_tests.rs.
 #[tokio::test]
 async fn an_approval_nobody_may_press_asks_the_forge_for_nothing() {
     let (forge, state) = world().await;
     let approve = format!("/api/v1/projects/{PROJECT}/changes/chg-00000001/approve");
     let reject = format!("/api/v1/projects/{PROJECT}/changes/chg-00000001/reject");
 
-    for who in [
-        "peter.reader@banskabystrica.sk",
-        "nobody@banskabystrica.sk",
-        AUTHOR,
+    for (who, uris) in [
+        ("peter.reader@banskabystrica.sk", vec![&approve, &reject]),
+        ("nobody@banskabystrica.sk", vec![&approve, &reject]),
+        (AUTHOR, vec![&approve]),
     ] {
-        for uri in [&approve, &reject] {
+        for uri in uris {
             let (status, body) = call(&state, who, Method::POST, uri, Some(json!({}))).await;
             assert!(
                 status == StatusCode::FORBIDDEN || status == StatusCode::NOT_FOUND,

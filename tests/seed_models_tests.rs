@@ -42,17 +42,15 @@ fn models() -> Vec<(String, Value, Vec<Value>)> {
     found
 }
 
-/// The KPI model's JSON Schema states `calculationPeriod`, `currentValue` and `updatedAt` as plain
-/// strings, while an indicator carries a `{start, end}` window, a number and an NGSI-LD DateTime
-/// (jc-core `kpi`): a divergence of the model, recorded in chyby.md on 2026-10-07. Listed here
-/// exactly, so the day the model is fixed this list must shrink with it.
-const KNOWN: [(&str, &str); 6] = [
+/// The KPI model's JSON Schema states `calculationPeriod` and `currentValue` as plain strings, while
+/// an indicator carries a `{start, end}` window and a number (jc-core `kpi`; `updatedAt` passes since
+/// the typed DateTime literal of T-6593): a divergence of the model, recorded in chyby.md on
+/// 2026-10-07. Listed here exactly, so the day the model is fixed this list must shrink with it.
+const KNOWN: [(&str, &str); 4] = [
     ("helsinki-kpi.v1", "calculationPeriod"),
     ("helsinki-kpi.v1", "currentValue"),
-    ("helsinki-kpi.v1", "updatedAt"),
     ("key-performance-indicator.v1", "calculationPeriod"),
     ("key-performance-indicator.v1", "currentValue"),
-    ("key-performance-indicator.v1", "updatedAt"),
 ];
 
 /// A conforming entity from Model Tools' example: it writes each slot's name as the example value,

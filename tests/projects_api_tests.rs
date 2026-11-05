@@ -258,38 +258,21 @@ async fn open(state: &AppState, who: Identity, body: Value) -> (StatusCode, Stri
     (status, String::from_utf8_lossy(&bytes).into_owned())
 }
 
-/// The files the merge request carries, by path.
+/// The files the merge request carries, by path: one `POST /contents` commit (T-6462).
 async fn written(gitea: &MockServer) -> Vec<String> {
-    gitea
-        .received_requests()
+    common::committed_files(gitea, common::REPO)
         .await
-        .unwrap_or_default()
-        .iter()
-        .filter(|r| r.method.as_str() == "PUT" && r.url.path().contains("/contents/"))
-        .filter_map(|r| {
-            r.url
-                .path()
-                .split_once("/contents/")
-                .map(|(_, path)| path.to_owned())
-        })
+        .into_iter()
+        .map(|(path, _)| path)
         .collect()
 }
 
 /// The body of each file the merge request wrote, decoded.
 async fn bodies(gitea: &MockServer) -> Vec<String> {
-    gitea
-        .received_requests()
+    common::committed_files(gitea, common::REPO)
         .await
-        .unwrap_or_default()
-        .iter()
-        .filter(|r| r.method.as_str() == "PUT" && r.url.path().contains("/contents/"))
-        .filter_map(|r| {
-            let body: Value = serde_json::from_slice(&r.body).ok()?;
-            let content = body.get("content")?.as_str()?;
-            let bytes =
-                base64::Engine::decode(&base64::engine::general_purpose::STANDARD, content).ok()?;
-            String::from_utf8(bytes).ok()
-        })
+        .into_iter()
+        .map(|(_, body)| body)
         .collect()
 }
 
