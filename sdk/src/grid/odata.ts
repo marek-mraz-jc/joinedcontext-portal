@@ -492,7 +492,9 @@ export function odataSource(url: string, entitySet: string, transport: Transport
   const mayWrite = async (op: "update" | "delete", id: string): Promise<void> => {
     const decision = await allowed(op, id);
     if (!decision.allowed) {
-      throw new SourceError(403, decision.reason ?? (op === "update" ? "you may not change this row" : "you may not remove this row"));
+      // The module's reason, and what the person does next: nothing was sent, the change is theirs to drop.
+      const why = decision.reason ? `: ${decision.reason}` : "";
+      throw new SourceError(403, op === "update" ? `You may not change this row${why}. Discard the change.` : `You may not remove this row${why}.`);
     }
   };
   const ifMatch = (id: string) => etags.get(id) ?? setEtag;

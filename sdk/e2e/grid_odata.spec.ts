@@ -164,7 +164,7 @@ async function refusedEdit(page: Page, asked: string[], set: string, key: string
   const review = page.getByRole("region", { name: "Review the changes" }).first();
   await review.getByRole("textbox").last().fill("Typo in the name");
   await review.getByRole("button", { name: /apply/i }).click();
-  await expect(review.getByText(`${key}: ${reason}`)).toBeVisible();
+  await expect(review.getByText(`${key}: You may not change this row: ${reason}. Discard the change.`)).toBeVisible();
   expect(asked).toContain(`GET /odata/${set}/$allowed?op=update&key=${key}`);
   expect(asked.some((a) => a.startsWith("PATCH"))).toBe(false);
 }
