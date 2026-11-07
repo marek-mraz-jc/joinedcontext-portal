@@ -546,6 +546,15 @@ routes:
   - route: GET /projects/{project}/endpoints/{name}/usage
     rule: "project-read, then read of the Endpoint in its space"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/odata/
+    rule: "project-verb:read:Endpoint; the OData service document"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/odata/$metadata
+    rule: "project-verb:read:Endpoint; the OData CSDL model, no data"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/odata/Endpoints
+    rule: "project-verb:read:Endpoint; the OData query over the Endpoints the caller may read; the read check runs before $filter (T-6632)"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
   - route: GET /projects/{project}/usage/endpoints
     rule: "project-read; lists the Endpoints the caller may read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

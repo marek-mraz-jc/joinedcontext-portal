@@ -497,3 +497,122 @@ async fn the_endpoints_of_every_project_are_for_an_administrator_of_the_organiza
     let (status, _) = get(&state, None, "/api/v1/endpoints").await;
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
+
+// -------------------------------------------------------------------------------------------------
+// T-6632 OData over the project's Endpoints
+// -------------------------------------------------------------------------------------------------
+
+/// T-6632: the OData entity set answers the rows the plain list answers, and the read check runs
+/// before `$filter`: a reader bound to one context space finds no other space's Endpoint by
+/// filtering or counting for it. Nobody signed in is 401, a project without an Endpoint grant 404.
+#[tokio::test]
+async fn odata_reads_only_the_endpoints_the_list_reads_whatever_the_filter_asks() {
+    let state = world();
+    for space in ["air", "water"] {
+        state
+            .mirror
+            .upsert(envelope("ContextSpace", space, PROJECT, json!({})));
+    }
+    for (name, space) in [
+        ("air-counters", "air"),
+        ("air-sensors", "air"),
+        ("water-gauges", "water"),
+    ] {
+        state.mirror.upsert(envelope(
+            "Endpoint",
+            name,
+            PROJECT,
+            json!({ "contextSpaceRef": { "kind": "ContextSpace", "name": space },
+                    "slug": "si6epqkx364lprho5uaigutk274r5grb", "audience": "public" }),
+        ));
+    }
+    state.mirror.upsert(org(
+        "Role",
+        "endpoint-reader",
+        json!({ "rules": [{ "kinds": ["Endpoint"], "verbs": ["read"] }] }),
+    ));
+    state.mirror.upsert(org(
+        "RoleBinding",
+        "air-readers",
+        json!({ "subjects": [{ "user": "ari.air@hel.fi" }], "role": "endpoint-reader",
+                "scope": { "contextSpace": "air" } }),
+    ));
+    let ari = Some("ari.air@hel.fi");
+    let odata = |query: &str| format!("/api/v1/projects/{PROJECT}/odata/Endpoints{query}");
+    let names = |body: &Value, member: &str, key: &str| -> Vec<String> {
+        let mut names: Vec<String> = body[member]
+            .as_array()
+            .map(|items| {
+                items
+                    .iter()
+                    .filter_map(|i| i.pointer(key).and_then(Value::as_str).map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default();
+        names.sort();
+        names
+    };
+
+    let (status, list) = get(
+        &state,
+        ari,
+        &format!("/api/v1/projects/{PROJECT}/endpoints"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{list}");
+    let (status, all) = get(&state, ari, &odata("?$count=true")).await;
+    assert_eq!(status, StatusCode::OK, "{all}");
+    assert_eq!(
+        names(&all, "value", "/id"),
+        names(&list, "items", "/metadata/name")
+    );
+    assert_eq!(names(&all, "value", "/id"), ["air-counters", "air-sensors"]);
+    assert_eq!(all["@odata.count"], json!(2));
+
+    let (status, water) = get(
+        &state,
+        ari,
+        &odata("?$filter=contextSpace%20eq%20'water'&$count=true"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{water}");
+    assert_eq!(water["value"], json!([]), "{water}");
+    assert_eq!(water["@odata.count"], json!(0), "{water}");
+    assert!(!water.to_string().contains("water-gauges"), "{water}");
+
+    let (status, one) = get(
+        &state,
+        ari,
+        &odata("?$filter=startswith(id,'air-s')&$select=id"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{one}");
+    assert_eq!(one["value"], json!([{ "id": "air-sensors" }]));
+
+    let (status, bad) = get(&state, ari, &odata("?$filter=owner%20eq%20'x'")).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{bad}");
+    assert!(
+        bad["error"]["message"].as_str().is_some(),
+        "an OData error body: {bad}"
+    );
+
+    let (status, _) = get(&state, None, &odata("")).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, refused) = get(&state, Some(SPACE_READER), &odata("")).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{refused}");
+    let (status, elsewhere) = get(
+        &state,
+        ari,
+        &format!("/api/v1/projects/{ELSEWHERE}/odata/Endpoints"),
+    )
+    .await;
+    // A space grant names no project: the other project answers nothing of its own Endpoints.
+    assert!(
+        status == StatusCode::NOT_FOUND || names(&elsewhere, "value", "/id").is_empty(),
+        "{status} {elsewhere}"
+    );
+
+    let (status, service) = get(&state, ari, &format!("/api/v1/projects/{PROJECT}/odata/")).await;
+    assert_eq!(status, StatusCode::OK, "{service}");
+    assert_eq!(service["value"][0]["url"], json!("Endpoints"));
+}
