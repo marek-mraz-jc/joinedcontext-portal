@@ -5,7 +5,7 @@
 //!
 //! The URL is parsed by the default broker's `odata-url` crate against the CSDL model below
 //! (`odata-csdl`), the same library Antares serves its OData surface with: a name the model does
-//! not hold is refused by the parser, so only the allow-listed properties of [`PROPERTIES`] reach
+//! not hold is refused by the parser, so only the allow-listed properties of `PROPERTIES` reach
 //! a predicate. The rows are the store's manifests, not a SQL table, so the query runs over them
 //! in memory, after the read check: an Endpoint the caller may not read is never filtered,
 //! counted or paged (API/13 section 2).
@@ -311,30 +311,31 @@ fn eval(e: &Expr, row: &Row, aliases: &Aliases) -> Result<Val, Refusal> {
                 .ok_or_else(|| bad(format!("an Endpoint has no property {name}"))),
             _ => Err(not_implemented(&format!("the path {path}"))),
         },
-        Expr::Compare(a, op, b) => Ok(Val::Bool(compare(
-            &eval(a, row, aliases)?,
-            *op,
-            &eval(b, row, aliases)?,
-        )?)),
+        Expr::Call(method, args) => call(*method, args, row, aliases),
+        Expr::Arith(..) | Expr::Neg(_) => Err(not_implemented("arithmetic")),
+        Expr::Any { .. } | Expr::All { .. } => Err(not_implemented("any and all")),
+        logical => logic(logical, row, aliases).map(Val::Bool),
+    }
+}
+
+/// The comparison and boolean operators.
+fn logic(e: &Expr, row: &Row, aliases: &Aliases) -> Result<bool, Refusal> {
+    let holds = |x: &Expr| truth(&eval(x, row, aliases)?);
+    match e {
+        Expr::Compare(a, op, b) => compare(&eval(a, row, aliases)?, *op, &eval(b, row, aliases)?),
         Expr::In(a, list) => {
             let a = eval(a, row, aliases)?;
             for l in list {
                 if compare(&a, CompareOp::Eq, &literal(l)?)? {
-                    return Ok(Val::Bool(true));
+                    return Ok(true);
                 }
             }
-            Ok(Val::Bool(false))
+            Ok(false)
         }
-        Expr::And(a, b) => Ok(Val::Bool(
-            truth(&eval(a, row, aliases)?)? && truth(&eval(b, row, aliases)?)?,
-        )),
-        Expr::Or(a, b) => Ok(Val::Bool(
-            truth(&eval(a, row, aliases)?)? || truth(&eval(b, row, aliases)?)?,
-        )),
-        Expr::Not(a) => Ok(Val::Bool(!truth(&eval(a, row, aliases)?)?)),
-        Expr::Call(method, args) => call(*method, args, row, aliases),
-        Expr::Arith(..) | Expr::Neg(_) => Err(not_implemented("arithmetic")),
-        Expr::Any { .. } | Expr::All { .. } => Err(not_implemented("any and all")),
+        Expr::And(a, b) => Ok(holds(a)? && holds(b)?),
+        Expr::Or(a, b) => Ok(holds(a)? || holds(b)?),
+        Expr::Not(a) => Ok(!holds(a)?),
+        other => Err(not_implemented(&format!("the expression {other}"))),
     }
 }
 
@@ -421,9 +422,9 @@ fn sort(rows: Vec<Row>, orderby: &[OrderBy], aliases: &Aliases) -> Result<Vec<Ro
     Ok(keyed.into_iter().map(|(_, row)| row).collect())
 }
 
-/// The answer to `Endpoints?{query}` over `rows`, the rows the caller may read; `root` is the
-/// service root URL, ending in `/`.
-fn answer(rows: Vec<Row>, query: &str, root: &str) -> Result<Value, Refusal> {
+/// `Endpoints?{query}` parsed against the model, every option outside the pilot and a `$top`
+/// over [`MAX_TOP`] refused.
+fn parse_query(query: &str) -> Result<QueryOptions, Refusal> {
     let uri = if query.is_empty() {
         ENTITY_SET.to_owned()
     } else {
@@ -447,15 +448,17 @@ fn answer(rows: Vec<Row>, query: &str, root: &str) -> Result<Value, Refusal> {
         return Err(not_implemented("a path below the entity set"));
     }
     refuse_unserved(&options)?;
+    match options.top {
+        Some(top) if top > MAX_TOP => Err(bad(format!(
+            "$top is at most {MAX_TOP}, and this asks {top}"
+        ))),
+        _ => Ok(options),
+    }
+}
+
+/// The rows `$filter` keeps, in `$orderby` order.
+fn kept(rows: Vec<Row>, options: &QueryOptions) -> Result<Vec<Row>, Refusal> {
     let aliases = options.aliases.as_slice();
-    let top = match options.top {
-        Some(top) if top > MAX_TOP => {
-            return Err(bad(format!(
-                "$top is at most {MAX_TOP}, and this asks {top}"
-            )))
-        }
-        top => top,
-    };
     let mut kept = Vec::new();
     for row in rows {
         let keep = match &options.filter {
@@ -466,7 +469,15 @@ fn answer(rows: Vec<Row>, query: &str, root: &str) -> Result<Value, Refusal> {
             kept.push(row);
         }
     }
-    let kept = sort(kept, options.orderby.as_deref().unwrap_or(&[]), aliases)?;
+    sort(kept, options.orderby.as_deref().unwrap_or(&[]), aliases)
+}
+
+/// The answer to `Endpoints?{query}` over `rows`, the rows the caller may read; `root` is the
+/// service root URL, ending in `/`.
+fn answer(rows: Vec<Row>, query: &str, root: &str) -> Result<Value, Refusal> {
+    let options = parse_query(query)?;
+    let kept = kept(rows, &options)?;
+    let top = options.top;
     let total = kept.len();
     let skip = usize::try_from(options.skip.unwrap_or(0)).unwrap_or(usize::MAX);
     let page = usize::try_from(top.unwrap_or(MAX_TOP)).unwrap_or(usize::MAX);
@@ -502,7 +513,7 @@ fn answer(rows: Vec<Row>, query: &str, root: &str) -> Result<Value, Refusal> {
         let mut next = options.clone();
         next.skip = Some(options.skip.unwrap_or(0).saturating_add(MAX_TOP));
         let next = ODataUri::Resource {
-            path,
+            path: vec![Segment::EntitySet(ENTITY_SET.into())],
             options: next,
         };
         body.insert(
