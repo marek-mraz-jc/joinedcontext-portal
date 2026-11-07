@@ -1457,6 +1457,13 @@
     }
   },
   "endpoints": {
+    "grid": {
+      "empty": "No endpoint matches these filters. Clear a filter, or add an endpoint.",
+      "filterExampleText": "air",
+      "filterExampleId": "air-quality",
+      "editAsTextHint": "Write the filter as text, e.g. audience==\"public\"",
+      "proposed": "Proposed: the change waits for approval under Changes"
+    },
     "surfaceFit": {
       "lead": "The data model of space {space} cannot serve these standards, so their boxes are greyed out:",
       "openModel": "Open the data model {model}",

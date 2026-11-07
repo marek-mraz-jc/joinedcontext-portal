@@ -86,6 +86,8 @@ export interface EntityGridProps extends UseEntityGridOptions {
   detailPlace?: { tab?: string | null; attr?: string | null };
   onDetailPlace?: (place: { tab: string; attr: string }) => void;
   toolbar?: React.ReactNode;
+  /** The grid's name for a screen reader, e.g. "Endpoints": a page with one list names it as its heading does. */
+  ariaLabel?: string;
   /** The bounds the "Draw area" action asks about; the host owns the map's viewport. */
   mapBounds?: () => [number, number, number, number] | null;
   empty?: React.ReactNode;

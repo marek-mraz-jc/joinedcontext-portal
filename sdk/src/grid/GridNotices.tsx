@@ -72,7 +72,7 @@ export function GridStatus({ view }: { view: GridView }): React.JSX.Element {
       )}
 
       {error && (
-        <div className="jc-grid-error">
+        <div className="jc-grid-error" role="alert">
           {labels.error}: {error}
           {grid.errorDetail && (
             <details className="jc-grid-error-detail">

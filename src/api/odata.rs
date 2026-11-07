@@ -13,20 +13,26 @@
 use std::cmp::Ordering;
 use std::sync::LazyLock;
 
-use axum::extract::{Path, RawQuery, State};
-use axum::http::{header, HeaderValue, StatusCode};
+use axum::body::Bytes;
+use axum::extract::{Path, Query, RawQuery, State};
+use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
 use odata_csdl::{
-    CsdlVersion, EntityContainer, EntitySet, EntityType, Model, Property, Schema, TypeRef,
+    Annotation, CsdlVersion, EntityContainer, EntitySet, EntityType, Expr as CsdlExpr, Include,
+    Model, Property, Reference, Schema, TypeRef,
 };
 use odata_url::{
     CompareOp, EdmModel, Expr, Format, Literal, Method, ODataUri, OrderBy, QueryOptions, Segment,
     SelectItem, UrlErrorKind,
 };
+use serde::Deserialize;
 use serde_json::{json, Map, Value};
+use utoipa::IntoParams;
 
+use crate::api::dry_run::DryRunQuery;
+use crate::auth::session::Front;
 use crate::auth::CurrentUser;
 use crate::error::{ApiError, ProblemDetails};
 use crate::resource::ResourceEnvelope;
@@ -43,15 +49,39 @@ pub const MAX_TOP: u64 = 1000;
 
 /// The properties of an Endpoint row, in order: name, EDM type, nullable. The allow-list: the
 /// parser refuses any other name in `$filter`, `$select` and `$orderby`.
-const PROPERTIES: [(&str, &str, bool); 7] = [
+///
+/// A row is one of three (T-6645, the rows of the Endpoints page, T-6169): `own`, an Endpoint of
+/// this project, keyed by its name; `shared`, an Endpoint another project shares with this one
+/// (EP-14), keyed `{source}/{name}`; `gone`, this project's SharedSpaceReference whose Endpoint no
+/// longer shows (EP-15), keyed `reference:{name}`. A manifest name holds neither `/` nor `:`, so
+/// the three key spaces never meet.
+const PROPERTIES: [(&str, &str, bool); 14] = [
     ("id", "Edm.String", false),
+    ("name", "Edm.String", false),
     ("title", "Edm.String", true),
     ("description", "Edm.String", true),
     ("contextSpace", "Edm.String", true),
     ("slug", "Edm.String", true),
     ("audience", "Edm.String", true),
     ("mcp", "Edm.Boolean", false),
+    ("source", "Edm.String", true),
+    ("kind", "Edm.String", false),
+    ("reference", "Edm.String", true),
+    ("phase", "Edm.String", true),
+    ("representations", "Edm.String", true),
+    ("calls7d", "Edm.Int64", true),
 ];
+
+/// The properties a `PATCH` may change, each with the manifest field it writes: what the
+/// Endpoints grid edits in place, as its ManifestGrid did (T-6169). The rest is the form's.
+const EDITABLE: [(&str, &str); 3] = [
+    ("contextSpace", "contextSpaceRef"),
+    ("audience", "audience"),
+    ("mcp", "mcp"),
+];
+
+/// The functions `$filter` serves, as `Capabilities.FilterFunctions` names them.
+const FILTER_FUNCTIONS: [&str; 5] = ["contains", "startswith", "endswith", "tolower", "toupper"];
 
 /// The service's CSDL model: one entity type, one entity set.
 static MODEL: LazyLock<Model> = LazyLock::new(|| {
@@ -69,13 +99,31 @@ static MODEL: LazyLock<Model> = LazyLock::new(|| {
         })
         .collect();
     let mut container = EntityContainer::new("Container");
-    container.entity_sets = vec![EntitySet::new(ENTITY_SET, format!("{NAMESPACE}.{KIND}"))];
+    let mut set = EntitySet::new(ENTITY_SET, format!("{NAMESPACE}.{KIND}"));
+    // The functions `$filter` serves, so a client knows a case-blind search can ask tolower
+    // (the SDK grid's search box, T-6645).
+    set.annotations = vec![Annotation::new(
+        "Capabilities.FilterFunctions",
+        CsdlExpr::Collection(
+            FILTER_FUNCTIONS
+                .iter()
+                .map(|f| CsdlExpr::String((*f).to_owned()))
+                .collect(),
+        ),
+    )];
+    container.entity_sets = vec![set];
     let mut schema = Schema::new(NAMESPACE);
     schema.entity_types = vec![endpoint];
     schema.entity_container = Some(container);
     Model {
         version: CsdlVersion::V4_0,
-        references: vec![],
+        references: vec![Reference {
+            uri: "https://oasis-tcs.github.io/odata-vocabularies/vocabularies/Org.OData.Capabilities.V1.xml".into(),
+            includes: vec![Include {
+                namespace: "Org.OData.Capabilities.V1".into(),
+                alias: Some("Capabilities".into()),
+            }],
+        }],
         schemas: vec![schema],
     }
 });
@@ -145,33 +193,110 @@ impl Val {
 #[derive(Debug, Clone)]
 struct Row([Val; PROPERTIES.len()]);
 
+/// A row's kind, the `kind` property.
+const OWN: &str = "own";
+const SHARED: &str = "shared";
+const GONE: &str = "gone";
+
+fn text(t: Option<&jc_core::Text>) -> Val {
+    t.map_or(Val::Null, |t| Val::Str(t.resolve(&[], "en").to_owned()))
+}
+
+fn spec_str(env: &ResourceEnvelope, key: &str) -> Val {
+    env.spec
+        .get(key)
+        .and_then(Value::as_str)
+        .map_or(Val::Null, |s| Val::Str(s.to_owned()))
+}
+
+fn opt(value: Option<&str>) -> Val {
+    value.map_or(Val::Null, |s| Val::Str(s.to_owned()))
+}
+
 impl Row {
-    fn of(env: &ResourceEnvelope) -> Self {
-        let text = |t: &Option<jc_core::Text>| {
-            t.as_ref()
-                .map_or(Val::Null, |t| Val::Str(t.resolve(&[], "en").to_owned()))
+    /// An Endpoint row: `source` the project publishing it, `kind` own or shared, `reference`
+    /// this project's reference to it, `calls` its calls in the last 7 days where counted.
+    fn endpoint(
+        env: &ResourceEnvelope,
+        source: &str,
+        kind: &'static str,
+        reference: Option<&str>,
+        calls: Option<u64>,
+    ) -> Self {
+        let name = env.metadata.name.clone();
+        let id = if kind == OWN {
+            name.clone()
+        } else {
+            format!("{source}/{name}")
         };
-        let spec_str = |key: &str| {
-            env.spec
-                .get(key)
-                .and_then(Value::as_str)
-                .map_or(Val::Null, |s| Val::Str(s.to_owned()))
-        };
+        let representations = env
+            .spec
+            .get("enabledRepresentations")
+            .and_then(Value::as_array)
+            .map(|reps| {
+                reps.iter()
+                    .filter_map(Value::as_str)
+                    .collect::<Vec<_>>()
+                    .join(",")
+            });
+        let phase = env
+            .status
+            .as_ref()
+            .and_then(|status| serde_json::to_value(&status.phase).ok())
+            .and_then(|phase| phase.as_str().map(str::to_owned));
         Row([
-            Val::Str(env.metadata.name.clone()),
-            text(&env.metadata.title),
-            text(&env.metadata.description),
+            Val::Str(id),
+            Val::Str(name),
+            text(env.metadata.title.as_ref()),
+            text(env.metadata.description.as_ref()),
             crate::permissions::spec_space(&env.spec).map_or(Val::Null, Val::Str),
-            spec_str("slug"),
-            spec_str("audience"),
+            spec_str(env, "slug"),
+            spec_str(env, "audience"),
             // Every Endpoint serves MCP unless it says `mcp: false` (EP-24).
             Val::Bool(env.spec.get("mcp").and_then(Value::as_bool) != Some(false)),
+            Val::Str(source.to_owned()),
+            Val::Str(kind.to_owned()),
+            opt(reference),
+            opt(phase.as_deref()),
+            opt(representations.as_deref()),
+            calls.map_or(Val::Null, |n| {
+                Val::Int(i64::try_from(n).unwrap_or(i64::MAX))
+            }),
+        ])
+    }
+
+    /// A reference of this project whose Endpoint no longer shows (EP-15): a row still, because
+    /// a grant nobody lists is a grant nobody can remove (T-0706).
+    fn gone(reference: &ResourceEnvelope) -> Self {
+        let name = reference.metadata.name.clone();
+        Row([
+            Val::Str(format!("reference:{name}")),
+            Val::Str(name.clone()),
+            opt(reference.spec.get("alias").and_then(Value::as_str)),
+            Val::Null,
+            Val::Null,
+            spec_str(reference, "endpointSlug"),
+            Val::Null,
+            Val::Bool(false),
+            Val::Null,
+            Val::Str(GONE.to_owned()),
+            Val::Str(name),
+            Val::Null,
+            Val::Null,
+            Val::Null,
         ])
     }
 
     fn get(&self, name: &str) -> Option<&Val> {
         let at = PROPERTIES.iter().position(|(n, _, _)| *n == name)?;
         self.0.get(at)
+    }
+
+    fn str(&self, name: &str) -> Option<&str> {
+        match self.get(name) {
+            Some(Val::Str(s)) => Some(s),
+            _ => None,
+        }
     }
 }
 
@@ -208,7 +333,7 @@ fn literal(l: &Literal) -> Result<Val, Refusal> {
         Literal::Int(i) => Ok(Val::Int(*i)),
         Literal::String(s) => Ok(Val::Str(s.clone())),
         _ => Err(bad(format!(
-            "the literal {l} fits no property of an Endpoint: they are texts and true/false values"
+            "the literal {l} fits no property of an Endpoint: they are texts, whole numbers and true/false values"
         ))),
     }
 }
@@ -486,16 +611,7 @@ fn answer(rows: Vec<Row>, query: &str, root: &str) -> Result<Value, Refusal> {
         .iter()
         .skip(skip)
         .take(page)
-        .map(|row| {
-            let mut item = Map::new();
-            for name in &names {
-                item.insert(
-                    (*name).to_owned(),
-                    row.get(name).map_or(Value::Null, Val::json),
-                );
-            }
-            Value::Object(item)
-        })
+        .map(|row| Value::Object(row_json(row, &names)))
         .collect();
     let mut body = Map::new();
     let context = match options.select {
@@ -534,23 +650,146 @@ fn odata_headers(content_type: &'static str) -> [(header::HeaderName, HeaderValu
     ]
 }
 
-/// The rows of `project` the caller may read: the kind check, then each manifest's own (a grant
-/// bound to one context space reads that space's Endpoints alone), both before any OData option.
-fn readable(state: &AppState, user: &CurrentUser, project: &str) -> Result<Vec<Row>, ApiError> {
+/// The read check of `project`'s service: the kind check, before any OData option. A project
+/// where the caller reads no Endpoint has no service.
+fn gate(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+) -> Result<crate::permissions::Effective, ApiError> {
     let effective = crate::permissions::for_request(state, &user.0.identity, project);
     if !effective.may_read_some(KIND) {
         return Err(ApiError::NotFound(format!(
             "no OData service in project '{project}': you read no Endpoint there"
         )));
     }
-    Ok(state
+    Ok(effective)
+}
+
+/// The manifests of `kind` in `project` the caller may read: the kind check, then each manifest's
+/// own (a grant bound to one context space reads that space's Endpoints alone).
+fn readable_of(
+    state: &AppState,
+    effective: &crate::permissions::Effective,
+    project: &str,
+    kind: &str,
+) -> Vec<ResourceEnvelope> {
+    if !effective.may_read_some(kind) {
+        return Vec::new();
+    }
+    state
         .mirror
-        .list(project, KIND, &ListOptions::default())
+        .list(project, kind, &ListOptions::default())
         .items
+        .into_iter()
+        .filter(|env| effective.may_read_envelope(kind, env))
+        .collect()
+}
+
+/// Whether `project` may call an Endpoint `owner` publishes: the gateway's own rule (EP-14), as
+/// the Endpoints page reads it (ui sharing.tsx `admits`).
+fn admits(env: &ResourceEnvelope, owner: &str, project: &str) -> bool {
+    if owner == project {
+        return true;
+    }
+    match env.spec.get("audience").and_then(Value::as_str) {
+        Some("organization" | "public") => true,
+        None | Some("project-list") => env
+            .spec
+            .get("allowedProjects")
+            .and_then(Value::as_array)
+            .is_some_and(|list| list.iter().any(|p| p.as_str() == Some(project))),
+        Some(_) => false,
+    }
+}
+
+/// The reference of `references` to `source`'s Endpoint `env`: by `endpointRef` where it names
+/// one, else by slug (ui sharing.tsx `referenceTo`).
+fn reference_to<'a>(
+    references: &'a [ResourceEnvelope],
+    env: &ResourceEnvelope,
+    source: &str,
+) -> Option<&'a ResourceEnvelope> {
+    let slug = env.spec.get("slug").and_then(Value::as_str).unwrap_or("");
+    references
         .iter()
-        .filter(|env| effective.may_read_envelope(KIND, env))
-        .map(Row::of)
-        .collect())
+        .find(|reference| match reference.spec.get("endpointRef") {
+            Some(target) => {
+                target.get("project").and_then(Value::as_str) == Some(source)
+                    && target.get("name").and_then(Value::as_str)
+                        == Some(env.metadata.name.as_str())
+            }
+            None => {
+                !slug.is_empty()
+                    && reference.spec.get("endpointSlug").and_then(Value::as_str) == Some(slug)
+            }
+        })
+}
+
+/// Calls per own Endpoint in the last 7 days, as the gateways count them (T-5118); `None` when
+/// the usage database does not answer, so the rows still show and the count reads as unknown.
+async fn calls_7d(
+    state: &AppState,
+    project: &str,
+) -> Option<std::collections::HashMap<String, u64>> {
+    let (from, to) = crate::endpoint_usage::window(chrono::Utc::now().date_naive(), 7);
+    match state.endpoint_usage.read(project, from, to).await {
+        Ok(rows) => Some(
+            rows.iter()
+                .fold(std::collections::HashMap::new(), |mut totals, row| {
+                    *totals.entry(row.name.clone()).or_insert(0) += row.calls;
+                    totals
+                }),
+        ),
+        Err(e) => {
+            tracing::warn!(error = %e, project, "the OData Endpoints rows carry no calls: the usage rows were not read");
+            None
+        }
+    }
+}
+
+/// The rows of `project` the caller may read, in the page's order: own Endpoints, then those
+/// other projects share with it, then references whose Endpoint went away (T-6169). Every row
+/// passes the read check of the project it lives in before any OData option sees it.
+async fn rows(state: &AppState, user: &CurrentUser, project: &str) -> Result<Vec<Row>, ApiError> {
+    let effective = gate(state, user, project)?;
+    let identity = &user.0.identity;
+    let calls = calls_7d(state, project).await;
+    let references = readable_of(state, &effective, project, "SharedSpaceReference");
+    let mut rows: Vec<Row> = readable_of(state, &effective, project, KIND)
+        .iter()
+        .map(|env| {
+            let counted = calls
+                .as_ref()
+                .map(|calls| calls.get(&env.metadata.name).copied().unwrap_or(0));
+            Row::endpoint(env, project, OWN, None, counted)
+        })
+        .collect();
+    let mut used = std::collections::HashSet::new();
+    for source in state.mirror.namespaces() {
+        if source == project || !crate::api::projects::readable(state, identity, &source) {
+            continue;
+        }
+        let theirs = crate::permissions::for_request(state, identity, &source);
+        for env in readable_of(state, &theirs, &source, KIND) {
+            if !admits(&env, &source, project) {
+                continue;
+            }
+            let reference = reference_to(&references, &env, &source);
+            if let Some(reference) = reference {
+                used.insert(reference.metadata.name.clone());
+            }
+            let name = reference.map(|r| r.metadata.name.as_str());
+            rows.push(Row::endpoint(&env, &source, SHARED, name, None));
+        }
+    }
+    rows.extend(
+        references
+            .iter()
+            .filter(|reference| !used.contains(&reference.metadata.name))
+            .map(Row::gone),
+    );
+    Ok(rows)
 }
 
 fn service_root(state: &AppState, project: &str) -> String {
@@ -565,7 +804,7 @@ fn service_root(state: &AppState, project: &str) -> String {
     get,
     path = "/api/v1/projects/{project}/odata/Endpoints",
     summary = "Query Endpoints with OData",
-    description = "The project's Endpoints the caller may read, as the OData 4.0 entity set Endpoints: $filter (eq, ne, gt, ge, lt, le, in, and, or, not, contains, startswith, endswith, tolower, toupper), $select, $orderby, $top (at most 1000), $skip and $count over id, title, description, contextSpace, slug, audience and mcp (T-6632).",
+    description = "The project's Endpoints the caller may read, as the OData 4.0 entity set Endpoints: $filter (eq, ne, gt, ge, lt, le, in, and, or, not, contains, startswith, endswith, tolower, toupper), $select, $orderby, $top (at most 1000), $skip and $count over id, name, title, description, contextSpace, slug, audience, mcp, source, kind (own, shared or gone), reference, phase, representations and calls7d: the project's own Endpoints, those other projects share with it and its references whose Endpoint went away, each after the read check of the project it lives in (T-6632, T-6645).",
     tag = "resources",
     params(
         ("project" = String, Path, description = "Project name, e.g. helsinki"),
@@ -590,7 +829,7 @@ pub async fn query_endpoints(
     Path(project): Path<String>,
     RawQuery(query): RawQuery,
 ) -> Result<Response, ApiError> {
-    let rows = readable(&state, &user, &project)?;
+    let rows = rows(&state, &user, &project).await?;
     let root = service_root(&state, &project);
     Ok(match answer(rows, query.as_deref().unwrap_or(""), &root) {
         Ok(body) => (
@@ -600,6 +839,457 @@ pub async fn query_endpoints(
             .into_response(),
         Err(refusal) => refusal.into_response(),
     })
+}
+
+/// The key of `Endpoints('<key>')`, the quote doubling undone; `None` for any other segment.
+fn key_of(segment: &str) -> Option<String> {
+    let inner = segment
+        .strip_prefix(ENTITY_SET)?
+        .strip_prefix("('")?
+        .strip_suffix("')")?;
+    // A lone quote inside the literal ends it: `'a'b'` is no key.
+    if inner.replace("''", "").contains('\'') {
+        return None;
+    }
+    Some(inner.replace("''", "'"))
+}
+
+/// One row as JSON, with the selected properties.
+fn row_json(row: &Row, names: &[&str]) -> Map<String, Value> {
+    names
+        .iter()
+        .map(|name| {
+            (
+                (*name).to_owned(),
+                row.get(name).map_or(Value::Null, Val::json),
+            )
+        })
+        .collect()
+}
+
+/// What `$allowed` and the write doors decide about one call (T-6645), from the decision the
+/// proposal path runs, so the answer never drifts from the call: `not_found` for a key the caller
+/// does not read, which reads like a missing one.
+#[derive(Debug, PartialEq)]
+struct Decision {
+    allowed: bool,
+    reason: Option<String>,
+    not_found: bool,
+}
+
+impl Decision {
+    fn yes() -> Self {
+        Decision {
+            allowed: true,
+            reason: None,
+            not_found: false,
+        }
+    }
+
+    fn no(reason: impl Into<String>) -> Self {
+        Decision {
+            allowed: false,
+            reason: Some(reason.into()),
+            not_found: false,
+        }
+    }
+
+    fn of(check: Result<(), ApiError>) -> Self {
+        match check {
+            Ok(()) => Decision::yes(),
+            Err(ApiError::Denied(m) | ApiError::NotFound(m) | ApiError::BadRequest(m)) => {
+                Decision::no(m)
+            }
+            Err(other) => Decision::no(other.to_string()),
+        }
+    }
+
+    /// The refusal a write door answers when the decision is no.
+    fn refusal(&self) -> Refusal {
+        let reason = self.reason.clone().unwrap_or_default();
+        if self.not_found {
+            Refusal(StatusCode::NOT_FOUND, "NotFound", reason)
+        } else {
+            Refusal(StatusCode::FORBIDDEN, "Forbidden", reason)
+        }
+    }
+}
+
+/// Whether the caller may `op` the row keyed `key` of `rows` (or the set, without a key).
+fn decide(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    rows: &[Row],
+    op: &str,
+    key: Option<&str>,
+) -> Decision {
+    let row = match key {
+        None => None,
+        Some(key) => match rows.iter().find(|row| row.str("id") == Some(key)) {
+            Some(row) => Some(row),
+            None => {
+                return Decision {
+                    allowed: false,
+                    reason: Some(format!("no Endpoint '{key}' in project {project}")),
+                    not_found: true,
+                }
+            }
+        },
+    };
+    match op {
+        "read" => Decision::yes(),
+        "export" => Decision::no(
+            "Endpoints serves no $export; read the rows with $top and $skip, or use Export on the Endpoints page",
+        ),
+        "create" => Decision::no(
+            "an Endpoint is created with New endpoint on the Endpoints page, which checks the whole manifest",
+        ),
+        "update" | "delete" => {
+            let Some(row) = row else {
+                return Decision::no(format!("name the row: {op} takes a key"));
+            };
+            match (row.str("kind"), row.str("source")) {
+                (Some(OWN), _) => {}
+                (Some(SHARED), Some(source)) => {
+                    return Decision::no(format!(
+                        "project {source} publishes this Endpoint: it is changed there; Stop using in the row menu removes this project's reference"
+                    ))
+                }
+                _ => {
+                    return Decision::no(
+                        "its Endpoint is gone and only this project's reference is left: Stop using in the row menu removes it",
+                    )
+                }
+            }
+            let name = row.str("name").unwrap_or_default();
+            let Some(manifest) = state
+                .mirror
+                .get(project, KIND, name)
+                .and_then(|env| serde_json::to_value(env).ok())
+            else {
+                return Decision::no(format!("Endpoint '{name}' is no longer in project {project}; reload the list"));
+            };
+            let identity = &user.0.identity;
+            Decision::of(if op == "update" {
+                crate::groups::for_proposal(state, identity, project, KIND, true, &manifest).check(
+                    KIND,
+                    jc_core::kinds::Verb::Propose,
+                    Some(&manifest),
+                )
+            } else {
+                crate::permissions::for_request(state, identity, project).check(
+                    KIND,
+                    jc_core::kinds::Verb::Delete,
+                    Some(&manifest),
+                )
+            })
+        }
+        other => Decision::no(format!(
+            "op is one of read, export, create, update and delete, not '{other}'"
+        )),
+    }
+}
+
+/// The query of `$allowed`.
+#[derive(Debug, Deserialize, IntoParams)]
+#[serde(deny_unknown_fields)]
+pub struct AllowedQuery {
+    /// read, export, create, update or delete, e.g. update
+    pub op: String,
+    /// The row's key, e.g. air-counters, or helsinki/bikes for a shared row
+    pub key: Option<String>,
+}
+
+/// `GET /api/v1/projects/{project}/odata/Endpoints/$allowed` (T-6645).
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/odata/Endpoints/$allowed",
+    summary = "Ask Whether an Endpoints Call Is Allowed",
+    description = "Whether the caller may read, export, create, update or delete the set or one row, and why not, from the same decision the call runs: update is the propose check of the Endpoint, delete its delete check; a shared or gone row is changed elsewhere and says where (T-6645).",
+    tag = "resources",
+    params(("project" = String, Path, description = "Project name, e.g. helsinki"), AllowedQuery),
+    responses(
+        (status = 200, description = "{allowed, reason, notFound}: notFound for a key the caller does not read", body = Object),
+        (status = 400, description = "op missing or an unknown query parameter", body = ProblemDetails),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 404, description = "A project where the caller reads no Endpoint", body = ProblemDetails),
+    )
+)]
+pub async fn allowed(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path(project): Path<String>,
+    Query(query): Query<AllowedQuery>,
+) -> Result<Response, ApiError> {
+    let rows = rows(&state, &user, &project).await?;
+    let decision = decide(
+        &state,
+        &user,
+        &project,
+        &rows,
+        &query.op,
+        query.key.as_deref(),
+    );
+    let body = json!({
+        "allowed": decision.allowed,
+        "reason": decision.reason,
+        "notFound": decision.not_found,
+    });
+    Ok((odata_headers("application/json"), body.to_string()).into_response())
+}
+
+/// The row `segment` (`Endpoints('<key>')`) names among the caller's rows.
+async fn keyed(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    segment: &str,
+) -> Result<(Vec<Row>, String), Response> {
+    let rows = rows(state, user, project)
+        .await
+        .map_err(IntoResponse::into_response)?;
+    let key = key_of(segment).ok_or_else(|| {
+        bad(format!(
+            "{segment} is no entity of this service: write {ENTITY_SET}('<key>')"
+        ))
+        .into_response()
+    })?;
+    Ok((rows, key))
+}
+
+/// `GET /api/v1/projects/{project}/odata/{entity}` (T-6645).
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/odata/{entity}",
+    summary = "Read One Endpoint with OData",
+    description = "One row of the entity set Endpoints by its key, the row the caller may read or 404 (T-6645).",
+    tag = "resources",
+    params(
+        ("project" = String, Path, description = "Project name, e.g. helsinki"),
+        ("entity" = String, Path, description = "Endpoints('<key>'), e.g. Endpoints('air-counters')"),
+    ),
+    responses(
+        (status = 200, description = "The row with @odata.context", body = Object),
+        (status = 400, description = "Not an Endpoints('<key>') segment, as an OData error"),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 404, description = "No such row the caller may read, as an OData error"),
+    )
+)]
+pub async fn read_endpoint(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, entity)): Path<(String, String)>,
+) -> Response {
+    let (rows, key) = match keyed(&state, &user, &project, &entity).await {
+        Ok(found) => found,
+        Err(answer) => return answer,
+    };
+    let Some(row) = rows.iter().find(|row| row.str("id") == Some(key.as_str())) else {
+        return Refusal(
+            StatusCode::NOT_FOUND,
+            "NotFound",
+            format!("no Endpoint '{key}' in project {project}"),
+        )
+        .into_response();
+    };
+    let mut body = row_json(row, &PROPERTIES.map(|(n, _, _)| n));
+    body.insert(
+        "@odata.context".into(),
+        Value::String(format!(
+            "{}$metadata#{ENTITY_SET}/$entity",
+            service_root(&state, &project)
+        )),
+    );
+    (
+        odata_headers("application/json;odata.metadata=minimal"),
+        Value::Object(body).to_string(),
+    )
+        .into_response()
+}
+
+/// The merge patch of an OData `PATCH` body: only [`EDITABLE`] properties, each of its type.
+fn spec_patch(body: &[u8]) -> Result<Value, Refusal> {
+    let Ok(Value::Object(fields)) = serde_json::from_slice::<Value>(body) else {
+        return Err(bad("the body is a JSON object of the properties to change, e.g. {\"audience\": \"public\"}"));
+    };
+    let mut spec = Map::new();
+    for (name, value) in fields {
+        if name.starts_with('@') {
+            continue;
+        }
+        let Some((_, field)) = EDITABLE.iter().find(|(n, _)| *n == name) else {
+            return Err(bad(format!(
+                "{name} is not changed here: the row changes {}; edit the rest in the Endpoint's form",
+                EDITABLE.map(|(n, _)| n).join(", ")
+            )));
+        };
+        let fits = if name == "mcp" {
+            value.is_boolean()
+        } else {
+            value.as_str().is_some_and(|s| !s.is_empty())
+        };
+        if !fits {
+            let wanted = if name == "mcp" {
+                "true or false"
+            } else {
+                "a non-empty text"
+            };
+            return Err(bad(format!("{name} takes {wanted}")));
+        }
+        spec.insert((*field).to_owned(), value);
+    }
+    if spec.is_empty() {
+        return Err(bad(
+            "the body changes nothing: name at least one property, e.g. {\"mcp\": false}",
+        ));
+    }
+    Ok(json!({ "spec": spec }))
+}
+
+/// `PATCH /api/v1/projects/{project}/odata/{entity}` (T-6645).
+#[utoipa::path(
+    patch,
+    path = "/api/v1/projects/{project}/odata/{entity}",
+    summary = "Change One Endpoint with OData",
+    description = "Proposes a change of contextSpace, audience or mcp of one of the project's own Endpoints: the same checked proposal the Endpoints page sends (a dry run that records the verdict, then the proposal), so the change waits for approval like any other. A shared or gone row is refused 403 with where it is changed (T-6645).",
+    tag = "resources",
+    params(
+        ("project" = String, Path, description = "Project name, e.g. helsinki"),
+        ("entity" = String, Path, description = "Endpoints('<key>'), e.g. Endpoints('air-counters')"),
+        ("If-Match" = Option<String>, Header, description = "The ETag of the manifest as read; a stale one is 412"),
+    ),
+    request_body(content = Object, description = "The properties to change, e.g. {\"audience\": \"public\", \"mcp\": false}"),
+    responses(
+        (status = 202, description = "The Change that proposes it", body = Object),
+        (status = 400, description = "A property the row does not change or a value of the wrong type, as an OData error"),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 403, description = "The caller may not propose it, or the row is not this project's, as an OData error with the reason"),
+        (status = 404, description = "No such row the caller may read, as an OData error"),
+        (status = 422, description = "The checked manifest is refused: each finding named", body = ProblemDetails),
+    )
+)]
+pub async fn change_endpoint(
+    user: CurrentUser,
+    front: Front,
+    State(state): State<AppState>,
+    Path((project, entity)): Path<(String, String)>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    let (rows, key) = match keyed(&state, &user, &project, &entity).await {
+        Ok(found) => found,
+        Err(answer) => return Ok(answer),
+    };
+    let decision = decide(&state, &user, &project, &rows, "update", Some(&key));
+    if !decision.allowed {
+        return Ok(decision.refusal().into_response());
+    }
+    let patch = match spec_patch(&body) {
+        Ok(patch) => patch,
+        Err(refusal) => return Ok(refusal.into_response()),
+    };
+    let mut forwarded = HeaderMap::new();
+    forwarded.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/merge-patch+json"),
+    );
+    if let Some(tag) = headers.get(header::IF_MATCH) {
+        forwarded.insert(header::IF_MATCH, tag.clone());
+    }
+    let bytes = Bytes::from(patch.to_string());
+    let door = |dry_run: Option<String>| {
+        crate::api::mutate::patch(
+            user.clone(),
+            front,
+            State(state.clone()),
+            Path((project.clone(), "endpoints".to_owned(), key.clone())),
+            Query(DryRunQuery {
+                dry_run,
+                ..DryRunQuery::default()
+            }),
+            forwarded.clone(),
+            bytes.clone(),
+        )
+    };
+    // The check first, as the page's form runs it: it records the verdict the proposal needs
+    // (PF-57), and a red one is answered with its findings and proposes nothing.
+    let checked = door(Some("All".to_owned())).await?;
+    let verdict: Value = serde_json::from_slice(
+        &axum::body::to_bytes(checked.into_body(), 1 << 20)
+            .await
+            .map_err(|e| ApiError::Internal(format!("the check's answer was not read: {e}")))?,
+    )
+    .map_err(|e| ApiError::Internal(format!("the check's answer is not JSON: {e}")))?;
+    if verdict.get("valid") != Some(&Value::Bool(true)) {
+        let errors: Vec<String> = verdict
+            .pointer("/verdict/findings")
+            .and_then(Value::as_array)
+            .map(|findings| {
+                findings
+                    .iter()
+                    .filter_map(|f| {
+                        Some(format!(
+                            "{}: {}",
+                            f.get("path")?.as_str()?,
+                            f.get("message")?.as_str()?
+                        ))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        return Err(ApiError::Unprocessable {
+            detail: format!("the change of Endpoint '{key}' is refused by its check"),
+            errors,
+        });
+    }
+    door(None).await
+}
+
+/// `DELETE /api/v1/projects/{project}/odata/{entity}` (T-6645).
+#[utoipa::path(
+    delete,
+    path = "/api/v1/projects/{project}/odata/{entity}",
+    summary = "Remove One Endpoint with OData",
+    description = "Proposes removing one of the project's own Endpoints through the same door as DELETE /projects/{project}/endpoints/{name}: refused 409 while other resources reference it; a shared or gone row is refused 403 with where it is removed (T-6645).",
+    tag = "resources",
+    params(
+        ("project" = String, Path, description = "Project name, e.g. helsinki"),
+        ("entity" = String, Path, description = "Endpoints('<key>'), e.g. Endpoints('air-counters')"),
+        ("If-Match" = Option<String>, Header, description = "The ETag of the manifest as read; a stale one is 412"),
+    ),
+    responses(
+        (status = 202, description = "The Change that proposes it", body = Object),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 403, description = "The caller may not delete it, or the row is not this project's, as an OData error with the reason"),
+        (status = 404, description = "No such row the caller may read, as an OData error"),
+        (status = 409, description = "Other resources reference it", body = ProblemDetails),
+    )
+)]
+pub async fn remove_endpoint(
+    user: CurrentUser,
+    front: Front,
+    State(state): State<AppState>,
+    Path((project, entity)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
+    let (rows, key) = match keyed(&state, &user, &project, &entity).await {
+        Ok(found) => found,
+        Err(answer) => return Ok(answer),
+    };
+    let decision = decide(&state, &user, &project, &rows, "delete", Some(&key));
+    if !decision.allowed {
+        return Ok(decision.refusal().into_response());
+    }
+    crate::api::delete::delete_resource(
+        user,
+        front,
+        State(state),
+        Path((project, "endpoints".to_owned(), key)),
+        Query(DryRunQuery::default()),
+        headers,
+    )
+    .await
 }
 
 /// `GET /api/v1/projects/{project}/odata/$metadata` (T-6632).
@@ -621,7 +1311,7 @@ pub async fn metadata(
     State(state): State<AppState>,
     Path(project): Path<String>,
 ) -> Result<Response, ApiError> {
-    readable(&state, &user, &project)?;
+    gate(&state, &user, &project)?;
     let mut xml = Vec::new();
     odata_csdl::write_xml(&MODEL, &odata_csdl::Limits::strict(), &mut xml)
         .map_err(|e| ApiError::Internal(format!("the OData metadata did not write: {e}")))?;
@@ -647,7 +1337,7 @@ pub async fn service_document(
     State(state): State<AppState>,
     Path(project): Path<String>,
 ) -> Result<Response, ApiError> {
-    readable(&state, &user, &project)?;
+    gate(&state, &user, &project)?;
     let body = json!({
         "@odata.context": format!("{}$metadata", service_root(&state, &project)),
         "value": [{ "name": ENTITY_SET, "kind": "EntitySet", "url": ENTITY_SET }],
@@ -664,6 +1354,13 @@ pub fn router() -> Router<AppState> {
         .route("/projects/{project}/odata/", get(service_document))
         .route("/projects/{project}/odata/$metadata", get(metadata))
         .route("/projects/{project}/odata/Endpoints", get(query_endpoints))
+        .route("/projects/{project}/odata/Endpoints/$allowed", get(allowed))
+        .route(
+            "/projects/{project}/odata/{entity}",
+            get(read_endpoint)
+                .patch(change_endpoint)
+                .delete(remove_endpoint),
+        )
 }
 
 #[cfg(test)]
@@ -675,12 +1372,19 @@ mod tests {
     fn row(id: &str, title: Option<&str>, space: &str, mcp: bool) -> Row {
         Row([
             Val::Str(id.into()),
+            Val::Str(id.into()),
             title.map_or(Val::Null, |t| Val::Str(t.into())),
             Val::Null,
             Val::Str(space.into()),
             Val::Str(format!("slug{id}")),
             Val::Str("public".into()),
             Val::Bool(mcp),
+            Val::Str("p".into()),
+            Val::Str(OWN.into()),
+            Val::Null,
+            Val::Str("Ready".into()),
+            Val::Null,
+            Val::Int(i64::try_from(id.len()).unwrap_or(0)),
         ])
     }
 
@@ -763,7 +1467,10 @@ mod tests {
         for query in ["$filter=owner eq 'x'", "$select=owner", "$orderby=owner"] {
             let r = refused(query);
             assert_eq!(r.0, StatusCode::BAD_REQUEST, "{query}: {r:?}");
-            assert!(r.2.contains("an Endpoint has id, title"), "{query}: {r:?}");
+            assert!(
+                r.2.contains("an Endpoint has id, name, title"),
+                "{query}: {r:?}"
+            );
         }
     }
 
@@ -817,8 +1524,10 @@ mod tests {
     }
 
     fn rows_json(id: &str) -> Value {
-        json!({ "id": id, "title": "Bike counters", "description": null, "contextSpace": "air",
-                "slug": format!("slug{id}"), "audience": "public", "mcp": true })
+        json!({ "id": id, "name": id, "title": "Bike counters", "description": null,
+                "contextSpace": "air", "slug": format!("slug{id}"), "audience": "public",
+                "mcp": true, "source": "p", "kind": "own", "reference": null, "phase": "Ready",
+                "representations": null, "calls7d": id.len() })
     }
 
     #[test]
@@ -839,8 +1548,10 @@ mod tests {
         let second = answer(many, query, ROOT).expect("the next page");
         assert_eq!(
             second["value"],
-            json!([{ "id": "e1000", "title": null, "description": null,
-            "contextSpace": "air", "slug": "sluge1000", "audience": "public", "mcp": true }])
+            json!([{ "id": "e1000", "name": "e1000", "title": null, "description": null,
+            "contextSpace": "air", "slug": "sluge1000", "audience": "public", "mcp": true,
+            "source": "p", "kind": "own", "reference": null, "phase": "Ready",
+            "representations": null, "calls7d": 5 }])
         );
         assert!(second.get("@odata.nextLink").is_none());
     }
@@ -881,11 +1592,145 @@ mod tests {
         odata_csdl::write_xml(&MODEL, &odata_csdl::Limits::strict(), &mut xml).expect("xml");
         let xml = String::from_utf8(xml).expect("utf-8");
         assert!(xml.contains(r#"<EntitySet Name="Endpoints""#), "{xml}");
+        // The SDK grid reads this to search case-blind (T-6645).
+        assert!(
+            xml.contains(r#"Term="Capabilities.FilterFunctions""#),
+            "{xml}"
+        );
+        assert!(xml.contains("<String>tolower</String>"), "{xml}");
+        assert!(
+            xml.contains(r#"Namespace="Org.OData.Capabilities.V1""#),
+            "{xml}"
+        );
         for (name, _, _) in PROPERTIES {
             assert!(
                 xml.contains(&format!(r#"Name="{name}""#)),
                 "{name} missing: {xml}"
             );
         }
+    }
+
+    #[test]
+    fn a_key_segment_reads_its_literal_and_refuses_anything_else() {
+        assert_eq!(key_of("Endpoints('air')").as_deref(), Some("air"));
+        assert_eq!(
+            key_of("Endpoints('espoo/air')").as_deref(),
+            Some("espoo/air")
+        );
+        assert_eq!(key_of("Endpoints('o''brien')").as_deref(), Some("o'brien"));
+        for refused in [
+            "Endpoints",
+            "Endpoints(air)",
+            "Things('a')",
+            "Endpoints('a'b')",
+            "Endpoints('a')/x",
+        ] {
+            assert_eq!(key_of(refused), None, "{refused}");
+        }
+    }
+
+    #[test]
+    fn a_patch_changes_only_the_editable_properties_each_of_its_type() {
+        assert_eq!(
+            spec_patch(br#"{"audience":"public","mcp":false,"@odata.etag":"x"}"#),
+            Ok(json!({ "spec": { "audience": "public", "mcp": false } }))
+        );
+        assert_eq!(
+            spec_patch(br#"{"contextSpace":"air"}"#),
+            Ok(json!({ "spec": { "contextSpaceRef": "air" } }))
+        );
+        for (body, says) in [
+            (&br#"{"title":"x"}"#[..], "title is not changed here"),
+            (br#"{"mcp":"no"}"#, "mcp takes true or false"),
+            (br#"{"audience":""}"#, "audience takes a non-empty text"),
+            (br#"{}"#, "changes nothing"),
+            (br#"[1]"#, "a JSON object"),
+        ] {
+            let Err(Refusal(status, _, message)) = spec_patch(body) else {
+                panic!("{body:?} was taken");
+            };
+            assert_eq!(status, StatusCode::BAD_REQUEST);
+            assert!(message.contains(says), "{message}");
+        }
+    }
+
+    fn manifest(name: &str, spec: Value) -> ResourceEnvelope {
+        serde_json::from_value(json!({
+            "apiVersion": "joinedcontext.com/v1alpha1",
+            "kind": "Endpoint",
+            "metadata": { "name": name, "namespace": "espoo" },
+            "spec": spec,
+        }))
+        .unwrap_or_else(|e| panic!("{e}"))
+    }
+
+    #[test]
+    fn a_project_reads_what_another_shares_with_it_by_the_gateways_rule() {
+        let open = manifest("open", json!({ "audience": "public" }));
+        let org = manifest("org", json!({ "audience": "organization" }));
+        let listed = manifest(
+            "listed",
+            json!({ "audience": "project-list", "allowedProjects": ["p"] }),
+        );
+        let unlisted = manifest("unlisted", json!({ "allowedProjects": ["q"] }));
+        let own = manifest("own", json!({ "audience": "project" }));
+        assert!(admits(&open, "espoo", "p"));
+        assert!(admits(&org, "espoo", "p"));
+        assert!(admits(&listed, "espoo", "p"));
+        assert!(!admits(&unlisted, "espoo", "p"));
+        assert!(!admits(&own, "espoo", "p"));
+        assert!(admits(&own, "p", "p"));
+    }
+
+    #[test]
+    fn a_reference_finds_its_endpoint_by_ref_or_else_by_slug() {
+        let endpoint = manifest("air", json!({ "slug": "s1" }));
+        let by_ref = manifest(
+            "r1",
+            json!({ "endpointRef": { "project": "espoo", "name": "air" } }),
+        );
+        let other_project = manifest(
+            "r2",
+            json!({ "endpointRef": { "project": "vantaa", "name": "air" } }),
+        );
+        let by_slug = manifest("r3", json!({ "endpointSlug": "s1" }));
+        let refs = [other_project.clone(), by_ref];
+        assert_eq!(
+            reference_to(&refs, &endpoint, "espoo").map(|r| r.metadata.name.as_str()),
+            Some("r1")
+        );
+        assert_eq!(
+            reference_to(&[other_project, by_slug], &endpoint, "espoo")
+                .map(|r| r.metadata.name.as_str()),
+            Some("r3")
+        );
+        let unslugged = manifest("air", json!({}));
+        assert!(reference_to(
+            &[manifest("r4", json!({ "endpointSlug": "" }))],
+            &unslugged,
+            "espoo"
+        )
+        .is_none());
+    }
+
+    #[test]
+    fn a_shared_and_a_gone_row_say_where_they_are_changed() {
+        let shared = Row::endpoint(
+            &manifest("air", json!({ "slug": "s1" })),
+            "espoo",
+            SHARED,
+            Some("r1"),
+            None,
+        );
+        assert_eq!(shared.str("id"), Some("espoo/air"));
+        assert_eq!(shared.str("reference"), Some("r1"));
+        assert_eq!(shared.get("calls7d"), Some(&Val::Null));
+        let gone = Row::gone(&manifest(
+            "r9",
+            json!({ "alias": "Old air", "endpointSlug": "s9" }),
+        ));
+        assert_eq!(gone.str("id"), Some("reference:r9"));
+        assert_eq!(gone.str("title"), Some("Old air"));
+        assert_eq!(gone.str("kind"), Some(GONE));
     }
 }

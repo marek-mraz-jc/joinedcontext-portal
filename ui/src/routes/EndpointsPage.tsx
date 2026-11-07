@@ -15,12 +15,11 @@ import { useProjectOrganization, useProjects } from "../api/projects";
 import { takePrefill } from "../assistant/state";
 import { useProjectUsage } from "../components/ProjectQuota";
 import { PermissionGuard } from "../components/ui/PermissionGuard";
-import { LifecycleBadge } from "../components/status/LifecycleBadge";
 import { ResourceFormDialog } from "../components/ResourceFormDialog";
 import { ChangeNotice } from "../components/ChangeNotice";
-import { ManifestGrid } from "../components/grid/ManifestGrid";
 import { ManifestYamlDialog } from "../components/grid/ManifestYamlDialog";
-import { endpointRows, SharedRowActions } from "../pages/endpoints/endpointRows";
+import { SharedRowActions } from "../pages/endpoints/endpointRows";
+import { EndpointsGrid } from "../pages/endpoints/EndpointsGrid";
 import type { EndpointRow } from "../pages/endpoints/endpointRows";
 import { CALLERS, projectUsageQuery, SURFACES } from "../api/endpointUsage";
 import type { ProjectUsage } from "../api/endpointUsage";
@@ -37,16 +36,13 @@ import { SchemaProjectionPanel } from "../pages/endpoints/SchemaProjectionPanel"
 import {
   endpointUrl,
   alwaysServed,
-  RepresentationSummary,
   servedRepresentations,
 } from "../components/endpoints/links";
 import { useBranding } from "../branding";
 import {
   admits,
   referenceManifest,
-  SharedWithBadge,
   SPACE_LABEL,
-  spaceOf,
 } from "../components/endpoints/sharing";
 import {
   ALWAYS_ON_REPRESENTATIONS,
@@ -68,12 +64,12 @@ import { EndpointDataView } from "../components/entities/EndpointDataView";
 import { CodeBlock,
   buttonClass,
   Alert,
-  Badge,
   Button,
   Dialog,
   EmptyState,
   Icon,
   Input,
+  PageFailed,
   PageHeader,
   safeHref,
 } from "../components/ui";
@@ -567,15 +563,6 @@ export function CallsDetail({ calls, notCounted }: { calls: Calls | undefined; n
         </>
       )}
     </div>
-  );
-}
-
-/** Whether the endpoint's name or title holds `needle`, case aside. */
-function matches(endpoint: Manifest, needle: string, locale: string): boolean {
-  const wanted = needle.trim().toLowerCase();
-  return (
-    endpoint.metadata.name.toLowerCase().includes(wanted) ||
-    localized(endpoint.metadata.title, locale, "").toLowerCase().includes(wanted)
   );
 }
 
@@ -1193,22 +1180,17 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       .filter((endpoint) => admits(endpoint, source, project))
       .map((endpoint) => ({ source, endpoint })),
   );
-  // One grid of own, shared and gone-reference rows (T-6169): a reference whose Endpoint no longer
-  // shows stays a row, because a row nothing lists is a grant nobody can remove (T-0706, EP-15).
-  const rows = endpointRows(project, endpoints, shared, references);
-  const matchingRows = needle.trim()
-    ? rows.filter((row) =>
-        row.endpoint ? matches(row.endpoint, needle, locale) : (row.reference?.metadata.name ?? "").includes(needle.trim().toLowerCase()),
-      )
-    : rows;
-  const sharedPending =
-    projects.isPending || referencesQuery.isPending || otherLists.some((other) => other.isPending);
+  // One grid of own, shared and gone-reference rows (T-6169), read through the project's OData
+  // set (T-6645); the manifests behind its rows come from these lists, for the row menu.
+  const manifests = {
+    own: new Map(endpoints.map((endpoint) => [endpoint.metadata.name, endpoint])),
+    shared: new Map(shared.map(({ source, endpoint }) => [`${source}/${endpoint.metadata.name}`, endpoint])),
+    references: new Map(references.map((each) => [each.metadata.name, each])),
+  };
+  const anyRow = endpoints.length + shared.length + references.length > 0;
   const notCounted = (own: boolean): NotCounted | undefined =>
     !own ? "shared" : usage7d.isError ? "failed" : usage7d.isSuccess ? undefined : "loading";
   const callsByName = new Map((usage7d.data?.endpoints ?? []).map((each) => [each.name, each]));
-  // Once per render: `text` runs per row, and a t() per row costs 10 000 Endpoints their first paint (T-5181).
-  const ownSource = t("endpoints.source.own");
-  const goneSource = t("endpoints.shared.goneSource");
   const rowLabel = (row: EndpointRow) =>
     row.endpoint
       ? localized(row.endpoint.metadata.title, locale, row.endpoint.metadata.name)
@@ -1321,7 +1303,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
         title={t("endpoints.title")}
         description={t("endpoints.lead")}
         search={
-          endpoints.length > 0 ? (
+          anyRow ? (
             <Input
               type="search"
               aria-label={t("endpoints.find")}
@@ -1357,175 +1339,42 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
 
       {change ? <ChangeNotice change={change} project={project} /> : null}
 
-      <ManifestGrid<EndpointRow>
-        caption={t("endpoints.title")}
-        storageKey="endpoints"
-        searchLabel={t("endpoints.find")}
+      {list.isError ? (
+        // The page's own list feeds the row menus: without it the rows could not be acted on.
+        <PageFailed error={list.error} onRetry={() => void list.refetch()} />
+      ) : (
+      <EndpointsGrid
+        project={project}
         search={needle}
-        onSearchChange={setNeedle}
-        rows={matchingRows}
-        total={rows.length}
-        rowKey={(row) => row.key}
-        // Pending until the shared lists answered too, or a project that publishes nothing itself
-        // flashes "no endpoints" before its shared rows arrive.
-        query={{ ...list, isPending: list.isPending || sharedPending, refetch: list.refetch }}
-        name={{
-          id: "name",
-          label: t("endpoints.field.name"),
-          text: rowLabel,
-          // The name opens the endpoint's own page, where every setting and every surface link is
-          // (T-2281); the whole row opens it, so the name is no underlined link (T-4989).
-          cell: (row) => {
-            const endpoint = row.endpoint;
-            if (!endpoint) {
-              return (
-                <div className="flex min-w-0 max-w-xs flex-wrap items-baseline gap-2">
-                  <span className="truncate font-mono">{rowLabel(row)}</span>
-                  <Badge tone="warning">{t("endpoints.shared.gone")}</Badge>
-                </div>
-              );
-            }
-            if (!row.own) {
-              return (
-                <div className="flex min-w-0 max-w-60 items-baseline gap-2 whitespace-nowrap">
-                  <Link
-                    data-row-link=""
-                    to="/projects/$project/$plural/$name"
-                    params={{ plural: "endpoints", project: row.source ?? project, name: endpoint.metadata.name }}
-                    className="focus-ring max-w-full shrink-0 truncate rounded-sm text-fg hover:text-primary-soft-fg"
-                  >
-                    {rowLabel(row)}
-                  </Link>
-                  {endpoint.metadata.title ? (
-                    <span className="hidden truncate font-mono text-caption font-normal text-fg-subtle 2xl:inline">
-                      {endpoint.metadata.name}
-                    </span>
-                  ) : null}
-                  {row.reference ? <Badge tone="success">{t("endpoints.shared.referenced")}</Badge> : null}
-                </div>
-              );
-            }
-            return (
-            <div className="flex min-w-0 max-w-60 items-baseline gap-2 whitespace-nowrap">
-              <Link
-                data-row-link=""
-                to="/projects/$project/$plural/$name"
-                params={{ plural: "endpoints", project, name: endpoint.metadata.name }}
-                className="focus-ring max-w-full shrink-0 truncate rounded-sm text-fg hover:text-primary-soft-fg"
-              >
-                {localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
-              </Link>
-              {/* Below `sm` a row is the title, the state and the action (UI-27, T-4214). */}
-              {endpoint.metadata.title ? (
-                <span className="hidden truncate font-mono text-caption font-normal text-fg-subtle 2xl:inline">
-                  {endpoint.metadata.name}
-                </span>
-              ) : null}
-              {/* An App's own endpoint, written by the Portal beside it (T-2759): said so, since
-                  nobody created it on this page and editing it here is undone by the App. */}
-              {endpoint.metadata.annotations?.["joinedcontext.com/generated-by"] === "portal/app-reconciler" ? (
-                <span className="hidden truncate text-caption font-normal text-fg-subtle sm:inline">
-                  {t("endpoints.ofApp", { app: endpoint.metadata.name.replace(/^app-/, "") })}
-                </span>
-              ) : null}
-            </div>
-          );
-          },
-        }}
-        columns={[
-          {
-            id: "source",
-            label: t("endpoints.source.label"),
-            filter: true,
-            text: (row) => (row.own ? ownSource : (row.source ?? goneSource)),
-            cell: (row) =>
-              row.own ? (
-                <span className="text-fg-muted">{t("endpoints.source.own")}</span>
-              ) : row.source ? (
-                <Badge tone="info" className="whitespace-nowrap" data-source={row.source}>{t("endpoints.source.shared", { project: row.source })}</Badge>
-              ) : (
-                <span className="text-fg-muted">{t("endpoints.shared.goneSource")}</span>
-              ),
-          },
-          {
-            id: "space",
-            label: t("grid.field.space"),
-            field: "contextSpaceRef",
-            filter: true,
-            // Under Columns, beside the filter chips (T-6169): eight columns do not fit 1440 px.
-            hidden: true,
-            text: (row) => (row.endpoint ? (spaceOf(row.endpoint) ?? "") : ""),
-            // One line per row (T-4989): a long space name is cut, whole in its tooltip.
-            cell: (row) => {
-              const space = (row.endpoint && spaceOf(row.endpoint)) || "";
-              return (
-                <span className="block max-w-48 truncate font-mono text-caption" title={space || undefined}>
-                  {space || "—"}
-                </span>
-              );
-            },
-          },
-          {
-            id: "audience",
-            label: t("endpoints.field.audience"),
-            field: "audience",
-            filter: true,
-            text: (row) => String((row.endpoint?.spec as { audience?: string } | undefined)?.audience ?? ""),
-            valueLabel: (value) => t(`endpoints.audience.${value}`, { defaultValue: value }),
-            cell: (row) => (row.endpoint ? <SharedWithBadge endpoint={row.endpoint} /> : "—"),
-          },
-          {
-            id: "representations",
-            label: t("endpoints.field.representations"),
-            field: "enabledRepresentations",
-            valueLabel: (value) => t(`spaces.api.surface.${value}`, { defaultValue: value }),
-            text: (row) => (row.endpoint ? servedRepresentations(row.endpoint.spec as { enabledRepresentations?: string[] }).join(", ") : ""),
-            cell: (row) =>
-              row.endpoint ? <RepresentationSummary served={servedRepresentations(row.endpoint.spec as { enabledRepresentations?: string[] })} /> : "—",
-          },
-          { id: "mcp", label: t("grid.field.mcp"), field: "mcp", hidden: true, text: (row) => ((row.endpoint?.spec as { mcp?: boolean | null } | undefined)?.mcp === false ? t("grid.off") : t("grid.on")) },
-          {
-            id: "calls",
-            label: t("endpoints.calls.label"),
-            numeric: true,
-            align: "right",
-            // Counted per publishing project: a shared Endpoint's calls are its owner's to read.
-            text: (row) => (row.own && row.endpoint ? String(callsByName.get(row.endpoint.metadata.name)?.total ?? 0) : ""),
-            cell: (row) => <CallsCell calls={row.own && row.endpoint ? callsByName.get(row.endpoint.metadata.name) : undefined} notCounted={notCounted(row.own)} />,
-            detail: (row) => <CallsDetail calls={row.own && row.endpoint ? callsByName.get(row.endpoint.metadata.name) : undefined} notCounted={notCounted(row.own)} />,
-          },
-          {
-            id: "phase",
-            label: t("endpoints.field.phase"),
-            filter: true,
-            text: (row) => (row.own ? (row.endpoint?.status?.phase ?? "") : ""),
-            cell: (row) => (row.own ? <LifecycleBadge kind="phase" value={row.endpoint?.status?.phase} /> : "—"),
-          },
-        ]}
-        actions={(row) =>
+        manifests={manifests}
+        label={rowLabel}
+        // A change that lands (the list polls while one is on its way, T-1392) reads the rows again;
+        // the list's first answer does not, the grid read its rows itself.
+        reloadKey={list.dataUpdateCount > 1 ? list.dataUpdatedAt : 0}
+        calls={(name) => <CallsCell calls={name ? callsByName.get(name) : undefined} notCounted={notCounted(name !== null)} />}
+        actions={(row, label) =>
           row.own && row.endpoint ? (
             <EndpointRowActions
               project={project}
               endpoint={row.endpoint}
-              label={rowLabel(row)}
+              label={label}
               onEdit={() => {
                 const endpoint = row.endpoint as Manifest;
                 return formRoute ? formRoute.openEdit(endpoint.metadata.name) : openEditor(endpoint);
               }}
             />
-          ) : (
+          ) : row.endpoint || row.reference ? (
             <SharedRowActions
               project={project}
               row={row}
-              label={row.source ? `${row.source}/${rowLabel(row)}` : rowLabel(row)}
+              label={label}
               useBusy={reference.isPending}
               onUse={() => (row.endpoint && row.source ? reference.mutate({ source: row.source, endpoint: row.endpoint }) : undefined)}
             />
-          )
+          ) : null
         }
-        edit={{ project, plural: "endpoints", kind: "Endpoint", manifest: (row) => (row.own ? row.endpoint : null), onChange: setChange }}
         empty={
-          rows.length > 0 ? (
+          needle.trim() ? (
             // A search that matches nothing names the text and offers the way back (T-6095).
             <EmptyState
               bare
@@ -1539,24 +1388,25 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
               }
             />
           ) : (
-          <EmptyState
-            bare
-            icon="endpoints"
-            title={t("endpoints.empty")}
-            description={t("endpoints.addHint")}
-            action={
-              <div className="flex flex-wrap items-center justify-center gap-3">
-                {addButton}
-                {/* What other projects publish is where a person finds one to use here (T-3246). */}
-                <Link to="/endpoints" className={buttonClass("secondary", "md")}>
-                  {t("endpoints.shared.browse")}
-                </Link>
-              </div>
-            }
-          />
+            <EmptyState
+              bare
+              icon="endpoints"
+              title={t("endpoints.empty")}
+              description={t("endpoints.addHint")}
+              action={
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  {addButton}
+                  {/* What other projects publish is where a person finds one to use here (T-3246). */}
+                  <Link to="/endpoints" className={buttonClass("secondary", "md")}>
+                    {t("endpoints.shared.browse")}
+                  </Link>
+                </div>
+              }
+            />
           )
         }
       />
+      )}
       {reference.isError ? (
         <Alert role="alert" tone="danger">
           {reference.error instanceof ApiError

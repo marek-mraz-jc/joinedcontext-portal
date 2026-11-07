@@ -616,3 +616,345 @@ async fn odata_reads_only_the_endpoints_the_list_reads_whatever_the_filter_asks(
     assert_eq!(status, StatusCode::OK, "{service}");
     assert_eq!(service["value"][0]["url"], json!("Endpoints"));
 }
+
+// -------------------------------------------------------------------------------------------------
+// T-6645 the Endpoints page's rows over OData
+// -------------------------------------------------------------------------------------------------
+
+/// T-6645: the OData set holds the rows the Endpoints page lists (T-6169), each after the read
+/// check of the project it lives in: the project's own Endpoints, those another project shares
+/// with it (EP-14) and its references whose Endpoint does not show (EP-15). A person who reads
+/// only this project sees no other project's Endpoint, by filter, count or key, and `$allowed`
+/// and the write doors answer from the same decision.
+#[tokio::test]
+async fn odata_endpoints_carry_the_shared_and_gone_rows_the_page_lists_and_no_other() {
+    let state = world();
+    for (name, sharing) in [
+        ("espoo-open", json!({ "audience": "public" })),
+        (
+            "espoo-listed",
+            json!({ "audience": "project-list", "allowedProjects": [PROJECT] }),
+        ),
+        (
+            "espoo-private",
+            json!({ "audience": "project-list", "allowedProjects": [] }),
+        ),
+    ] {
+        let mut spec = json!({ "contextSpaceRef": { "kind": "ContextSpace", "name": ELSEWHERE },
+                               "slug": "si6epqkx364lprho5uaigutk274r5grc" });
+        if let (Some(spec), Some(sharing)) = (spec.as_object_mut(), sharing.as_object()) {
+            spec.extend(sharing.clone());
+        }
+        state
+            .mirror
+            .upsert(envelope("Endpoint", name, ELSEWHERE, spec));
+    }
+    for (name, target) in [
+        ("uses-listed", "espoo-listed"),
+        ("uses-gone", "espoo-removed"),
+    ] {
+        state.mirror.upsert(envelope(
+            "SharedSpaceReference",
+            name,
+            PROJECT,
+            json!({ "endpointRef": { "project": ELSEWHERE, "name": target }, "alias": name }),
+        ));
+    }
+    state.mirror.upsert(org(
+        "Role",
+        "endpoint-viewer",
+        json!({ "rules": [{ "kinds": ["Endpoint", "SharedSpaceReference"], "verbs": ["read"] }] }),
+    ));
+    for (binding, user, project) in [
+        ("vera-here", "vera.both@hel.fi", PROJECT),
+        ("vera-there", "vera.both@hel.fi", ELSEWHERE),
+        ("hana-here", "hana.here@hel.fi", PROJECT),
+    ] {
+        state.mirror.upsert(org(
+            "RoleBinding",
+            binding,
+            json!({ "subjects": [{ "user": user }], "role": "endpoint-viewer",
+                    "scope": { "project": project } }),
+        ));
+    }
+    let odata = |rest: &str| format!("/api/v1/projects/{PROJECT}/odata/Endpoints{rest}");
+    let ids = |body: &Value| -> Vec<String> {
+        let mut ids: Vec<String> = body["value"]
+            .as_array()
+            .map(|rows| {
+                rows.iter()
+                    .filter_map(|r| r["id"].as_str().map(str::to_owned))
+                    .collect()
+            })
+            .unwrap_or_default();
+        ids.sort();
+        ids
+    };
+    let vera = Some("vera.both@hel.fi");
+    let hana = Some("hana.here@hel.fi");
+
+    // Vera reads both projects: her rows are the page's, the private Endpoint is no row.
+    let (status, all) = get(&state, vera, &odata("?$count=true")).await;
+    assert_eq!(status, StatusCode::OK, "{all}");
+    assert_eq!(
+        ids(&all),
+        [
+            "espoo/espoo-listed",
+            "espoo/espoo-open",
+            "helsinki-bikes",
+            "reference:uses-gone"
+        ]
+    );
+    assert_eq!(all["@odata.count"], json!(4));
+    let row = |id: &str| {
+        all["value"]
+            .as_array()
+            .and_then(|rows| rows.iter().find(|r| r["id"] == json!(id)))
+            .cloned()
+            .unwrap_or(Value::Null)
+    };
+    assert_eq!(row("espoo/espoo-listed")["kind"], json!("shared"));
+    assert_eq!(row("espoo/espoo-listed")["source"], json!(ELSEWHERE));
+    assert_eq!(row("espoo/espoo-listed")["reference"], json!("uses-listed"));
+    assert_eq!(row("espoo/espoo-open")["reference"], Value::Null);
+    assert_eq!(row("reference:uses-gone")["kind"], json!("gone"));
+    assert_eq!(row("reference:uses-gone")["title"], json!("uses-gone"));
+    assert_eq!(row("helsinki-bikes")["kind"], json!("own"));
+    assert_eq!(row("helsinki-bikes")["representations"], json!("ngsi-ld"));
+
+    // The same rows the plain lists give the page: its own list, and the other project's list
+    // narrowed to what that project shares with this one.
+    let (_, own) = get(
+        &state,
+        vera,
+        &format!("/api/v1/projects/{PROJECT}/endpoints"),
+    )
+    .await;
+    let (_, theirs) = get(
+        &state,
+        vera,
+        &format!("/api/v1/projects/{ELSEWHERE}/endpoints"),
+    )
+    .await;
+    let listed: Vec<String> = own["items"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|i| i["metadata"]["name"].as_str().map(str::to_owned))
+        .chain(
+            theirs["items"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .filter(|i| i["metadata"]["name"] != json!("espoo-private"))
+                .filter(|i| i["metadata"]["name"] != json!(format!("{ELSEWHERE}-bikes")))
+                .filter_map(|i| {
+                    i["metadata"]["name"]
+                        .as_str()
+                        .map(|n| format!("{ELSEWHERE}/{n}"))
+                }),
+        )
+        .collect();
+    for id in &listed {
+        assert!(ids(&all).contains(id), "{id} missing from {all}");
+    }
+
+    let (status, shared) = get(
+        &state,
+        vera,
+        &odata("?$filter=kind%20eq%20'shared'&$count=true"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{shared}");
+    assert_eq!(shared["@odata.count"], json!(2), "{shared}");
+
+    // Hana reads this project alone: no row of the other one, whatever she asks; both references
+    // show as gone, as the page shows them to her.
+    let (status, hers) = get(&state, hana, &odata("?$count=true")).await;
+    assert_eq!(status, StatusCode::OK, "{hers}");
+    assert_eq!(
+        ids(&hers),
+        [
+            "helsinki-bikes",
+            "reference:uses-gone",
+            "reference:uses-listed"
+        ]
+    );
+    let (status, probe) = get(
+        &state,
+        hana,
+        &odata("?$filter=source%20eq%20'espoo'%20or%20startswith(id,'espoo')&$count=true"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{probe}");
+    assert_eq!(probe["@odata.count"], json!(0), "{probe}");
+    let (status, keyed) = get(
+        &state,
+        hana,
+        &format!("/api/v1/projects/{PROJECT}/odata/Endpoints('espoo%2Fespoo-open')"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{keyed}");
+    let (status, keyed) = get(
+        &state,
+        vera,
+        &format!("/api/v1/projects/{PROJECT}/odata/Endpoints('espoo%2Fespoo-open')"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{keyed}");
+    assert_eq!(keyed["source"], json!(ELSEWHERE));
+
+    // `$allowed`: a reader may not propose, a shared row is changed where it is published, a key
+    // the caller does not read is not found, as a missing one is.
+    let (status, own_update) = get(
+        &state,
+        vera,
+        &odata("/$allowed?op=update&key=helsinki-bikes"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{own_update}");
+    assert_eq!(own_update["allowed"], json!(false), "{own_update}");
+    assert!(
+        own_update["reason"]
+            .as_str()
+            .unwrap_or("")
+            .contains("propose"),
+        "{own_update}"
+    );
+    let (_, shared_update) = get(
+        &state,
+        vera,
+        &odata("/$allowed?op=update&key=espoo%2Fespoo-open"),
+    )
+    .await;
+    assert_eq!(shared_update["allowed"], json!(false), "{shared_update}");
+    assert!(
+        shared_update["reason"]
+            .as_str()
+            .unwrap_or("")
+            .contains("project espoo publishes"),
+        "{shared_update}"
+    );
+    let (_, hidden) = get(
+        &state,
+        hana,
+        &odata("/$allowed?op=update&key=espoo%2Fespoo-open"),
+    )
+    .await;
+    let (_, missing) = get(
+        &state,
+        hana,
+        &odata("/$allowed?op=update&key=espoo%2Fnothing"),
+    )
+    .await;
+    assert_eq!(hidden["notFound"], json!(true), "{hidden}");
+    assert_eq!(hidden["allowed"], missing["allowed"]);
+    assert_eq!(hidden["notFound"], missing["notFound"]);
+    let (status, _) = get(&state, None, &odata("/$allowed?op=read")).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+
+    // The write doors run the same decision before anything: a shared row is 403 with where it
+    // is changed, a reader's own row 403 with the missing verb, a hidden key 404, and a proposer
+    // changing a property the row does not edit 400 naming the ones it does.
+    state.mirror.upsert(org(
+        "Role",
+        "endpoint-proposer",
+        json!({ "rules": [{ "kinds": ["Endpoint"], "verbs": ["read", "propose"] }] }),
+    ));
+    state.mirror.upsert(org(
+        "RoleBinding",
+        "pat-here",
+        json!({ "subjects": [{ "user": "pat.proposer@hel.fi" }], "role": "endpoint-proposer",
+                "scope": { "project": PROJECT } }),
+    ));
+    let entity = |key: &str| format!("/api/v1/projects/{PROJECT}/odata/Endpoints('{key}')");
+    let cases = [
+        (
+            "PATCH",
+            vera,
+            "espoo%2Fespoo-open",
+            json!({ "mcp": false }),
+            StatusCode::FORBIDDEN,
+            "project espoo publishes",
+        ),
+        (
+            "DELETE",
+            vera,
+            "reference%3Auses-gone",
+            Value::Null,
+            StatusCode::FORBIDDEN,
+            "Stop using",
+        ),
+        (
+            "PATCH",
+            vera,
+            "helsinki-bikes",
+            json!({ "mcp": false }),
+            StatusCode::FORBIDDEN,
+            "propose",
+        ),
+        (
+            "DELETE",
+            vera,
+            "helsinki-bikes",
+            Value::Null,
+            StatusCode::FORBIDDEN,
+            "delete",
+        ),
+        (
+            "PATCH",
+            hana,
+            "espoo%2Fespoo-open",
+            json!({ "mcp": false }),
+            StatusCode::NOT_FOUND,
+            "no Endpoint",
+        ),
+        (
+            "PATCH",
+            Some("pat.proposer@hel.fi"),
+            "helsinki-bikes",
+            json!({ "title": "x" }),
+            StatusCode::BAD_REQUEST,
+            "contextSpace, audience, mcp",
+        ),
+        (
+            "PATCH",
+            Some("pat.proposer@hel.fi"),
+            "helsinki-bikes",
+            json!({ "mcp": "no" }),
+            StatusCode::BAD_REQUEST,
+            "true or false",
+        ),
+    ];
+    for (method, who, key, body, want, says) in cases {
+        let request = Request::builder()
+            .method(method)
+            .uri(entity(key))
+            .header(
+                header::COOKIE,
+                cookie(&state.config, who.unwrap_or_default()),
+            )
+            .header("x-csrf-token", CSRF)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(if body.is_null() {
+                Body::empty()
+            } else {
+                Body::from(body.to_string())
+            })
+            .expect("a request");
+        let response = server::app(state.clone())
+            .oneshot(request)
+            .await
+            .expect("a response");
+        let status = response.status();
+        let bytes = response
+            .into_body()
+            .collect()
+            .await
+            .expect("a body")
+            .to_bytes();
+        let text = String::from_utf8_lossy(&bytes);
+        assert_eq!(status, want, "{method} {key} as {who:?}: {text}");
+        assert!(text.contains(says), "{method} {key} as {who:?}: {text}");
+    }
+}
