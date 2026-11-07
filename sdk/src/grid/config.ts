@@ -1,4 +1,5 @@
 import { MAX_FORMULA_CHARS, parseFormula } from "./formula";
+import { isEntitySetName, isServicePath } from "./odata";
 
 export type Density = "compact" | "comfortable";
 
@@ -29,7 +30,13 @@ export interface GridColumn {
 export type GridSource =
   | { kind: "endpoint"; slug: string }
   | { kind: "space"; space: string }
-  | { kind: "fixture"; name: string };
+  | { kind: "fixture"; name: string }
+  /**
+   * An OData entity set of a module's own API (T-6644): `url` is the service root as a path on the
+   * page's own origin (`/api/v1/projects/helsinki/odata`), never another host, and `entitySet`
+   * the set's name in its `$metadata` (`Endpoints`).
+   */
+  | { kind: "odata"; url: string; entitySet: string };
 
 export interface EntityGridConfig {
   source: GridSource;
@@ -66,7 +73,10 @@ export const MAX_PAGE_SIZE = 5000;
 const VALID_FORMATS = new Set(["text", "number", "date", "link"]);
 const VALID_MODES = new Set(["view", "edit"]);
 const VALID_DENSITIES = new Set(["compact", "comfortable"]);
-const VALID_SOURCE_KINDS = new Set(["endpoint", "space", "fixture"]);
+const VALID_SOURCE_KINDS = new Set(["endpoint", "space", "fixture", "odata"]);
+
+/** A comparison reads both sides by entity id, which an OData set's key is not (T-6644). */
+const COMPARE_KINDS = new Set(["endpoint", "space", "fixture"]);
 
 function isNonEmptyString(v: unknown): v is string {
   return typeof v === "string" && v.length > 0;
@@ -76,18 +86,19 @@ function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
-function checkSource(raw: unknown, path: string, findings: ConfigFinding[]): GridSource | undefined {
+function checkSource(raw: unknown, path: string, findings: ConfigFinding[], kinds = VALID_SOURCE_KINDS): GridSource | undefined {
   if (!isObject(raw)) {
     findings.push({ path, message: "must be an object" });
     return undefined;
   }
   const kind = raw.kind;
-  if (!isNonEmptyString(kind) || !VALID_SOURCE_KINDS.has(kind)) {
-    findings.push({ path: `${path}/kind`, message: `must be one of ${[...VALID_SOURCE_KINDS].join(", ")}` });
+  if (!isNonEmptyString(kind) || !kinds.has(kind)) {
+    findings.push({ path: `${path}/kind`, message: `must be one of ${[...kinds].join(", ")}` });
     return undefined;
   }
-  // A source names a slug, a space or a fixture and nothing else: never a URL (EP-55).
-  const allowed = ["kind", kind === "endpoint" ? "slug" : kind === "space" ? "space" : "name"];
+  // A source names a slug, a space or a fixture and nothing else: never a URL (EP-55). An OData
+  // set names a path on the page's own origin, which is the module's API the session reaches.
+  const allowed = ["kind", ...(kind === "endpoint" ? ["slug"] : kind === "space" ? ["space"] : kind === "odata" ? ["url", "entitySet"] : ["name"])];
   for (const key of Object.keys(raw)) {
     if (!allowed.includes(key)) {
       findings.push({ path: `${path}/${key}`, message: "unknown key" });
@@ -116,6 +127,19 @@ function checkSource(raw: unknown, path: string, findings: ConfigFinding[]): Gri
       return undefined;
     }
     return { kind: "fixture", name };
+  }
+  if (kind === "odata") {
+    const { url, entitySet } = raw;
+    let ok = true;
+    if (!isNonEmptyString(url) || !isServicePath(url)) {
+      findings.push({ path: `${path}/url`, message: "must be a path on this site, e.g. /api/v1/projects/helsinki/odata (no host, query or ..)" });
+      ok = false;
+    }
+    if (!isNonEmptyString(entitySet) || !isEntitySetName(entitySet)) {
+      findings.push({ path: `${path}/entitySet`, message: "must be an entity set name, e.g. Endpoints" });
+      ok = false;
+    }
+    return ok ? { kind: "odata", url: url as string, entitySet: entitySet as string } : undefined;
   }
   return undefined;
 }
@@ -205,6 +229,16 @@ export const gridConfigSchema: Record<string, unknown> = {
         { type: "object", properties: { kind: { const: "endpoint" }, slug: { type: "string", minLength: 1 } }, required: ["kind", "slug"], additionalProperties: false },
         { type: "object", properties: { kind: { const: "space" }, space: { type: "string", minLength: 1 } }, required: ["kind", "space"], additionalProperties: false },
         { type: "object", properties: { kind: { const: "fixture" }, name: { type: "string", minLength: 1 } }, required: ["kind", "name"], additionalProperties: false },
+        {
+          type: "object",
+          properties: {
+            kind: { const: "odata" },
+            url: { type: "string", pattern: "^/(?!/)[A-Za-z0-9._~!$&'()*+,;=:@/-]*$" },
+            entitySet: { type: "string", pattern: "^[A-Za-z_][A-Za-z0-9_]{0,127}$" },
+          },
+          required: ["kind", "url", "entitySet"],
+          additionalProperties: false,
+        },
       ],
     },
     type: { type: "string", minLength: 1 },
@@ -428,7 +462,7 @@ export function parseGridConfig(raw: unknown): { config?: ResolvedGridConfig; fi
     }
   }
 
-  const compareWith = raw.compareWith !== undefined ? checkSource(raw.compareWith, "/compareWith", findings) : undefined;
+  const compareWith = raw.compareWith !== undefined ? checkSource(raw.compareWith, "/compareWith", findings, COMPARE_KINDS) : undefined;
 
   const density = raw.density;
   if (density !== undefined && !VALID_DENSITIES.has(density as string)) {
