@@ -2773,6 +2773,8 @@ dependencies = [
  "metrics",
  "metrics-exporter-prometheus",
  "mime_guess",
+ "odata-csdl",
+ "odata-url",
  "openidconnect",
  "oxc",
  "p256",
@@ -3404,6 +3406,22 @@ dependencies = [
  "sha2 0.10.9",
  "thiserror 1.0.69",
  "url",
+]
+
+[[package]]
+name = "odata-csdl"
+version = "0.3.0"
+source = "git+https://github.com/marek-mraz-jc/Antares-NGSI-LD-Context-Broker.git?rev=b683bfc3c59aa19a39c9e0b87e83feeb5625c0ae#b683bfc3c59aa19a39c9e0b87e83feeb5625c0ae"
+dependencies = [
+ "regex",
+]
+
+[[package]]
+name = "odata-url"
+version = "0.3.0"
+source = "git+https://github.com/marek-mraz-jc/Antares-NGSI-LD-Context-Broker.git?rev=b683bfc3c59aa19a39c9e0b87e83feeb5625c0ae#b683bfc3c59aa19a39c9e0b87e83feeb5625c0ae"
+dependencies = [
+ "odata-csdl",
 ]
 
 [[package]]
