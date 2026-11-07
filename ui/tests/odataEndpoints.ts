@@ -341,7 +341,9 @@ export function withODataEndpoints(inner: typeof fetch): typeof fetch {
     }
     return inner(input, init);
   }) as typeof fetch;
-  return wrapped;
+  // The stub itself with only its calls answered here: a test still reads `fetch.mock.calls` and
+  // sets `mockResolvedValueOnce` on the global it stubbed.
+  return new Proxy(inner, { apply: (_target, _this, args: Parameters<typeof fetch>) => wrapped(...args) });
 }
 
 /** Whether an answer is a stub's catch-all (`{kind: List, items: []}`, or no body), not an OData answer. */

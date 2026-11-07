@@ -705,6 +705,10 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
         }),
       ),
   });
+  // The list's first answer: the grid read its rows itself then, only a later answer (a change
+  // that landed) reads them again.
+  const [firstAnswer, setFirstAnswer] = useState(0);
+  if (firstAnswer === 0 && list.dataUpdatedAt > 0) setFirstAnswer(list.dataUpdatedAt);
 
   // An endpoint the assistant opened by name edits that endpoint: a PUT to its name with its own
   // slug, never a new endpoint with a fresh one. Only a draft or a prefill that says so is taken
@@ -1348,9 +1352,8 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
         search={needle}
         manifests={manifests}
         label={rowLabel}
-        // A change that lands (the list polls while one is on its way, T-1392) reads the rows again;
-        // the list's first answer does not, the grid read its rows itself.
-        reloadKey={list.dataUpdateCount > 1 ? list.dataUpdatedAt : 0}
+        // A change that lands (the list polls while one is on its way, T-1392) reads the rows again.
+        reloadKey={list.dataUpdatedAt === firstAnswer ? 0 : list.dataUpdatedAt}
         calls={(name) => <CallsCell calls={name ? callsByName.get(name) : undefined} notCounted={notCounted(name !== null)} />}
         actions={(row, label) =>
           row.own && row.endpoint ? (

@@ -31,7 +31,7 @@ const SEARCHED = [
 ];
 
 /** What an OData row of the set holds (src/api/odata.rs PROPERTIES). */
-interface ODataEndpoint {
+export interface ODataEndpoint {
   id: string;
   name: string;
   title?: string | null;

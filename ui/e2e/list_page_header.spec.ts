@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { axeViolations } from "./axe";
+import { withODataEndpoints } from "./odataEndpoints";
 
 // T-6095 (owner 2026-10-29): a list page is one compact line (title, description on hover, search,
 // primary action) with the rows right below; a row opens by its name and keeps one ⋯ menu, with
@@ -62,6 +63,7 @@ async function stub(page: Page, filled: boolean, list: "ok" | "loading" | "error
     if (path.endsWith("/events")) return route.fulfill({ status: 200, contentType: "text/event-stream", body: "" });
     return json({ apiVersion: API, kind: "List", items: [] });
   });
+  await withODataEndpoints(page);
 }
 
 const dir = join("test-results", "T-6095");

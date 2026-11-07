@@ -555,6 +555,22 @@ routes:
   - route: GET /projects/{project}/odata/Endpoints
     rule: "project-verb:read:Endpoint; the OData query over the Endpoints the caller may read; the read check runs before $filter (T-6632)"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/odata/Endpoints/$allowed
+    query: "op=update&key=existing"
+    rule: "project-verb:read:Endpoint; answers what the person's own proposal or delete check decides for one row, changes nothing (T-6645)"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/odata/{entity}
+    values: {"entity": "Endpoints('existing')"}
+    rule: "project-verb:read:Endpoint, then read of the Endpoint in its space; one OData row by key (T-6645)"
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: PATCH /projects/{project}/odata/{entity}
+    values: {"entity": "Endpoints('existing')"}
+    rule: "project-verb:propose:Endpoint through the PATCH door of /projects/{project}/{plural}/{name} (T-6645)"
+    expect: [403, 403, allow, allow, 403, allow, 404, 403]
+  - route: DELETE /projects/{project}/odata/{entity}
+    values: {"entity": "Endpoints('existing')"}
+    rule: "project-verb:delete:Endpoint through the DELETE door of /projects/{project}/{plural}/{name} (T-6645)"
+    expect: [403, 403, 403, 403, 403, 404, 404, 403]
   - route: GET /projects/{project}/usage/endpoints
     rule: "project-read; lists the Endpoints the caller may read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]

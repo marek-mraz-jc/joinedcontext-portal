@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 import { axeViolations } from "./axe";
+import { withODataEndpoints } from "./odataEndpoints";
 
 // T-4989: the endpoint lists (a project's endpoints, what other projects share with it, and the
 // Organization's Endpoints tab) read as one line a row at 1440 px: the surfaces in one summary,
@@ -74,6 +75,7 @@ async function stubApi(page: Page): Promise<void> {
     if (found) return json(found);
     return list([]);
   });
+  await withODataEndpoints(page);
 }
 
 /** Every body row of a table is one line: no taller than a row holding one badge or button. */

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, test } from "@playwright/test";
+import { withODataEndpoints } from "./odataEndpoints";
 
 // The Endpoints page over T-4497's generated catalogue (T-4544, EP-01): 10,000 Endpoints in one
 // project, titled as the gateway's generator titles them (its topics, the 518 places read from
@@ -85,6 +86,7 @@ test("ten thousand endpoints: the first row is on screen within a second and the
     }
     return json(JSON.stringify({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] }));
   });
+  await withODataEndpoints(page);
 
   const first = (items[0] as { metadata: { title: { en: string } } }).metadata.title.en;
   const last = (items[N - 1] as { metadata: { title: { en: string } } }).metadata.title.en;

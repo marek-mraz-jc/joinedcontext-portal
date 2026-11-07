@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { greenVerdict, isCheck } from "./verdict";
 import { axeViolations } from "./axe";
+import { withODataEndpoints } from "./odataEndpoints";
 
 // `vite preview` has no portal API behind it, so the API is answered in the browser and
 // everything above it — the project list, the form, the write, the second project's view —
@@ -111,6 +112,7 @@ async function stubApi(page: Page): Promise<{ writes: string[] }> {
     }
     return json(list(state[path] ?? []));
   });
+  await withODataEndpoints(page);
   return { writes };
 }
 

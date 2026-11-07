@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { Page, Route } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { axeViolations } from "./axe";
+import { withODataEndpoints } from "./odataEndpoints";
 
 // T-6115: Endpoints, Subscriptions, Data models and Pipelines are one grid (owner 2026-10-29).
 // Route stubs only: the shots show the grid at 1440 and 400, a filter chip, the cell panel with
@@ -109,6 +110,7 @@ async function stub(page: Page, opts: { empty?: boolean; refuse?: boolean; slow?
     if (path.endsWith("/events")) return route.fulfill({ status: 200, contentType: "text/event-stream", body: "" });
     return json(list([]));
   });
+  await withODataEndpoints(page);
 }
 
 const PAGES = [

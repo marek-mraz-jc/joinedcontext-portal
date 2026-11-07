@@ -905,6 +905,15 @@ impl Decision {
     }
 
     /// The refusal a write door answers when the decision is no.
+    /// A refused write: 403 as the problem every write door answers (its CSRF guard too, PF-50),
+    /// the reason in its detail; a row the caller cannot read stays the OData 404.
+    fn write_refusal(&self) -> Result<Response, ApiError> {
+        if self.not_found {
+            return Ok(self.refusal().into_response());
+        }
+        Err(ApiError::Denied(self.reason.clone().unwrap_or_default()))
+    }
+
     fn refusal(&self) -> Refusal {
         let reason = self.reason.clone().unwrap_or_default();
         if self.not_found {
@@ -1159,12 +1168,12 @@ fn spec_patch(body: &[u8]) -> Result<Value, Refusal> {
         ("entity" = String, Path, description = "Endpoints('<key>'), e.g. Endpoints('air-counters')"),
         ("If-Match" = Option<String>, Header, description = "The ETag of the manifest as read; a stale one is 412"),
     ),
-    request_body(content = Object, description = "The properties to change, e.g. {\"audience\": \"public\", \"mcp\": false}"),
+    request_body(content = Object, content_type = "application/json", description = "The properties to change, e.g. {\"audience\": \"public\", \"mcp\": false}", example = json!({ "audience": "public", "mcp": false })),
     responses(
         (status = 202, description = "The Change that proposes it", body = Object),
         (status = 400, description = "A property the row does not change or a value of the wrong type, as an OData error"),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
-        (status = 403, description = "The caller may not propose it, or the row is not this project's, as an OData error with the reason"),
+        (status = 403, description = "The caller may not propose it, or the row is not this project's: the reason in the problem's detail", body = ProblemDetails),
         (status = 404, description = "No such row the caller may read, as an OData error"),
         (status = 422, description = "The checked manifest is refused: each finding named", body = ProblemDetails),
     )
@@ -1183,7 +1192,7 @@ pub async fn change_endpoint(
     };
     let decision = decide(&state, &user, &project, &rows, "update", Some(&key));
     if !decision.allowed {
-        return Ok(decision.refusal().into_response());
+        return decision.write_refusal();
     }
     let patch = match spec_patch(&body) {
         Ok(patch) => patch,
@@ -1261,7 +1270,7 @@ pub async fn change_endpoint(
     responses(
         (status = 202, description = "The Change that proposes it", body = Object),
         (status = 401, description = "Unauthorized", body = ProblemDetails),
-        (status = 403, description = "The caller may not delete it, or the row is not this project's, as an OData error with the reason"),
+        (status = 403, description = "The caller may not delete it, or the row is not this project's: the reason in the problem's detail", body = ProblemDetails),
         (status = 404, description = "No such row the caller may read, as an OData error"),
         (status = 409, description = "Other resources reference it", body = ProblemDetails),
     )
@@ -1279,7 +1288,7 @@ pub async fn remove_endpoint(
     };
     let decision = decide(&state, &user, &project, &rows, "delete", Some(&key));
     if !decision.allowed {
-        return Ok(decision.refusal().into_response());
+        return decision.write_refusal();
     }
     crate::api::delete::delete_resource(
         user,
