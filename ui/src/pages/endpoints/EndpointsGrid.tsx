@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { parseGridConfig, searchQuery } from "@joinedcontext/sdk/grid";
 import type { GridColumn, GridLabels, RichRow } from "@joinedcontext/sdk/grid";
+import type { EnumOption } from "@joinedcontext/sdk";
 import type { Manifest } from "../../api/manifest";
 import { localized } from "../../api/manifest";
 import { PortalEntityGrid } from "../../components/entities/PortalEntityGrid";
@@ -21,8 +22,12 @@ import { Badge } from "../../components/ui";
 import { RowDetails } from "../../components/ui/RowActions";
 import type { EndpointRow } from "./endpointRows";
 
-/** The properties the grid edits in place: what the OData set's PATCH changes (src/api/odata.rs EDITABLE). */
-export const EDITABLE = ["contextSpace", "audience", "mcp"] as const;
+/**
+ * The properties the grid edits in place, of those the OData set's PATCH changes (src/api/odata.rs
+ * EDITABLE): the space, picked from the project's spaces. The audience keeps its badge and the
+ * projects it names, and it and MCP change in the Edit form, which asks for those projects.
+ */
+export const EDITABLE = ["contextSpace"] as const;
 
 /** The searched text columns: an Endpoint's name and its title. */
 const SEARCHED = [
@@ -78,6 +83,7 @@ export function EndpointsGrid({
   project,
   search,
   manifests,
+  spaces,
   label,
   actions,
   calls,
@@ -88,6 +94,8 @@ export function EndpointsGrid({
   /** The header's search: a name or a title, in any case. */
   search: string;
   manifests: EndpointManifests;
+  /** The project's spaces the person reads: what a row's space is picked from. */
+  spaces: readonly string[];
   /** The name a person reads for a row: its title in their language, else its name. */
   label: (row: EndpointRow) => string;
   /** The row menu, by the page's row. */
@@ -145,6 +153,7 @@ export function EndpointsGrid({
   // Endpoints, and a change is a proposal that waits for approval, not a saved value.
   const labels = useMemo<Partial<GridLabels>>(
     () => ({
+      id: t("endpoints.field.name"),
       empty: t("endpoints.grid.empty"),
       filterExampleText: t("endpoints.grid.filterExampleText"),
       filterExampleId: t("endpoints.grid.filterExampleId"),
@@ -153,6 +162,7 @@ export function EndpointsGrid({
     }),
     [t],
   );
+  const enums = useMemo<Record<string, EnumOption[]>>(() => ({ contextSpace: spaces.map((value) => ({ value })) }), [spaces]);
   if (!config) {
     return <></>;
   }
@@ -165,7 +175,7 @@ export function EndpointsGrid({
       const name = page.endpoint ? localized(page.endpoint.metadata.title, locale, row.name) : label(page) || row.title || row.name;
       return (
         <div className="flex min-w-0 items-center justify-between gap-2">
-          <div className="flex min-w-0 max-w-60 items-baseline gap-2 whitespace-nowrap">
+          <div className="flex w-36 min-w-0 items-baseline gap-2 whitespace-nowrap sm:w-60">
             {row.kind === "gone" ? (
               <>
                 <span className="truncate font-mono">{name}</span>
@@ -221,6 +231,10 @@ export function EndpointsGrid({
       const endpoint = manifestOf(rich);
       return endpoint ? <RepresentationSummary served={servedRepresentations(endpoint.spec as { enabledRepresentations?: string[] })} /> : "—";
     },
+    // Another project's Endpoint is changed where it is published: its space reads as text; the
+    // project's own rows keep the grid's picker (undefined leaves the cell to it).
+    contextSpace: (_cell, rich) => (rowOf(rich).kind === "own" ? undefined : <span className="font-mono text-caption">{String(rich.raw.contextSpace ?? "—")}</span>),
+    mcp: (_cell, rich) => (rowOf(rich).kind === "gone" ? "—" : rich.raw.mcp === false ? t("grid.off") : t("grid.on")),
     calls7d: (_cell, rich) => {
       const row = rowOf(rich);
       return calls(row.kind === "own" ? row.name : null);
@@ -237,11 +251,13 @@ export function EndpointsGrid({
       query={query}
       hidden={["entity:type"]}
       renderers={renderers}
+      enums={enums}
       labels={labels}
       reloadKey={reloadKey}
       empty={empty}
       locale={locale}
       ariaLabel={t("endpoints.title")}
+      className="jc-endpoints-grid"
       openRow={detail}
       onOpenRow={openRow}
     />

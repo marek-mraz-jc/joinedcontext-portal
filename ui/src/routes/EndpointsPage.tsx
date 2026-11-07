@@ -1351,6 +1351,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
         project={project}
         search={needle}
         manifests={manifests}
+        spaces={spaceNames}
         label={rowLabel}
         // A change that lands (the list polls while one is on its way, T-1392) reads the rows again.
         reloadKey={list.dataUpdatedAt === firstAnswer ? 0 : list.dataUpdatedAt}

@@ -220,6 +220,35 @@ describe("EntityGrid", () => {
     expect(screen.getByText("Kallio").closest("[role=row]")).toHaveAttribute("aria-rowindex", "3");
   });
 
+  // T-6645: a host draws some rows' cells itself (rows another project owns) and leaves the rest,
+  // editors included, to the grid by answering undefined.
+  it("keeps its editor on a row the host's renderer leaves to it", async () => {
+    const editable = parseGridConfig({
+      source: { kind: "fixture", name: "test" },
+      type: "BikeHireDockingStation",
+      columns: [
+        { attr: "name", label: "Name" },
+        { attr: "availableBikeNumber", label: "Bikes" },
+      ],
+      pageSize: 10,
+      mode: "edit",
+      editableAttrs: ["availableBikeNumber"],
+    }).config!;
+    const source = { ...fixtureSource(bikeEntities), patch: vi.fn() };
+    render(
+      <EntityGrid
+        config={editable}
+        source={source}
+        renderers={{ availableBikeNumber: (_cell, row) => (row.cells.name && "value" in row.cells.name && row.cells.name.value === "Kamppi" ? "not yours" : undefined) }}
+      />,
+    );
+    const kamppi = (await screen.findByText("Kamppi")).closest("tr")!;
+    const kallio = screen.getByText("Kallio").closest("tr")!;
+    expect(within(kamppi).getByText("not yours")).toBeInTheDocument();
+    expect(kamppi.querySelector("input")).toBeNull();
+    expect(kallio.querySelector("input")).not.toBeNull();
+  });
+
   // T-3097: the identifier opens the row whole, every attribute with the grid's own editors, and
   // Escape goes back to the grid.
   it("opens a row's detail panel from its identifier, edits there, and closes back to the grid", async () => {

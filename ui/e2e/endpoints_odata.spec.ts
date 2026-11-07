@@ -51,6 +51,9 @@ async function stubApi(page: Page, own: unknown[], options: { failOData?: boolea
     if (path === "/api/v1/projects") return list([{ name: "helsinki" }, { name: "espoo" }]);
     if (path === "/api/v1/projects/helsinki/endpoints") return list(own);
     if (path === "/api/v1/projects/espoo/endpoints") return list(ESPOO);
+    if (path === "/api/v1/projects/helsinki/spaces") {
+      return list(["air", "tapahtumat"].map((name) => ({ apiVersion: API, kind: "ContextSpace", metadata: { name, namespace: "helsinki" }, spec: {}, status: { phase: "Live" } })));
+    }
     if (path === "/api/v1/projects/helsinki/usage/endpoints") {
       return json({ window: "7d", endpoints: own.map((_, i) => ({ name: (own[i] as { metadata: { name: string } }).metadata.name, total: 120 * (i + 1) })) });
     }
@@ -124,7 +127,7 @@ for (const width of [1440, 400]) {
           contentType: "application/json",
           body: JSON.stringify({
             allowed: false,
-            reason: "your proposal check refuses audience on events: an Endpoint shared with the Organization needs an approver of the Organization",
+            reason: "your proposal check refuses moving events: the space air is not one you may propose into",
             notFound: false,
           }),
         }),
@@ -135,12 +138,14 @@ for (const width of [1440, 400]) {
       await page.goto("/projects/helsinki/endpoints?lang=en");
       const row = grid(page).getByRole("row").filter({ has: page.getByRole("link", { name: "Helsinki events" }) });
       await expect(row).toBeVisible();
-      const cell = row.locator('td[data-label="Audience"]');
-      await cell.dblclick();
-      const picker = cell.locator("select");
-      await picker.selectOption("public");
-      await page.getByRole("button", { name: "Apply" }).click();
-      await expect(page.getByText(/You may not change this row: your proposal check refuses audience/).first()).toBeVisible();
+      // The space is picked from the project's spaces, never typed.
+      const picker = row.locator('td[data-label="Context Space"] select');
+      await expect(picker.locator("option", { hasText: "air" })).toHaveCount(1);
+      await expect(picker.locator("option", { hasText: "tapahtumat" })).toHaveCount(1);
+      await picker.selectOption("air");
+      await page.getByRole("button", { name: "Review the changes" }).click();
+      await page.getByRole("button", { name: "Apply", exact: true }).click();
+      await expect(page.getByText(/You may not change this row: your proposal check refuses moving events/).first()).toBeVisible();
       expect(writes).toEqual([]);
       await page.screenshot({ path: join(SHOTS, `refused-${width}.png`) });
     });
