@@ -147,6 +147,8 @@ for (const width of [1440, 400]) {
       await page.getByRole("button", { name: "Apply", exact: true }).click();
       await expect(page.getByText(/You may not change this row: your proposal check refuses moving events/).first()).toBeVisible();
       expect(writes).toEqual([]);
+      // The rows are read again after the apply; the shot waits for them.
+      await expect(page.locator(".jc-grid-loading")).toHaveCount(0);
       await page.screenshot({ path: join(SHOTS, `refused-${width}.png`) });
     });
   });

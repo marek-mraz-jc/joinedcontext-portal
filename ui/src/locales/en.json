@@ -1462,7 +1462,7 @@
       "filterExampleText": "air",
       "filterExampleId": "air-quality",
       "editAsTextHint": "Write the filter as text, e.g. audience==\"public\"",
-      "proposed": "Proposed: the change waits for approval under Changes"
+      "proposed": "Proposed for approval under Changes, values:"
     },
     "surfaceFit": {
       "lead": "The data model of space {space} cannot serve these standards, so their boxes are greyed out:",

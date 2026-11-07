@@ -19,6 +19,7 @@ import { LifecycleBadge } from "../../components/status/LifecycleBadge";
 import { RepresentationSummary, servedRepresentations } from "../../components/endpoints/links";
 import { SharedWithBadge } from "../../components/endpoints/sharing";
 import { Badge } from "../../components/ui";
+import { useIsPhone } from "../../phone";
 import { RowDetails } from "../../components/ui/RowActions";
 import type { EndpointRow } from "./endpointRows";
 
@@ -108,6 +109,10 @@ export function EndpointsGrid({
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const navigate = useNavigate();
+  // A phone shows a row's name, source, space, audience and state; its surfaces, calls and MCP
+  // are on the Endpoint's own page, one tap away, instead of three more columns to scroll to.
+  const phone = useIsPhone();
+  const hidden = useMemo(() => (phone ? ["entity:type", "representations", "calls7d", "mcp"] : ["entity:type"]), [phone]);
   // The row whose fields the grid's detail shows: Details in the row menu opens it.
   const [detail, setDetail] = useState<string | null>(null);
   // A click on a plain cell opens the Endpoint's own page, as every list of the Portal does
@@ -249,7 +254,7 @@ export function EndpointsGrid({
       project={project}
       config={config}
       query={query}
-      hidden={["entity:type"]}
+      hidden={hidden}
       renderers={renderers}
       enums={enums}
       labels={labels}

@@ -242,7 +242,7 @@ impl Row {
         let phase = env
             .status
             .as_ref()
-            .and_then(|status| serde_json::to_value(&status.phase).ok())
+            .and_then(|status| serde_json::to_value(status.phase).ok())
             .and_then(|phase| phase.as_str().map(str::to_owned));
         Row([
             Val::Str(id),
@@ -1054,15 +1054,17 @@ async fn keyed(
     user: &CurrentUser,
     project: &str,
     segment: &str,
-) -> Result<(Vec<Row>, String), Response> {
+) -> Result<(Vec<Row>, String), Box<Response>> {
     let rows = rows(state, user, project)
         .await
-        .map_err(IntoResponse::into_response)?;
+        .map_err(|refused| Box::new(refused.into_response()))?;
     let key = key_of(segment).ok_or_else(|| {
-        bad(format!(
-            "{segment} is no entity of this service: write {ENTITY_SET}('<key>')"
-        ))
-        .into_response()
+        Box::new(
+            bad(format!(
+                "{segment} is no entity of this service: write {ENTITY_SET}('<key>')"
+            ))
+            .into_response(),
+        )
     })?;
     Ok((rows, key))
 }
@@ -1092,7 +1094,7 @@ pub async fn read_endpoint(
 ) -> Response {
     let (rows, key) = match keyed(&state, &user, &project, &entity).await {
         Ok(found) => found,
-        Err(answer) => return answer,
+        Err(answer) => return *answer,
     };
     let Some(row) = rows.iter().find(|row| row.str("id") == Some(key.as_str())) else {
         return Refusal(
@@ -1188,7 +1190,7 @@ pub async fn change_endpoint(
 ) -> Result<Response, ApiError> {
     let (rows, key) = match keyed(&state, &user, &project, &entity).await {
         Ok(found) => found,
-        Err(answer) => return Ok(answer),
+        Err(answer) => return Ok(*answer),
     };
     let decision = decide(&state, &user, &project, &rows, "update", Some(&key));
     if !decision.allowed {
@@ -1284,7 +1286,7 @@ pub async fn remove_endpoint(
 ) -> Result<Response, ApiError> {
     let (rows, key) = match keyed(&state, &user, &project, &entity).await {
         Ok(found) => found,
-        Err(answer) => return Ok(answer),
+        Err(answer) => return Ok(*answer),
     };
     let decision = decide(&state, &user, &project, &rows, "delete", Some(&key));
     if !decision.allowed {
