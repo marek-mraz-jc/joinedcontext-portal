@@ -103,7 +103,7 @@ for (const width of [1440, 400]) {
     test("a project's endpoints and the ones shared with it", async ({ page }) => {
       await stubApi(page);
       await page.goto("/projects/helsinki/endpoints?lang=en");
-      const own = page.getByRole("table", { name: "Endpoints" });
+      const own = page.getByRole("grid", { name: "Endpoints" });
       await expect(own.getByRole("link", { name: "City bike stations" })).toBeVisible();
       // Shared Endpoints are rows of the same grid, with a Source chip (T-6169).
       await expect(own.getByText("Parking places in Espoo")).toBeVisible();

@@ -145,7 +145,7 @@ test.describe("sharing", () => {
 
     // espoo sees it as a row of its Endpoints grid (T-6169) and references it from the row menu.
     await page.goto("/projects/espoo/endpoints?lang=en");
-    const shared = page.getByRole("table", { name: "Endpoints" });
+    const shared = page.getByRole("grid", { name: "Endpoints" });
     const bikes = shared.getByRole("row").filter({ hasText: "bikes" });
     await expect(bikes.getByText("Shared by helsinki")).toBeVisible();
     await bikes.getByRole("button", { name: /More actions/ }).click();
@@ -172,7 +172,7 @@ test.describe("sharing", () => {
       page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Shared references" }),
     ).toHaveCount(0);
     await page.goto("/projects/espoo/shared");
-    await expect(page.getByRole("table", { name: "Endpoints" })).toBeVisible();
+    await expect(page.getByRole("grid", { name: "Endpoints" })).toBeVisible();
     expect(new URL(page.url()).pathname).toBe("/projects/espoo/endpoints");
   });
 

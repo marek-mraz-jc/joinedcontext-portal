@@ -88,6 +88,7 @@ export function EndpointsGrid({
   label,
   actions,
   calls,
+  callsDetail,
   reloadKey,
   empty,
 }: {
@@ -103,16 +104,19 @@ export function EndpointsGrid({
   actions: (row: EndpointRow, label: string) => ReactNode;
   /** The calls cell of an own Endpoint by name; shared rows are counted by their owner. */
   calls: (name: string | null) => ReactNode;
+  /** The 7-day calls by kind of caller, under a row's fields in its Details (T-6186). */
+  callsDetail: (name: string | null) => ReactNode;
   reloadKey: number;
   empty: ReactNode;
 }): JSX.Element {
   const { t, i18n } = useTranslation();
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const navigate = useNavigate();
-  // A phone shows a row's name, source, space, audience and state; its surfaces, calls and MCP
-  // are on the Endpoint's own page, one tap away, instead of three more columns to scroll to.
+  // MCP is one of the surfaces the Representations column names, so its own column stays under
+  // the header menu's fields. A phone shows a row's name, source, space, audience and state; its
+  // surfaces and calls are on the Endpoint's own page, one tap away, not two more columns to scroll.
   const phone = useIsPhone();
-  const hidden = useMemo(() => (phone ? ["entity:type", "representations", "calls7d", "mcp"] : ["entity:type"]), [phone]);
+  const hidden = useMemo(() => (phone ? ["entity:type", "mcp", "representations", "calls7d"] : ["entity:type", "mcp"]), [phone]);
   // The row whose fields the grid's detail shows: Details in the row menu opens it.
   const [detail, setDetail] = useState<string | null>(null);
   // A click on a plain cell opens the Endpoint's own page, as every list of the Portal does
@@ -257,6 +261,10 @@ export function EndpointsGrid({
       hidden={hidden}
       renderers={renderers}
       enums={enums}
+      detailExtra={(rich) => {
+        const row = rowOf(rich);
+        return callsDetail(row.kind === "own" ? row.name : null);
+      }}
       labels={labels}
       reloadKey={reloadKey}
       empty={empty}

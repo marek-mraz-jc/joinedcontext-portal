@@ -148,7 +148,9 @@ for (const width of [1440, 400]) {
     await stub(page, true, "loading");
     await page.goto("/projects/bbsk/endpoints?lang=en");
     await expect(page.getByRole("heading", { level: 1, name: "Endpoints" })).toBeVisible();
-    await expect(page.getByRole("table", { name: "Endpoints" })).toHaveAttribute("aria-busy", "true");
+    // The grid stands under the header and says it is reading (T-6645).
+    await expect(page.getByRole("grid", { name: "Endpoints" })).toBeVisible();
+    await expect(page.locator(".jc-grid-loading")).toBeVisible();
     await page.screenshot({ path: join(dir, `endpoints-loading-${width}.png`) });
 
     await page.unrouteAll({ behavior: "ignoreErrors" });

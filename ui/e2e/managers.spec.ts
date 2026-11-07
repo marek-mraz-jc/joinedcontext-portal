@@ -172,7 +172,7 @@ test.describe("managers", () => {
     await page.goto("/projects/helsinki/endpoints?lang=sk");
     // The route holds two tables since T-0498: the project's own and the shared section's.
     // The Slovak name is the locale's own (T-3278 gave endpoint one Slovak term), never a copy here.
-    await expect(page.getByRole("table", { name: sk.endpoints.title })).toBeVisible();
+    await expect(page.getByRole("grid", { name: sk.endpoints.title })).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
   });
 });

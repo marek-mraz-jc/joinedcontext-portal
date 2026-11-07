@@ -1356,6 +1356,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
         // A change that lands (the list polls while one is on its way, T-1392) reads the rows again.
         reloadKey={list.dataUpdatedAt === firstAnswer ? 0 : list.dataUpdatedAt}
         calls={(name) => <CallsCell calls={name ? callsByName.get(name) : undefined} notCounted={notCounted(name !== null)} />}
+        callsDetail={(name) => <CallsDetail calls={name ? callsByName.get(name) : undefined} notCounted={notCounted(name !== null)} />}
         actions={(row, label) =>
           row.own && row.endpoint ? (
             <EndpointRowActions

@@ -86,7 +86,9 @@ test("ten thousand endpoints: the first row is on screen within a second and the
     }
     return json(JSON.stringify({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] }));
   });
-  await withODataEndpoints(page);
+  // The OData set answered from the list itself: the clock measures the page, not a stub reading
+  // 10 000 rows back through the browser for every page.
+  await withODataEndpoints(page, { "/api/v1/projects/bbsk/endpoints": items });
 
   const first = (items[0] as { metadata: { title: { en: string } } }).metadata.title.en;
   const last = (items[N - 1] as { metadata: { title: { en: string } } }).metadata.title.en;
@@ -98,8 +100,8 @@ test("ten thousand endpoints: the first row is on screen within a second and the
   const shown = Date.now();
   const firstRow = shown - answered;
   const bootMs = answered - started;
-  const rows = await page.locator("[data-records] tbody tr").count();
-  // The search asks the list the page already holds: the last of 10 000, a page and more away.
+  const rows = await page.locator("tr.jc-grid-tr").count();
+  // The search asks the server: the last of 10 000, a page and more away.
   const searched = Date.now();
   await page.getByRole("searchbox", { name: "Find an endpoint by name or title" }).fill(`d${String(N - 1).padStart(5, "0")}`);
   await expect(page.getByText(last, { exact: true }).first()).toBeVisible({ timeout: 30_000 });
