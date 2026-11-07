@@ -136,6 +136,9 @@ for (const width of [1440, 400]) {
         if (request.url().includes("/odata/") && ["PATCH", "DELETE"].includes(request.method())) writes.push(request.method());
       });
       await page.goto("/projects/helsinki/endpoints?lang=en");
+      // A phone shows no space column: the change is made wide, and the review and its refusal
+      // are read at the phone's width.
+      if (width < 640) await page.setViewportSize({ width: 1440, height: 900 });
       const row = grid(page).getByRole("row").filter({ has: page.getByRole("link", { name: "Helsinki events" }) });
       await expect(row).toBeVisible();
       // The space is picked from the project's spaces, never typed.
@@ -143,6 +146,7 @@ for (const width of [1440, 400]) {
       await expect(picker.locator("option", { hasText: "air" })).toHaveCount(1);
       await expect(picker.locator("option", { hasText: "tapahtumat" })).toHaveCount(1);
       await picker.selectOption("air");
+      if (width < 640) await page.setViewportSize({ width, height: 900 });
       await page.getByRole("button", { name: "Review the changes" }).click();
       await page.getByRole("button", { name: "Apply", exact: true }).click();
       await expect(page.getByText(/You may not change this row: your proposal check refuses moving events/).first()).toBeVisible();

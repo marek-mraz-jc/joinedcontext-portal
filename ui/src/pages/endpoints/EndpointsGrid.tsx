@@ -113,10 +113,13 @@ export function EndpointsGrid({
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const navigate = useNavigate();
   // MCP is one of the surfaces the Representations column names, so its own column stays under
-  // the header menu's fields. A phone shows a row's name, source, space, audience and state; its
-  // surfaces and calls are on the Endpoint's own page, one tap away, not two more columns to scroll.
+  // the header menu's fields. A phone shows a row's name, source, audience and state; its space,
+  // surfaces and calls are on the Endpoint's own page, one tap away, not columns to scroll to.
   const phone = useIsPhone();
-  const hidden = useMemo(() => (phone ? ["entity:type", "mcp", "representations", "calls7d"] : ["entity:type", "mcp"]), [phone]);
+  const hidden = useMemo(
+    () => (phone ? ["entity:type", "mcp", "contextSpace", "representations", "calls7d"] : ["entity:type", "mcp"]),
+    [phone],
+  );
   // The row whose fields the grid's detail shows: Details in the row menu opens it.
   const [detail, setDetail] = useState<string | null>(null);
   // A click on a plain cell opens the Endpoint's own page, as every list of the Portal does
