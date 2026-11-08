@@ -16113,6 +16113,229 @@
         }
       }
     },
+    "/api/v1/projects/{project}/odata/": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Read the OData Service Document",
+        "description": "The service document of the project's OData service: the entity sets it serves, Endpoints today (T-6632).",
+        "operationId": "service_document",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name, e.g. helsinki",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The OData service document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A project where the caller reads no Endpoint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/odata/$metadata": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Read the OData Metadata",
+        "description": "The CSDL XML document of the project's OData service: the entity type Endpoint and the entity set Endpoints (T-6632).",
+        "operationId": "metadata",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name, e.g. helsinki",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "CSDL XML, OData 4.0",
+            "content": {
+              "application/xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A project where the caller reads no Endpoint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/odata/Endpoints": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Query Endpoints with OData",
+        "description": "The project's Endpoints the caller may read, as the OData 4.0 entity set Endpoints: $filter (eq, ne, gt, ge, lt, le, in, and, or, not, contains, startswith, endswith, tolower, toupper), $select, $orderby, $top (at most 1000), $skip and $count over id, title, description, contextSpace, slug, audience and mcp (T-6632).",
+        "operationId": "query_endpoints",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name, e.g. helsinki",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "$filter",
+            "in": "query",
+            "description": "A predicate over the properties, e.g. contextSpace eq 'air' and startswith(id,'bikes')",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "$select",
+            "in": "query",
+            "description": "Properties to return, comma-separated, e.g. id,title",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "$orderby",
+            "in": "query",
+            "description": "Properties to sort by, each with asc or desc, e.g. title desc",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "$top",
+            "in": "query",
+            "description": "Rows to return, 0 to 1000, e.g. 50",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "$skip",
+            "in": "query",
+            "description": "Rows to skip first, e.g. 50",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64",
+              "minimum": 0
+            }
+          },
+          {
+            "name": "$count",
+            "in": "query",
+            "description": "true adds @odata.count, the rows the filter keeps",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The OData collection: @odata.context, @odata.count when asked, value and @odata.nextLink when more rows follow",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A name an Endpoint does not have, a bad expression, a $top above 1000 or a query over its bounds, as an OData error"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A project where the caller reads no Endpoint",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "501": {
+            "description": "An OData option or function this entity set does not serve, as an OData error"
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project}/ops": {
       "get": {
         "tags": [
