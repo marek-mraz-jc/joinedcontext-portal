@@ -891,6 +891,14 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   const [internalEdits, setInternalEdits] = useState<Record<string, Record<string, unknown>>>({});
 
   // Controlled state: use controlled values when key present
+  // A new question from the host (its search box) starts on the first page, as the filter row's
+  // does: page 3 of the old answer is no page of the new one (T-6645).
+  const hostAsked = JSON.stringify([queryPartial?.q, queryPartial?.idPattern, queryPartial?.scopeQ, queryPartial?.ids]);
+  const [askedBefore, setAskedBefore] = useState(hostAsked);
+  if (askedBefore !== hostAsked) {
+    setAskedBefore(hostAsked);
+    setInternalOffset(0);
+  }
   const offset = controlledState?.offset !== undefined ? controlledState.offset : internalOffset;
   const activeCell = controlledState?.activeCell !== undefined ? controlledState.activeCell : internalActiveCell;
   const selected = controlledState?.selected !== undefined ? controlledState.selected : internalSelected;

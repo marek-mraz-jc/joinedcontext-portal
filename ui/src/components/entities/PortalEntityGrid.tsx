@@ -419,21 +419,23 @@ export interface PortalEntityGridProps extends Omit<EntityGridProps, "labels" | 
   emptyText?: string;
   /** Whether the last read was refused (401/403), for a host that shows the person's access beside it. */
   onRefused?: (refused: boolean) => void;
+  /** Words of the host's own over the Portal's grid words, for a list that is not entities (the Endpoints list, T-6645). */
+  labels?: Partial<GridLabels>;
 }
 
 /**
  * The grid as the Portal renders it. The source comes from the config — an endpoint's slug or a
  * space's name, never a URL (EP-55) — over the Portal's own origin transport.
  */
-export function PortalEntityGrid({ project, config, source, view, onGridState, emptyText, onRefused, ...rest }: PortalEntityGridProps): JSX.Element {
+export function PortalEntityGrid({ project, config, source, view, onGridState, emptyText, onRefused, labels: own, ...rest }: PortalEntityGridProps): JSX.Element {
   const { t, i18n } = useTranslation();
   const signIn = useSignIn();
   // `t` changes identity on a language change, which is what rebuilds the labels; the language
   // itself is read below, for the source's own locale.
   const labels = useMemo(
     // A refused read (401/403) is the grid's own signed-out or no-access state, never a failure to retry (T-6107, T-6376).
-    () => ({ ...gridLabels(t), ...(emptyText ? { empty: emptyText } : {}) }),
-    [t, emptyText],
+    () => ({ ...gridLabels(t), ...(emptyText ? { empty: emptyText } : {}), ...own }),
+    [t, emptyText, own],
   );
   const mapLabels = useMemo(() => gridMapLabels(t), [t]);
   const geoLabels = useMemo(() => geoEditorLabels(t), [t]);

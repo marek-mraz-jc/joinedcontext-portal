@@ -274,6 +274,13 @@
   text-decoration: underline;
 }
 
+/* The Endpoints grid draws its own name cell (a title, its badges and the row menu, T-6645): the
+   SDK grid caps an id column at 8rem for a bare URN, which cut every title to "Air quali…".
+   Unlayered for the same reason as above: grid.css is unlayered. */
+:is(.jc-endpoints-grid.jc-grid, .jc-endpoints-grid .jc-grid) td[data-col="id"] {
+  max-width: 22rem;
+}
+
 @layer base {
   html {
     background-color: var(--portal-bg);

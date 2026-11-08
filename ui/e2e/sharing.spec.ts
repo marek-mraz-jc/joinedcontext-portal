@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
 import { greenVerdict, isCheck } from "./verdict";
 import { axeViolations } from "./axe";
+import { withODataEndpoints } from "./odataEndpoints";
 
 // `vite preview` has no portal API behind it, so the API is answered in the browser and
 // everything above it — the project list, the form, the write, the second project's view —
@@ -111,6 +112,7 @@ async function stubApi(page: Page): Promise<{ writes: string[] }> {
     }
     return json(list(state[path] ?? []));
   });
+  await withODataEndpoints(page);
   return { writes };
 }
 
@@ -143,7 +145,7 @@ test.describe("sharing", () => {
 
     // espoo sees it as a row of its Endpoints grid (T-6169) and references it from the row menu.
     await page.goto("/projects/espoo/endpoints?lang=en");
-    const shared = page.getByRole("table", { name: "Endpoints" });
+    const shared = page.getByRole("grid", { name: "Endpoints" });
     const bikes = shared.getByRole("row").filter({ hasText: "bikes" });
     await expect(bikes.getByText("Shared by helsinki")).toBeVisible();
     await bikes.getByRole("button", { name: /More actions/ }).click();
@@ -170,7 +172,7 @@ test.describe("sharing", () => {
       page.getByRole("navigation", { name: "Main navigation" }).getByRole("link", { name: "Shared references" }),
     ).toHaveCount(0);
     await page.goto("/projects/espoo/shared");
-    await expect(page.getByRole("table", { name: "Endpoints" })).toBeVisible();
+    await expect(page.getByRole("grid", { name: "Endpoints" })).toBeVisible();
     expect(new URL(page.url()).pathname).toBe("/projects/espoo/endpoints");
   });
 

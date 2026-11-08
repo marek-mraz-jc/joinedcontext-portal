@@ -6,6 +6,11 @@
 //!   `changes` and `jc_workspace_list` as `workspaces`. Its entity type is the operation's own
 //!   output schema (the scalar members of an item), so a member the operation does not answer
 //!   is no property, and `$filter` cannot reach it.
+//! - `endpointList` holds the rows of the Endpoints page, which the SDK grid draws (T-6645): the
+//!   project's own Endpoints, those other projects share with it and its references whose
+//!   Endpoint went away, each after the read check of the project it lives in
+//!   ([`crate::api::odata_endpoints`]). Its rows also take `PATCH` and `DELETE` by key, through the
+//!   REST doors, and `endpointList/$allowed` answers what those would decide.
 //! - Every writing operation becomes an unbound action of the same name, its parameters the
 //!   operation's input schema: `POST .../odata/jc_resource_propose` runs what
 //!   `POST .../ops/jc_resource_propose` runs.
@@ -20,8 +25,8 @@
 use std::sync::{Arc, LazyLock};
 
 use axum::body::Bytes;
-use axum::extract::{OriginalUri, Path, State};
-use axum::http::{header, HeaderValue, StatusCode};
+use axum::extract::{OriginalUri, Path, Query, State};
+use axum::http::{header, HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use axum::Router;
@@ -31,7 +36,12 @@ use odata_table::{
     Rule, Scope, Service, Table, TableError,
 };
 use odata_url::{EdmModel, Key, KeyValue, Literal, ODataUri, QueryOptions, Segment, UrlErrorKind};
+use serde::Deserialize;
 use serde_json::{json, Map, Value};
+use utoipa::IntoParams;
+
+use crate::api::dry_run::DryRunQuery;
+use crate::api::odata_endpoints as endpoint_list;
 
 use crate::api::ops::{caller_of, respond};
 use crate::auth::session::{CurrentUser, Front};
@@ -60,6 +70,8 @@ struct ListSet {
     key: &'static str,
     /// The input member a page's `next` goes back in, for an operation that pages.
     cursor: Option<&'static str>,
+    /// Whether the rows are the Endpoints page's ([`endpoint_list::rows`]), not the operation's.
+    endpoint_list: bool,
 }
 
 /// The mapped list operations, in `$metadata` order. The ones left out and why are in T-6655.
@@ -72,6 +84,7 @@ fn list_sets() -> Vec<ListSet> {
             input: json!({ "kind": info.kind }),
             key: "name",
             cursor: None,
+            endpoint_list: false,
         })
         .collect();
     sets.push(ListSet {
@@ -81,6 +94,7 @@ fn list_sets() -> Vec<ListSet> {
         input: json!({ "limit": 100 }),
         key: "name",
         cursor: Some("cursor"),
+        endpoint_list: false,
     });
     sets.push(ListSet {
         set: "workspaces".into(),
@@ -89,6 +103,16 @@ fn list_sets() -> Vec<ListSet> {
         input: json!({}),
         key: "name",
         cursor: None,
+        endpoint_list: false,
+    });
+    sets.push(ListSet {
+        set: endpoint_list::SET.into(),
+        type_name: endpoint_list::TYPE.into(),
+        op: "jc_resource_list",
+        input: json!({ "kind": "Endpoint" }),
+        key: endpoint_list::KEY,
+        cursor: None,
+        endpoint_list: true,
     });
     sets
 }
@@ -153,12 +177,24 @@ static SERVED: LazyLock<Served> = LazyLock::new(|| {
             .iter()
             .map(|set| {
                 let op = ops::find(set.op);
+                let (description, fields) = if set.endpoint_list {
+                    (
+                        "The rows of the Endpoints page: the project's own Endpoints, those other \
+                         projects share with it and its references whose Endpoint went away",
+                        endpoint_list::fields(),
+                    )
+                } else {
+                    (
+                        op.map(|op| op.description).unwrap_or_default(),
+                        op.map(|op| fields_of(op, set.key)).unwrap_or_default(),
+                    )
+                };
                 EntityDef {
                     set: set.set.clone(),
                     type_name: set.type_name.clone(),
-                    description: op.map(|op| op.description).unwrap_or_default().into(),
+                    description: description.into(),
                     key: set.key.into(),
-                    fields: op.map(|op| fields_of(op, set.key)).unwrap_or_default(),
+                    fields,
                     rules: vec![Rule {
                         operation: TableOp::Read,
                         permission: None,
@@ -374,6 +410,11 @@ async fn rows_of(
     state: &AppState,
     project: &str,
 ) -> Result<Vec<Value>, Box<Response>> {
+    if set.endpoint_list {
+        return endpoint_list::rows(state, &caller.identity, project)
+            .await
+            .map_err(|refused| Box::new(refused.into_response()));
+    }
     let Some(op) = ops::find(set.op) else {
         return Err(
             ApiError::Internal(format!("the operation {} is not registered", set.op))
@@ -701,6 +742,264 @@ pub async fn invoke_action(
     )
 }
 
+/// The key of the `endpointList` row a write names, `endpointList('<key>')`, read as a GET reads
+/// it; a write on any other resource is refused, since every other change is an action.
+fn row_key(uri: &axum::http::Uri, project: &str) -> Result<String, Refusal> {
+    let elsewhere = || {
+        Refusal(
+            StatusCode::METHOD_NOT_ALLOWED,
+            "MethodNotAllowed",
+            format!(
+                "only a row of {set} changes here, e.g. {set}('air-counters'); every other change \
+                 is an action $metadata lists",
+                set = endpoint_list::SET
+            ),
+        )
+    };
+    let target = target_of(uri, project).ok_or_else(elsewhere)?;
+    let parsed = odata_url::parse(&target, &EdmModel(&SERVED.model), &limits())
+        .map_err(|e| bad(format!("{e}: write {}('<key>')", endpoint_list::SET)))?;
+    let ODataUri::Resource { path, .. } = parsed else {
+        return Err(elsewhere());
+    };
+    match path.as_slice() {
+        [Segment::EntitySet(set), Segment::Key(Key::Single(KeyValue::Literal(Literal::String(key))))]
+            if set == endpoint_list::SET =>
+        {
+            Ok(key.clone())
+        }
+        _ => Err(elsewhere()),
+    }
+}
+
+/// The caller's rows of the list and the key the write names, or the answer that refuses it.
+async fn keyed(
+    state: &AppState,
+    user: &CurrentUser,
+    project: &str,
+    uri: &axum::http::Uri,
+    op: &str,
+) -> Result<String, Box<Response>> {
+    readable_project(state, user, project).map_err(|e| Box::new(e.into_response()))?;
+    let key = row_key(uri, project).map_err(|r| Box::new(r.into_response()))?;
+    let rows = endpoint_list::rows(state, &user.0.identity, project)
+        .await
+        .map_err(|e| Box::new(e.into_response()))?;
+    let decision = endpoint_list::decide(state, &user.0.identity, project, &rows, op, Some(&key));
+    if decision.allowed {
+        return Ok(key);
+    }
+    let reason = decision.reason.unwrap_or_default();
+    // A row the caller cannot read stays the OData 404; a refused write is the 403 problem every
+    // write door answers (its CSRF guard too, PF-50), the reason in its detail.
+    Err(Box::new(if decision.not_found {
+        not_found(reason).into_response()
+    } else {
+        ApiError::Denied(reason).into_response()
+    }))
+}
+
+/// The query of `endpointList/$allowed`.
+#[derive(Debug, Deserialize, IntoParams)]
+#[serde(deny_unknown_fields)]
+pub struct AllowedQuery {
+    /// read, export, create, update or delete, e.g. update
+    pub op: String,
+    /// The row's key, e.g. air-counters, or helsinki/bikes for a shared row
+    pub key: Option<String>,
+}
+
+/// `GET /api/v1/projects/{project}/odata/{resource}/$allowed` (T-6645).
+#[utoipa::path(
+    get,
+    path = "/api/v1/projects/{project}/odata/{resource}/$allowed",
+    summary = "Ask Whether an Endpoint List Call Is Allowed",
+    description = "Whether the caller may read, export, create, update or delete the entity set endpointList or one row of it, and why not, from the same decision the call runs: update is the propose check of the Endpoint, delete its delete check; a shared or gone row is changed elsewhere and says where. Only endpointList answers it (T-6645).",
+    tag = "resources",
+    params(
+        ("project" = String, Path, description = "Project name, e.g. helsinki"),
+        ("resource" = String, Path, description = "The entity set, endpointList"),
+        AllowedQuery,
+    ),
+    responses(
+        (status = 200, description = "{allowed, reason, notFound}: notFound for a key the caller does not read", body = Object),
+        (status = 400, description = "op missing or an unknown query parameter", body = ProblemDetails),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 404, description = "A project the caller may not read or where it reads no Endpoint, or another entity set", body = ProblemDetails),
+    )
+)]
+pub async fn allowed(
+    user: CurrentUser,
+    State(state): State<AppState>,
+    Path((project, resource)): Path<(String, String)>,
+    Query(query): Query<AllowedQuery>,
+) -> Result<Response, ApiError> {
+    readable_project(&state, &user, &project)?;
+    if resource != endpoint_list::SET {
+        return Err(ApiError::NotFound(format!(
+            "{resource} answers no $allowed: only {} does",
+            endpoint_list::SET
+        )));
+    }
+    let identity = &user.0.identity;
+    let rows = endpoint_list::rows(&state, identity, &project).await?;
+    let decision = endpoint_list::decide(
+        &state,
+        identity,
+        &project,
+        &rows,
+        &query.op,
+        query.key.as_deref(),
+    );
+    let body = json!({
+        "allowed": decision.allowed,
+        "reason": decision.reason,
+        "notFound": decision.not_found,
+    });
+    Ok((odata_headers("application/json"), body.to_string()).into_response())
+}
+
+/// `PATCH /api/v1/projects/{project}/odata/{resource}` (T-6645).
+#[utoipa::path(
+    patch,
+    path = "/api/v1/projects/{project}/odata/{resource}",
+    summary = "Change One Endpoint with OData",
+    description = "Proposes a change of contextSpace, audience or mcp of one of the project's own Endpoints, a row of endpointList by key: the same checked proposal the Endpoints page sends (a dry run that records the verdict, then the proposal through PATCH /projects/{project}/endpoints/{name}), so the change waits for approval like any other. A shared or gone row is refused 403 with where it is changed (T-6645).",
+    tag = "resources",
+    params(
+        ("project" = String, Path, description = "Project name, e.g. helsinki"),
+        ("resource" = String, Path, description = "A row of endpointList by key, e.g. endpointList('air-counters')"),
+        ("If-Match" = Option<String>, Header, description = "The ETag of the manifest as read; a stale one is 412"),
+    ),
+    request_body(content = Object, content_type = "application/json", description = "The properties to change, e.g. {\"audience\": \"public\", \"mcp\": false}", example = json!({ "audience": "public", "mcp": false })),
+    responses(
+        (status = 202, description = "The Change that proposes it", body = Object),
+        (status = 400, description = "A property the row does not change or a value of the wrong type, as an OData error"),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 403, description = "The caller may not propose it, or the row is not this project's: the reason in the problem's detail", body = ProblemDetails),
+        (status = 404, description = "No such row the caller may read, as an OData error"),
+        (status = 405, description = "Not a row of endpointList, as an OData error"),
+        (status = 422, description = "The checked manifest is refused: each finding named", body = ProblemDetails),
+    )
+)]
+pub async fn change_row(
+    user: CurrentUser,
+    front: Front,
+    State(state): State<AppState>,
+    Path((project, _resource)): Path<(String, String)>,
+    OriginalUri(uri): OriginalUri,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response, ApiError> {
+    let key = match keyed(&state, &user, &project, &uri, "update").await {
+        Ok(key) => key,
+        Err(answer) => return Ok(*answer),
+    };
+    let patch = match endpoint_list::spec_patch(&body) {
+        Ok(patch) => patch,
+        Err(message) => return Ok(bad(message).into_response()),
+    };
+    let mut forwarded = HeaderMap::new();
+    forwarded.insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_static("application/merge-patch+json"),
+    );
+    if let Some(tag) = headers.get(header::IF_MATCH) {
+        forwarded.insert(header::IF_MATCH, tag.clone());
+    }
+    let bytes = Bytes::from(patch.to_string());
+    let door = |dry_run: Option<String>| {
+        crate::api::mutate::patch(
+            user.clone(),
+            front,
+            State(state.clone()),
+            Path((project.clone(), "endpoints".to_owned(), key.clone())),
+            Query(DryRunQuery {
+                dry_run,
+                ..DryRunQuery::default()
+            }),
+            forwarded.clone(),
+            bytes.clone(),
+        )
+    };
+    // The check first, as the page's form runs it: it records the verdict the proposal needs
+    // (PF-57), and a red one is answered with its findings and proposes nothing.
+    let checked = door(Some("All".to_owned())).await?;
+    let verdict: Value = serde_json::from_slice(
+        &axum::body::to_bytes(checked.into_body(), 1 << 20)
+            .await
+            .map_err(|e| ApiError::Internal(format!("the check's answer was not read: {e}")))?,
+    )
+    .map_err(|e| ApiError::Internal(format!("the check's answer is not JSON: {e}")))?;
+    if verdict.get("valid") != Some(&Value::Bool(true)) {
+        let errors: Vec<String> = verdict
+            .pointer("/verdict/findings")
+            .and_then(Value::as_array)
+            .map(|findings| {
+                findings
+                    .iter()
+                    .filter_map(|f| {
+                        Some(format!(
+                            "{}: {}",
+                            f.get("path")?.as_str()?,
+                            f.get("message")?.as_str()?
+                        ))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        return Err(ApiError::Unprocessable {
+            detail: format!("the change of Endpoint '{key}' is refused by its check"),
+            errors,
+        });
+    }
+    door(None).await
+}
+
+/// `DELETE /api/v1/projects/{project}/odata/{resource}` (T-6645).
+#[utoipa::path(
+    delete,
+    path = "/api/v1/projects/{project}/odata/{resource}",
+    summary = "Remove One Endpoint with OData",
+    description = "Proposes removing one of the project's own Endpoints, a row of endpointList by key, through the same door as DELETE /projects/{project}/endpoints/{name}: refused 409 while other resources reference it; a shared or gone row is refused 403 with where it is removed (T-6645).",
+    tag = "resources",
+    params(
+        ("project" = String, Path, description = "Project name, e.g. helsinki"),
+        ("resource" = String, Path, description = "A row of endpointList by key, e.g. endpointList('air-counters')"),
+        ("If-Match" = Option<String>, Header, description = "The ETag of the manifest as read; a stale one is 412"),
+    ),
+    responses(
+        (status = 202, description = "The Change that proposes it", body = Object),
+        (status = 401, description = "Unauthorized", body = ProblemDetails),
+        (status = 403, description = "The caller may not delete it, or the row is not this project's: the reason in the problem's detail", body = ProblemDetails),
+        (status = 404, description = "No such row the caller may read, as an OData error"),
+        (status = 405, description = "Not a row of endpointList, as an OData error"),
+        (status = 409, description = "Other resources reference it", body = ProblemDetails),
+    )
+)]
+pub async fn remove_row(
+    user: CurrentUser,
+    front: Front,
+    State(state): State<AppState>,
+    Path((project, _resource)): Path<(String, String)>,
+    OriginalUri(uri): OriginalUri,
+    headers: HeaderMap,
+) -> Result<Response, ApiError> {
+    let key = match keyed(&state, &user, &project, &uri, "delete").await {
+        Ok(key) => key,
+        Err(answer) => return Ok(*answer),
+    };
+    crate::api::delete::delete_resource(
+        user,
+        front,
+        State(state),
+        Path((project, "endpoints".to_owned(), key)),
+        Query(DryRunQuery::default()),
+        headers,
+    )
+    .await
+}
+
 /// `GET /api/v1/projects/{project}/odata/$metadata` (T-6632, T-6655).
 #[utoipa::path(
     get,
@@ -770,17 +1069,49 @@ pub fn router() -> Router<AppState> {
         .route("/projects/{project}/odata/$metadata", get(metadata))
         .route(
             "/projects/{project}/odata/{resource}",
-            get(query_set).post(invoke_action),
+            get(query_set)
+                .post(invoke_action)
+                .patch(change_row)
+                .delete(remove_row),
         )
         .route(
             "/projects/{project}/odata/{resource}/$count",
             get(count_set),
+        )
+        .route(
+            "/projects/{project}/odata/{resource}/$allowed",
+            get(allowed),
         )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A write names one row of endpointList by key, a shared row's `/` percent-encoded as the
+    /// SDK grid sends it; any other resource is refused 405, a bad key 400 (T-6645).
+    #[test]
+    fn a_write_names_one_row_of_the_endpoint_list() {
+        let key = |path: &str| {
+            let uri: axum::http::Uri = format!("/api/v1/projects/p/odata/{path}")
+                .parse()
+                .unwrap_or_else(|e| panic!("{e}"));
+            row_key(&uri, "p").map_err(|Refusal(status, ..)| status)
+        };
+        assert_eq!(key("endpointList('air')"), Ok("air".to_owned()));
+        assert_eq!(
+            key("endpointList('espoo%2Fair')"),
+            Ok("espoo/air".to_owned())
+        );
+        assert_eq!(key("endpointList('it''s')"), Ok("it's".to_owned()));
+        assert_eq!(key("endpoints('air')"), Err(StatusCode::METHOD_NOT_ALLOWED));
+        assert_eq!(key("endpointList"), Err(StatusCode::METHOD_NOT_ALLOWED));
+        assert_eq!(key("endpointList(1)"), Err(StatusCode::BAD_REQUEST));
+        assert_eq!(key("nope('air')"), Err(StatusCode::BAD_REQUEST));
+        let xml = SERVED.metadata.as_ref().expect("$metadata writes");
+        assert!(xml.contains(r#"EntitySet Name="endpointList""#), "{xml}");
+        assert!(xml.contains(r#"Property Name="calls7d""#), "{xml}");
+    }
 
     /// Every mapped set names a distinct set and type, has its key among its properties, and
     /// `$metadata` writes; every action has a unique name (T-6655).

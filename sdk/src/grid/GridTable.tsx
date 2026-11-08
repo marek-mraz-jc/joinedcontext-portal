@@ -22,6 +22,7 @@ export function GridTable({ view }: { view: GridView }): React.JSX.Element {
       ref={tableRef}
       className={`jc-grid-table${classNames?.table ? ` ${classNames.table}` : ""}`}
       {...gridProps}
+      aria-label={props.ariaLabel}
       // The rows of the last answer stay, dimmed, while the next question is read (T-5623).
       aria-busy={loading && rows.length > 0 ? true : undefined}
       onKeyDown={onGridKeyDown}
