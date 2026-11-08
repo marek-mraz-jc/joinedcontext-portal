@@ -481,3 +481,85 @@ async fn an_old_connector_whose_name_is_taken_is_kept_aside_and_a_save_keeps_it(
         "{row}"
     );
 }
+
+/// F-07, AG-158: the gateway gets a person's connectors only as their ceiling allows them today.
+/// A DelegationPolicy narrowing the owner to project `tajne` drops a connector reaching only
+/// `mesto` and keeps the `tajne` item of a mixed one; a connector keeping personal data never
+/// reaches the gateway, which does not withhold it.
+#[tokio::test]
+async fn the_gateway_gets_connectors_only_as_the_ceiling_allows_today() {
+    let Some(url) = database_url() else {
+        eprintln!("skipped: JC_PORTAL_TEST_DATABASE_URL is not set");
+        return;
+    };
+    let state = state(&url).await;
+    let nanos = fresh("");
+    let tail: String = nanos.chars().rev().take(12).collect();
+    let sub = format!("00000000-0000-4000-8000-{tail:0>12}");
+    let new = |name: &str, scope: Value| -> joinedcontext_portal::connectors::NewConnector {
+        serde_json::from_value(json!({
+            "name": name, "segments": ["data-read"], "scope": scope,
+            "expiresAt": "2999-01-01T00:00:00Z",
+        }))
+        .expect("a connector")
+    };
+    let base = "https://portal.test";
+    for (name, scope) in [
+        (
+            "mesto-only",
+            json!([{ "project": "mesto", "access": "read" }]),
+        ),
+        (
+            "mixed",
+            json!([{ "project": "mesto", "access": "read" }, { "project": "tajne", "access": "read" }]),
+        ),
+        (
+            "personal",
+            json!([{ "project": "tajne", "access": "read", "personalData": true }]),
+        ),
+    ] {
+        state
+            .connectors
+            .create(&sub, new(name, scope), Vec::new(), base)
+            .await
+            .expect("created");
+    }
+    let names = |body: &Value| -> Vec<(String, Value)> {
+        body["connectors"]
+            .as_array()
+            .expect("a list")
+            .iter()
+            .map(|c| {
+                (
+                    c["name"].as_str().unwrap_or_default().to_owned(),
+                    c["scope"].clone(),
+                )
+            })
+            .collect()
+    };
+    let bearer = common::REALM.workload(GATEWAY_CLIENT);
+    let (status, before) = internal(&state, &sub, &bearer).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        names(&before).len(),
+        2,
+        "the default ceiling keeps both, never the personal one: {before}"
+    );
+    state.mirror.upsert(common::envelope(
+        "DelegationPolicy",
+        &format!("narrow-{tail}"),
+        joinedcontext_portal::permissions::ORG_NAMESPACE,
+        json!({ "subjects": [{ "kind": "User", "id": sub }], "projects": ["tajne"],
+                "segments": ["data-read"] }),
+    ));
+    let (status, after) = internal(&state, &sub, &bearer).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        names(&after),
+        [(
+            "mixed".to_owned(),
+            json!([{ "project": "tajne", "access": "read" }])
+        )],
+        "{after}"
+    );
+}

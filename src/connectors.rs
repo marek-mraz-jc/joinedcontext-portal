@@ -819,6 +819,26 @@ pub struct NewConnector {
     pub allowed_clients: Vec<String>,
 }
 
+/// The approval `current` keeps after an edit to `new`, still `above` the ceiling: none once the
+/// edit changes anything the connector may reach, because those above-ceiling lines name the
+/// line and not the value asked (F-06); otherwise only while it still covers every line. The
+/// `expiresAt` line names the asked expiry itself, so a later expiry is a new line already.
+pub fn approval_after_edit(
+    current: &Connector,
+    new: &NewConnector,
+    above: &[String],
+) -> Option<Approval> {
+    let unchanged = new.segments == current.segments
+        && new.scope == current.scope
+        && new.kinds == current.kinds
+        && new.writes == current.writes
+        && new.autonomous == current.autonomous
+        && new.allowed_clients == current.allowed_clients;
+    current.approval.clone().filter(|_| {
+        unchanged && !above.is_empty() && above.iter().all(|l| current.above_ceiling.contains(l))
+    })
+}
+
 /// What the Portal keeps of a connector, besides its id, owner and times.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -3815,6 +3835,42 @@ pub(crate) mod tests {
         let refused = Ceiling::of(&mirror, &jana);
         assert!(!refused.honours(&approved));
         assert!(refused.door(&approved, "", Utc::now()).is_err());
+    }
+
+    /// F-06: an approved connector keeps its approval only while an edit changes nothing it may
+    /// reach; swapping `segments[0]` to `admin` behind an unchanged above-ceiling line waits again.
+    #[test]
+    fn an_edit_that_changes_the_reach_drops_the_approval() {
+        let mut approved = connector(&["data-read"], vec![item("doprava", None)]);
+        approved.above_ceiling = vec!["segments[0]: above".into()];
+        approved.approval = Some(Approval {
+            by: "sub-admin".into(),
+            at: Utc::now(),
+        });
+        let same = NewConnector {
+            name: approved.name.clone(),
+            segments: approved.segments.clone(),
+            scope: approved.scope.clone(),
+            kinds: approved.kinds.clone(),
+            writes: approved.writes,
+            autonomous: approved.autonomous,
+            expires_at: approved.expires_at,
+            allowed_clients: approved.allowed_clients.clone(),
+        };
+        let lines = approved.above_ceiling.clone();
+        assert_eq!(
+            approval_after_edit(&approved, &same, &lines),
+            approved.approval
+        );
+        let mut admin = same.clone();
+        admin.segments = vec!["admin".into()];
+        assert_eq!(approval_after_edit(&approved, &admin, &lines), None);
+        let mut wider = same.clone();
+        wider.scope.push(item("mesto", None));
+        assert_eq!(approval_after_edit(&approved, &wider, &lines), None);
+        let mut autonomous = same;
+        autonomous.autonomous = true;
+        assert_eq!(approval_after_edit(&approved, &autonomous, &lines), None);
     }
 
     #[tokio::test]

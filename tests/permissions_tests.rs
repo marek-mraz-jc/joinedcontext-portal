@@ -1985,3 +1985,50 @@ fn own_settings_grants_administer_nothing_of_the_installation() {
     );
     assert!(jana.administers_organization());
 }
+
+/// F-05: a Role whose RoleBinding rule carries a constraint (here, only bindings of project p1)
+/// administers no organization, even bound organization-wide; the same rule unconstrained does.
+#[test]
+fn a_constrained_rolebinding_rule_administers_no_organization() {
+    let now = Utc.with_ymd_and_hms(2026, 11, 8, 12, 0, 0).unwrap();
+    let role = |name: &str, constraints: Value| {
+        org(
+            "Role",
+            name,
+            json!({ "rules": [{ "kinds": ["RoleBinding"], "verbs": ["read", "approve", "delete"],
+                               "constraints": constraints }] }),
+        )
+    };
+    let mirror = mirror_with(vec![
+        role(
+            "p1-admin",
+            json!([{ "field": "spec.scope.project", "in": ["p1"] }]),
+        ),
+        role("full-admin", json!([])),
+        binding(
+            "narrow",
+            "p1-admin",
+            json!([{ "user": "eva@hel.fi" }]),
+            json!({ "organization": "hel" }),
+            None,
+        ),
+        binding(
+            "full",
+            "full-admin",
+            json!([{ "user": "ola@hel.fi" }]),
+            json!({ "organization": "hel" }),
+            None,
+        ),
+    ]);
+    let of = |who: &str| {
+        effective(
+            &mirror,
+            "platform-admins",
+            &identity(who, &[]),
+            ORG_NAMESPACE,
+            now,
+        )
+    };
+    assert!(of("ola@hel.fi").administers_organization());
+    assert!(!of("eva@hel.fi").administers_organization());
+}

@@ -996,8 +996,7 @@ pub async fn logout(
         .into_response())
 }
 
-/// The Keycloak client of the APISIX login front (components/apisix/keycloak-clients.yaml).
-const EDGE_CLIENT: &str = "edge";
+use super::session::EDGE_CLIENT;
 
 /// The member an OpenID Provider puts in `events` to say the token ends a session
 /// (OpenID Connect Back-Channel Logout 1.0, Â§2.4).

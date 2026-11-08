@@ -20,6 +20,7 @@ use crate::error::ApiError;
 use crate::reconciler::views::Draft;
 use crate::resource::is_dns1123;
 use crate::state::AppState;
+use jc_core::kinds::Verb;
 
 /// The largest page, and the most ids one page may be restricted to (the broker's bound).
 const MAX_PAGE: u32 = 100;
@@ -144,14 +145,16 @@ pub async fn preview_endpoint(
             .map(|projection| (projection.classes, projection.filter)),
         hidden_attributes: request.hidden_attributes,
     };
-    let (id, view) = views
-        .draft_view(&project, &name, &draft)
-        .map_err(ApiError::BadRequest)?
-        .ok_or_else(|| {
-            ApiError::Unavailable(
-                "the Endpoint's view is not compiled yet; try again shortly".into(),
-            )
-        })?;
+    // A reader previews the Endpoint as saved: only a person who may change the Endpoint may
+    // widen or narrow its projection and hidden attributes, or a draft reads past them (F-04).
+    let compiled = if effective.may_in("Endpoint", Verb::Update, Some(&space)) {
+        views.draft_view(&project, &name, &draft)
+    } else {
+        views.saved_view(&project, &name)
+    };
+    let (id, view) = compiled.map_err(ApiError::BadRequest)?.ok_or_else(|| {
+        ApiError::Unavailable("the Endpoint's view is not compiled yet; try again shortly".into())
+    })?;
     let public = endpoint.spec["audience"].as_str() == Some("public");
     let (status, answer) = views
         .preview(&id, &view, &query, &subject(identity, public))
@@ -228,7 +231,8 @@ pub(crate) fn subject(identity: &Identity, public: bool) -> Vec<(&'static str, S
             .join(",")
     };
     let mut headers = vec![
-        ("x-jc-subject", encode(&identity.username)),
+        // The token's `sub`, as the gateway names a person (a `user` Policy binds the id).
+        ("x-jc-subject", encode(&identity.subject)),
         ("x-jc-roles", list(&identity.roles)),
     ];
     let groups = list(&identity.groups);
@@ -306,7 +310,7 @@ mod tests {
         assert_eq!(
             subject(&identity, false),
             vec![
-                ("x-jc-subject", "jana%40hel.fi".to_owned()),
+                ("x-jc-subject", "id".to_owned()),
                 ("x-jc-roles", "viewer".to_owned()),
                 ("x-jc-groups", "helsinki,ilmanlaatu%2C%20%C3%A4".to_owned()),
             ]
