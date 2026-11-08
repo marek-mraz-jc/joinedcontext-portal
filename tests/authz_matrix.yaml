@@ -547,14 +547,24 @@ routes:
     rule: "project-read, then read of the Endpoint in its space"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
   - route: GET /projects/{project}/odata/
-    rule: "project-verb:read:Endpoint; the OData service document"
+    rule: "project-read; the OData service document, no data (T-6655)"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
   - route: GET /projects/{project}/odata/$metadata
-    rule: "project-verb:read:Endpoint; the OData CSDL model, no data"
+    rule: "project-read; the OData CSDL model, no data (T-6655)"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
-  - route: GET /projects/{project}/odata/Endpoints
-    rule: "project-verb:read:Endpoint; the OData query over the Endpoints the caller may read; the read check runs before $filter (T-6632)"
+  - route: GET /projects/{project}/odata/{resource}
+    rule: "mcp-dispatch; the list operation's own check through ops::call, before $filter (T-6655)"
+    values: {"resource": "endpoints"}
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: GET /projects/{project}/odata/{resource}/$count
+    rule: "mcp-dispatch; the list operation's own check through ops::call, before $filter (T-6655)"
+    values: {"resource": "endpoints"}
+    expect: [401, allow, allow, allow, allow, allow, 404, allow]
+  - route: POST /projects/{project}/odata/{resource}
+    rule: "mcp-dispatch; the writing operation's own check through ops::call, as POST /ops/{name} (T-6655)"
+    values: {"resource": "jc_change_reject"}
+    expect: [403, 403, 422, 422, 422, 422, 403, 403]
+    note: "the matrix sends no body: a 422 where the rule allows is the missing id, after the check passed; a role without a write right in the project keeps its 403, as POST /ops/{name} answers (PF-50)"
   - route: GET /projects/{project}/usage/endpoints
     rule: "project-read; lists the Endpoints the caller may read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
