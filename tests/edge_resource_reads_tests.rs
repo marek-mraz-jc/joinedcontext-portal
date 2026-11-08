@@ -499,14 +499,16 @@ async fn the_endpoints_of_every_project_are_for_an_administrator_of_the_organiza
 }
 
 // -------------------------------------------------------------------------------------------------
-// T-6632 OData over the project's Endpoints
+// T-6632, T-6655 the project's OData service, generated from the operation registry
 // -------------------------------------------------------------------------------------------------
 
-/// T-6632: the OData entity set answers the rows the plain list answers, and the read check runs
-/// before `$filter`: a reader bound to one context space finds no other space's Endpoint by
-/// filtering or counting for it. Nobody signed in is 401, a project without an Endpoint grant 404.
-#[tokio::test]
-async fn odata_reads_only_the_endpoints_the_list_reads_whatever_the_filter_asks() {
+const VIEWER: &str = "vera.viewer@hel.fi";
+const EDITOR: &str = "eddie.editor@hel.fi";
+const OUTSIDER: &str = "oscar.espoo@espoo.fi";
+
+/// `helsinki` with two context spaces, three Endpoints and two Pipelines; a viewer and an editor of
+/// `helsinki`, a reader bound to the `air` space alone, and a reader of `espoo` alone.
+fn odata_world() -> AppState {
     let state = world();
     for space in ["air", "water"] {
         state
@@ -526,33 +528,171 @@ async fn odata_reads_only_the_endpoints_the_list_reads_whatever_the_filter_asks(
                     "slug": "si6epqkx364lprho5uaigutk274r5grb", "audience": "public" }),
         ));
     }
+    for (name, space) in [("air-intake", "air"), ("water-intake", "water")] {
+        state.mirror.upsert(envelope(
+            "Pipeline",
+            name,
+            PROJECT,
+            json!({ "contextSpaceRef": { "kind": "ContextSpace", "name": space } }),
+        ));
+    }
+    for (role, verbs) in [
+        ("odata-viewer", json!(["read"])),
+        ("odata-editor", json!(["read", "propose"])),
+    ] {
+        state.mirror.upsert(org(
+            "Role",
+            role,
+            json!({ "rules": [{ "kinds": ["Endpoint", "Pipeline", "ContextSpace"], "verbs": verbs }] }),
+        ));
+    }
     state.mirror.upsert(org(
         "Role",
         "endpoint-reader",
         json!({ "rules": [{ "kinds": ["Endpoint"], "verbs": ["read"] }] }),
     ));
-    state.mirror.upsert(org(
-        "RoleBinding",
-        "air-readers",
-        json!({ "subjects": [{ "user": "ari.air@hel.fi" }], "role": "endpoint-reader",
-                "scope": { "contextSpace": "air" } }),
-    ));
-    let ari = Some("ari.air@hel.fi");
-    let odata = |query: &str| format!("/api/v1/projects/{PROJECT}/odata/Endpoints{query}");
-    let names = |body: &Value, member: &str, key: &str| -> Vec<String> {
-        let mut names: Vec<String> = body[member]
-            .as_array()
-            .map(|items| {
-                items
-                    .iter()
-                    .filter_map(|i| i.pointer(key).and_then(Value::as_str).map(str::to_owned))
-                    .collect()
-            })
-            .unwrap_or_default();
-        names.sort();
-        names
-    };
+    for (binding, user, role, scope) in [
+        (
+            "odata-viewers",
+            VIEWER,
+            "odata-viewer",
+            json!({ "project": PROJECT }),
+        ),
+        (
+            "odata-editors",
+            EDITOR,
+            "odata-editor",
+            json!({ "project": PROJECT }),
+        ),
+        (
+            "odata-outsiders",
+            OUTSIDER,
+            "odata-viewer",
+            json!({ "project": ELSEWHERE }),
+        ),
+        (
+            "air-readers",
+            "ari.air@hel.fi",
+            "endpoint-reader",
+            json!({ "contextSpace": "air" }),
+        ),
+    ] {
+        state.mirror.upsert(org(
+            "RoleBinding",
+            binding,
+            json!({ "subjects": [{ "user": user }], "role": role, "scope": scope }),
+        ));
+    }
+    state
+}
 
+fn odata(query: &str) -> String {
+    format!("/api/v1/projects/{PROJECT}/odata/{query}")
+}
+
+/// The sorted `key` strings of the members of `body[member]`.
+fn names_in(body: &Value, member: &str, key: &str) -> Vec<String> {
+    let mut names: Vec<String> = body[member]
+        .as_array()
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|i| i.pointer(key).and_then(Value::as_str).map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default();
+    names.sort();
+    names
+}
+
+async fn post(
+    state: &AppState,
+    email: Option<&str>,
+    uri: &str,
+    body: Value,
+) -> (StatusCode, Value) {
+    let mut request = Request::builder()
+        .method("POST")
+        .uri(uri)
+        .header(header::CONTENT_TYPE, "application/json")
+        .header(joinedcontext_portal::auth::csrf::CSRF_HEADER, CSRF);
+    if let Some(email) = email {
+        request = request.header(header::COOKIE, cookie(&state.config, email));
+    }
+    let response = server::app(state.clone())
+        .oneshot(
+            request
+                .body(Body::from(body.to_string()))
+                .expect("a request"),
+        )
+        .await
+        .expect("a response");
+    let status = response.status();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("a body")
+        .to_bytes();
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
+}
+
+/// T-6655 parity: every mapped list operation answers OData with the rows and the status its REST
+/// route answers, for a viewer, an editor, a member of another project and nobody signed in. The
+/// REST list names a row by `metadata.name` (or `name`), the entity set by its key `name`.
+#[tokio::test]
+async fn every_entity_set_answers_what_its_rest_route_answers() {
+    let state = odata_world();
+    for (set, rest, key) in [
+        ("endpoints", "endpoints", "/metadata/name"),
+        ("pipelines", "pipelines", "/metadata/name"),
+        ("spaces", "spaces", "/metadata/name"),
+        ("changes", "changes", "/metadata/name"),
+        ("workspaces", "workspaces", "/name"),
+    ] {
+        for who in [
+            Some(VIEWER),
+            Some(EDITOR),
+            Some(OUTSIDER),
+            Some(STRANGER),
+            None,
+        ] {
+            let (rest_status, list) =
+                get(&state, who, &format!("/api/v1/projects/{PROJECT}/{rest}")).await;
+            let (status, body) = get(&state, who, &odata(set)).await;
+            assert_eq!(
+                status, rest_status,
+                "{set} for {who:?}: OData {body} against REST {list}"
+            );
+            if status == StatusCode::OK {
+                assert_eq!(
+                    names_in(&body, "value", "/name"),
+                    names_in(&list, "items", key),
+                    "{set} for {who:?}"
+                );
+            }
+        }
+    }
+    // A member of another project and a stranger are told the project is not there, never 403.
+    for who in [OUTSIDER, STRANGER] {
+        let (status, body) = get(&state, Some(who), &odata("endpoints")).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{who}: {body}");
+        let (status, _) = get(&state, Some(who), &odata("$metadata")).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{who}");
+    }
+    let (status, _) = get(&state, None, &odata("endpoints")).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+/// T-6632, T-6655: the read check runs before `$filter`: a reader bound to one context space finds
+/// no other space's Endpoint by filtering, counting or naming its key.
+#[tokio::test]
+async fn a_filter_reaches_only_the_rows_the_list_reads() {
+    let state = odata_world();
+    let ari = Some("ari.air@hel.fi");
     let (status, list) = get(
         &state,
         ari,
@@ -560,59 +700,229 @@ async fn odata_reads_only_the_endpoints_the_list_reads_whatever_the_filter_asks(
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{list}");
-    let (status, all) = get(&state, ari, &odata("?$count=true")).await;
+    let (status, all) = get(&state, ari, &odata("endpoints?$count=true")).await;
     assert_eq!(status, StatusCode::OK, "{all}");
     assert_eq!(
-        names(&all, "value", "/id"),
-        names(&list, "items", "/metadata/name")
+        names_in(&all, "value", "/name"),
+        names_in(&list, "items", "/metadata/name")
     );
-    assert_eq!(names(&all, "value", "/id"), ["air-counters", "air-sensors"]);
+    assert_eq!(
+        names_in(&all, "value", "/name"),
+        ["air-counters", "air-sensors"]
+    );
     assert_eq!(all["@odata.count"], json!(2));
 
     let (status, water) = get(
         &state,
         ari,
-        &odata("?$filter=contextSpace%20eq%20'water'&$count=true"),
+        &odata("endpoints?$filter=space%20eq%20'water'%20or%20true&$count=true"),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{water}");
-    assert_eq!(water["value"], json!([]), "{water}");
-    assert_eq!(water["@odata.count"], json!(0), "{water}");
+    assert_eq!(
+        names_in(&water, "value", "/name"),
+        ["air-counters", "air-sensors"]
+    );
     assert!(!water.to_string().contains("water-gauges"), "{water}");
+    let (status, hidden) = get(&state, ari, &odata("endpoints('water-gauges')")).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{hidden}");
+    let (status, counted) = get(&state, ari, &odata("endpoints/$count")).await;
+    assert_eq!((status, counted), (StatusCode::OK, Value::from(2)));
 
+    // A member no list answers (a manifest's spec, where a secretRef sits) is no property.
+    for query in [
+        "endpoints?$filter=spec%20eq%20'x'",
+        "endpoints?$select=slug",
+    ] {
+        let (status, refused) = get(&state, ari, &odata(query)).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{query}: {refused}");
+        assert!(
+            refused["error"]["message"].is_string(),
+            "an OData error: {refused}"
+        );
+    }
+}
+
+/// T-6655: `$filter`, `$orderby`, `$top`, `$select` and paging on two entity sets.
+#[tokio::test]
+async fn filter_orderby_and_top_answer_on_two_sets() {
+    let state = odata_world();
+    let viewer = Some(VIEWER);
+    let (status, desc) = get(
+        &state,
+        viewer,
+        &odata("endpoints?$filter=startswith(name,'air')&$orderby=name%20desc&$select=name,space"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{desc}");
+    assert_eq!(
+        desc["value"],
+        json!([{ "name": "air-sensors", "space": "air" }, { "name": "air-counters", "space": "air" }])
+    );
+    assert!(desc["@odata.context"]
+        .as_str()
+        .is_some_and(|c| c.ends_with("$metadata#endpoints(name,space)")));
+
+    let (status, top) = get(
+        &state,
+        viewer,
+        &odata("endpoints?$orderby=name&$top=1&$count=true"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{top}");
+    assert_eq!(names_in(&top, "value", "/name"), ["air-counters"]);
+    assert_eq!(
+        top["@odata.count"],
+        json!(4),
+        "helsinki-bikes of world() too"
+    );
+    assert!(
+        top.get("@odata.nextLink").is_none(),
+        "$top ends here: {top}"
+    );
+
+    let (status, pipelines) = get(
+        &state,
+        viewer,
+        &odata("pipelines?$filter=space%20eq%20'water'%20and%20kind%20eq%20'Pipeline'"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{pipelines}");
+    assert_eq!(names_in(&pipelines, "value", "/name"), ["water-intake"]);
+    let (status, first) = get(
+        &state,
+        viewer,
+        &odata("pipelines?$orderby=name%20desc&$top=1"),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{first}");
+    assert_eq!(names_in(&first, "value", "/name"), ["water-intake"]);
     let (status, one) = get(
         &state,
-        ari,
-        &odata("?$filter=startswith(id,'air-s')&$select=id"),
+        viewer,
+        &odata("pipelines('air-intake')?$select=name"),
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{one}");
-    assert_eq!(one["value"], json!([{ "id": "air-sensors" }]));
-
-    let (status, bad) = get(&state, ari, &odata("?$filter=owner%20eq%20'x'")).await;
-    assert_eq!(status, StatusCode::BAD_REQUEST, "{bad}");
+    assert_eq!(one["name"], json!("air-intake"));
     assert!(
-        bad["error"]["message"].as_str().is_some(),
-        "an OData error body: {bad}"
+        one.get("space").is_none(),
+        "$select keeps name alone: {one}"
     );
 
-    let (status, _) = get(&state, None, &odata("")).await;
-    assert_eq!(status, StatusCode::UNAUTHORIZED);
-    let (status, refused) = get(&state, Some(SPACE_READER), &odata("")).await;
-    assert_eq!(status, StatusCode::NOT_FOUND, "{refused}");
-    let (status, elsewhere) = get(
+    let (status, unknown) = get(&state, viewer, &odata("nothings")).await;
+    assert!(
+        status == StatusCode::NOT_FOUND || status == StatusCode::BAD_REQUEST,
+        "{status} {unknown}"
+    );
+    let (status, _) = get(&state, viewer, &odata("endpoints?$expand=x")).await;
+    assert!(
+        status.is_client_error() || status == StatusCode::NOT_IMPLEMENTED,
+        "{status}"
+    );
+}
+
+/// T-6655: an action runs the writing operation through the registry: a viewer is refused as
+/// `POST /ops/{name}` refuses them, nobody signed in is refused by the CSRF check first, and a read
+/// operation is no action.
+#[tokio::test]
+async fn an_action_is_refused_as_its_operation_is() {
+    let state = odata_world();
+    let input = json!({ "kind": "Endpoint", "name": "air-counters", "confirm": "air-counters" });
+    let ops = format!("/api/v1/projects/{PROJECT}/ops/jc_resource_delete");
+    let (rest_status, rest) = post(&state, Some(VIEWER), &ops, input.clone()).await;
+    let (status, body) = post(
         &state,
-        ari,
-        &format!("/api/v1/projects/{ELSEWHERE}/odata/Endpoints"),
+        Some(VIEWER),
+        &odata("jc_resource_delete"),
+        input.clone(),
     )
     .await;
-    // A space grant names no project: the other project answers nothing of its own Endpoints.
+    assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
+    assert_eq!(status, rest_status, "OData {body} against ops {rest}");
+    let (status, _) = post(
+        &state,
+        Some(OUTSIDER),
+        &odata("jc_resource_delete"),
+        input.clone(),
+    )
+    .await;
     assert!(
-        status == StatusCode::NOT_FOUND || names(&elsewhere, "value", "/id").is_empty(),
-        "{status} {elsewhere}"
+        status == StatusCode::FORBIDDEN || status == StatusCode::NOT_FOUND,
+        "{status}"
     );
 
-    let (status, service) = get(&state, ari, &format!("/api/v1/projects/{PROJECT}/odata/")).await;
+    let mut anonymous = Request::builder()
+        .method("POST")
+        .uri(odata("jc_resource_delete"))
+        .header(header::CONTENT_TYPE, "application/json");
+    anonymous = anonymous.header("x-unused", "1");
+    let response = server::app(state.clone())
+        .oneshot(
+            anonymous
+                .body(Body::from(input.to_string()))
+                .expect("a request"),
+        )
+        .await
+        .expect("a response");
+    assert_eq!(response.status(), StatusCode::FORBIDDEN);
+
+    let (status, body) = post(
+        &state,
+        Some(EDITOR),
+        &odata("jc_resource_list"),
+        json!({ "kind": "Endpoint" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "a read is no action: {body}");
+}
+
+/// T-6655: `$metadata` equals the committed snapshot. After a registry change rewrite it with
+/// `cargo test --test edge_resource_reads_tests -- --ignored write_odata_metadata`.
+#[tokio::test]
+async fn the_metadata_is_the_snapshot() {
+    let state = odata_world();
+    let xml = metadata_text(&state).await;
+    let snapshot = std::fs::read_to_string(SNAPSHOT).unwrap_or_default();
+    assert!(
+        xml == snapshot,
+        "$metadata moved from {SNAPSHOT}; rerun with -- --ignored write_odata_metadata and read the diff"
+    );
+    for set in ["endpoints", "pipelines", "changes", "workspaces"] {
+        assert!(
+            xml.contains(&format!(r#"<EntitySet Name="{set}""#)),
+            "{set}"
+        );
+    }
+    assert!(xml.contains(r#"<ActionImport Name="jc_resource_delete""#));
+    let (status, service) = get(&state, Some(VIEWER), &odata("")).await;
     assert_eq!(status, StatusCode::OK, "{service}");
-    assert_eq!(service["value"][0]["url"], json!("Endpoints"));
+    assert!(names_in(&service, "value", "/url").contains(&"endpoints".to_owned()));
+}
+
+const SNAPSHOT: &str = "tests/odata_metadata.xml";
+
+async fn metadata_text(state: &AppState) -> String {
+    let request = Request::builder()
+        .uri(odata("$metadata"))
+        .header(header::COOKIE, cookie(&state.config, VIEWER));
+    let response = server::app(state.clone())
+        .oneshot(request.body(Body::empty()).expect("a request"))
+        .await
+        .expect("a response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("a body")
+        .to_bytes();
+    String::from_utf8(bytes.to_vec()).expect("UTF-8")
+}
+
+#[tokio::test]
+#[ignore = "writes tests/odata_metadata.xml"]
+async fn write_odata_metadata() {
+    let xml = metadata_text(&odata_world()).await;
+    std::fs::write(SNAPSHOT, xml).expect("write the snapshot");
 }

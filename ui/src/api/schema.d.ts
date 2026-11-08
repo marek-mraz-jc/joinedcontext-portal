@@ -3651,7 +3651,7 @@ export interface paths {
         };
         /**
          * Read the OData Service Document
-         * @description The service document of the project's OData service: the entity sets it serves, Endpoints today (T-6632).
+         * @description The service document of the project's OData service: every entity set it serves (T-6655).
          */
         get: operations["service_document"];
         put?: never;
@@ -3671,7 +3671,7 @@ export interface paths {
         };
         /**
          * Read the OData Metadata
-         * @description The CSDL XML document of the project's OData service: the entity type Endpoint and the entity set Endpoints (T-6632).
+         * @description The CSDL XML document of the project's OData service: an entity type and set per list operation, an action per writing operation (T-6655).
          */
         get: operations["metadata"];
         put?: never;
@@ -3682,7 +3682,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/projects/{project}/odata/Endpoints": {
+    "/api/v1/projects/{project}/odata/{resource}": {
         parameters: {
             query?: never;
             header?: never;
@@ -3690,10 +3690,34 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * Query Endpoints with OData
-         * @description The project's Endpoints the caller may read, as the OData 4.0 entity set Endpoints: $filter (eq, ne, gt, ge, lt, le, in, and, or, not, contains, startswith, endswith, tolower, toupper), $select, $orderby, $top (at most 1000), $skip and $count over id, title, description, contextSpace, slug, audience and mcp (T-6632).
+         * Query an OData Entity Set
+         * @description One entity set of the project's OData service, the rows its list operation answers the caller (jc_resource_list per kind by its plural, jc_change_list as changes, jc_workspace_list as workspaces), read with $filter (eq, ne, gt, ge, lt, le, in, and, or, not, contains, startswith, endswith), $select, $orderby, $top, $skip and $count; pages of at most 1000 rows with @odata.nextLink. A key reads one row: endpoints('air-counters') (T-6655).
          */
-        get: operations["query_endpoints"];
+        get: operations["query_set"];
+        put?: never;
+        /**
+         * Invoke an OData Action
+         * @description Runs the writing operation of the same name with the body as its input, under the caller's grants: the action jc_resource_propose runs what POST /ops/jc_resource_propose runs. $metadata lists every action and its parameters (T-6655).
+         */
+        post: operations["invoke_action"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/odata/{resource}/$count": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Count an OData Entity Set
+         * @description The number of rows of the entity set the caller may read that $filter keeps, as plain text (T-6655).
+         */
+        get: operations["count_set"];
         put?: never;
         post?: never;
         delete?: never;
@@ -24524,7 +24548,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description A project where the caller reads no Endpoint */
+            /** @description A project the caller may not read */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -24547,7 +24571,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description CSDL XML, OData 4.0 */
+            /** @description CSDL XML, OData 4.01 */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24565,7 +24589,7 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description A project where the caller reads no Endpoint */
+            /** @description A project the caller may not read */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -24576,16 +24600,16 @@ export interface operations {
             };
         };
     };
-    query_endpoints: {
+    query_set: {
         parameters: {
             query?: {
-                /** @description A predicate over the properties, e.g. contextSpace eq 'air' and startswith(id,'bikes') */
+                /** @description A predicate over the properties, e.g. space eq 'air' and startswith(name,'bikes') */
                 $filter?: string;
-                /** @description Properties to return, comma-separated, e.g. id,title */
+                /** @description Properties to return, comma-separated, e.g. name,title */
                 $select?: string;
                 /** @description Properties to sort by, each with asc or desc, e.g. title desc */
                 $orderby?: string;
-                /** @description Rows to return, 0 to 1000, e.g. 50 */
+                /** @description Rows to return, e.g. 50 */
                 $top?: number;
                 /** @description Rows to skip first, e.g. 50 */
                 $skip?: number;
@@ -24596,12 +24620,14 @@ export interface operations {
             path: {
                 /** @description Project name, e.g. helsinki */
                 project: string;
+                /** @description An entity set, e.g. endpoints, or one row of it by key, e.g. endpoints('air-counters') */
+                resource: string;
             };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
-            /** @description The OData collection: @odata.context, @odata.count when asked, value and @odata.nextLink when more rows follow */
+            /** @description The OData collection (@odata.context, @odata.count when asked, value, @odata.nextLink when more rows follow) or one entity */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -24610,7 +24636,7 @@ export interface operations {
                     "application/json": Record<string, never>;
                 };
             };
-            /** @description A name an Endpoint does not have, a bad expression, a $top above 1000 or a query over its bounds, as an OData error */
+            /** @description A name the entity set does not have, a bad expression or a query over its bounds, as an OData error */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -24626,7 +24652,16 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description A project where the caller reads no Endpoint */
+            /** @description The list operation refused the caller, as its REST route does */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A project the caller may not read, an entity set or key that is not there */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -24635,12 +24670,172 @@ export interface operations {
                     "application/json": components["schemas"]["ProblemDetails"];
                 };
             };
-            /** @description An OData option or function this entity set does not serve, as an OData error */
+            /** @description An OData option or function this service does not serve, as an OData error */
             501: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    invoke_action: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project name, e.g. helsinki */
+                project: string;
+                /** @description An action, a writing operation by name, e.g. jc_resource_propose */
+                resource: string;
+            };
+            cookie?: never;
+        };
+        /** @description The action's parameters, as the operation's input schema names them */
+        requestBody?: {
+            content: {
+                /**
+                 * @example {
+                 *       "id": "c-0001"
+                 *     }
+                 */
+                "application/json": unknown;
+            };
+        };
+        responses: {
+            /** @description The operation ran */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description The operation opened a change proposal */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Bad request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not run it */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No action of that name, or a project the caller may not read */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Conflict or verdict required */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Input the operation's schema refuses */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    count_set: {
+        parameters: {
+            query?: {
+                /** @description A predicate over the properties, e.g. space eq 'air' */
+                $filter?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Project name, e.g. helsinki */
+                project: string;
+                /** @description An entity set, e.g. endpoints */
+                resource: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The count as text, e.g. 12 */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/plain": string;
+                };
+            };
+            /** @description A bad expression, as an OData error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The list operation refused the caller */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A project the caller may not read or an entity set that is not there */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
             };
         };
     };
@@ -31084,7 +31279,24 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        items?: Record<string, never>[];
+                        items?: {
+                            kind?: string;
+                            /** @description The resource's metadata.name */
+                            name?: string;
+                            /** @description Why the broker serves no view of this Endpoint, when it does not */
+                            notServing?: string;
+                            /** @description Its reconcile phase, e.g. Ready */
+                            phase?: string;
+                            /** @description Where its manifest lives in the forge */
+                            sourceUrl?: string;
+                            /** @description Its context space, when it lives in one */
+                            space?: string;
+                            title?: string;
+                            /** @description Endpoint only: the entity types it serves */
+                            types?: string[];
+                            /** @description Endpoint only: its NGSI-LD address */
+                            url?: string;
+                        }[];
                     };
                 };
             };
