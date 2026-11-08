@@ -211,11 +211,12 @@ export function useGridView(props: EntityGridProps & { onDrill?: (urn: string, t
     (column: VisibleColumn): boolean => column.key === primaryKey && column.pinned && column.meta === null,
     [primaryKey],
   );
-  /** What a row is called: its primary field, else its name or title, else its id. */
+  /** What a row is called: its primary field, else its title, else its name, else its id. A title is
+   *  the sentence a person gave the row, where a name is often its key (an Endpoint `events`). */
   const rowName = useCallback(
     (row: RichRow): string => {
       const primary = primaryKey ? cellText(row.cells[primaryKey]) : "";
-      return primary || cellText(row.cells.name) || cellText(row.cells.title) || row.id;
+      return primary || cellText(row.cells.title) || cellText(row.cells.name) || row.id;
     },
     [primaryKey],
   );

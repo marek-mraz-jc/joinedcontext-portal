@@ -235,6 +235,11 @@ describe("edit mode", () => {
     expect(await screen.findAllByText(new RegExp("may not write availableBikeNumber"))).toHaveLength(2);
     await waitFor(() => expect(screen.getByText(`1 ${DEFAULT_LABELS.pending}`)).toBeInTheDocument());
     expect(screen.getByDisplayValue("2")).toBeInTheDocument();
+    // The refusal is read out, and Apply waits: the same value would be refused again (T-6645).
+    expect(within(panel).getByRole("alert")).toHaveTextContent("may not write availableBikeNumber");
+    expect(within(panel).getByRole("button", { name: DEFAULT_LABELS.apply })).toBeDisabled();
+    fireEvent.change(screen.getByDisplayValue("2"), { target: { value: "1" } });
+    await waitFor(() => expect(within(panel).getByRole("button", { name: DEFAULT_LABELS.apply })).toBeEnabled());
   });
 
   // T-3097: every applied value leaves the pending list. Clearing them one call at a time kept all

@@ -165,7 +165,9 @@ for (const width of [1440, 400]) {
       if (width < 640) await page.setViewportSize({ width, height: 900 });
       await page.getByRole("button", { name: "Review the changes" }).click();
       await page.getByRole("button", { name: "Apply", exact: true }).click();
-      await expect(page.getByRole("alert").filter({ hasText: /You may not change this row: your proposal check refuses moving events/ })).toBeVisible();
+      await expect(page.getByRole("alert").filter({ hasText: /Helsinki events: You may not change this row: your proposal check refuses moving events/ })).toBeVisible();
+      // The same value would be refused again: Apply waits until the person changes it or discards it.
+      await expect(page.getByRole("button", { name: "Apply", exact: true })).toBeDisabled();
       expect(writes).toEqual([]);
       // The rows are read again after the apply; the shot waits for them.
       await expect(page.locator(".jc-grid-loading")).toHaveCount(0);

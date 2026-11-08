@@ -49,7 +49,7 @@ export function GridPending({ view, inDialog = false }: { view: GridView; inDial
 
 /** The review before an apply: each change as the grid draws it, what happens to `observedAt`, and why (UI-67). */
 export function GridReview({ view }: { view: GridView }): React.JSX.Element | null {
-  const { open, labels, grid, rowName, columns, where, cellLabels, observed, setObserved, refused, reasonText, setReason, applying, apply } = view;
+  const { open, labels, grid, rowName, columns, where, cellLabels, observed, setObserved, refused, askedAgain, reasonText, setReason, applying, apply } = view;
   const { pendingChanges, rows } = grid;
   const reasonHintId = React.useId();
   if (!open) return null;
@@ -149,7 +149,8 @@ export function GridReview({ view }: { view: GridView }): React.JSX.Element | nu
       )}
       <button
         type="button"
-        disabled={applying || pendingChanges.length > MAX_ENTITIES || !reasonOk(reasonText)}
+        // Refused values stay pending (the person's only copy); Apply waits until one changes.
+        disabled={applying || askedAgain || pendingChanges.length > MAX_ENTITIES || !reasonOk(reasonText)}
         onClick={() => void apply()}
       >
         {applying ? labels.applying : labels.apply}
