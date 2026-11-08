@@ -16,6 +16,8 @@ export interface JcRequest {
    * `JC-Record: version`, so the replaced value is kept as a version (T-6333).
    */
   reason?: string;
+  /** The entity tag a write is conditional on, sent as `If-Match` (an OData `PATCH`, T-6644). */
+  ifMatch?: string;
 }
 
 export interface JcResponse {
@@ -66,6 +68,9 @@ export function originTransport(fetchImpl?: typeof fetch, doc?: Document): Trans
         // A write a person names a reason for is an edit by hand: the broker keeps the value it
         // replaces as a version, shown in the row's Changes (ADR-N-054 2.9, T-6333).
         headers["JC-Record"] = "version";
+      }
+      if (request.ifMatch !== undefined) {
+        headers["If-Match"] = request.ifMatch;
       }
     }
 

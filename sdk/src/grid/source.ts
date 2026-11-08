@@ -13,6 +13,7 @@ import type { Geometry } from "../geo/validate";
 import type { RichRow } from "./model";
 import { toRichRow } from "./model";
 import { changesOf } from "./changes";
+import { odataSource } from "./odata";
 import type { EntityChange } from "./changes";
 
 export interface GridQuery {
@@ -514,11 +515,13 @@ export function orderRows(rows: RichRow[], orderBy: string): RichRow[] {
 
 /** The built-in source a config names. */
 export function sourceFor(
-  config: { kind: "endpoint"; slug: string } | { kind: "space"; space: string },
+  config: { kind: "endpoint"; slug: string } | { kind: "space"; space: string } | { kind: "odata"; url: string; entitySet: string },
   transport: Transport,
   language?: string,
 ): EntitySource {
   return config.kind === "endpoint"
     ? endpointSource(config.slug, transport, language)
-    : spaceSource(config.space, transport, language);
+    : config.kind === "odata"
+      ? odataSource(config.url, config.entitySet, transport, language)
+      : spaceSource(config.space, transport, language);
 }
