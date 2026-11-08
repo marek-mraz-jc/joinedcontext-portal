@@ -3700,6 +3700,34 @@ export interface paths {
          * @description Runs the writing operation of the same name with the body as its input, under the caller's grants: the action jc_resource_propose runs what POST /ops/jc_resource_propose runs. $metadata lists every action and its parameters (T-6655).
          */
         post: operations["invoke_action"];
+        /**
+         * Remove One Endpoint with OData
+         * @description Proposes removing one of the project's own Endpoints, a row of endpointList by key, through the same door as DELETE /projects/{project}/endpoints/{name}: refused 409 while other resources reference it; a shared or gone row is refused 403 with where it is removed (T-6645).
+         */
+        delete: operations["remove_row"];
+        options?: never;
+        head?: never;
+        /**
+         * Change One Endpoint with OData
+         * @description Proposes a change of contextSpace, audience or mcp of one of the project's own Endpoints, a row of endpointList by key: the same checked proposal the Endpoints page sends (a dry run that records the verdict, then the proposal through PATCH /projects/{project}/endpoints/{name}), so the change waits for approval like any other. A shared or gone row is refused 403 with where it is changed (T-6645).
+         */
+        patch: operations["change_row"];
+        trace?: never;
+    };
+    "/api/v1/projects/{project}/odata/{resource}/$allowed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Ask Whether an Endpoint List Call Is Allowed
+         * @description Whether the caller may read, export, create, update or delete the entity set endpointList or one row of it, and why not, from the same decision the call runs: update is the propose check of the Endpoint, delete its delete check; a shared or gone row is changed elsewhere and says where. Only endpointList answers it (T-6645).
+         */
+        get: operations["allowed"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -24768,6 +24796,219 @@ export interface operations {
             };
             /** @description Input the operation's schema refuses */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    remove_row: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The ETag of the manifest as read; a stale one is 412 */
+                "If-Match"?: string | null;
+            };
+            path: {
+                /** @description Project name, e.g. helsinki */
+                project: string;
+                /** @description A row of endpointList by key, e.g. endpointList('air-counters') */
+                resource: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Change that proposes it */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not delete it, or the row is not this project's: the reason in the problem's detail */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such row the caller may read, as an OData error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a row of endpointList, as an OData error */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Other resources reference it */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    change_row: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description The ETag of the manifest as read; a stale one is 412 */
+                "If-Match"?: string | null;
+            };
+            path: {
+                /** @description Project name, e.g. helsinki */
+                project: string;
+                /** @description A row of endpointList by key, e.g. endpointList('air-counters') */
+                resource: string;
+            };
+            cookie?: never;
+        };
+        /** @description The properties to change, e.g. {"audience": "public", "mcp": false} */
+        requestBody: {
+            content: {
+                /**
+                 * @example {
+                 *       "audience": "public",
+                 *       "mcp": false
+                 *     }
+                 */
+                "application/json": Record<string, never>;
+            };
+        };
+        responses: {
+            /** @description The Change that proposes it */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description A property the row does not change or a value of the wrong type, as an OData error */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description The caller may not propose it, or the row is not this project's: the reason in the problem's detail */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description No such row the caller may read, as an OData error */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not a row of endpointList, as an OData error */
+            405: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The checked manifest is refused: each finding named */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    allowed: {
+        parameters: {
+            query: {
+                /** @description read, export, create, update or delete, e.g. update */
+                op: string;
+                /** @description The row's key, e.g. air-counters, or helsinki/bikes for a shared row */
+                key?: string | null;
+            };
+            header?: never;
+            path: {
+                /** @description Project name, e.g. helsinki */
+                project: string;
+                /** @description The entity set, endpointList */
+                resource: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description {allowed, reason, notFound}: notFound for a key the caller does not read */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": Record<string, never>;
+                };
+            };
+            /** @description op missing or an unknown query parameter */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProblemDetails"];
+                };
+            };
+            /** @description A project the caller may not read or where it reads no Endpoint, or another entity set */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

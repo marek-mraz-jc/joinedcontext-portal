@@ -768,6 +768,12 @@ fn row_key(uri: &axum::http::Uri, project: &str) -> Result<String, Refusal> {
         {
             Ok(key.clone())
         }
+        [Segment::EntitySet(set), Segment::Key(_)] if set == endpoint_list::SET => {
+            Err(bad(format!(
+                "a {} key is a text, e.g. ('air-counters')",
+                endpoint_list::SET
+            )))
+        }
         _ => Err(elsewhere()),
     }
 }

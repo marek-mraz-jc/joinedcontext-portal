@@ -81,7 +81,9 @@ pub fn fields() -> Vec<Field> {
 }
 
 fn text(t: Option<&jc_core::Text>) -> Value {
-    t.map_or(Value::Null, |t| Value::String(t.resolve(&[], "en").to_owned()))
+    t.map_or(Value::Null, |t| {
+        Value::String(t.resolve(&[], "en").to_owned())
+    })
 }
 
 fn spec_str(env: &ResourceEnvelope, key: &str) -> Value {
@@ -439,7 +441,7 @@ fn elsewhere(row: &Value) -> Option<Decision> {
     }
 }
 
-/// The merge patch of an OData `PATCH` body: only [`EDITABLE`] properties, each of its type; the
+/// The merge patch of an OData `PATCH` body: only the properties the row edits (`EDITABLE`), each of its type; the
 /// refusal is a sentence for a 400.
 pub fn spec_patch(body: &[u8]) -> Result<Value, String> {
     let Ok(Value::Object(fields)) = serde_json::from_slice::<Value>(body) else {
@@ -470,7 +472,9 @@ pub fn spec_patch(body: &[u8]) -> Result<Value, String> {
         spec.insert((*field).to_owned(), value);
     }
     if spec.is_empty() {
-        return Err("the body changes nothing: name at least one property, e.g. {\"mcp\": false}".into());
+        return Err(
+            "the body changes nothing: name at least one property, e.g. {\"mcp\": false}".into(),
+        );
     }
     Ok(json!({ "spec": spec }))
 }
@@ -591,7 +595,10 @@ mod tests {
         assert_eq!(own.get("calls7d"), Some(&json!(3)));
         assert!(elsewhere(&own).is_none());
         let names: Vec<String> = fields().into_iter().map(|f| f.name).collect();
-        let keys: Vec<&String> = own.as_object().map(|o| o.keys().collect()).unwrap_or_default();
+        let keys: Vec<&String> = own
+            .as_object()
+            .map(|o| o.keys().collect())
+            .unwrap_or_default();
         assert_eq!(keys.len(), names.len(), "a row carries every property");
     }
 }
