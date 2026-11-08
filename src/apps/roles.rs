@@ -141,7 +141,7 @@ pub struct Standing {
     pub admin: bool,
     /// A binding in force covers the App's project, or the bootstrap group (PF-59).
     pub project_member: bool,
-    /// A binding in force anywhere in the organization (DM-75).
+    /// A binding in force in the Organization that owns the App's project (AP-174, ADR-N-067).
     pub organization_member: bool,
 }
 
@@ -186,7 +186,9 @@ fn standing(state: &AppState, project: &str, name: &str, identity: &Identity) ->
         owner: owner.as_deref() == Some(identity.subject.as_str()),
         admin: owner.is_none() && rights.may("App", jc_core::kinds::Verb::Approve),
         project_member: rights.may_read_project(),
-        organization_member: crate::permissions::is_organization_member(state, identity),
+        organization_member: crate::permissions::is_member_of_organization_of(
+            state, identity, project,
+        ),
     }
 }
 
