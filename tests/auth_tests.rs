@@ -1233,7 +1233,11 @@ async fn a_time_claim_written_as_a_string_is_refused() {
     for (claim, value) in [("nbf", now + 86_400), ("exp", now - 86_400)] {
         let token = keys::token_with(&issuer, "demo.viewer", json!({ claim: value.to_string() }));
         let (status, me) = me_with(app.clone(), &[("x-access-token", token)]).await;
-        assert_eq!(status, StatusCode::UNAUTHORIZED, "a string {claim} passed: {me}");
+        assert_eq!(
+            status,
+            StatusCode::UNAUTHORIZED,
+            "a string {claim} passed: {me}"
+        );
     }
 }
 
