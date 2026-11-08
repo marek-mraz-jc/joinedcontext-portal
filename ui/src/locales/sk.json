@@ -1457,6 +1457,13 @@
     }
   },
   "endpoints": {
+    "grid": {
+      "empty": "Týmto filtrom nezodpovedá žiadny endpoint. Zrušte filter alebo pridajte endpoint.",
+      "filterExampleText": "ovzdušie",
+      "filterExampleId": "kvalita-ovzdusia",
+      "editAsTextHint": "Napíšte filter ako text, napríklad audience==\"public\"",
+      "proposed": "Navrhnuté na schválenie v Zmenách, hodnoty:"
+    },
     "surfaceFit": {
       "lead": "Dátový model priestoru {space} tieto štandardy nedokáže poskytovať, preto sú ich políčka sivé:",
       "openModel": "Otvoriť dátový model {model}",

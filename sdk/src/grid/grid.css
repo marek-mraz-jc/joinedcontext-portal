@@ -241,7 +241,10 @@
 }
 
 .jc-grid-pager button,
-.jc-grid-error button {
+.jc-grid-error button,
+/* Review, Discard and Apply are buttons a person must see as such (T-6645 judge: plain text). */
+.jc-grid-pending > button,
+.jc-grid-review > button {
   padding: var(--jc-space-1, 4px) var(--jc-space-2, 8px);
   border: 1px solid var(--jc-color-line, #e0e0e0);
   border-radius: var(--jc-radius-sm, 2px);
@@ -250,7 +253,9 @@
   font-size: inherit;
 }
 
-.jc-grid-pager button:disabled {
+.jc-grid-pager button:disabled,
+.jc-grid-pending > button:disabled,
+.jc-grid-review > button:disabled {
   opacity: 0.5;
   cursor: default;
 }

@@ -1457,6 +1457,13 @@
     }
   },
   "endpoints": {
+    "grid": {
+      "empty": "Kein Endpoint passt zu diesen Filtern. Entfernen Sie einen Filter oder fügen Sie einen Endpoint hinzu.",
+      "filterExampleText": "Luft",
+      "filterExampleId": "luftqualitaet",
+      "editAsTextHint": "Schreiben Sie den Filter als Text, z. B. audience==\"public\"",
+      "proposed": "Unter Änderungen zur Freigabe vorgeschlagen, Werte:"
+    },
     "surfaceFit": {
       "lead": "Das Datenmodell des Raums {space} kann diese Standards nicht bedienen, daher sind ihre Felder ausgegraut:",
       "openModel": "Datenmodell {model} öffnen",

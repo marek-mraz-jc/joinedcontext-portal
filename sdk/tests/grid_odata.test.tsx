@@ -143,6 +143,26 @@ describe("$filter from the grid's filters, per column type", () => {
     );
   });
 
+  it("searches case-blind with tolower where the set's FilterFunctions name it, and as typed elsewhere", () => {
+    const portal = setFromCsdl(
+      CSDL_XML.replace(
+        '<EntitySet Name="Endpoints" EntityType="JoinedContext.Portal.Endpoint"/>',
+        '<EntitySet Name="Endpoints" EntityType="JoinedContext.Portal.Endpoint"><Annotation Term="Capabilities.FilterFunctions"><Collection><String>contains</String><String>tolower</String></Collection></Annotation></EntitySet>',
+      ),
+      "Endpoints",
+    );
+    expect(portal.tolower).toBe(true);
+    const q = searchQuery("Air O'", [column("title", "text")]);
+    expect(filterOf(portal, { q })).toBe("contains(tolower(title),'air o''')");
+    // A typed pattern without (?i) stays case-sensitive, and a set that names no tolower is asked as typed.
+    expect(filterOf(portal, { q: 'title~="Air"' })).toBe("contains(title,'Air')");
+    expect(setFromCsdl(CSDL_XML, "Endpoints").tolower).toBeUndefined();
+    expect(filterOf(setFromCsdl(CSDL_XML, "Endpoints"), { q })).toBe("contains(title,'Air O''')");
+    const things = { ...CSDL_JSON.Example.Container.Things, "@Capabilities.FilterFunctions": ["tolower"] };
+    const json = setFromCsdl({ ...CSDL_JSON, Example: { ...CSDL_JSON.Example, Container: { ...CSDL_JSON.Example.Container, Things: things } } }, "Things");
+    expect(json.tolower).toBe(true);
+  });
+
   it("reads a typed q: a nested member, or, parentheses", () => {
     expect(filterOf(set, { q: "address[city]==\"Turku\"" })).toBe("address/city eq 'Turku'");
     expect(filterOf(set, { q: "(size>1|size<0);name==\"A\"" })).toBe("((size gt 1) or (size lt 0)) and (name eq 'A')");

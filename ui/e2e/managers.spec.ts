@@ -3,6 +3,7 @@ import type { Page } from "@playwright/test";
 import { greenVerdict, isCheck } from "./verdict";
 import { axeViolations } from "./axe";
 import sk from "../src/locales/sk.json" with { type: "json" };
+import { withODataEndpoints } from "./odataEndpoints";
 
 // Same shape as the approvals journey: `vite preview` has no portal API behind it, so the API
 // is answered in the browser and everything above it — routing, forms, clicks — is the real thing.
@@ -120,6 +121,7 @@ async function stubApi(page: Page): Promise<{ writes: string[] }> {
     }
     return json({ apiVersion: "joinedcontext.com/v1alpha1", kind: "List", items: [] });
   });
+  await withODataEndpoints(page);
   return { writes };
 }
 
@@ -170,7 +172,7 @@ test.describe("managers", () => {
     await page.goto("/projects/helsinki/endpoints?lang=sk");
     // The route holds two tables since T-0498: the project's own and the shared section's.
     // The Slovak name is the locale's own (T-3278 gave endpoint one Slovak term), never a copy here.
-    await expect(page.getByRole("table", { name: sk.endpoints.title })).toBeVisible();
+    await expect(page.getByRole("grid", { name: sk.endpoints.title })).toBeVisible();
     expect(await axeViolations(page)).toEqual([]);
   });
 });

@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { configure } from "@testing-library/react";
-import { beforeEach } from "vitest";
+import { beforeEach, vi } from "vitest";
+import { withODataEndpoints } from "./odataEndpoints";
 import { settlePrefill } from "../src/assistant/state";
 
 // A hand-off the assistant leaves lives until the person leaves the page it was left on
@@ -41,4 +42,12 @@ if (typeof HTMLDialogElement !== "undefined" && !HTMLDialogElement.prototype.sho
   HTMLDialogElement.prototype.close = function close(this: HTMLDialogElement) {
     this.removeAttribute("open");
   };
+}
+
+// The Endpoints page reads its rows through the project's OData set (T-6645): every stubbed
+// `fetch` answers that set from the plain lists the test stubs, as the server builds it.
+{
+  const stubGlobal = vi.stubGlobal.bind(vi);
+  vi.stubGlobal = (name: string | symbol | number, value: unknown) =>
+    stubGlobal(name, name === "fetch" && typeof value === "function" ? withODataEndpoints(value as typeof fetch) : value);
 }

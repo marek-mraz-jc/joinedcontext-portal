@@ -84,6 +84,10 @@ export function useGridKeys(
   );
   const onGridKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLTableElement>) => {
+      // A menu or dialog a host's cell opened sits in a portal: its keys reach here through
+      // React's tree, not the page's, and are its own (Escape there gives the focus back to the
+      // button that opened it, not to the grid).
+      if (!e.currentTarget.contains(e.target as Node)) return;
       const onGrid = e.target === e.currentTarget;
       if (!onGrid) {
         const control = e.target as HTMLElement;

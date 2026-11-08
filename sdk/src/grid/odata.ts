@@ -35,6 +35,8 @@ export interface ODataSet {
   entityType: string;
   key: string;
   properties: ODataProperty[];
+  /** Whether the set's `Capabilities.FilterFunctions` names `tolower`, so a case-blind search matches in any case. */
+  tolower?: boolean;
 }
 
 /** The answer of `{set}/$allowed`: whether the call would be served, and why not. */
@@ -87,12 +89,16 @@ function fromJson(body: unknown, entitySet: string): ODataSet | null {
     (entry): entry is [string, Record<string, unknown>] => !entry[0].startsWith("$") && typeof entry[1] === "object" && entry[1] !== null,
   );
   let typeName: string | undefined;
+  let declaredSet: Record<string, unknown> | undefined;
   for (const [, schema] of schemas) {
     for (const member of Object.values(schema)) {
       const container = member as Record<string, unknown>;
       if (container?.$Kind !== "EntityContainer") continue;
       const declared = container[entitySet] as { $Collection?: boolean; $Type?: string } | undefined;
-      if (declared?.$Collection && typeof declared.$Type === "string") typeName = declared.$Type;
+      if (declared?.$Collection && typeof declared.$Type === "string") {
+        typeName = declared.$Type;
+        declaredSet = declared as Record<string, unknown>;
+      }
     }
   }
   if (!typeName) return null;
@@ -114,7 +120,9 @@ function fromJson(body: unknown, entitySet: string): ODataSet | null {
       ...(typeof description === "string" ? { description } : {}),
     });
   }
-  return { entitySet, entityType: lastSegment(typeName), key, properties };
+  const functions = declaredSet?.["@Org.OData.Capabilities.V1.FilterFunctions"] ?? declaredSet?.["@Capabilities.FilterFunctions"];
+  const tolower = Array.isArray(functions) && functions.includes("tolower");
+  return { entitySet, entityType: lastSegment(typeName), key, properties, ...(tolower ? { tolower } : {}) };
 }
 
 function fromXml(text: string, entitySet: string): ODataSet | null {
@@ -142,7 +150,14 @@ function fromXml(text: string, entitySet: string): ODataSet | null {
       };
     })
     .filter((property) => property.name !== "");
-  return { entitySet, entityType: lastSegment(typeName), key, properties };
+  // `Capabilities.FilterFunctions` on the set, under the vocabulary's alias or its namespace.
+  const tolower = Array.from(declared?.children ?? []).some(
+    (child) =>
+      child.localName === "Annotation" &&
+      /(^|\.)FilterFunctions$/.test(child.getAttribute("Term") ?? "") &&
+      all(child, "String").some((each) => each.textContent?.trim() === "tolower"),
+  );
+  return { entitySet, entityType: lastSegment(typeName), key, properties, ...(tolower ? { tolower } : {}) };
 }
 
 /**
@@ -284,8 +299,9 @@ class QReader {
 }
 
 /** The text a grid pattern stands for, when it is plain text with anchors; null for a real expression. */
-function plainPattern(pattern: string): { text: string; start: boolean; end: boolean } | null {
-  let rest = pattern.startsWith("(?i)") ? pattern.slice(4) : pattern;
+function plainPattern(pattern: string): { text: string; start: boolean; end: boolean; caseless: boolean } | null {
+  const caseless = pattern.startsWith("(?i)");
+  let rest = caseless ? pattern.slice(4) : pattern;
   const start = rest.startsWith("^");
   if (start) rest = rest.slice(1);
   const end = rest.endsWith("$") && !rest.endsWith("\\$");
@@ -304,7 +320,7 @@ function plainPattern(pattern: string): { text: string; start: boolean; end: boo
       text += c;
     }
   }
-  return { text, start, end };
+  return { text, start, end, caseless };
 }
 
 function propertyOf(set: ODataSet, path: string): { name: string; property: ODataProperty } {
@@ -328,9 +344,13 @@ function compareText(set: ODataSet, node: Extract<Node, { op: "compare" }>): str
   if (node.cmp === "~=" || node.cmp === "!~=") {
     const plain = node.values.length === 1 ? plainPattern(node.values[0].text.replace(/\\"/g, '"')) : null;
     if (!plain) throw bad("this list takes plain text in a filter, not a regular expression");
-    const text = literalOf(plain.text, { ...property, type: "Edm.String" });
+    // A case-blind pattern (the search box's `(?i)`) reads both sides in lower case where the
+    // service serves tolower; elsewhere it matches as typed (odata-table answers tolower 501).
+    const lower = plain.caseless && set.tolower === true;
+    const text = literalOf(lower ? plain.text.toLowerCase() : plain.text, { ...property, type: "Edm.String" });
+    const field = lower ? `tolower(${name})` : name;
     const found =
-      plain.start && plain.end ? `${name} eq ${text}` : plain.start ? `startswith(${name},${text})` : plain.end ? `endswith(${name},${text})` : `contains(${name},${text})`;
+      plain.start && plain.end ? `${field} eq ${text}` : plain.start ? `startswith(${field},${text})` : plain.end ? `endswith(${field},${text})` : `contains(${field},${text})`;
     return node.cmp === "~=" ? found : `not (${found})`;
   }
   if (node.values.length > 1) {

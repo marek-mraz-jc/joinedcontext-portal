@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import type { Page, Route } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { axeViolations } from "./axe";
+import { withODataEndpoints } from "./odataEndpoints";
 
 // T-6115: Endpoints, Subscriptions, Data models and Pipelines are one grid (owner 2026-10-29).
 // Route stubs only: the shots show the grid at 1440 and 400, a filter chip, the cell panel with
@@ -109,10 +110,10 @@ async function stub(page: Page, opts: { empty?: boolean; refuse?: boolean; slow?
     if (path.endsWith("/events")) return route.fulfill({ status: 200, contentType: "text/event-stream", body: "" });
     return json(list([]));
   });
+  await withODataEndpoints(page);
 }
 
 const PAGES = [
-  ["endpoints", "Air quality"],
   ["subscriptions", "air-alerts"],
   ["models", "Air quality"],
   ["pipelines", "air-intake"],
@@ -164,59 +165,26 @@ for (const width of [1440, 400]) {
       await page.screenshot({ path: info.outputPath(`mqttbrokers-loading-${width}.png`) });
     });
 
-    test("a filter chip narrows the endpoints and the panel edits the audience", async ({ page }, info) => {
-      await stub(page);
-      await page.goto("/projects/helsinki/endpoints?lang=en");
-      await page.getByText("Filter", { exact: true }).click();
-      await page.getByRole("checkbox", { name: /^Organization/ }).check();
-      await page.keyboard.press("Escape");
-      await expect(page.getByRole("button", { name: "Remove filter Audience: Organization" })).toBeVisible();
-      await expect(page.getByRole("link", { name: "Air quality" })).toHaveCount(0);
-      await page.screenshot({ path: info.outputPath(`endpoints-filtered-${width}.png`), fullPage: true });
-      await page.getByRole("button", { name: "Remove filter Audience: Organization" }).click();
-      await page.getByRole("button", { name: "More actions for Air quality" }).click();
-      await page.getByRole("menuitem", { name: "Details" }).click();
-      const panel = page.getByRole("dialog", { name: "Air quality" });
-      await expect(panel.getByRole("combobox", { name: "Audience" })).toHaveValue("public");
-      await expect(panel.getByRole("group", { name: "Representations" })).toBeVisible();
-      // T-6186: the 7-day calls split by kind of caller, shown in the panel, never who called.
-      await expect(panel.getByRole("list", { name: "By caller" })).toContainText("Apps and workloads 11,000");
-      await panel.getByRole("list", { name: "By caller" }).scrollIntoViewIfNeeded();
-      await page.screenshot({ path: info.outputPath(`endpoints-panel-calls-${width}.png`) });
-      await page.screenshot({ path: info.outputPath(`endpoints-panel-${width}.png`) });
-      expect(await axeViolations(page)).toEqual([]);
-    });
-
     test("the panel says in words when an Endpoint had no calls or is counted elsewhere (T-6186)", async ({ page }, info) => {
       await stub(page);
       await page.goto("/projects/helsinki/endpoints?lang=en");
       await page.getByRole("button", { name: "More actions for Parking occupancy" }).click();
       await page.getByRole("menuitem", { name: "Details" }).click();
-      const zero = page.getByRole("dialog", { name: "Parking occupancy" });
-      await zero.getByText("No answered calls in the last 7 days").scrollIntoViewIfNeeded();
-      await expect(zero.getByText("No answered calls in the last 7 days")).toBeVisible();
+      // The Endpoints list is the OData grid since T-6645: Details opens the row's fields with the
+      // calls under them; its filter row and its refusals are e2e/endpoints_odata.spec.ts.
+      const zero = page.getByRole("dialog");
+      await zero.getByText("No answered calls in the last 7 days").first().scrollIntoViewIfNeeded();
+      await expect(zero.getByText("No answered calls in the last 7 days").first()).toBeVisible();
       await page.screenshot({ path: info.outputPath(`endpoints-panel-calls-zero-${width}.png`) });
       await page.keyboard.press("Escape");
       await page.getByRole("button", { name: "More actions for espoo/City bikes in Espoo" }).click();
       await page.getByRole("menuitem", { name: "Details" }).click();
-      const shared = page.getByRole("dialog", { name: /City bikes in Espoo/ });
+      const shared = page.getByRole("dialog");
       const reason = shared.getByText("Usage is counted by the project that publishes this Endpoint.");
-      await reason.scrollIntoViewIfNeeded();
-      await expect(reason).toBeVisible();
+      await reason.first().scrollIntoViewIfNeeded();
+      await expect(reason.first()).toBeVisible();
       await page.screenshot({ path: info.outputPath(`endpoints-panel-calls-shared-${width}.png`) });
       expect(await axeViolations(page)).toEqual([]);
-    });
-
-    test("the server's refusal shows on the field", async ({ page }, info) => {
-      await stub(page, { refuse: true });
-      await page.goto("/projects/helsinki/endpoints?lang=en");
-      await page.getByRole("button", { name: "More actions for Air quality" }).click();
-      await page.getByRole("menuitem", { name: "Details" }).click();
-      const panel = page.getByRole("dialog", { name: "Air quality" });
-      await panel.getByRole("combobox", { name: "Audience" }).selectOption("organization");
-      await panel.getByRole("button", { name: "Propose change" }).click();
-      await expect(panel.getByText(/may not change the audience/)).toBeVisible();
-      await page.screenshot({ path: info.outputPath(`endpoints-refused-${width}.png`) });
     });
 
     test("an empty project says what to do next", async ({ page }, info) => {

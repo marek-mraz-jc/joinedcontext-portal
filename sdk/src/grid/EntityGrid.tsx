@@ -33,7 +33,8 @@ export interface EntityGridProps extends UseEntityGridOptions {
   /**
    * How one column's cells are drawn, by attribute name, by cell kind, or `id` for the pinned
    * identifier column — which is how a host makes a row open something of its own (a detail pane,
-   * a row action) without a second table of its own.
+   * a row action) without a second table of its own. An attribute's renderer that returns
+   * `undefined` for a row leaves that cell to the grid, its editor included.
    */
   renderers?: Record<string, (cell: RichCell | RichCell[] | undefined, row: RichRow) => React.ReactNode>;
   /**
@@ -86,6 +87,8 @@ export interface EntityGridProps extends UseEntityGridOptions {
   detailPlace?: { tab?: string | null; attr?: string | null };
   onDetailPlace?: (place: { tab: string; attr: string }) => void;
   toolbar?: React.ReactNode;
+  /** The grid's name for a screen reader, e.g. "Endpoints": a page with one list names it as its heading does. */
+  ariaLabel?: string;
   /** The bounds the "Draw area" action asks about; the host owns the map's viewport. */
   mapBounds?: () => [number, number, number, number] | null;
   empty?: React.ReactNode;
