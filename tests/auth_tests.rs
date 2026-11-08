@@ -1216,6 +1216,27 @@ async fn rs256_and_es256_tokens_are_both_accepted_and_hs256_is_not() {
     assert_eq!(status, StatusCode::UNAUTHORIZED);
 }
 
+/// CVE-2026-25537 (T-6650): a realm-signed token whose `nbf` or `exp` is a string is refused.
+/// jsonwebtoken before 10.3 skipped a string `nbf` like an absent one, so a token not valid
+/// for another day passed `validate_nbf`.
+#[tokio::test]
+async fn a_time_claim_written_as_a_string_is_refused() {
+    let realm = realm().await;
+    let app = app_behind(&realm, true).await;
+    let issuer = issuer_of(&realm);
+    let now = joinedcontext_portal::auth::session::now_unix();
+
+    let honest = keys::token_with(&issuer, "demo.viewer", json!({}));
+    let (status, me) = me_with(app.clone(), &[("x-access-token", honest)]).await;
+    assert_eq!(status, StatusCode::OK, "the control token: {me}");
+
+    for (claim, value) in [("nbf", now + 86_400), ("exp", now - 86_400)] {
+        let token = keys::token_with(&issuer, "demo.viewer", json!({ claim: value.to_string() }));
+        let (status, me) = me_with(app.clone(), &[("x-access-token", token)]).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "a string {claim} passed: {me}");
+    }
+}
+
 /// A bad edge token is 401 like a bad bearer, and never a look at the cookie beside it.
 #[tokio::test]
 async fn a_bad_edge_token_is_refused_and_does_not_fall_back_to_the_cookie() {
