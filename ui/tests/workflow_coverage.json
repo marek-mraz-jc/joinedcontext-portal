@@ -831,7 +831,8 @@
         "routes": [
           "POST /api/v1/projects/{project}/endpoints/{name}/preview",
           "PUT /api/v1/projects/{project}/{plural}/{name}",
-          "PATCH /api/v1/projects/{project}/{plural}/{name}"
+          "PATCH /api/v1/projects/{project}/{plural}/{name}",
+          "PATCH /api/v1/projects/{project}/odata/{entity}"
         ]
       },
       "retire": {
@@ -841,7 +842,8 @@
         },
         "assistant": "jc_resource_delete",
         "routes": [
-          "DELETE /api/v1/projects/{project}/{plural}/{name}"
+          "DELETE /api/v1/projects/{project}/{plural}/{name}",
+          "DELETE /api/v1/projects/{project}/odata/{entity}"
         ]
       },
       "refused-no-permission": {
