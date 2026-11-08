@@ -33,6 +33,24 @@ const ACCESS: &str = "Bearer";
 /// The `typ` of a Keycloak back-channel logout token.
 const LOGOUT: &str = "Logout";
 
+/// Refuses a whole JWKS when one key names an algorithm or a key shape jsonwebtoken cannot read,
+/// so the cached keys stay (T-6650). jsonwebtoken 9 refused such a set in serde; 10+ reads it as
+/// `UNKNOWN_ALGORITHM` / `AlgorithmParameters::Other`, and a set of only such keys would install
+/// nothing and lock every bearer caller out.
+fn readable(set: &JwkSet) -> Result<(), ApiError> {
+    use jsonwebtoken::jwk::{AlgorithmParameters, KeyAlgorithm};
+    match set.keys.iter().find(|jwk| {
+        jwk.common.key_algorithm == Some(KeyAlgorithm::UNKNOWN_ALGORITHM)
+            || matches!(jwk.algorithm, AlgorithmParameters::Other(_))
+    }) {
+        Some(jwk) => Err(ApiError::Unavailable(format!(
+            "JWKS holds a key the Portal cannot read (kid {:?})",
+            jwk.common.key_id
+        ))),
+        None => Ok(()),
+    }
+}
+
 /// Whether a JWK's `alg` (or, absent one, its key type) is one of [`ALGORITHMS`].
 fn usable(jwk: &jsonwebtoken::jwk::Jwk) -> bool {
     match jwk.common.key_algorithm {
@@ -164,6 +182,7 @@ impl BearerVerifier {
             .json()
             .await
             .map_err(|e| ApiError::Unavailable(format!("JWKS is not a key set: {e}")))?;
+        readable(&set)?;
         Ok(self.install(&set))
     }
 
@@ -935,6 +954,42 @@ mod tests {
             v.key("attacker").is_none(),
             "a redirected key set was installed"
         );
+    }
+
+    /// T-6650: a JWKS holding a key whose algorithm or shape jsonwebtoken cannot read is refused
+    /// whole and the cached keys stay. jsonwebtoken 9 refused it in serde; 10+ parses it, and a
+    /// set of only such keys installed nothing and locked every bearer caller out.
+    #[tokio::test]
+    async fn a_key_set_with_an_unreadable_key_leaves_the_cached_keys_alone() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let (_signer, set) = keypair("k1");
+        let mut unknown_alg = jwk_of(&set);
+        unknown_alg["alg"] = json!("ES999");
+        for body in [
+            json!({ "keys": [unknown_alg] }),
+            json!({ "keys": [{ "kty": "EC", "kid": "k2" }] }),
+        ] {
+            let realm = MockServer::start().await;
+            Mock::given(method("GET"))
+                .and(path("/certs"))
+                .respond_with(ResponseTemplate::new(200).set_body_json(&body))
+                .mount(&realm)
+                .await;
+            let v = BearerVerifier::with_jwks_url(
+                &Url::parse(ISSUER).unwrap(),
+                "portal-api",
+                Url::parse(&format!("{}/certs", realm.uri())).unwrap(),
+            );
+            assert_eq!(v.install(&set), 1);
+            let refreshed = v.refresh().await;
+            assert!(
+                matches!(refreshed, Err(ApiError::Unavailable(_))),
+                "{body} was read: {refreshed:?}"
+            );
+            assert!(v.key("k1").is_some(), "{body} cost the cached key");
+        }
     }
 
     /// AP-27: a realm that accepts the connection and never answers must not hold a Portal
