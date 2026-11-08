@@ -205,7 +205,12 @@
   display: block;
   margin: var(--jc-space-2, 8px) auto 0;
   min-height: 2.75rem;
-  color: var(--jc-color-text, inherit);
+  padding: 0 var(--jc-space-4, 16px);
+  border: 1px solid var(--jc-color-border, #d0d0d0);
+  border-radius: var(--jc-radius-md, 6px);
+  background: var(--jc-color-surface, #fff);
+  color: var(--jc-color-ink, #1f2937);
+  cursor: pointer;
 }
 
 /* It wraps on a phone: centred and on one line it spilled past both edges of the grid. */

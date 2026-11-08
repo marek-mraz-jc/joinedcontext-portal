@@ -5713,6 +5713,7 @@
     "notReadable": "{count} weitere Felder werden nicht angezeigt: Ihr Zugriff umfasst sie nicht.",
     "queryRefused": "Der Broker hat diese Abfrage abgelehnt",
     "errorDetail": "Was der Broker gemeldet hat",
+    "retry": "Erneut versuchen",
     "matching": "passend",
     "noTotal": "der Endpoint nennt für diese Antwort keine Gesamtzahl",
     "history": "Verlauf",

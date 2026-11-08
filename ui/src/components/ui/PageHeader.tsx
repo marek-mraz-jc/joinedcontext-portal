@@ -137,7 +137,7 @@ export function PageHeader({
           </div>
           <div className="ms-auto flex flex-wrap items-center gap-2">
             {/* A control fills its parent: the slot gives the search its width. */}
-            {search ? <div className="w-full sm:w-64">{search}</div> : null}
+            {search ? <div className="w-full sm:w-72">{search}</div> : null}
             {aside}
             {actions}
           </div>

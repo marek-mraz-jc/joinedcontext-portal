@@ -5713,6 +5713,7 @@
     "notReadable": "{count} more fields are not shown: your access does not include them.",
     "queryRefused": "The broker refused this query",
     "errorDetail": "What the broker said",
+    "retry": "Try again",
     "matching": "matching",
     "noTotal": "the endpoint gives no total for this answer",
     "history": "History",

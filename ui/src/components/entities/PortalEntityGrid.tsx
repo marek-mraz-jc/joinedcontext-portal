@@ -156,6 +156,7 @@ export function gridLabels(t: (key: string, values?: Record<string, string>) => 
     notReadable: t("entityGrid.notReadable"),
     queryRefused: t("entityGrid.queryRefused"),
     errorDetail: t("entityGrid.errorDetail"),
+    retry: t("entityGrid.retry"),
     matching: t("entityGrid.matching", { n: "{n}" }),
     noTotal: t("entityGrid.noTotal"),
     history: t("entityGrid.history"),

@@ -113,11 +113,15 @@ export function EndpointsGrid({
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const navigate = useNavigate();
   // MCP is one of the surfaces the Representations column names, so its own column stays under
-  // the header menu's fields. A phone shows a row's name, source, audience and state; its space,
-  // surfaces and calls are on the Endpoint's own page, one tap away, not columns to scroll to.
+  // the header menu's fields. A phone shows a row's name (its source and state under it) and its
+  // audience, so nothing scrolls sideways; its space, surfaces and calls are on the Endpoint's own
+  // page, one tap away.
   const phone = useIsPhone();
   const hidden = useMemo(
-    () => (phone ? ["entity:type", "mcp", "search", "contextSpace", "representations", "calls7d"] : ["entity:type", "mcp", "search"]),
+    () =>
+      phone
+        ? ["entity:type", "mcp", "search", "source", "contextSpace", "representations", "calls7d", "phase"]
+        : ["entity:type", "mcp", "search"],
     [phone],
   );
   // The row whose fields the grid's detail shows: Details in the row menu opens it.
@@ -187,7 +191,7 @@ export function EndpointsGrid({
       const name = page.endpoint ? localized(page.endpoint.metadata.title, locale, row.name) : label(page) || row.title || row.name;
       return (
         <div className="flex min-w-0 items-center justify-between gap-2">
-          <div className="flex w-36 min-w-0 items-baseline gap-2 whitespace-nowrap sm:w-60">
+          <div className={phone ? "flex min-w-0 flex-col items-start gap-1" : "flex w-60 min-w-0 items-baseline gap-2 whitespace-nowrap"}>
             {row.kind === "gone" ? (
               <>
                 <span className="truncate font-mono">{name}</span>
@@ -199,10 +203,17 @@ export function EndpointsGrid({
                   data-row-link=""
                   to="/projects/$project/$plural/$name"
                   params={{ plural: "endpoints", project: row.source ?? project, name: row.name }}
-                  className="focus-ring max-w-full shrink-0 truncate rounded-sm text-fg hover:text-primary-soft-fg"
+                  className={`focus-ring max-w-full rounded-sm text-fg hover:text-primary-soft-fg ${phone ? "line-clamp-2 break-words" : "shrink-0 truncate"}`}
                 >
                   {name}
                 </Link>
+                {/* The phone's Source and State columns, under the name. */}
+                {phone && row.kind === "shared" && row.source ? (
+                  <Badge tone="info" className="whitespace-nowrap">
+                    {t("endpoints.source.shared", { project: row.source })}
+                  </Badge>
+                ) : null}
+                {phone && row.kind === "own" && row.phase && row.phase !== "Live" ? <LifecycleBadge kind="phase" value={row.phase} /> : null}
                 {/* Below `sm` a row is the title, the state and the action (UI-27, T-4214); the
                     manifest name waits for a wide screen (2xl, T-6169). */}
                 {page.endpoint?.metadata.title ? (
@@ -245,7 +256,7 @@ export function EndpointsGrid({
     },
     // Another project's Endpoint is changed where it is published: its space reads as text; the
     // project's own rows keep the grid's picker (undefined leaves the cell to it).
-    contextSpace: (_cell, rich) => (rowOf(rich).kind === "own" ? undefined : <span className="font-mono text-caption">{String(rich.raw.contextSpace ?? "—")}</span>),
+    contextSpace: (_cell, rich) => (rowOf(rich).kind === "own" ? undefined : <span className="text-fg-muted">{String(rich.raw.contextSpace ?? "—")}</span>),
     mcp: (_cell, rich) => (rowOf(rich).kind === "gone" ? "—" : rich.raw.mcp === false ? t("grid.off") : t("grid.on")),
     calls7d: (_cell, rich) => {
       const row = rowOf(rich);

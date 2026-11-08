@@ -705,10 +705,6 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
         }),
       ),
   });
-  // The list's first answer: the grid read its rows itself then, only a later answer (a change
-  // that landed) reads them again.
-  const [firstAnswer, setFirstAnswer] = useState(0);
-  if (firstAnswer === 0 && list.dataUpdatedAt > 0) setFirstAnswer(list.dataUpdatedAt);
 
   // An endpoint the assistant opened by name edits that endpoint: a PUT to its name with its own
   // slug, never a new endpoint with a fresh one. Only a draft or a prefill that says so is taken
@@ -1192,6 +1188,17 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
     references: new Map(references.map((each) => [each.metadata.name, each])),
   };
   const anyRow = endpoints.length + shared.length + references.length > 0;
+  // The grid reads its rows itself; only a list behind them that changed (a change that landed, a
+  // reference made or dropped) reads them again. A list's first answer reloads nothing, and a
+  // repeat answer with the same items keeps its data object (React Query's structural sharing), so
+  // the permission and focus re-reads after the first answer leave the grid alone.
+  const listed = [list.data, referencesQuery.data, ...otherLists.map((other) => other.data)];
+  const [seenLists, setSeenLists] = useState(listed);
+  const [reloadKey, setReloadKey] = useState(0);
+  if (listed.length !== seenLists.length || listed.some((data, index) => data !== seenLists[index])) {
+    if (listed.some((data, index) => seenLists[index] !== undefined && data !== seenLists[index])) setReloadKey((key) => key + 1);
+    setSeenLists(listed);
+  }
   const notCounted = (own: boolean): NotCounted | undefined =>
     !own ? "shared" : usage7d.isError ? "failed" : usage7d.isSuccess ? undefined : "loading";
   const callsByName = new Map((usage7d.data?.endpoints ?? []).map((each) => [each.name, each]));
@@ -1354,7 +1361,7 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
         spaces={spaceNames}
         label={rowLabel}
         // A change that lands (the list polls while one is on its way, T-1392) reads the rows again.
-        reloadKey={list.dataUpdatedAt === firstAnswer ? 0 : list.dataUpdatedAt}
+        reloadKey={reloadKey}
         calls={(name) => <CallsCell calls={name ? callsByName.get(name) : undefined} notCounted={notCounted(name !== null)} />}
         callsDetail={(name) => <CallsDetail calls={name ? callsByName.get(name) : undefined} notCounted={notCounted(name !== null)} />}
         actions={(row, label) =>

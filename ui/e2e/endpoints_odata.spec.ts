@@ -40,6 +40,11 @@ const MAY = {
   ],
 };
 
+// A shot is taken once the grid has its answer: no Loading line under rows or in place of them.
+async function settled(page: Page): Promise<void> {
+  await expect(page.locator(".jc-grid-loading")).toHaveCount(0);
+}
+
 async function stubApi(page: Page, own: unknown[], options: { failOData?: boolean } = {}): Promise<void> {
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -65,7 +70,7 @@ async function stubApi(page: Page, own: unknown[], options: { failOData?: boolea
       route.fulfill({
         status: 503,
         contentType: "application/json",
-        body: JSON.stringify({ error: { code: "ServiceUnavailable", message: "the Endpoints could not be read right now; try again in a minute" } }),
+        body: JSON.stringify({ error: { code: "ServiceUnavailable", message: "the Endpoints could not be read right now" } }),
       }),
     );
   }
@@ -87,6 +92,7 @@ for (const width of [1440, 400]) {
       await expect(grid(page).getByRole("link", { name: "Air quality and weather" })).toBeVisible();
       await expect(grid(page).getByRole("link", { name: "Parking places in Espoo" })).toBeVisible();
       await expect(grid(page).getByText("Shared by espoo")).toBeVisible();
+      await settled(page);
       expect(await axeViolations(page)).toEqual([]);
       await page.screenshot({ path: join(SHOTS, `filled-${width}.png`) });
 
@@ -95,6 +101,7 @@ for (const width of [1440, 400]) {
       await expect(grid(page).getByRole("link", { name: "Noise sensors" })).toBeVisible();
       await expect(grid(page).getByRole("link", { name: "Air quality and weather" })).toHaveCount(0);
       expect(reads.some((url) => url.includes("contains(search,'noise')"))).toBe(true);
+      await settled(page);
       await page.screenshot({ path: join(SHOTS, `search-${width}.png`) });
     });
 
@@ -106,6 +113,11 @@ for (const width of [1440, 400]) {
       await page.goto("/projects/helsinki/endpoints?lang=en");
       await expect(page.getByText("This project publishes no endpoint yet.").first()).toBeVisible();
       await expect(page.getByRole("button", { name: "New endpoint" }).first()).toBeVisible();
+      await settled(page);
+      // The empty answer stays: nothing reads the rows again behind it.
+      await page.waitForTimeout(1500);
+      await expect(page.getByText("This project publishes no endpoint yet.").first()).toBeVisible();
+      await settled(page);
       expect(await axeViolations(page)).toEqual([]);
       await page.screenshot({ path: join(SHOTS, `empty-${width}.png`) });
     });
@@ -113,9 +125,13 @@ for (const width of [1440, 400]) {
     test("error: the server's reason where the rows would be", async ({ page }) => {
       await stubApi(page, HELSINKI, { failOData: true });
       await page.goto("/projects/helsinki/endpoints?lang=en");
-      await expect(page.getByText(/could not be read right now/)).toBeVisible();
+      await expect(page.getByRole("alert").filter({ hasText: /could not be read right now/ })).toBeVisible();
       expect(await axeViolations(page)).toEqual([]);
       await page.screenshot({ path: join(SHOTS, `error-${width}.png`) });
+      // Try again asks the same question; once the service answers, the rows come back.
+      await page.unroute(/\/odata\/endpointList\?/);
+      await page.getByRole("button", { name: "Try again" }).click();
+      await expect(grid(page).getByRole("link", { name: "Air quality and weather" })).toBeVisible();
     });
 
     test("refused edit: the decision's reason on the row, nothing sent", async ({ page }) => {
@@ -149,7 +165,7 @@ for (const width of [1440, 400]) {
       if (width < 640) await page.setViewportSize({ width, height: 900 });
       await page.getByRole("button", { name: "Review the changes" }).click();
       await page.getByRole("button", { name: "Apply", exact: true }).click();
-      await expect(page.getByText(/You may not change this row: your proposal check refuses moving events/).first()).toBeVisible();
+      await expect(page.getByRole("alert").filter({ hasText: /You may not change this row: your proposal check refuses moving events/ })).toBeVisible();
       expect(writes).toEqual([]);
       // The rows are read again after the apply; the shot waits for them.
       await expect(page.locator(".jc-grid-loading")).toHaveCount(0);

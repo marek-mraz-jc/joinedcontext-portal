@@ -80,7 +80,12 @@ export function GridReview({ view }: { view: GridView }): React.JSX.Element | nu
                       ⧉
                     </button>
                   </td>
-                  <td>{columns.find((col) => col.attr === change.attribute && col.meta === null)?.label ?? change.attribute}</td>
+                  {/* A column hidden at this width still has its label in the config. */}
+                  <td>
+                    {columns.find((col) => col.attr === change.attribute && col.meta === null)?.label ??
+                      view.options.config.columns.find((col) => col.attr === change.attribute)?.label ??
+                      change.attribute}
+                  </td>
                   <td>{reviewValue(change, change.before, where, cellLabels)}</td>
                   <td>{reviewValue(change, change.after, where, cellLabels)}</td>
                 </tr>
@@ -90,7 +95,9 @@ export function GridReview({ view }: { view: GridView }): React.JSX.Element | nu
         </table>
       </div>
       {/* What happens to `observedAt`, chosen once for the batch: a corrected value that keeps
-          the old timestamp claims to have been observed then (UI-67). */}
+          the old timestamp claims to have been observed then (UI-67). An OData row has no
+          `observedAt`, so its review asks nothing about it. */}
+      {view.options.config.source.kind !== "odata" && (
       <fieldset>
         <label>
           <input
@@ -111,12 +118,19 @@ export function GridReview({ view }: { view: GridView }): React.JSX.Element | nu
           {labels.observedNow}
         </label>
       </fieldset>
+      )}
       {pendingChanges.length > MAX_ENTITIES && (
         <p className="jc-grid-error">{`${labels.error}: ${MAX_ENTITIES}`}</p>
       )}
-      {refused.map((one) => (
-        <p key={one.id} className="jc-grid-error">{`${one.id}: ${one.detail}`}</p>
-      ))}
+      {/* A refusal is read out when it arrives, under the row's name, not its id. */}
+      {refused.length > 0 && (
+        <div role="alert" className="jc-grid-review-refused">
+          {refused.map((one) => {
+            const row = rows.find((r) => r.id === one.id);
+            return <p key={one.id} className="jc-grid-error">{`${row ? rowName(row) : targetName(one.id).name}: ${one.detail}`}</p>;
+          })}
+        </div>
+      )}
       <label className="jc-grid-reason">
         <span>{labels.reason}</span>
         <input
