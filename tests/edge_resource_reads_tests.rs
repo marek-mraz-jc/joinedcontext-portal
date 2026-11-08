@@ -867,8 +867,35 @@ async fn odata_endpoints_carry_the_shared_and_gone_rows_the_page_lists_and_no_ot
         json!({ "subjects": [{ "user": "pat.proposer@hel.fi" }], "role": "endpoint-proposer",
                 "scope": { "project": PROJECT } }),
     ));
+    // A permitted write reaches the REST door through odata-table's batch (T-6663) and answers
+    // what the door answers: here the delete door's 409 for an Endpoint a Pipeline still uses.
+    state.mirror.upsert(org(
+        "Role",
+        "endpoint-deleter",
+        json!({ "rules": [{ "kinds": ["Endpoint"], "verbs": ["read", "delete"] }] }),
+    ));
+    state.mirror.upsert(org(
+        "RoleBinding",
+        "dina-here",
+        json!({ "subjects": [{ "user": "dina.deleter@hel.fi" }], "role": "endpoint-deleter",
+                "scope": { "project": PROJECT } }),
+    ));
+    state.mirror.upsert(envelope(
+        "Pipeline",
+        "bikes-feed",
+        PROJECT,
+        json!({ "target": { "kind": "Endpoint", "name": "helsinki-bikes" } }),
+    ));
     let entity = |key: &str| format!("/api/v1/projects/{PROJECT}/odata/Endpoints('{key}')");
     let cases = [
+        (
+            "DELETE",
+            Some("dina.deleter@hel.fi"),
+            "helsinki-bikes",
+            Value::Null,
+            StatusCode::CONFLICT,
+            "1 dependent resource blocks deletion: Pipeline bikes-feed",
+        ),
         (
             "PATCH",
             vera,

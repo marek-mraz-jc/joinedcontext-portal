@@ -83,11 +83,13 @@ jcctl = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", r
 # sample runs before a proposal (T-4840), and the app-variant matrix asserts (T-2705). Same rev as
 # jc-core.
 context-gateway = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "9b0b85944083ae547b331d2327db4021e81cd08a", version = "0.1.0" }
-# OData 4.01 for the Portal's own lists (T-6632): the URL parser and the CSDL model of the default
+# OData 4.01 for the Portal's own lists (T-6632): the URL parser, the CSDL model and the entity-set
+# query engine (odata-table, T-6663: one filter evaluator, the reference one) of the default
 # broker, generic crates with no broker dependency, pinned to an Antares dev commit as jc-core is
 # pinned to a platform commit. `version` is the crate's own, for cargo-deny (T-0287).
-odata-url = { git = "https://github.com/marek-mraz-jc/Antares-NGSI-LD-Context-Broker.git", rev = "b683bfc3c59aa19a39c9e0b87e83feeb5625c0ae", version = "0.3.0", features = ["edm"] }
-odata-csdl = { git = "https://github.com/marek-mraz-jc/Antares-NGSI-LD-Context-Broker.git", rev = "b683bfc3c59aa19a39c9e0b87e83feeb5625c0ae", version = "0.3.0" }
+odata-url = { git = "https://github.com/marek-mraz-jc/Antares-NGSI-LD-Context-Broker.git", rev = "668f5eff4f79456bd406e935c57bc171681cc3b4", version = "0.3.0", features = ["edm"] }
+odata-csdl = { git = "https://github.com/marek-mraz-jc/Antares-NGSI-LD-Context-Broker.git", rev = "668f5eff4f79456bd406e935c57bc171681cc3b4", version = "0.3.0" }
+odata-table = { git = "https://github.com/marek-mraz-jc/Antares-NGSI-LD-Context-Broker.git", rev = "668f5eff4f79456bd406e935c57bc171681cc3b4", version = "0.3.0" }
 # The operations check an input against the schema they publish (T-1659); already in the tree.
 jsonschema = { version = "0.54", default-features = false }
 # Only to render jc-core's schemas into the OpenAPI document; the Portal's own types use utoipa.

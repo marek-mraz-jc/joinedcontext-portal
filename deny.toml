@@ -24,6 +24,6 @@ allow-git = [
   # The default broker's NGSI-LD crates, which the platform's context-gateway pulls in (T-3530)
   # from their own repository since T-3913, and the platform pin brings along (T-3539).
   "https://github.com/marek-mraz-jc/ngsild",
-  # The OData crates (odata-url, odata-csdl) of the default broker, for the Portal's own lists (T-6632).
+  # The OData crates (odata-url, odata-csdl, odata-table: MIT) of the default broker, for the Portal's own lists (T-6632).
   "https://github.com/marek-mraz-jc/Antares-NGSI-LD-Context-Broker",
 ]

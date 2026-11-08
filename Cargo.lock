@@ -2774,6 +2774,7 @@ dependencies = [
  "metrics-exporter-prometheus",
  "mime_guess",
  "odata-csdl",
+ "odata-table",
  "odata-url",
  "openidconnect",
  "oxc",
@@ -3411,15 +3412,25 @@ dependencies = [
 [[package]]
 name = "odata-csdl"
 version = "0.3.0"
-source = "git+https://github.com/marek-mraz-jc/Antares-NGSI-LD-Context-Broker.git?rev=b683bfc3c59aa19a39c9e0b87e83feeb5625c0ae#b683bfc3c59aa19a39c9e0b87e83feeb5625c0ae"
+source = "git+https://github.com/marek-mraz-jc/Antares-NGSI-LD-Context-Broker.git?rev=668f5eff4f79456bd406e935c57bc171681cc3b4#668f5eff4f79456bd406e935c57bc171681cc3b4"
 dependencies = [
  "regex",
 ]
 
 [[package]]
+name = "odata-table"
+version = "0.3.0"
+source = "git+https://github.com/marek-mraz-jc/Antares-NGSI-LD-Context-Broker.git?rev=668f5eff4f79456bd406e935c57bc171681cc3b4#668f5eff4f79456bd406e935c57bc171681cc3b4"
+dependencies = [
+ "odata-csdl",
+ "odata-url",
+ "serde_json",
+]
+
+[[package]]
 name = "odata-url"
 version = "0.3.0"
-source = "git+https://github.com/marek-mraz-jc/Antares-NGSI-LD-Context-Broker.git?rev=b683bfc3c59aa19a39c9e0b87e83feeb5625c0ae#b683bfc3c59aa19a39c9e0b87e83feeb5625c0ae"
+source = "git+https://github.com/marek-mraz-jc/Antares-NGSI-LD-Context-Broker.git?rev=668f5eff4f79456bd406e935c57bc171681cc3b4#668f5eff4f79456bd406e935c57bc171681cc3b4"
 dependencies = [
  "odata-csdl",
 ]
