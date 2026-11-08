@@ -84,7 +84,8 @@ struct Rig {
     broker: MockServer,
 }
 
-/// jana reads the space `air`; eva is an organization member who reads nothing of it.
+/// jana edits the Endpoints of space `air`, ola only reads the space; eva is an organization
+/// member who reads nothing of it.
 async fn rig(converged: bool) -> Rig {
     let broker = broker().await;
     let state = AppState::new(Config::for_tests(), None);
@@ -109,12 +110,25 @@ async fn rig(converged: bool) -> Rig {
         json!({ "rules": [{ "kinds": ["ContextSpace", "Project"], "verbs": ["read"] }] }),
     ));
     state.mirror.upsert(envelope(
-        "RoleBinding",
-        "air-readers",
+        "Role",
+        "endpoint-editor",
         ORG_NAMESPACE,
-        json!({ "subjects": [{ "user": "jana@hel.fi" }], "role": "space-reader",
-                "scope": { "contextSpace": "air" } }),
+        json!({ "rules": [{ "kinds": ["ContextSpace", "Project"], "verbs": ["read"] },
+                          { "kinds": ["Endpoint"], "verbs": ["read", "update"] }] }),
     ));
+    // jana edits the space's Endpoints; ola only reads the space.
+    for (name, who, role) in [
+        ("air-editors", "jana", "endpoint-editor"),
+        ("air-readers", "ola", "space-reader"),
+    ] {
+        state.mirror.upsert(envelope(
+            "RoleBinding",
+            name,
+            ORG_NAMESPACE,
+            json!({ "subjects": [{ "user": format!("{who}@hel.fi") }], "role": role,
+                    "scope": { "contextSpace": "air" } }),
+        ));
+    }
     let mut state = state;
     if converged {
         let dir = std::env::temp_dir().join(format!(
@@ -197,7 +211,7 @@ async fn a_member_previews_the_draft_as_themselves() {
     assert_eq!(
         headers,
         &vec![
-            ("x-jc-subject".to_owned(), "jana".to_owned()),
+            ("x-jc-subject".to_owned(), "sub-jana".to_owned()),
             ("x-jc-roles".to_owned(), String::new()),
         ]
     );
@@ -304,4 +318,46 @@ async fn a_bad_draft_is_400_and_no_view_is_503() {
         "{}",
         answer.text
     );
+}
+
+/// F-04, EP-85: a member who may only read the space previews the Endpoint as saved, whatever
+/// projection or hidden attributes the draft names: a draft could read past them. The editor's
+/// draft reaches the broker.
+#[tokio::test]
+async fn a_reader_cannot_preview_without_the_saved_projection() {
+    let r = rig(true).await;
+    let (_, saved) = r
+        .state
+        .views
+        .as_ref()
+        .expect("views")
+        .saved_view("city", "air-staff")
+        .expect("compiles")
+        .expect("a saved view");
+    let answer = send(
+        &r.state,
+        person("ola"),
+        "POST",
+        &route("air-staff"),
+        Some(draft()),
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
+    let asked = previews(&r.broker).await;
+    let (headers, _, view) = asked.last().expect("a preview");
+    assert_eq!(view, &saved, "the reader's draft must not reach the broker");
+    assert_eq!(headers[0], ("x-jc-subject".to_owned(), "sub-ola".to_owned()));
+    let answer = send(
+        &r.state,
+        person("jana"),
+        "POST",
+        &route("air-staff"),
+        Some(draft()),
+    )
+    .await;
+    assert_eq!(answer.status, StatusCode::OK, "{}", answer.text);
+    let asked = previews(&r.broker).await;
+    let (_, _, view) = asked.last().expect("a preview");
+    assert_ne!(view, &saved, "the editor's draft reaches the broker");
+    assert_eq!(view["q"], "speed>0");
 }

@@ -177,6 +177,7 @@ impl Effective {
                 || self.grants.iter().any(|grant| {
                     grant.organization.is_none()
                         && grant.space.is_none()
+                        && grant.rule.constraints.is_empty()
                         && grant.rule.grants("RoleBinding", verb)
                 })
         };

@@ -2944,7 +2944,7 @@ async fn an_indicator_reads_only_what_the_connector_may_read() {
                   "spec": { "members": [{ "user": "scn.steward@hel.fi" }] } } },
             { "proves": "expect", "manifest": { "kind": "DelegationPolicy", "name": "publish",
                   "spec": { "subjects": [{ "kind": "Group", "name": "people" }], "projects": ["{project}"],
-                            "segments": ["publish"], "maxExpiry": "P90D" } } },
+                            "segments": ["publish", "data-read"], "maxExpiry": "P90D" } } },
             { "proves": "expect", "rest": { "method": "POST", "path": "/connectors",
                   "body": { "name": "s00-whole", "segments": ["publish"],
                             "scope": [{ "project": "{project}", "access": "read" }],
@@ -2975,7 +2975,26 @@ async fn an_indicator_reads_only_what_the_connector_may_read() {
             { "proves": "deny", "via": "connector", "call": "jc_kpi_compute",
               "args": { "name": "{project}-counters", "type": "PotholeReport", "agg": "count",
                         "endpoint": "{project}-reports" },
-              "refused": true, "contains": ["{project}-reports"] }
+              "refused": true, "contains": ["{project}-reports"] },
+            // F-09: a data query whose filter, order or attributes name a personal attribute
+            // tells the value even with the attribute withheld from the answer.
+            { "proves": "expect", "rest": { "method": "POST", "path": "/connectors",
+                  "body": { "name": "s00-read", "segments": ["data-read"],
+                            "scope": [{ "project": "{project}", "access": "read" }],
+                            "expiresAt": "{in7days}" } },
+              "contains": ["\"state\":\"active\""] },
+            { "proves": "deny", "via": "connector", "call": "jc_data_query",
+              "args": { "endpoint": "{project}-reports", "type": "PotholeReport",
+                        "q": "contactEmail==\"jana@example.org\"" },
+              "refused": true, "contains": ["contactEmail personal"] },
+            { "proves": "deny", "via": "connector", "call": "jc_data_query",
+              "args": { "endpoint": "{project}-reports", "type": "PotholeReport",
+                        "orderBy": "contactEmail" },
+              "refused": true, "contains": ["contactEmail personal"] },
+            { "proves": "deny", "via": "connector", "call": "jc_data_query",
+              "args": { "endpoint": "{project}-reports", "type": "PotholeReport",
+                        "attrs": ["description", "contactEmail"] },
+              "refused": true, "contains": ["contactEmail personal"] }
         ]
     }))
     .expect("scenario");

@@ -33,8 +33,10 @@ pub fn marks(linkml: &str) -> Marks {
     out
 }
 
-/// The marks of every DataModel of `project`. A model the Portal cannot read is an `Err`
-/// naming it: without its marks nothing personal could be withheld, so the caller refuses.
+/// The marks of every DataModel of `project` and of the models they import, organization models
+/// included, as the reconciler resolves an Endpoint's model (`views::model_source`, F-09). A
+/// model the Portal cannot read is an `Err` naming it: without its marks nothing personal could
+/// be withheld, so the caller refuses.
 // ponytail: reads each model from the forge per answer that carries entities; cache by etag
 // when query_data makes such answers frequent (T-5978 measures).
 pub async fn of_project(state: &AppState, project: &str) -> Result<Marks, String> {
@@ -47,13 +49,34 @@ pub async fn of_project(state: &AppState, project: &str) -> Result<Marks, String
         .map(|env| env.metadata.name)
         .collect();
     names.sort();
+    let mut todo: Vec<(String, String)> = names
+        .into_iter()
+        .rev()
+        .map(|name| (project.to_owned(), name))
+        .collect();
+    let mut read = BTreeSet::new();
     let mut out = Marks::new();
-    for name in names {
-        let linkml = crate::api::datamodels::read_source(state, project, &name)
+    while let Some((namespace, name)) = todo.pop() {
+        if !read.insert((namespace.clone(), name.clone())) {
+            continue;
+        }
+        // Bounded: each pair is read once, and a pair the mirror lacks fails the read.
+        let linkml = crate::api::datamodels::read_source(state, &namespace, &name)
             .await
-            .map_err(|_| format!("the data model {name} of project {project} could not be read, so its personal attributes cannot be withheld; try again in a minute"))?;
+            .map_err(|_| format!("the data model {name} of project {namespace} could not be read, so its personal attributes cannot be withheld; try again in a minute"))?;
         for (class, attrs) in marks(&linkml) {
             out.entry(class).or_default().extend(attrs);
+        }
+        let document = serde_norway::from_str::<Value>(&linkml).unwrap_or_default();
+        let imports = jc_core::kinds::data_model::ModelImport::all_in(&document)
+            .map_err(|err| format!("the data model {name} of project {namespace}: {err}"))?;
+        for import in imports {
+            let home = if import.organization {
+                crate::permissions::ORG_NAMESPACE.to_owned()
+            } else {
+                namespace.clone()
+            };
+            todo.push((home, import.name));
         }
     }
     Ok(out)
@@ -110,6 +133,50 @@ pub fn mentioned<'a>(marks: &'a Marks, texts: &[&str]) -> Option<&'a str> {
         .flatten()
         .find(|name| texts.iter().any(|text| text.contains(name.as_str())))
         .map(String::as_str)
+}
+
+/// A read whose filter, fold or order names a personal attribute tells the value even when the
+/// answer leaves the attribute out: `jc_data_query` by its `q`, `orderBy` and `attrs` (a client
+/// binary-searches a value from which entities come back), `jc_kpi_compute` over an Endpoint by
+/// its `attribute` and `q`. Such a call is refused before the read (AG-158, F-09), for every
+/// caller that withholds personal data: `/c/{id}` and the assistant's connector turn. Rows a
+/// client sends to `jc_kpi_compute` are already its own. The refusal names the attribute, never
+/// a value.
+pub async fn filters_stay_open(
+    state: &AppState,
+    project: Option<&str>,
+    tool: &str,
+    args: &Value,
+) -> Result<(), String> {
+    let text = |key: &str| args[key].as_str().unwrap_or("");
+    let texts: Vec<&str> = match tool {
+        "jc_kpi_compute" if args.get("endpoint").is_some() => vec![text("attribute"), text("q")],
+        "jc_data_query" => {
+            let mut texts = vec![text("q"), text("orderBy")];
+            texts.extend(
+                args["attrs"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(Value::as_str),
+            );
+            texts
+        }
+        _ => return Ok(()),
+    };
+    if texts.iter().all(|t| t.is_empty()) {
+        return Ok(());
+    }
+    let marks = match project {
+        Some(project) => of_project(state, project).await?,
+        None => return Err("a call that reads an Endpoint names its project".to_owned()),
+    };
+    match mentioned(&marks, &texts) {
+        Some(name) => Err(format!(
+            "the models mark {name} personal, so this connector neither filters, orders nor computes by it; a scope item with personalData ticked reaches it"
+        )),
+        None => Ok(()),
+    }
 }
 
 /// Removes from every entity in `value` the attributes `marks` names for its types, and

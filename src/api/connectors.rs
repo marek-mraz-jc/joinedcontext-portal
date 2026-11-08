@@ -719,18 +719,21 @@ pub async fn edit_connector(
     let current = own(&state, identity, &id).await?;
     let Json(patch) = body.map_err(|e| ApiError::BadRequest(e.body_text()))?;
     let new = NewConnector {
-        name: current.name,
-        segments: patch.segments.unwrap_or(current.segments),
-        scope: patch.scope.unwrap_or(current.scope),
-        kinds: patch.kinds.or(current.kinds),
+        name: current.name.clone(),
+        segments: patch.segments.unwrap_or_else(|| current.segments.clone()),
+        scope: patch.scope.unwrap_or_else(|| current.scope.clone()),
+        kinds: patch.kinds.or_else(|| current.kinds.clone()),
         writes: patch.writes.unwrap_or(current.writes),
         autonomous: patch.autonomous.unwrap_or(current.autonomous),
         expires_at: patch.expires_at.unwrap_or(current.expires_at),
-        allowed_clients: patch.allowed_clients.unwrap_or(current.allowed_clients),
+        allowed_clients: patch
+            .allowed_clients
+            .unwrap_or_else(|| current.allowed_clients.clone()),
     };
     // Decided (worker-t5953, owner may override): an edit is judged against today's ceiling like a
-    // create; above it under a queueing policy the connector waits again unless its approval
-    // already covers every line, because an approval covers what was asked then; options: keep
+    // create; above it under a queueing policy the connector waits again unless the edit changes
+    // nothing it may reach (a later expiry is a new line) and its approval still covers every
+    // line, because an approval covers what was asked then; options: keep
     // any approval (an edit would widen past it), refuse every edit above the ceiling.
     let above = connectors::validate(
         &new,
@@ -739,9 +742,7 @@ pub async fn edit_connector(
     )?;
     reachable(&state, &user.0, &headers, &new).await?;
     may_be_autonomous(&state, identity, &new)?;
-    let approval = current
-        .approval
-        .filter(|_| !above.is_empty() && above.iter().all(|l| current.above_ceiling.contains(l)));
+    let approval = connectors::approval_after_edit(&current, &new, &above);
     if !state
         .connectors
         .update(&id, &identity.subject, new, above, approval)
@@ -850,7 +851,11 @@ fn within_own_rights(
                     verbs.push(Verb::Delete);
                 }
             }
-            if let Some(verb) = verbs.into_iter().find(|v| !rights.may(kind, *v)) {
+            let space = item_space(state, item);
+            if let Some(verb) = verbs
+                .into_iter()
+                .find(|v| !(rights.may(kind, *v) && rights.may_in(kind, *v, space.as_deref())))
+            {
                 return Err(ApiError::Denied(format!(
                     "scope[{i}]: the connector asks {verb:?} on {kind} in {namespace} (project {}), which you do not hold; nobody approves above their own rights (PF-51)",
                     item.project
@@ -859,6 +864,23 @@ fn within_own_rights(
         }
     }
     Ok(())
+}
+
+/// The one Context Space a scope item reaches: its space, or the space of its Endpoint or
+/// Pipeline. `None` for a whole project or `*`, which only a project-wide grant covers (F-16).
+fn item_space(state: &AppState, item: &connectors::ScopeItem) -> Option<String> {
+    fn named(name: &Option<String>) -> Option<&str> {
+        name.as_deref().filter(|n| *n != "*")
+    }
+    if let Some(space) = named(&item.space) {
+        return Some(space.to_owned());
+    }
+    [("Endpoint", &item.endpoint), ("Pipeline", &item.pipeline)]
+        .into_iter()
+        .find_map(|(kind, name)| {
+            let env = state.mirror.get(&item.project, kind, named(name)?)?;
+            crate::permissions::space_ref(&serde_json::json!({ "spec": env.spec }))
+        })
 }
 
 /// Only an administrator of the organization reads or revokes every person's connectors.
@@ -1476,6 +1498,66 @@ mod tests {
         // Nobody holds anything in a project no binding names.
         let nobody = person("eva@hel.fi");
         assert!(within_own_rights(&state, &nobody, &reads).is_err());
+    }
+
+    /// F-16: an approver bound to space s1 approves an item of s1, never one of s2 or of the whole
+    /// project.
+    #[tokio::test]
+    async fn a_space_approver_approves_only_items_of_that_space() {
+        let state = AppState::new(Config::for_tests(), None);
+        state.mirror.upsert(manifest(
+            "Role",
+            "space-reader",
+            json!({ "rules": [{ "kinds": ["Endpoint", "ContextSpace", "DataModel"], "verbs": ["read"] }] }),
+        ));
+        state.mirror.upsert(manifest(
+            "RoleBinding",
+            "petra-reads-s1",
+            json!({ "subjects": [{ "user": "petra@hel.fi" }], "role": "space-reader",
+                    "scope": { "contextSpace": "s1" } }),
+        ));
+        for space in ["s1", "s2"] {
+            state
+                .mirror
+                .upsert(envelope("ContextSpace", space, "doprava", json!({})));
+        }
+        let petra = person("petra@hel.fi");
+        let ask = |name: &str, item: Value| {
+            let state = state.clone();
+            let name = name.to_owned();
+            async move {
+                let new: NewConnector = serde_json::from_value(json!({
+                    "name": name, "segments": ["data-read"], "scope": [item],
+                    "expiresAt": (chrono::Utc::now() + chrono::Duration::days(1)).to_rfc3339(),
+                }))
+                .expect("request");
+                state
+                    .connectors
+                    .create(
+                        "sub-jana@hel.fi",
+                        new,
+                        vec!["kinds: above".into()],
+                        "https://portal.test",
+                    )
+                    .await
+                    .expect("kept")
+            }
+        };
+        let own = ask(
+            "s-one",
+            json!({ "project": "doprava", "space": "s1", "access": "read" }),
+        )
+        .await;
+        let other = ask(
+            "s-two",
+            json!({ "project": "doprava", "space": "s2", "access": "read" }),
+        )
+        .await;
+        let whole = ask("whole", json!({ "project": "doprava", "access": "read" })).await;
+        let ok = within_own_rights(&state, &petra, &own);
+        assert!(ok.is_ok(), "{ok:?}");
+        assert!(within_own_rights(&state, &petra, &other).is_err());
+        assert!(within_own_rights(&state, &petra, &whole).is_err());
     }
 
     /// JC2-17: a write item whose connector may delete a kind needs `delete` from the approver;

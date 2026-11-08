@@ -1082,6 +1082,29 @@ async fn an_edge_session_is_a_person_and_a_bearer_keeps_its_client() {
     );
 }
 
+/// F-02: the edge header carries the edge login's token alone; an MCP connector's token, which
+/// an App pod might hold for a person, is no edge session even with the edge trusted.
+#[tokio::test]
+async fn an_edge_header_refuses_a_token_another_client_obtained() {
+    let realm = realm().await;
+    let app = app_behind(&realm, true).await;
+    let of = |client: &str| {
+        keys::token_of_client(
+            jsonwebtoken::Algorithm::RS256,
+            &issuer_of(&realm),
+            "demo.steward",
+            300,
+            Some(client),
+        )
+    };
+    for client in ["mcp-local", "app-air-quality"] {
+        let (status, body) = me_with(app.clone(), &[("x-access-token", of(client))]).await;
+        assert_eq!(status, StatusCode::UNAUTHORIZED, "{client}: {body}");
+    }
+    let (status, body) = me_with(app.clone(), &[("x-access-token", of("edge"))]).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+}
+
 /// T-5610 (AG-63, AG-82): the token an MCP connector holds for a person writes nothing over REST,
 /// one request per write family, and the refusal names the MCP route; it still reads, and the
 /// same request with a ServiceAccount's token is not refused for its client.
