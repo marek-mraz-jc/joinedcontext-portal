@@ -240,7 +240,8 @@ fn actions_xml() -> (String, String) {
 /// The CSDL XML of the service: odata-csdl's model of the entity sets, the actions beside it.
 fn metadata_xml(model: &Model) -> Result<String, String> {
     let mut xml = Vec::new();
-    odata_csdl::write_xml(model, &odata_csdl::Limits::strict(), &mut xml).map_err(|e| e.to_string())?;
+    odata_csdl::write_xml(model, &odata_csdl::Limits::strict(), &mut xml)
+        .map_err(|e| e.to_string())?;
     let xml = String::from_utf8(xml).map_err(|e| e.to_string())?;
     let (actions, imports) = actions_xml();
     let container = xml
@@ -372,10 +373,13 @@ async fn rows_of(
     caller: &Caller,
     state: &AppState,
     project: &str,
-) -> Result<Vec<Value>, Response> {
+) -> Result<Vec<Value>, Box<Response>> {
     let Some(op) = ops::find(set.op) else {
-        return Err(ApiError::Internal(format!("the operation {} is not registered", set.op))
-            .into_response());
+        return Err(
+            ApiError::Internal(format!("the operation {} is not registered", set.op))
+                .into_response()
+                .into(),
+        );
     };
     let mut input = set.input.clone();
     let mut rows = Vec::new();
@@ -395,7 +399,8 @@ async fn rows_of(
                 "{} holds more than {MAX_ROWS} rows here, more than one OData read covers",
                 set.set
             ))
-            .into_response());
+            .into_response()
+            .into());
         }
         match (set.cursor, page.get("next")) {
             (Some(member), Some(next)) if !next.is_null() && !empty => {
@@ -411,7 +416,9 @@ fn key_value(key: &Literal) -> Result<Value, Refusal> {
     match key {
         Literal::String(s) => Ok(Value::String(s.clone())),
         Literal::Int(i) => Ok(json!(i)),
-        _ => Err(bad("a key is a string or an integer, e.g. ('air-counters')")),
+        _ => Err(bad(
+            "a key is a string or an integer, e.g. ('air-counters')",
+        )),
     }
 }
 
@@ -453,8 +460,17 @@ async fn answer(
     caller: &Caller,
     project: &str,
     target: &str,
-) -> Result<Response, Response> {
+) -> Result<Response, Box<Response>> {
     let served = &*SERVED;
+    // An entity set that is not there answers 404, as an unknown plural does on the REST door.
+    let name = target.split(['(', '/', '?']).next().unwrap_or_default();
+    if !served.sets.iter().any(|set| set.set == name) {
+        return Err(not_found(format!(
+            "no entity set {name}; $metadata lists the entity sets"
+        ))
+        .into_response()
+        .into());
+    }
     let parsed = odata_url::parse(target, &EdmModel(&served.model), &limits()).map_err(|e| {
         match e.kind {
             UrlErrorKind::NotImplemented(_) => not_implemented(&e.to_string()),
@@ -466,13 +482,15 @@ async fn answer(
         .into_response()
     })?;
     let ODataUri::Resource { path, options } = parsed else {
-        return Err(not_implemented("this resource").into_response());
+        return Err(not_implemented("this resource").into_response().into());
     };
     let Some((Segment::EntitySet(name), rest)) = path.split_first() else {
-        return Err(not_implemented("this resource path").into_response());
+        return Err(not_implemented("this resource path").into_response().into());
     };
     let Some(set) = served.sets.iter().find(|set| &set.set == name) else {
-        return Err(not_found(format!("no entity set {name}")).into_response());
+        return Err(not_found(format!("no entity set {name}"))
+            .into_response()
+            .into());
     };
     let rows = rows_of(set, caller, state, project).await?;
     let fail = |e: TableError| Refusal::from(e).into_response();
@@ -480,8 +498,8 @@ async fn answer(
         .service
         .info(served.model.clone(), name)
         .ok_or_else(|| fail(TableError::Source(format!("{name} is not in the model"))))?;
-    let table = MemoryTable::new(info, rows)
-        .map_err(|e| fail(TableError::Source(e.to_string())))?;
+    let table =
+        MemoryTable::new(info, rows).map_err(|e| fail(TableError::Source(e.to_string())))?;
     let root = service_root(state, project);
     let all = Scope::all();
     match rest {
@@ -513,7 +531,9 @@ async fn answer(
             let by_key = key_options(table.info(), &key, options.select.clone()).map_err(fail)?;
             let answered = query(&table, &by_key, &all, MAX_TOP).await.map_err(fail)?;
             let Some(Value::Object(row)) = answered.rows.into_iter().next() else {
-                return Err(not_found(format!("{name} holds no {key} you may read")).into_response());
+                return Err(not_found(format!("{name} holds no {key} you may read"))
+                    .into_response()
+                    .into());
             };
             let mut body = Map::new();
             body.insert(
@@ -527,7 +547,7 @@ async fn answer(
             )
                 .into_response())
         }
-        _ => Err(not_implemented("this resource path").into_response()),
+        _ => Err(not_implemented("this resource path").into_response().into()),
     }
 }
 
@@ -557,7 +577,7 @@ async fn read(
     let caller = caller_of(user, front);
     Ok(answer(&state, &caller, &project, &target)
         .await
-        .unwrap_or_else(|refused| refused))
+        .unwrap_or_else(|refused| *refused))
 }
 
 /// `GET /api/v1/projects/{project}/odata/{resource}` (T-6655).
@@ -752,7 +772,10 @@ pub fn router() -> Router<AppState> {
             "/projects/{project}/odata/{resource}",
             get(query_set).post(invoke_action),
         )
-        .route("/projects/{project}/odata/{resource}/$count", get(count_set))
+        .route(
+            "/projects/{project}/odata/{resource}/$count",
+            get(count_set),
+        )
 }
 
 #[cfg(test)]
@@ -771,7 +794,11 @@ mod tests {
         sets.dedup();
         types.sort_unstable();
         types.dedup();
-        assert_eq!((sets.len(), types.len()), (total, total), "a set or type twice");
+        assert_eq!(
+            (sets.len(), types.len()),
+            (total, total),
+            "a set or type twice"
+        );
         for def in &served.service.sets {
             assert!(
                 def.fields.iter().any(|f| f.name == def.key && !f.nullable),
@@ -784,11 +811,17 @@ mod tests {
         for set in ["endpoints", "pipelines", "changes", "workspaces"] {
             assert!(xml.contains(&format!(r#"EntitySet Name="{set}""#)), "{set}");
         }
-        assert!(xml.contains(r#"<Action Name="jc_resource_propose">"#), "{xml}");
+        assert!(
+            xml.contains(r#"<Action Name="jc_resource_propose">"#),
+            "{xml}"
+        );
         assert!(xml.contains(&format!(
             r#"<ActionImport Name="jc_resource_propose" Action="{NAMESPACE}.jc_resource_propose"/>"#
         )));
-        assert!(!xml.contains(r#"<Action Name="jc_resource_list">"#), "a read is no action");
+        assert!(
+            !xml.contains(r#"<Action Name="jc_resource_list">"#),
+            "a read is no action"
+        );
     }
 
     /// Only an operation's scalar members become properties: an object or array member (where
@@ -798,7 +831,10 @@ mod tests {
         let op = ops::find("jc_resource_list").expect("registered");
         let names: Vec<String> = fields_of(op, "name").into_iter().map(|f| f.name).collect();
         assert!(names.contains(&"name".to_owned()) && names.contains(&"space".to_owned()));
-        assert!(!names.contains(&"types".to_owned()), "an array is no property");
+        assert!(
+            !names.contains(&"types".to_owned()),
+            "an array is no property"
+        );
         assert!(!names.iter().any(|n| n == "spec" || n == "secretRef"));
     }
 

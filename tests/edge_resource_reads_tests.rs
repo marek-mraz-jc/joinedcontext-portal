@@ -543,7 +543,7 @@ fn odata_world() -> AppState {
         state.mirror.upsert(org(
             "Role",
             role,
-            json!({ "rules": [{ "kinds": ["*"], "verbs": verbs }] }),
+            json!({ "rules": [{ "kinds": ["Endpoint", "Pipeline", "ContextSpace"], "verbs": verbs }] }),
         ));
     }
     state.mirror.upsert(org(
@@ -552,10 +552,30 @@ fn odata_world() -> AppState {
         json!({ "rules": [{ "kinds": ["Endpoint"], "verbs": ["read"] }] }),
     ));
     for (binding, user, role, scope) in [
-        ("odata-viewers", VIEWER, "odata-viewer", json!({ "project": PROJECT })),
-        ("odata-editors", EDITOR, "odata-editor", json!({ "project": PROJECT })),
-        ("odata-outsiders", OUTSIDER, "odata-viewer", json!({ "project": ELSEWHERE })),
-        ("air-readers", "ari.air@hel.fi", "endpoint-reader", json!({ "contextSpace": "air" })),
+        (
+            "odata-viewers",
+            VIEWER,
+            "odata-viewer",
+            json!({ "project": PROJECT }),
+        ),
+        (
+            "odata-editors",
+            EDITOR,
+            "odata-editor",
+            json!({ "project": PROJECT }),
+        ),
+        (
+            "odata-outsiders",
+            OUTSIDER,
+            "odata-viewer",
+            json!({ "project": ELSEWHERE }),
+        ),
+        (
+            "air-readers",
+            "ari.air@hel.fi",
+            "endpoint-reader",
+            json!({ "contextSpace": "air" }),
+        ),
     ] {
         state.mirror.upsert(org(
             "RoleBinding",
@@ -585,7 +605,12 @@ fn names_in(body: &Value, member: &str, key: &str) -> Vec<String> {
     names
 }
 
-async fn post(state: &AppState, email: Option<&str>, uri: &str, body: Value) -> (StatusCode, Value) {
+async fn post(
+    state: &AppState,
+    email: Option<&str>,
+    uri: &str,
+    body: Value,
+) -> (StatusCode, Value) {
     let mut request = Request::builder()
         .method("POST")
         .uri(uri)
@@ -595,7 +620,11 @@ async fn post(state: &AppState, email: Option<&str>, uri: &str, body: Value) -> 
         request = request.header(header::COOKIE, cookie(&state.config, email));
     }
     let response = server::app(state.clone())
-        .oneshot(request.body(Body::from(body.to_string())).expect("a request"))
+        .oneshot(
+            request
+                .body(Body::from(body.to_string()))
+                .expect("a request"),
+        )
         .await
         .expect("a response");
     let status = response.status();
@@ -605,7 +634,10 @@ async fn post(state: &AppState, email: Option<&str>, uri: &str, body: Value) -> 
         .await
         .expect("a body")
         .to_bytes();
-    (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null))
+    (
+        status,
+        serde_json::from_slice(&bytes).unwrap_or(Value::Null),
+    )
 }
 
 /// T-6655 parity: every mapped list operation answers OData with the rows and the status its REST
@@ -617,11 +649,17 @@ async fn every_entity_set_answers_what_its_rest_route_answers() {
     for (set, rest, key) in [
         ("endpoints", "endpoints", "/metadata/name"),
         ("pipelines", "pipelines", "/metadata/name"),
-        ("contextspaces", "contextspaces", "/metadata/name"),
+        ("spaces", "spaces", "/metadata/name"),
         ("changes", "changes", "/metadata/name"),
         ("workspaces", "workspaces", "/name"),
     ] {
-        for who in [Some(VIEWER), Some(EDITOR), Some(OUTSIDER), Some(STRANGER), None] {
+        for who in [
+            Some(VIEWER),
+            Some(EDITOR),
+            Some(OUTSIDER),
+            Some(STRANGER),
+            None,
+        ] {
             let (rest_status, list) =
                 get(&state, who, &format!("/api/v1/projects/{PROJECT}/{rest}")).await;
             let (status, body) = get(&state, who, &odata(set)).await;
@@ -655,12 +693,23 @@ async fn every_entity_set_answers_what_its_rest_route_answers() {
 async fn a_filter_reaches_only_the_rows_the_list_reads() {
     let state = odata_world();
     let ari = Some("ari.air@hel.fi");
-    let (status, list) = get(&state, ari, &format!("/api/v1/projects/{PROJECT}/endpoints")).await;
+    let (status, list) = get(
+        &state,
+        ari,
+        &format!("/api/v1/projects/{PROJECT}/endpoints"),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "{list}");
     let (status, all) = get(&state, ari, &odata("endpoints?$count=true")).await;
     assert_eq!(status, StatusCode::OK, "{all}");
-    assert_eq!(names_in(&all, "value", "/name"), names_in(&list, "items", "/metadata/name"));
-    assert_eq!(names_in(&all, "value", "/name"), ["air-counters", "air-sensors"]);
+    assert_eq!(
+        names_in(&all, "value", "/name"),
+        names_in(&list, "items", "/metadata/name")
+    );
+    assert_eq!(
+        names_in(&all, "value", "/name"),
+        ["air-counters", "air-sensors"]
+    );
     assert_eq!(all["@odata.count"], json!(2));
 
     let (status, water) = get(
@@ -670,7 +719,10 @@ async fn a_filter_reaches_only_the_rows_the_list_reads() {
     )
     .await;
     assert_eq!(status, StatusCode::OK, "{water}");
-    assert_eq!(names_in(&water, "value", "/name"), ["air-counters", "air-sensors"]);
+    assert_eq!(
+        names_in(&water, "value", "/name"),
+        ["air-counters", "air-sensors"]
+    );
     assert!(!water.to_string().contains("water-gauges"), "{water}");
     let (status, hidden) = get(&state, ari, &odata("endpoints('water-gauges')")).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "{hidden}");
@@ -678,10 +730,16 @@ async fn a_filter_reaches_only_the_rows_the_list_reads() {
     assert_eq!((status, counted), (StatusCode::OK, Value::from(2)));
 
     // A member no list answers (a manifest's spec, where a secretRef sits) is no property.
-    for query in ["endpoints?$filter=spec%20eq%20'x'", "endpoints?$select=slug"] {
+    for query in [
+        "endpoints?$filter=spec%20eq%20'x'",
+        "endpoints?$select=slug",
+    ] {
         let (status, refused) = get(&state, ari, &odata(query)).await;
         assert_eq!(status, StatusCode::BAD_REQUEST, "{query}: {refused}");
-        assert!(refused["error"]["message"].is_string(), "an OData error: {refused}");
+        assert!(
+            refused["error"]["message"].is_string(),
+            "an OData error: {refused}"
+        );
     }
 }
 
@@ -701,13 +759,27 @@ async fn filter_orderby_and_top_answer_on_two_sets() {
         desc["value"],
         json!([{ "name": "air-sensors", "space": "air" }, { "name": "air-counters", "space": "air" }])
     );
-    assert!(desc["@odata.context"].as_str().is_some_and(|c| c.ends_with("$metadata#endpoints(name,space)")));
+    assert!(desc["@odata.context"]
+        .as_str()
+        .is_some_and(|c| c.ends_with("$metadata#endpoints(name,space)")));
 
-    let (status, top) = get(&state, viewer, &odata("endpoints?$orderby=name&$top=1&$count=true")).await;
+    let (status, top) = get(
+        &state,
+        viewer,
+        &odata("endpoints?$orderby=name&$top=1&$count=true"),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "{top}");
     assert_eq!(names_in(&top, "value", "/name"), ["air-counters"]);
-    assert_eq!(top["@odata.count"], json!(3));
-    assert!(top.get("@odata.nextLink").is_none(), "$top ends here: {top}");
+    assert_eq!(
+        top["@odata.count"],
+        json!(4),
+        "helsinki-bikes of world() too"
+    );
+    assert!(
+        top.get("@odata.nextLink").is_none(),
+        "$top ends here: {top}"
+    );
 
     let (status, pipelines) = get(
         &state,
@@ -717,18 +789,37 @@ async fn filter_orderby_and_top_answer_on_two_sets() {
     .await;
     assert_eq!(status, StatusCode::OK, "{pipelines}");
     assert_eq!(names_in(&pipelines, "value", "/name"), ["water-intake"]);
-    let (status, first) = get(&state, viewer, &odata("pipelines?$orderby=name%20desc&$top=1")).await;
+    let (status, first) = get(
+        &state,
+        viewer,
+        &odata("pipelines?$orderby=name%20desc&$top=1"),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "{first}");
     assert_eq!(names_in(&first, "value", "/name"), ["water-intake"]);
-    let (status, one) = get(&state, viewer, &odata("pipelines('air-intake')?$select=name")).await;
+    let (status, one) = get(
+        &state,
+        viewer,
+        &odata("pipelines('air-intake')?$select=name"),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK, "{one}");
     assert_eq!(one["name"], json!("air-intake"));
-    assert!(one.get("space").is_none(), "$select keeps name alone: {one}");
+    assert!(
+        one.get("space").is_none(),
+        "$select keeps name alone: {one}"
+    );
 
     let (status, unknown) = get(&state, viewer, &odata("nothings")).await;
-    assert!(status == StatusCode::NOT_FOUND || status == StatusCode::BAD_REQUEST, "{status} {unknown}");
+    assert!(
+        status == StatusCode::NOT_FOUND || status == StatusCode::BAD_REQUEST,
+        "{status} {unknown}"
+    );
     let (status, _) = get(&state, viewer, &odata("endpoints?$expand=x")).await;
-    assert!(status.is_client_error() || status == StatusCode::NOT_IMPLEMENTED, "{status}");
+    assert!(
+        status.is_client_error() || status == StatusCode::NOT_IMPLEMENTED,
+        "{status}"
+    );
 }
 
 /// T-6655: an action runs the writing operation through the registry: a viewer is refused as
@@ -740,11 +831,26 @@ async fn an_action_is_refused_as_its_operation_is() {
     let input = json!({ "kind": "Endpoint", "name": "air-counters", "confirm": "air-counters" });
     let ops = format!("/api/v1/projects/{PROJECT}/ops/jc_resource_delete");
     let (rest_status, rest) = post(&state, Some(VIEWER), &ops, input.clone()).await;
-    let (status, body) = post(&state, Some(VIEWER), &odata("jc_resource_delete"), input.clone()).await;
+    let (status, body) = post(
+        &state,
+        Some(VIEWER),
+        &odata("jc_resource_delete"),
+        input.clone(),
+    )
+    .await;
     assert_eq!(status, StatusCode::FORBIDDEN, "{body}");
     assert_eq!(status, rest_status, "OData {body} against ops {rest}");
-    let (status, _) = post(&state, Some(OUTSIDER), &odata("jc_resource_delete"), input.clone()).await;
-    assert!(status == StatusCode::FORBIDDEN || status == StatusCode::NOT_FOUND, "{status}");
+    let (status, _) = post(
+        &state,
+        Some(OUTSIDER),
+        &odata("jc_resource_delete"),
+        input.clone(),
+    )
+    .await;
+    assert!(
+        status == StatusCode::FORBIDDEN || status == StatusCode::NOT_FOUND,
+        "{status}"
+    );
 
     let mut anonymous = Request::builder()
         .method("POST")
@@ -752,12 +858,22 @@ async fn an_action_is_refused_as_its_operation_is() {
         .header(header::CONTENT_TYPE, "application/json");
     anonymous = anonymous.header("x-unused", "1");
     let response = server::app(state.clone())
-        .oneshot(anonymous.body(Body::from(input.to_string())).expect("a request"))
+        .oneshot(
+            anonymous
+                .body(Body::from(input.to_string()))
+                .expect("a request"),
+        )
         .await
         .expect("a response");
     assert_eq!(response.status(), StatusCode::FORBIDDEN);
 
-    let (status, body) = post(&state, Some(EDITOR), &odata("jc_resource_list"), json!({ "kind": "Endpoint" })).await;
+    let (status, body) = post(
+        &state,
+        Some(EDITOR),
+        &odata("jc_resource_list"),
+        json!({ "kind": "Endpoint" }),
+    )
+    .await;
     assert_eq!(status, StatusCode::NOT_FOUND, "a read is no action: {body}");
 }
 
@@ -773,7 +889,10 @@ async fn the_metadata_is_the_snapshot() {
         "$metadata moved from {SNAPSHOT}; rerun with -- --ignored write_odata_metadata and read the diff"
     );
     for set in ["endpoints", "pipelines", "changes", "workspaces"] {
-        assert!(xml.contains(&format!(r#"<EntitySet Name="{set}""#)), "{set}");
+        assert!(
+            xml.contains(&format!(r#"<EntitySet Name="{set}""#)),
+            "{set}"
+        );
     }
     assert!(xml.contains(r#"<ActionImport Name="jc_resource_delete""#));
     let (status, service) = get(&state, Some(VIEWER), &odata("")).await;
@@ -792,7 +911,12 @@ async fn metadata_text(state: &AppState) -> String {
         .await
         .expect("a response");
     assert_eq!(response.status(), StatusCode::OK);
-    let bytes = response.into_body().collect().await.expect("a body").to_bytes();
+    let bytes = response
+        .into_body()
+        .collect()
+        .await
+        .expect("a body")
+        .to_bytes();
     String::from_utf8(bytes.to_vec()).expect("UTF-8")
 }
 

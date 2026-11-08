@@ -16119,7 +16119,7 @@
           "resources"
         ],
         "summary": "Read the OData Service Document",
-        "description": "The service document of the project's OData service: the entity sets it serves, Endpoints today (T-6632).",
+        "description": "The service document of the project's OData service: every entity set it serves (T-6655).",
         "operationId": "service_document",
         "parameters": [
           {
@@ -16154,7 +16154,7 @@
             }
           },
           "404": {
-            "description": "A project where the caller reads no Endpoint",
+            "description": "A project the caller may not read",
             "content": {
               "application/json": {
                 "schema": {
@@ -16172,7 +16172,7 @@
           "resources"
         ],
         "summary": "Read the OData Metadata",
-        "description": "The CSDL XML document of the project's OData service: the entity type Endpoint and the entity set Endpoints (T-6632).",
+        "description": "The CSDL XML document of the project's OData service: an entity type and set per list operation, an action per writing operation (T-6655).",
         "operationId": "metadata",
         "parameters": [
           {
@@ -16187,7 +16187,7 @@
         ],
         "responses": {
           "200": {
-            "description": "CSDL XML, OData 4.0",
+            "description": "CSDL XML, OData 4.01",
             "content": {
               "application/xml": {
                 "schema": {
@@ -16207,7 +16207,7 @@
             }
           },
           "404": {
-            "description": "A project where the caller reads no Endpoint",
+            "description": "A project the caller may not read",
             "content": {
               "application/json": {
                 "schema": {
@@ -16219,14 +16219,14 @@
         }
       }
     },
-    "/api/v1/projects/{project}/odata/Endpoints": {
+    "/api/v1/projects/{project}/odata/{resource}": {
       "get": {
         "tags": [
           "resources"
         ],
-        "summary": "Query Endpoints with OData",
-        "description": "The project's Endpoints the caller may read, as the OData 4.0 entity set Endpoints: $filter (eq, ne, gt, ge, lt, le, in, and, or, not, contains, startswith, endswith, tolower, toupper), $select, $orderby, $top (at most 1000), $skip and $count over id, title, description, contextSpace, slug, audience and mcp (T-6632).",
-        "operationId": "query_endpoints",
+        "summary": "Query an OData Entity Set",
+        "description": "One entity set of the project's OData service, the rows its list operation answers the caller (jc_resource_list per kind by its plural, jc_change_list as changes, jc_workspace_list as workspaces), read with $filter (eq, ne, gt, ge, lt, le, in, and, or, not, contains, startswith, endswith), $select, $orderby, $top, $skip and $count; pages of at most 1000 rows with @odata.nextLink. A key reads one row: endpoints('air-counters') (T-6655).",
+        "operationId": "query_set",
         "parameters": [
           {
             "name": "project",
@@ -16238,9 +16238,18 @@
             }
           },
           {
+            "name": "resource",
+            "in": "path",
+            "description": "An entity set, e.g. endpoints, or one row of it by key, e.g. endpoints('air-counters')",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "name": "$filter",
             "in": "query",
-            "description": "A predicate over the properties, e.g. contextSpace eq 'air' and startswith(id,'bikes')",
+            "description": "A predicate over the properties, e.g. space eq 'air' and startswith(name,'bikes')",
             "required": false,
             "schema": {
               "type": "string"
@@ -16249,7 +16258,7 @@
           {
             "name": "$select",
             "in": "query",
-            "description": "Properties to return, comma-separated, e.g. id,title",
+            "description": "Properties to return, comma-separated, e.g. name,title",
             "required": false,
             "schema": {
               "type": "string"
@@ -16267,7 +16276,7 @@
           {
             "name": "$top",
             "in": "query",
-            "description": "Rows to return, 0 to 1000, e.g. 50",
+            "description": "Rows to return, e.g. 50",
             "required": false,
             "schema": {
               "type": "integer",
@@ -16298,7 +16307,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The OData collection: @odata.context, @odata.count when asked, value and @odata.nextLink when more rows follow",
+            "description": "The OData collection (@odata.context, @odata.count when asked, value, @odata.nextLink when more rows follow) or one entity",
             "content": {
               "application/json": {
                 "schema": {
@@ -16308,7 +16317,7 @@
             }
           },
           "400": {
-            "description": "A name an Endpoint does not have, a bad expression, a $top above 1000 or a query over its bounds, as an OData error"
+            "description": "A name the entity set does not have, a bad expression or a query over its bounds, as an OData error"
           },
           "401": {
             "description": "Unauthorized",
@@ -16320,8 +16329,18 @@
               }
             }
           },
+          "403": {
+            "description": "The list operation refused the caller, as its REST route does",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
           "404": {
-            "description": "A project where the caller reads no Endpoint",
+            "description": "A project the caller may not read, an entity set or key that is not there",
             "content": {
               "application/json": {
                 "schema": {
@@ -16331,7 +16350,212 @@
             }
           },
           "501": {
-            "description": "An OData option or function this entity set does not serve, as an OData error"
+            "description": "An OData option or function this service does not serve, as an OData error"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Invoke an OData Action",
+        "description": "Runs the writing operation of the same name with the body as its input, under the caller's grants: the action jc_resource_propose runs what POST /ops/jc_resource_propose runs. $metadata lists every action and its parameters (T-6655).",
+        "operationId": "invoke_action",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name, e.g. helsinki",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resource",
+            "in": "path",
+            "description": "An action, a writing operation by name, e.g. jc_resource_propose",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "The action's parameters, as the operation's input schema names them",
+          "content": {
+            "application/json": {
+              "schema": {},
+              "example": {
+                "id": "c-0001"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The operation ran",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "The operation opened a change proposal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The caller may not run it",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No action of that name, or a project the caller may not read",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict or verdict required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Input the operation's schema refuses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project}/odata/{resource}/$count": {
+      "get": {
+        "tags": [
+          "resources"
+        ],
+        "summary": "Count an OData Entity Set",
+        "description": "The number of rows of the entity set the caller may read that $filter keeps, as plain text (T-6655).",
+        "operationId": "count_set",
+        "parameters": [
+          {
+            "name": "project",
+            "in": "path",
+            "description": "Project name, e.g. helsinki",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "resource",
+            "in": "path",
+            "description": "An entity set, e.g. endpoints",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "$filter",
+            "in": "query",
+            "description": "A predicate over the properties, e.g. space eq 'air'",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The count as text, e.g. 12",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A bad expression, as an OData error"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "The list operation refused the caller",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "A project the caller may not read or an entity set that is not there",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         }
       }
@@ -27523,6 +27747,45 @@
                   "properties": {
                     "items": {
                       "items": {
+                        "properties": {
+                          "kind": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "description": "The resource's metadata.name",
+                            "type": "string"
+                          },
+                          "notServing": {
+                            "description": "Why the broker serves no view of this Endpoint, when it does not",
+                            "type": "string"
+                          },
+                          "phase": {
+                            "description": "Its reconcile phase, e.g. Ready",
+                            "type": "string"
+                          },
+                          "sourceUrl": {
+                            "description": "Where its manifest lives in the forge",
+                            "type": "string"
+                          },
+                          "space": {
+                            "description": "Its context space, when it lives in one",
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "types": {
+                            "description": "Endpoint only: the entity types it serves",
+                            "items": {
+                              "type": "string"
+                            },
+                            "type": "array"
+                          },
+                          "url": {
+                            "description": "Endpoint only: its NGSI-LD address",
+                            "type": "string"
+                          }
+                        },
                         "type": "object"
                       },
                       "type": "array"

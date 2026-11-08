@@ -563,8 +563,8 @@ routes:
   - route: POST /projects/{project}/odata/{resource}
     rule: "mcp-dispatch; the writing operation's own check through ops::call, as POST /ops/{name} (T-6655)"
     values: {"resource": "jc_change_reject"}
-    expect: [403, 404, 404, 404, 404, 404, 404, 404]
-    note: "a 404 where the rule allows is the Change the fixture does not hold; the check before it passed"
+    expect: [403, 403, 422, 422, 422, 422, 403, 403]
+    note: "the matrix sends no body: a 422 where the rule allows is the missing id, after the check passed; a role without a write right in the project keeps its 403, as POST /ops/{name} answers (PF-50)"
   - route: GET /projects/{project}/usage/endpoints
     rule: "project-read; lists the Endpoints the caller may read"
     expect: [401, allow, allow, allow, allow, allow, 404, allow]
