@@ -301,6 +301,30 @@ pub fn withhold_source(answer: &mut Value, source: &str, fields: &BTreeSet<Strin
 mod tests {
     use super::*;
 
+    /// F-09: only a data query's or an indicator's filters ask the models, a call naming no
+    /// project is refused before any read, and a project without models filters freely.
+    #[tokio::test]
+    async fn only_filters_of_reads_ask_the_models() {
+        let state = AppState::new(crate::config::Config::for_tests(), None);
+        let query = serde_json::json!({ "endpoint": "e", "q": "email==\"a@b.c\"" });
+        assert_eq!(
+            filters_stay_open(&state, None, "jc_resource_get", &query).await,
+            Ok(())
+        );
+        assert!(filters_stay_open(&state, None, "jc_data_query", &query)
+            .await
+            .is_err());
+        let bare = serde_json::json!({ "endpoint": "e" });
+        assert_eq!(
+            filters_stay_open(&state, None, "jc_data_query", &bare).await,
+            Ok(())
+        );
+        assert_eq!(
+            filters_stay_open(&state, Some("doprava"), "jc_data_query", &query).await,
+            Ok(())
+        );
+    }
+
     #[test]
     fn a_mention_finds_a_marked_attribute_in_any_spelling_of_any_class() {
         let marks = Marks::from([("Report".to_owned(), BTreeSet::from(["email".to_owned()]))]);

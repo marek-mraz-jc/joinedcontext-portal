@@ -346,7 +346,10 @@ async fn a_reader_cannot_preview_without_the_saved_projection() {
     let asked = previews(&r.broker).await;
     let (headers, _, view) = asked.last().expect("a preview");
     assert_eq!(view, &saved, "the reader's draft must not reach the broker");
-    assert_eq!(headers[0], ("x-jc-subject".to_owned(), "sub-ola".to_owned()));
+    assert_eq!(
+        headers[0],
+        ("x-jc-subject".to_owned(), "sub-ola".to_owned())
+    );
     let answer = send(
         &r.state,
         person("jana"),
