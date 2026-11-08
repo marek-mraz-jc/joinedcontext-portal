@@ -270,7 +270,21 @@ RUN touch src/lib.rs src/main.rs build.rs \
  && install -m 0755 target/release/joinedcontext-portal /joinedcontext-portal \
  && rm -rf target
 
+# zlib1g from trixie-security (DSA-6613-1: CVE-2026-76844, CVE-2026-85091, HIGH, published
+# 2026-11-02), laid over the distroless base with its dpkg record so trivy reads the fixed version.
+# The newest distroless digest (2026-11-08) still ships 1:1.3.dfsg+really1.3.1-1+b1: drop this
+# stage once the pinned base carries +deb13u1 or later (T-6684).
+FROM rust:1.97-slim-trixie@sha256:8e8cf8f7fd54a2d23d5a743b3a03f56e26b6c774276c33fa0595111704ebb15c AS zlib
+RUN apt-get update && apt-get install -y --no-install-recommends --only-upgrade zlib1g \
+ && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' zlib1g)" ge 1:1.3.dfsg+really1.3.1-1+deb13u1 \
+ && mkdir -p /overlay/var/lib/dpkg/status.d \
+ && dpkg -L zlib1g | while read -r f; do [ -f "$f" ] && cp -a --parents "$f" /overlay; done \
+ && dpkg-query -s zlib1g | grep -v '^Status:' > /overlay/var/lib/dpkg/status.d/zlib1g \
+ && cp /var/lib/dpkg/info/zlib1g:$(dpkg --print-architecture).md5sums /overlay/var/lib/dpkg/status.d/zlib1g.md5sums \
+ && rm -rf /var/lib/apt/lists/*
+
 FROM gcr.io/distroless/cc-debian13:nonroot@sha256:e792ab3d241a468a4fd7519ddbbebe66b49b5f365771716ea688ad40b6c6f1c2
+COPY --from=zlib /overlay/ /
 COPY --from=build /joinedcontext-portal /usr/local/bin/joinedcontext-portal
 COPY --from=apps /srv/apps /srv/apps
 # The Smart Data Models mirror (T-6353): every model converted ahead of time, read from disk. The
