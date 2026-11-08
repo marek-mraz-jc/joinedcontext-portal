@@ -73,16 +73,16 @@ path = "src/main.rs"
 # pulls one copy (T-3167).
 # `version` is the crate's own version at that tag (the tag counts differently); without it
 # cargo-deny reads the requirement as `*` and the supply-chain check goes red (T-0287).
-jc-core = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "9b0b85944083ae547b331d2327db4021e81cd08a", version = "0.1.0", features = ["outbound"] }
+jc-core = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "491749d62330105c07824e42fe5c7e8bbb0d678f", version = "0.1.0", features = ["outbound"] }
 # Blueprint expansion (CC-25) and the loader the reconciler validates a repository with
 # (T-0191), from the same engine the CLI runs, so both sides agree on what a manifest is. Same
 # tag as jc-core on purpose: cargo keys a git source by its reference, so two tags of one
 # repository would pull two copies of `jc-core` and its types would stop matching.
-jcctl = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "9b0b85944083ae547b331d2327db4021e81cd08a", version = "0.1.0", default-features = false, features = ["utoipa"] }
+jcctl = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "491749d62330105c07824e42fe5c7e8bbb0d678f", version = "0.1.0", default-features = false, features = ["utoipa"] }
 # The gateway's own write decision (evaluator, write guard), which the record check of a pipeline's
 # sample runs before a proposal (T-4840), and the app-variant matrix asserts (T-2705). Same rev as
 # jc-core.
-context-gateway = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "9b0b85944083ae547b331d2327db4021e81cd08a", version = "0.1.0" }
+context-gateway = { git = "https://github.com/marek-mraz-jc/joinedcontext-platform.git", rev = "491749d62330105c07824e42fe5c7e8bbb0d678f", version = "0.1.0" }
 # OData 4.01 for the Portal's own lists (T-6632): the URL parser and the CSDL model of the default
 # broker, generic crates with no broker dependency, pinned to an Antares commit (T-6642's branch until it reaches dev) as jc-core is
 # pinned to a platform commit. `version` is the crate's own, for cargo-deny (T-0287).
@@ -121,7 +121,7 @@ mime_guess = "2"
 # The public API and User Guide pages rendered to HTML on the server (T-4063).
 pulldown-cmark = { version = "0.13", default-features = false, features = ["html"] }
 openidconnect = "4"
-jsonwebtoken = "9"
+jsonwebtoken = { version = "11.1", default-features = false, features = ["aws_lc_rs"] }
 # App mail and alerts through the relay a secretRef names (T-3583, AP-168): SMTP over rustls on
 # ring, the stack reqwest and sqlx already use.
 lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls", "ring", "webpki-roots"] }

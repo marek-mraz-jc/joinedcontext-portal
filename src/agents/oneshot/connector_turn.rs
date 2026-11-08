@@ -250,6 +250,19 @@ impl Driver {
                 .await?;
             return Ok(refused(ApiError::Denied(reason)));
         };
+        // The turn withholds personal data from every answer, so no filter may tell it (F-09).
+        if let Err(why) = crate::personal_data::filters_stay_open(
+            &self.state,
+            Some(&self.project),
+            &call.name,
+            &input,
+        )
+        .await
+        {
+            self.event("tool", failed_step(&call.name, started, &input, &why))
+                .await?;
+            return Ok(refused(ApiError::Denied(why)));
+        }
         let called =
             crate::ops::call(operation, caller, &self.state, &self.project, input.clone()).await;
         let called = match called {

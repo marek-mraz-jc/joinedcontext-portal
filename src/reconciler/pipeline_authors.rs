@@ -265,7 +265,9 @@ fn hash_of(manifest: &Value) -> u64 {
 #[derive(Default)]
 struct Realm<'a> {
     admin: Option<Admin<'a>>,
-    names: HashMap<String, Vec<String>>,
+    /// Per lower-cased e-mail: the realm user id, when the realm knows the person, and their
+    /// groups and realm roles.
+    names: HashMap<String, (Option<String>, Vec<String>)>,
 }
 
 impl<'a> Realm<'a> {
@@ -293,13 +295,24 @@ impl<'a> Realm<'a> {
                     .as_deref()
                     .is_some_and(|e| e.eq_ignore_ascii_case(email))
             }) {
-                Some(user) => admin.groups_and_roles(&user.id).await?,
+                Some(user) => (
+                    Some(user.id.clone()),
+                    admin.groups_and_roles(&user.id).await?,
+                ),
                 // Gone from the realm: the bindings alone say what they reach.
-                None => Vec::new(),
+                None => (None, Vec::new()),
             };
             self.names.insert(key.clone(), names);
         }
-        if let Some(names) = self.names.get(&key) {
+        if let Some((id, names)) = self.names.get(&key) {
+            // A RoleBinding names a person by their realm user id (PF-126): the author is that
+            // id once the realm knows them, or a binding by id never matches and the pipeline
+            // pauses (F-11).
+            if let Some(id) = id {
+                identity.subject.clone_from(id);
+                let by_id = crate::permissions::named_person(mirror, id).groups;
+                identity.groups.extend(by_id);
+            }
             identity.groups.extend(names.iter().cloned());
         }
         Ok(identity)
@@ -467,6 +480,50 @@ mod tests {
         assert!(!reason.contains(" a "), "the space stays unnamed: {reason}");
 
         bind(&mirror, "dev-a", "dev@hel.fi", "a");
+        assert_eq!(judged(&mirror, &rights, &client).await, None);
+    }
+
+    /// F-11: an author bound by their realm user id (PF-126), as jc-core asks, keeps the pipeline
+    /// running: the realm names the commit's e-mail, and the author is judged by that id.
+    #[tokio::test]
+    async fn an_author_bound_by_user_id_keeps_the_pipeline() {
+        const DEV: &str = "3f2a9c1e-7b4d-4e8a-9c61-0d5e2b7f8a14";
+        const EVA: &str = "5b1d2c3e-7b4d-4e8a-9c61-0d5e2b7f8a15";
+        let mirror = world();
+        unbind(&mirror, "dev-a");
+        bind(&mirror, "dev-a", DEV, "a");
+        bind(&mirror, "eva-a", EVA, "a");
+        let realm = MockServer::start().await;
+        Mock::given(method("POST"))
+            .and(path("/realms/hel/protocol/openid-connect/token"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "access_token": "t" })))
+            .mount(&realm)
+            .await;
+        for (email, id) in [("dev@hel.fi", DEV), ("eva@hel.fi", EVA)] {
+            Mock::given(method("GET"))
+                .and(path("/admin/realms/hel/users"))
+                .and(query_param("search", email))
+                .respond_with(ResponseTemplate::new(200).set_body_json(
+                    json!([{ "id": id, "username": email, "email": email, "enabled": true }]),
+                ))
+                .mount(&realm)
+                .await;
+            for tail in ["groups", "role-mappings/realm/composite"] {
+                Mock::given(method("GET"))
+                    .and(path(format!("/admin/realms/hel/users/{id}/{tail}")))
+                    .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+                    .mount(&realm)
+                    .await;
+            }
+        }
+        let people = People::new(
+            &format!("{}/realms/hel", realm.uri()),
+            "portal".into(),
+            crate::auth::client_auth::ClientAuth::Secret("s".into()),
+        )
+        .expect("a realm URL");
+        let (_server, client) = forge(MERGED).await;
+        let rights = AuthorRights::new("portal-approver".into(), Some(Arc::new(people)));
         assert_eq!(judged(&mirror, &rights, &client).await, None);
     }
 

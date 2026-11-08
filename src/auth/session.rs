@@ -386,6 +386,22 @@ impl FromRequestParts<AppState> for CurrentUser {
             // The edge's token is the person the APISIX plugin logged in through its own
             // `edge` client: its `azp` names that login, not a workload (PF-46).
             if front == Front::Edge {
+                // Only the edge's own login (or the Portal's) hands a person's token over this
+                // header; a token another client obtained, an MCP connector's or a workload's,
+                // is not the edge's however it got into the header (F-02). Decided (worker-t6661,
+                // owner may override): allow `edge` and the Portal's own client, so a token
+                // without `azp` stays the realm's to refuse; options: `edge` alone.
+                let own = state
+                    .config
+                    .oidc
+                    .as_ref()
+                    .map(|oidc| oidc.client_id.as_str());
+                if client
+                    .as_deref()
+                    .is_some_and(|c| c != EDGE_CLIENT && Some(c) != own)
+                {
+                    return Err(ApiError::Unauthorized);
+                }
                 session.identity.client = None;
                 // The edge logs in with its own static parameters and cannot ask the realm for
                 // the step-up level: that login is the Portal's own code flow, whose cookie
@@ -425,6 +441,9 @@ impl FromRequestParts<AppState> for CurrentUser {
 /// the platform only through `/api/v1/mcp`, which asks the person before a write and never
 /// brings a workspace back or discards one. A REST write with it would skip both, so REST
 /// answers 403 naming the MCP route; reads and every other client's token pass.
+/// The Keycloak client of the APISIX login front (components/apisix/keycloak-clients.yaml).
+pub(crate) const EDGE_CLIENT: &str = "edge";
+
 fn refuse_connector_write(
     connectors: &[String],
     client: &str,

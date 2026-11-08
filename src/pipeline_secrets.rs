@@ -83,7 +83,7 @@ pub enum SecretError {
         variable: String,
         /// The pipeline this run is resolving.
         pipeline: String,
-        /// The pipeline that claimed it first.
+        /// The pipeline that claimed it first, named only when it is of the same project.
         other: String,
     },
     /// The backend refused or does not hold it.
@@ -147,7 +147,11 @@ impl Resolver {
         let resolver = self.clone();
         let folder = secrets_folder(repository, project, references)?;
         let references = references.to_vec();
-        match tokio::task::spawn_blocking(move || resolver.environment(&folder, &references)).await
+        let project = project.to_owned();
+        match tokio::task::spawn_blocking(move || {
+            resolver.environment(&project, &folder, &references)
+        })
+        .await
         {
             Ok(resolved) => resolved,
             Err(err) => Err(SecretError::Unresolved {
@@ -186,9 +190,11 @@ impl Resolver {
     }
 
     /// [`resolve`](Self::resolve), on the caller's thread, with `folder` the one project's
-    /// secrets folder the SOPS backend reads. Blocking: not for a runtime.
+    /// secrets folder the SOPS backend reads and `project` the OpenBao path prefix. Blocking: not
+    /// for a runtime.
     pub fn environment(
         &self,
+        project: &str,
         folder: &Path,
         references: &[SecretRef],
     ) -> Result<Environment, SecretError> {
@@ -216,7 +222,7 @@ impl Resolver {
                 address,
                 role,
                 jwt_path,
-            } => self.resolve_with_openbao(address, role, jwt_path, references),
+            } => self.resolve_with_openbao(address, role, jwt_path, project, references),
         }
     }
 
@@ -261,6 +267,7 @@ impl Resolver {
         address: &str,
         role: &str,
         jwt_path: &Path,
+        project: &str,
         references: &[SecretRef],
     ) -> Result<Environment, SecretError> {
         // A refusal about one secret names that secret; the login, the transport and the token
@@ -281,7 +288,7 @@ impl Resolver {
                 reason: err.to_string(),
             }
         };
-        let settings = openbao::Settings::new(role);
+        let settings = bao_settings(role, project);
         let jwt = openbao::service_account_jwt(jwt_path)
             .map_err(|err| unresolved(&references[0].name, err))?;
         let mut api = HttpBao::new(address).map_err(|err| unresolved(&references[0].name, err))?;
@@ -296,6 +303,13 @@ impl Resolver {
             .map(|(variable, value)| (variable, value.expose().to_owned()))
             .collect())
     }
+}
+
+/// The OpenBao settings of one project's references: every path under `{project}/`, as jcctl
+/// reads them, so a reference of one project never reads another project's secret of the same
+/// name (F-03, CC-06).
+fn bao_settings(role: &str, project: &str) -> openbao::Settings {
+    openbao::Settings::new(role).under(project)
 }
 
 /// Every pipeline's environment, merged into the one the runner gets (T-0927).
@@ -337,10 +351,17 @@ impl RunnerEnvironment {
                 // credential, which is ordinary and not a clash.
                 (Some(held), _) if held == value => continue,
                 (Some(_), Some(other)) => {
+                    // Another project's pipeline stays unnamed: its author's names are not
+                    // this project's to read (F-03).
+                    let other = if other.starts_with(&format!("{project}/")) {
+                        other.clone()
+                    } else {
+                        "a pipeline of another project".to_owned()
+                    };
                     let err = SecretError::Clash {
                         variable: variable.clone(),
                         pipeline: owner.clone(),
-                        other: other.clone(),
+                        other,
                     };
                     self.refused
                         .insert((project.to_owned(), pipeline.to_owned()), err.to_string());
@@ -469,6 +490,32 @@ mod tests {
         assert!(!reason.contains("another"), "the refusal repeats the value");
     }
 
+    /// F-03: a clash with another project's pipeline names neither that project nor its
+    /// pipeline, and OpenBao reads each reference under its own project's path.
+    #[test]
+    fn a_clash_across_projects_names_no_other_project_and_bao_reads_under_the_project() {
+        let mut runner = RunnerEnvironment::default();
+        runner.add("espoo", "secret-feed", Ok(resolved(&[("TOKEN", "v1")])));
+        runner.add("helsinki", "air", Ok(resolved(&[("TOKEN", "v2")])));
+        let reason = runner
+            .refused()
+            .get(&("helsinki".to_owned(), "air".to_owned()))
+            .expect("the later pipeline is refused");
+        assert!(reason.contains("helsinki/air"), "{reason}");
+        assert!(
+            !reason.contains("espoo") && !reason.contains("secret-feed"),
+            "{reason}"
+        );
+        let settings = bao_settings("portal", "helsinki");
+        assert!(
+            settings
+                .read_path("feed")
+                .is_ok_and(|path| path.ends_with("/data/helsinki/feed")),
+            "{:?}",
+            settings.read_path("feed")
+        );
+    }
+
     #[test]
     fn two_pipelines_reading_one_credential_is_not_a_clash() {
         let mut runner = RunnerEnvironment::default();
@@ -501,6 +548,7 @@ mod tests {
         });
         let error = resolver
             .environment(
+                "helsinki",
                 Path::new("/nonexistent"),
                 &[SecretRef {
                     name: "mqtt-mesto".to_owned(),
@@ -524,6 +572,7 @@ mod tests {
         // carries the process-variable rule (platform T-5702): the check is the same call.
         let error = resolver
             .environment(
+                "helsinki",
                 Path::new("/nonexistent"),
                 &[SecretRef {
                     name: "mqtt-mesto".to_owned(),
@@ -598,7 +647,7 @@ mod tests {
             age_key_file: PathBuf::from("/nonexistent"),
         });
         assert_eq!(
-            resolver.environment(Path::new("/nonexistent"), &[]),
+            resolver.environment("helsinki", Path::new("/nonexistent"), &[]),
             Ok(Environment::new())
         );
     }
