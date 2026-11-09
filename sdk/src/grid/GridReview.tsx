@@ -49,7 +49,13 @@ export function GridPending({ view, inDialog = false }: { view: GridView; inDial
 
 /** The review before an apply: each change as the grid draws it, what happens to `observedAt`, and why (UI-67). */
 export function GridReview({ view }: { view: GridView }): React.JSX.Element | null {
-  const { open, labels, grid, rowName, columns, where, cellLabels, observed, setObserved, refused, askedAgain, reasonText, setReason, applying, apply } = view;
+  const { open, labels, grid, rowName, columns, where, cellLabels, observed, setObserved, refused, setRefused, askedAgain, reasonText, setReason, applying, apply } = view;
+  // A refused row's own way out, beside its refusal: its pending values go, the others stay.
+  const discardRow = (id: string): void => {
+    const change = grid.pendingChanges.find((one) => one.id === id);
+    grid.setEdits((change?.changes ?? []).map(({ attribute }) => ({ id, attr: attribute, value: undefined })));
+    setRefused(refused.filter((one) => one.id !== id));
+  };
   const { pendingChanges, rows } = grid;
   const reasonHintId = React.useId();
   if (!open) return null;
@@ -127,7 +133,14 @@ export function GridReview({ view }: { view: GridView }): React.JSX.Element | nu
         <div role="alert" className="jc-grid-review-refused">
           {refused.map((one) => {
             const row = rows.find((r) => r.id === one.id);
-            return <p key={one.id} className="jc-grid-error">{`${row ? rowName(row) : targetName(one.id).name}: ${one.detail}`}</p>;
+            return (
+              <div key={one.id} className="jc-grid-review-refusal">
+                <p className="jc-grid-error">{`${row ? rowName(row) : targetName(one.id).name}: ${one.detail}`}</p>
+                <button type="button" onClick={() => discardRow(one.id)}>
+                  {labels.discard}
+                </button>
+              </div>
+            );
           })}
         </div>
       )}

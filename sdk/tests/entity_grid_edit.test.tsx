@@ -242,6 +242,22 @@ describe("edit mode", () => {
     await waitFor(() => expect(within(panel).getByRole("button", { name: DEFAULT_LABELS.apply })).toBeEnabled());
   });
 
+  it("drops a refused row's change from the Discard beside its refusal (T-6645)", async () => {
+    const second = "urn:ngsi-ld:BikeHireDockingStation:hel:helsinki:002";
+    const { source } = writable((id) => (id === second ? new SourceError(403, "your role may not write availableBikeNumber") : undefined));
+    render(<EntityGrid config={configOf()} source={source} />);
+    await waitFor(() => expect(screen.getByDisplayValue("3")).toBeInTheDocument());
+    fireEvent.change(screen.getByDisplayValue("3"), { target: { value: "2" } });
+    fireEvent.click(screen.getByRole("button", { name: DEFAULT_LABELS.review }));
+    const panel = screen.getByRole("region", { name: DEFAULT_LABELS.review });
+    fireEvent.click(within(panel).getByRole("button", { name: DEFAULT_LABELS.apply }));
+    const alert = await within(panel).findByRole("alert");
+    fireEvent.click(within(alert).getByRole("button", { name: DEFAULT_LABELS.discard }));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(screen.getByDisplayValue("3")).toBeInTheDocument();
+    expect(screen.queryByText(`1 ${DEFAULT_LABELS.pending}`)).toBeNull();
+  });
+
   // T-3097: every applied value leaves the pending list. Clearing them one call at a time kept all
   // but the last pending, so a grid that applied two entities still offered one of them again.
   it("forgets every cell that landed when several entities are applied at once", async () => {

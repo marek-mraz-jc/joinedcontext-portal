@@ -253,7 +253,7 @@ describe("odataSource", () => {
       reason: "Typo",
       entities: [{ id: "t1", changes: [{ attribute: "name", kind: "property", before: "Alpha", after: "Alfa" }] }],
     });
-    expect(result.refused).toEqual([{ id: "t1", detail: "You may not change this row: Things is served read only. Discard the change.", slot: undefined }]);
+    expect(result.refused).toEqual([{ id: "t1", detail: "You may not change this row. Things is served read only.", slot: undefined }]);
     expect(sent.some((r) => r.method === "PATCH")).toBe(false);
     expect(sent.at(-1)?.path).toBe("/odata/Things/$allowed?op=update&key=t1");
   });
@@ -278,7 +278,7 @@ describe("odataSource", () => {
 
   it("refuses a row action the module refuses, with its reason", async () => {
     const { source, sent } = service();
-    await expect(source.remove!("t1")).rejects.toMatchObject({ status: 403, message: "You may not remove this row: Things is served read only." });
+    await expect(source.remove!("t1")).rejects.toMatchObject({ status: 403, message: "You may not remove this row. Things is served read only." });
     expect(sent.some((r) => r.method === "DELETE")).toBe(false);
   });
 

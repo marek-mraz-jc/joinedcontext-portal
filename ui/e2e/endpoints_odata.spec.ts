@@ -143,7 +143,7 @@ for (const width of [1440, 400]) {
           contentType: "application/json",
           body: JSON.stringify({
             allowed: false,
-            reason: "your proposal check refuses moving events: the space air is not one you may propose into",
+            reason: "the space air is not one you may propose into",
             notFound: false,
           }),
         }),
@@ -165,13 +165,17 @@ for (const width of [1440, 400]) {
       if (width < 640) await page.setViewportSize({ width, height: 900 });
       await page.getByRole("button", { name: "Review the changes" }).click();
       await page.getByRole("button", { name: "Apply", exact: true }).click();
-      await expect(page.getByRole("alert").filter({ hasText: /Helsinki events: You may not change this row: your proposal check refuses moving events/ })).toBeVisible();
+      await expect(page.getByRole("alert").filter({ hasText: /Helsinki events: You may not change this row\. The space air is not one you may propose into\./ })).toBeVisible();
       // The same value would be refused again: Apply waits until the person changes it or discards it.
       await expect(page.getByRole("button", { name: "Apply", exact: true })).toBeDisabled();
       expect(writes).toEqual([]);
       // The rows are read again after the apply; the shot waits for them.
       await expect(page.locator(".jc-grid-loading")).toHaveCount(0);
       await page.screenshot({ path: join(SHOTS, `refused-${width}.png`) });
+      // The refusal's own Discard drops that row's change, and its refusal with it.
+      await page.getByRole("alert").getByRole("button", { name: "Discard the changes" }).click();
+      await expect(page.getByRole("alert")).toHaveCount(0);
+      await expect(page.getByText("1 not applied yet")).toHaveCount(0);
     });
   });
 }

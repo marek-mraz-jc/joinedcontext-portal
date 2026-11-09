@@ -261,9 +261,11 @@ export function EndpointsGrid({
       return endpoint ? <RepresentationSummary served={servedRepresentations(endpoint.spec as { enabledRepresentations?: string[] })} /> : "—";
     },
     // Another project's Endpoint is changed where it is published: its space reads as text; the
-    // project's own rows keep the grid's picker (undefined leaves the cell to it).
+    // project's own rows keep the grid's picker (undefined leaves the cell to it), which looks the
+    // same until the pointer or the focus is on it (index.css).
     contextSpace: (_cell, rich) => {
-      if (rowOf(rich).kind === "own") return undefined;
+      // A space is picked from a list, never typed: with no space read to pick from, the cell is text.
+      if (rowOf(rich).kind === "own" && spaces.length > 0) return undefined;
       const space = String(rich.raw.contextSpace ?? "—");
       return (
         <span className="jc-endpoints-space block truncate" title={space}>

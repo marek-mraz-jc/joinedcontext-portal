@@ -197,9 +197,16 @@
 }
 
 /* A failed read is a panel of its own, the way a failed page is (T-6645 judge: a bare red line):
-   its sentence on a tinted ground and the retry as the one thing to press. */
+   its sentence on a tinted ground and the retry as the one thing to press; a refused change is
+   the same panel, with its own Discard. */
 .jc-grid-error {
+  color: var(--jc-color-danger, #cc0000);
+}
+
+.jc-grid-failed,
+.jc-grid-review-refusal {
   margin: var(--jc-space-3, 12px);
+  padding: var(--jc-space-2, 8px) var(--jc-space-3, 12px);
   border: 1px solid color-mix(in srgb, var(--jc-color-danger, #cc0000) 35%, transparent);
   border-radius: var(--jc-radius-md, 6px);
   background: color-mix(in srgb, var(--jc-color-danger, #cc0000) 6%, var(--jc-color-surface, #fff));
@@ -207,7 +214,7 @@
 }
 
 /* The retry after a failed read sits under its sentence, a target a thumb can hit (T-5597). */
-.jc-grid-error button {
+.jc-grid-failed button {
   display: block;
   margin: var(--jc-space-2, 8px) auto 0;
   min-height: 2.75rem;
@@ -252,6 +259,7 @@
 }
 
 .jc-grid-pager button,
+.jc-grid-review-refusal button,
 /* Review, Discard and Apply are buttons a person must see as such (T-6645 judge: plain text). */
 .jc-grid-pending > button,
 .jc-grid-review > button {
@@ -380,6 +388,8 @@
   font: inherit;
   width: 100%;
   min-width: 0;
+  /* A typed value wider than its column ends in an ellipsis until it is focused. */
+  text-overflow: ellipsis;
   background: transparent;
   border: 1px solid transparent;
 }
@@ -2727,3 +2737,9 @@ a.jc-cell--link:focus-visible {
 .jc-dashboard-bar dt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .jc-dashboard-bar dd { display: flex; gap: 0.5rem; align-items: center; margin: 0; font-variant-numeric: tabular-nums; }
 .jc-dashboard-bar dd span { block-size: 0.75rem; min-inline-size: 2px; border-radius: 2px; background: var(--jc-color-primary, #2563eb); }
+
+/* The refusal's sentence inside its panel, its Discard under it. */
+.jc-grid-review-refusal .jc-grid-error {
+  margin: 0 0 var(--jc-space-2, 8px);
+  padding: 0;
+}
