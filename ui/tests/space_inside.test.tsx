@@ -741,10 +741,18 @@ describe("the space's own data", () => {
     expect(await screen.findByLabelText(en.entityGrid.editAsText)).toBeInTheDocument();
   });
 
+  // The page's own failure panel; the grid under it says its own read failed in an alert too (T-6645).
+  const pageAlert = (): Promise<HTMLElement> =>
+    waitFor(() => {
+      const found = screen.queryAllByRole("alert").find((alert) => !alert.classList.contains("jc-grid-error"));
+      if (!found) throw new Error("no page alert yet");
+      return found;
+    });
+
   it("names a failed surface read with its status and a retry", async () => {
     renderInside({ status: 200, count: 1 }, { status: 502 });
 
-    const alert = await screen.findByRole("alert");
+    const alert = await pageAlert();
     expect(alert).toHaveTextContent(en.spaces.inside.dataFailed);
     expect(alert).toHaveTextContent("HTTP 502");
     expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeInTheDocument();
@@ -754,7 +762,7 @@ describe("the space's own data", () => {
   // T-5601: only a refusal lists the endpoints; a busy or unreachable surface is a retry.
   it.each([503, 504])("names a %s surface read with its status and a retry", async (status) => {
     renderInside({ status: 200, count: 1 }, { status });
-    const alert = await screen.findByRole("alert");
+    const alert = await pageAlert();
     expect(alert).toHaveTextContent(`HTTP ${status}`);
     expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeEnabled();
     expect(screen.queryByText(en.spaces.inside.dataThroughEndpoints)).toBeNull();
@@ -762,7 +770,7 @@ describe("the space's own data", () => {
 
   it("holds the retry for a 429's Retry-After and lists no endpoints", async () => {
     renderInside({ status: 200, count: 1 }, { status: 429, headers: { "Retry-After": "30" } });
-    const alert = await screen.findByRole("alert");
+    const alert = await pageAlert();
     expect(alert).toHaveTextContent(en.spaces.inside.dataFailed);
     expect(alert).toHaveTextContent("The Portal is busy right now; nothing was changed. Try again in 30 seconds.");
     expect(within(alert).getByRole("button", { name: en.app.error.retry })).toHaveAttribute("aria-disabled", "true");
@@ -772,14 +780,14 @@ describe("the space's own data", () => {
 
   it("frees the retry once a 429's Retry-After has passed", async () => {
     renderInside({ status: 200, count: 1 }, { status: 429, headers: { "Retry-After": "1" } });
-    const retry = within(await screen.findByRole("alert")).getByRole("button", { name: en.app.error.retry });
+    const retry = within(await pageAlert()).getByRole("button", { name: en.app.error.retry });
     expect(retry).toHaveAttribute("aria-disabled", "true");
     await waitFor(() => expect(retry).not.toHaveAttribute("aria-disabled"), { timeout: 3000 });
   });
 
   it.each([429, 408, 0])("calls a %s probe a busy Portal with a retry", async (status) => {
     renderInside({ status: 200, count: 1 }, { status });
-    const alert = await screen.findByRole("alert");
+    const alert = await pageAlert();
     expect(alert).toHaveTextContent(en.spaces.inside.dataBusy);
     expect(within(alert).getByRole("button", { name: en.app.error.retry })).toBeEnabled();
     expect(screen.queryByText(en.spaces.inside.dataThroughEndpoints)).toBeNull();

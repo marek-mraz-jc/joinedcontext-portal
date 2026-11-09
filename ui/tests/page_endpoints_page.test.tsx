@@ -73,7 +73,7 @@ describe("the endpoints page", () => {
     const { container } = await renderRoute({ path: PATH, answer: answering([endpoint("public-air")]) });
     await expectOneH1(en.endpoints.title);
     expect(screen.getByText(en.endpoints.lead)).toBeInTheDocument();
-    await screen.findAllByRole("table");
+    await screen.findByRole("grid", { name: en.endpoints.title });
     await expectAxeClean(container);
   });
 
@@ -100,8 +100,9 @@ describe("the endpoints page", () => {
 
   it("holds_its_layout_while_the_endpoints_are_on_their_way", async () => {
     await renderRoute({ path: PATH, pending: true });
-    const tables = await screen.findAllByRole("table");
-    expect(tables[0]).toHaveAttribute("aria-busy", "true");
+    // The grid stands with its header while its rows are read, and says so (T-6645).
+    await screen.findByRole("grid", { name: en.endpoints.title });
+    expect((await screen.findAllByText(en.entityGrid.loading)).length).toBeGreaterThan(0);
     expect(screen.queryByText(en.endpoints.empty)).toBeNull();
   });
 
@@ -163,12 +164,8 @@ describe("the endpoints page", () => {
       // The row count is the check. A role query over 500 rows computes the accessible role of
       // every cell on every poll, seconds of CPU that a loaded host turns into a timeout (T-3538).
       // 500 rows mount one page of 50 (T-4545).
-      // An empty list is the empty state at the frame's width, no table (T-6115 judge: clipped at 400 px).
-      await waitFor(() =>
-        count === 0
-          ? expect(container.querySelector("[data-manifest-grid] table")).toBeNull()
-          : expect(container.querySelector("table")?.rows.length).toBe(Math.min(count, 50) + 1),
-      );
+      // An empty list is the empty state (T-6115 judge).
+      await waitFor(() => expect(container.querySelectorAll("tr.jc-grid-tr")).toHaveLength(Math.min(count, 50)));
       if (count === 0) await screen.findByText(en.endpoints.empty);
       sent.set(count, [...new Set(calls())].sort());
       unmount();
@@ -188,7 +185,7 @@ describe("the endpoints page", () => {
         endpoint("nasty", { status: { phase: "Live", sourceUrl: "javascript:alert(1)" } }),
       ]),
     });
-    await screen.findAllByRole("table");
+    await screen.findByRole("grid", { name: en.endpoints.title });
     // Every href on the page at once: not one of them may carry a scheme that runs code (PF-50).
     const schemes = [...container.querySelectorAll("a[href]")]
       .map((link) => link.getAttribute("href") ?? "")
@@ -225,34 +222,38 @@ describe("the endpoints page", () => {
     await userEvent.paste(text);
   };
 
+  // The server pages and counts (T-6645): a page of 50, the grid's pager, a search the server runs.
+  const pageInfo = () => document.querySelector(".jc-grid-page-info")?.textContent;
   it("shows_a_page_of_rows_then_more_on_request_and_finds_one_by_name", async () => {
     await renderRoute({ path: PATH, answer: answering(many) });
     await screen.findByRole("link", { name: "ep-0000" });
     expect(rowLinks()).toHaveLength(50);
-    expect(screen.getByText("Showing 50 of 120")).toBeInTheDocument();
-    await userEvent.click(screen.getByRole("button", { name: "Show 50 more" }));
-    expect(rowLinks()).toHaveLength(100);
-    await userEvent.click(screen.getByRole("button", { name: "Show 20 more" }));
-    expect(rowLinks()).toHaveLength(120);
-    expect(screen.queryByRole("button", { name: /^Show \d+ more$/ })).toBeNull();
+    expect(pageInfo()).toBe("Page 1 / 3");
+    await userEvent.click(screen.getByRole("button", { name: en.entityGrid.next }));
+    await screen.findByRole("link", { name: "ep-0050" });
+    expect(rowLinks()).toHaveLength(50);
+    await userEvent.click(screen.getByRole("button", { name: `${en.entityGrid.page} 3` }));
+    await screen.findByRole("link", { name: "ep-0119" });
+    expect(rowLinks()).toHaveLength(20);
 
-    await search("EP-0119");
-    expect(rowLinks().map((link) => link.textContent)).toEqual(["ep-0119"]);
-    expect(screen.getByText("Showing 1 of 1 matching, 120 in total")).toBeInTheDocument();
+    // Any case, and back on page one.
+    await search("EP-0001");
+    await waitFor(() => expect(rowLinks().map((link) => link.textContent)).toEqual(["ep-0001"]));
+    await waitFor(() => expect(pageInfo()).toBe("Page 1 / 1"));
     // A search matching nothing names the text and clears back to the first page (T-6095).
     await search("nothing-like-it");
-    expect(screen.queryByText(/^Showing/)).toBeNull();
-    expect(screen.getByText(i18n.t("endpoints.searchNoMatch", { text: "nothing-like-it" }))).toBeInTheDocument();
+    expect(await screen.findByText(i18n.t("endpoints.searchNoMatch", { text: "nothing-like-it" }))).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: en.spaces.inside.clearSearch }));
     expect(screen.getByRole("searchbox", { name: en.endpoints.find })).toHaveValue("");
-    expect(rowLinks()).toHaveLength(50);
+    await waitFor(() => expect(rowLinks()).toHaveLength(50));
   });
 
   it("nothing_shared_with_the_project_adds_no_second_table", async () => {
     await renderRoute({ path: PATH, answer: answering([endpoint("public-air")]) });
     await screen.findByRole("link", { name: "public-air" });
     // Own and shared Endpoints are one grid (T-6169): no section, no second table.
-    expect(screen.getAllByRole("table")).toHaveLength(1);
+    expect(screen.getAllByRole("grid")).toHaveLength(1);
+    expect(screen.queryByRole("table")).toBeNull();
     expect(screen.getAllByText(en.endpoints.source.own).length).toBeGreaterThan(0);
   });
 
@@ -260,15 +261,21 @@ describe("the endpoints page", () => {
     const titled = many.map((one, i) =>
       i === 77 ? { ...one, metadata: { ...one.metadata, title: { en: "Noise in Zvolen" } } } : one,
     );
-    await renderRoute({ path: PATH, answer: answering(titled) });
+    const { calls } = await renderRoute({ path: PATH, answer: answering(titled) });
     await screen.findByRole("link", { name: "ep-0000" });
-    await userEvent.click(screen.getByRole("button", { name: "Show 50 more" }));
+    await userEvent.click(screen.getByRole("button", { name: en.entityGrid.next }));
+    await screen.findByRole("link", { name: "ep-0050" });
+    const reads = () => calls().filter((call) => call.endsWith("/odata/endpointList")).length;
+    const before = reads();
+    // Blank is no search: no read, the page stays.
     await search("   ");
-    expect(rowLinks()).toHaveLength(50);
-    expect(screen.getByText("Showing 50 of 120")).toBeInTheDocument();
+    await new Promise((done) => setTimeout(done, 400));
+    expect(reads()).toBe(before);
+    expect(pageInfo()).toBe("Page 2 / 3");
     await search("zvolen");
-    expect(screen.getByRole("link", { name: "Noise in Zvolen" })).toBeInTheDocument();
-    expect(screen.getByText("Showing 1 of 1 matching, 120 in total")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "Noise in Zvolen" })).toBeInTheDocument();
+    // The count is a read of its own beside the rows (T-6541).
+    await waitFor(() => expect(pageInfo()).toBe("Page 1 / 1"));
   });
 
   it("opens_an_endpoint_the_url_names_beyond_the_first_page", async () => {
@@ -291,7 +298,7 @@ describe("the endpoints page", () => {
       path: `${PATH}?edit=no-such-endpoint`,
       answer: answering([endpoint("public-air")]),
     });
-    await screen.findAllByRole("table");
+    await screen.findByRole("grid", { name: en.endpoints.title });
     expect(queryFormPage()).toBeNull();
   });
 
@@ -314,7 +321,7 @@ describe("the endpoints page", () => {
       brand: OTHER_BRAND,
       answer: answering([endpoint("public-air")]),
     });
-    await screen.findAllByRole("table");
+    await screen.findByRole("grid", { name: en.endpoints.title });
     const literal = [...container.querySelectorAll<HTMLElement>("[style]")].filter((element) =>
       /#[0-9a-f]{3,8}|\brgba?\(/i.test(element.getAttribute("style") ?? ""),
     );

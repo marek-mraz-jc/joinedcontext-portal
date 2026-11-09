@@ -83,6 +83,12 @@ export interface GridLabels {
   editAsTextHint: string;
   /** Before the example query the hint builds from the shown type (T-5415), e.g. "e.g.". */
   exampleLead: string;
+  /**
+   * The example query the hint shows, written by a host that knows a better one than the first
+   * row gives (a column whose key reads as its label, a value a person recognises); empty builds
+   * it from the first row (T-5415).
+   */
+  queryExample?: string;
   /** The query line when nothing narrows the rows. */
   queryAll: string;
   /** Said for a moment after the query was copied. */
@@ -105,6 +111,8 @@ export interface GridLabels {
   queryRefused: string;
   /** The disclosure holding the broker's own sentence about a refused query. */
   errorDetail: string;
+  /** The button under a failed read that asks the same question again. */
+  retry: string;
   /** What the footer calls the endpoint's own count of matching entities: a word after the number, or a
    *  text holding `{n}` where the number goes, for a language whose word agrees with it (sk "Vyhovuje: {n}"). */
   matching: string;
@@ -344,6 +352,7 @@ export const DEFAULT_LABELS: GridLabels = {
   notReadable: "{count} more fields are not shown: your access does not include them.",
   queryRefused: "The broker refused this query",
   errorDetail: "What the broker said",
+  retry: "Try again",
   matching: "matching",
   noTotal: "the endpoint gives no total for this answer",
   history: "History",
@@ -891,6 +900,14 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
   const [internalEdits, setInternalEdits] = useState<Record<string, Record<string, unknown>>>({});
 
   // Controlled state: use controlled values when key present
+  // A new question from the host (its search box) starts on the first page, as the filter row's
+  // does: page 3 of the old answer is no page of the new one (T-6645).
+  const hostAsked = JSON.stringify([queryPartial?.q, queryPartial?.idPattern, queryPartial?.scopeQ, queryPartial?.ids]);
+  const [askedBefore, setAskedBefore] = useState(hostAsked);
+  if (askedBefore !== hostAsked) {
+    setAskedBefore(hostAsked);
+    setInternalOffset(0);
+  }
   const offset = controlledState?.offset !== undefined ? controlledState.offset : internalOffset;
   const activeCell = controlledState?.activeCell !== undefined ? controlledState.activeCell : internalActiveCell;
   const selected = controlledState?.selected !== undefined ? controlledState.selected : internalSelected;

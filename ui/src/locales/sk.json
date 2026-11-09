@@ -1457,6 +1457,13 @@
     }
   },
   "endpoints": {
+    "grid": {
+      "empty": "Týmto filtrom nezodpovedá žiadny endpoint. Zrušte filter alebo pridajte endpoint.",
+      "filterExampleText": "ovzdušie",
+      "filterExampleId": "kvalita-ovzdusia",
+      "editAsTextHint": "Napíšte filter ako text s názvami stĺpcov",
+      "proposed": "Navrhnuté na schválenie v Zmenách, hodnoty:"
+    },
     "surfaceFit": {
       "lead": "Dátový model priestoru {space} tieto štandardy nedokáže poskytovať, preto sú ich políčka sivé:",
       "openModel": "Otvoriť dátový model {model}",
@@ -1471,6 +1478,7 @@
     "add": "Nový endpoint",
     "edit": "Upraviť",
     "addHint": "Odpovedá po schválení zmeny.",
+    "emptyHint": "Endpoint sprístupní dáta kontextového priestoru ľuďom, aplikáciám a AI. Nový odpovedá po schválení jeho zmeny.",
     "propose": "Navrhnúť zmenu",
     "generateSlug": "Vygenerovať slug",
     "copyUrl": "Kopírovať URL",
@@ -5706,6 +5714,7 @@
     "notReadable": "Ďalšie polia ({count}) sa nezobrazujú: váš prístup ich nezahŕňa.",
     "queryRefused": "Broker tento dopyt odmietol",
     "errorDetail": "Čo broker odpovedal",
+    "retry": "Skúsiť znova",
     "matching": "Vyhovuje: {n}",
     "noTotal": "endpoint pri tejto odpovedi neuvádza celkový počet",
     "history": "História",

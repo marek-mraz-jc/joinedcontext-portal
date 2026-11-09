@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 import { axeViolations } from "./axe";
+import { withODataEndpoints } from "./odataEndpoints";
 
 // T-4989: the endpoint lists (a project's endpoints, what other projects share with it, and the
 // Organization's Endpoints tab) read as one line a row at 1440 px: the surfaces in one summary,
@@ -74,6 +75,7 @@ async function stubApi(page: Page): Promise<void> {
     if (found) return json(found);
     return list([]);
   });
+  await withODataEndpoints(page);
 }
 
 /** Every body row of a table is one line: no taller than a row holding one badge or button. */
@@ -101,7 +103,7 @@ for (const width of [1440, 400]) {
     test("a project's endpoints and the ones shared with it", async ({ page }) => {
       await stubApi(page);
       await page.goto("/projects/helsinki/endpoints?lang=en");
-      const own = page.getByRole("table", { name: "Endpoints" });
+      const own = page.getByRole("grid", { name: "Endpoints" });
       await expect(own.getByRole("link", { name: "City bike stations" })).toBeVisible();
       // Shared Endpoints are rows of the same grid, with a Source chip (T-6169).
       await expect(own.getByText("Parking places in Espoo")).toBeVisible();
@@ -114,6 +116,11 @@ for (const width of [1440, 400]) {
         await more.focus();
         await expect(row.getByRole("tooltip")).toBeVisible();
         await expect(row.getByRole("tooltip")).toHaveText("CSV, SensorThings, OData, WebSocket, iCal");
+        // The tip is drawn whole, not clipped by its cell (T-6645 judge: the shot showed no tip).
+        const tip = await row.getByRole("tooltip").boundingBox();
+        const cell = await more.boundingBox();
+        expect(tip && cell && tip.y >= cell.y + cell.height && tip.width > 100).toBeTruthy();
+        expect(await row.getByRole("tooltip").evaluate((el) => document.elementFromPoint(el.getBoundingClientRect().x + 4, el.getBoundingClientRect().y + 4) === el || el.contains(document.elementFromPoint(el.getBoundingClientRect().x + 4, el.getBoundingClientRect().y + 4)))).toBe(true);
         await page.screenshot({ path: `${SHOTS}/projects_helsinki_endpoints-tip-${width}.png` });
         await page.keyboard.press("Escape");
       }

@@ -22,6 +22,8 @@ export function useGridEdits(options: { source: EntitySource }, grid: EntityGrid
   // What the last paste did, said once in a status line (T-3097).
   const [pasteNote, setPasteNote] = useState<string | null>(null);
   const [refused, setRefused] = useState<Refusal[]>([]);
+  // The values each refused entity was refused with: the same values asked again get the same answer.
+  const [refusedAsked, setRefusedAsked] = useState<ReadonlyMap<string, string>>(new Map());
   // What the pending values break of their model's rules, by `id\u0000attr` (T-3097).
   const ruleProblems = useMemo(() => {
     const found = new Map<string, string>();
@@ -83,6 +85,7 @@ export function useGridEdits(options: { source: EntitySource }, grid: EntityGrid
         ),
       );
       setRefused(result.refused);
+      setRefusedAsked(new Map(result.refused.map((one) => [one.id, JSON.stringify(state.edits[one.id] ?? {})])));
       if (result.refused.length === 0) {
         setOpen(false);
       }
@@ -112,6 +115,7 @@ export function useGridEdits(options: { source: EntitySource }, grid: EntityGrid
         fallback: labels.error,
       });
       setRefused(result.refused);
+      setRefusedAsked(new Map());
       setLastApplied(null);
       if (result.refused.length === 0) setUndoNote(labels.undone);
       reload();
@@ -119,5 +123,8 @@ export function useGridEdits(options: { source: EntitySource }, grid: EntityGrid
       setApplying(false);
     }
   }, [lastApplied, options.source, labels.undoReason, labels.error, labels.undone, reload]);
-  return { open, setOpen, observed, setObserved, applying, reasonText, setReason, lastApplied, undoNote, pasteNote, setPasteNote, refused, setRefused, ruleProblems, refusedOf, refusedCell, rowTitle, apply, undo };
+  /** Every pending value is one the endpoint just refused: Apply would ask the same question again. */
+  const askedAgain =
+    pendingChanges.length > 0 && pendingChanges.every((entity) => refusedAsked.get(entity.id) === JSON.stringify(state.edits[entity.id] ?? {}));
+  return { open, setOpen, observed, setObserved, applying, reasonText, setReason, lastApplied, undoNote, pasteNote, setPasteNote, refused, setRefused, askedAgain, ruleProblems, refusedOf, refusedCell, rowTitle, apply, undo };
 }

@@ -98,3 +98,29 @@ describe("the grid asks once per question", () => {
     expect(result.current.rows.length).toBeGreaterThan(0);
   });
 });
+
+describe("a host's new question", () => {
+  // T-6645: a search typed on page 3 asked for page 3 of the matches, which a short answer does not have.
+  it("starts on the first page", async () => {
+    const pages: number[] = [];
+    const base = fixtureSource(stations);
+    const source: EntitySource = {
+      ...base,
+      query: (query: GridQuery, page: { offset: number; limit: number }) => {
+        if (page.limit > 0) pages.push(page.offset);
+        return base.query(query, page);
+      },
+    };
+    const { result, rerender } = renderHook(({ q }: { q?: string }) => useEntityGrid({ config, source, query: q ? { q } : undefined }), {
+      initialProps: {},
+    });
+    await settle();
+    await act(async () => result.current.setOffset(20));
+    await settle();
+    expect(pages.at(-1)).toBe(20);
+    rerender({ q: 'name~="(?i)kal"' });
+    await settle();
+    expect(pages.at(-1)).toBe(0);
+    expect(result.current.state.offset).toBe(0);
+  });
+});

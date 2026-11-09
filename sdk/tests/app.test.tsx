@@ -122,7 +122,8 @@ describe("App", () => {
   it("says when the endpoint refuses instead of showing an empty dashboard", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 403, json: async () => ({}) })));
     render(<App slug="demo" spec={spec} />);
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent("BikeHireDockingStation: the endpoint answered 403"));
+    // The App's own line names the type; each grid also says its read failed, with Try again.
+    await waitFor(() => expect(screen.getAllByRole("alert").some((alert) => alert.textContent?.includes("BikeHireDockingStation: the endpoint answered 403"))).toBe(true));
   });
 });
 

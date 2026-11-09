@@ -140,7 +140,7 @@ function writes(fetchMock: ReturnType<typeof vi.fn>): Request[] {
 
 /** The one Endpoints grid: own, shared and gone-reference rows together (T-6169). */
 function sharedSection(): Promise<HTMLElement> {
-  return screen.findByRole("table", { name: en.endpoints.title });
+  return screen.findByRole("grid", { name: en.endpoints.title });
 }
 
 /** Opens a row's menu and returns its items. */
@@ -475,13 +475,13 @@ describe("endpoint sharing", () => {
 
     const nav = await screen.findByRole("navigation", { name: "Main navigation" });
     expect(within(nav).queryByRole("link", { name: /shared/i })).toBeNull();
-    expect(await screen.findByRole("table", { name: en.endpoints.title })).toBeInTheDocument();
+    expect(await screen.findByRole("grid", { name: en.endpoints.title })).toBeInTheDocument();
   });
 
   it("the old references URL lands on the Endpoints page (T-0706)", async () => {
     renderAt("/projects/espoo/shared");
 
-    expect(await screen.findByRole("table", { name: en.endpoints.title })).toBeInTheDocument();
+    expect(await screen.findByRole("grid", { name: en.endpoints.title })).toBeInTheDocument();
     expect(window.location.pathname).toBe("/projects/espoo/endpoints");
   });
 });

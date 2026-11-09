@@ -65,14 +65,16 @@ export function GridStatus({ view }: { view: GridView }): React.JSX.Element {
         </div>
       )}
 
+      {/* A reload under rows already shown (the host's reloadKey, a change that landed) keeps
+          them and says so to a screen reader only; a narrowed question says it is filtering. */}
       {loading && (
-        <div className="jc-grid-loading" role="status">
+        <div className={rows.length > 0 && !grid.narrowed ? "jc-grid-sr-only" : "jc-grid-loading"} role="status">
           {rows.length > 0 && grid.narrowed ? labels.filtering : labels.loading}
         </div>
       )}
 
       {error && (
-        <div className="jc-grid-error">
+        <div className="jc-grid-error jc-grid-failed" role="alert">
           {labels.error}: {error}
           {grid.errorDetail && (
             <details className="jc-grid-error-detail">
@@ -80,6 +82,9 @@ export function GridStatus({ view }: { view: GridView }): React.JSX.Element {
               <p>{grid.errorDetail}</p>
             </details>
           )}
+          <button type="button" onClick={grid.reload}>
+            {labels.retry}
+          </button>
         </div>
       )}
     </>

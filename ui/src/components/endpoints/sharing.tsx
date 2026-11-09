@@ -75,12 +75,12 @@ export function admitsPerson(endpoint: Manifest, groups: readonly string[], proj
 const SHOWN_PROJECTS = 1;
 
 /** The audience as a chip, and for `project-list` the projects it names, so the owner sees who. */
-export function SharedWithBadge({ endpoint }: { endpoint: Manifest }): JSX.Element {
+export function SharedWithBadge({ endpoint, wrap = false }: { endpoint: Manifest; /** Wraps under the chip where a phone column is too narrow for one line. */ wrap?: boolean }): JSX.Element {
   const { t } = useTranslation();
   const { audience, allowedProjects } = sharingOf(endpoint);
   const listed = audience === "project-list";
   return (
-    <div className="flex min-w-0 items-center gap-1 whitespace-nowrap">
+    <div className={`flex min-w-0 items-center gap-1 ${wrap ? "flex-wrap" : "whitespace-nowrap"}`}>
       <Badge tone={AUDIENCE_TONE[audience] ?? "neutral"}>{t(`endpoints.audience.${audience}`)}</Badge>
       {listed && allowedProjects.length > 0 ? (
         // One line in a row (T-4989): one project named, the rest counted; every name stays

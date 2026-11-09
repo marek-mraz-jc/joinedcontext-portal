@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { andQ } from "./filters";
 import { areaQuery } from "./geoarea";
 import type { GeoArea } from "./geoarea";
 import { queryExample } from "./queryExample";
@@ -31,9 +32,12 @@ export function GridQueryBox({ view }: { view: GridView }): React.JSX.Element | 
   const { queryBox = true } = props;
   const { state, rows, askedQuery, setFilterText } = grid;
   const queryHintId = React.useId();
+  // What the line shows is all the source is asked: the host's own query (a header search) and
+  // the filters, joined as the grid joins them, or "all records" read beside a narrowed list.
+  const shown = { ...askedQuery, q: andQ(props.query?.q, askedQuery.q) };
   const example = useMemo(
-    () => queryExample(columns.filter((c) => c.attr !== null && c.meta === null).map((c) => c.attr!), rows[0]),
-    [columns, rows],
+    () => labels.queryExample || queryExample(columns.filter((c) => c.attr !== null && c.meta === null).map((c) => c.attr!), rows[0]),
+    [labels.queryExample, columns, rows],
   );
   // "Copied" for two seconds after the query reached the clipboard.
   const [copied, setCopied] = useState(false);
@@ -57,17 +61,17 @@ export function GridQueryBox({ view }: { view: GridView }): React.JSX.Element | 
             onChange={(e) => setFilterText(e.target.value)}
           />
         ) : (
-          <output className="jc-grid-query-value">{breakable(queryText(askedQuery, grid.area) || labels.queryAll)}</output>
+          <output className="jc-grid-query-value">{breakable(queryText(shown, grid.area) || labels.queryAll)}</output>
         )}
       </label>
       <span className="jc-grid-query-actions">
         {/* Nothing to copy while every row is asked for: the line says "all records" instead. */}
-        {queryText(askedQuery, grid.area) !== "" && (
+        {queryText(shown, grid.area) !== "" && (
           <button
             type="button"
             className="jc-grid-query-copy"
             onClick={() => {
-              void navigator.clipboard?.writeText(queryText(askedQuery, grid.area)).then(() => setCopied(true), () => setCopied(false));
+              void navigator.clipboard?.writeText(queryText(shown, grid.area)).then(() => setCopied(true), () => setCopied(false));
             }}
           >
             {copied ? labels.copied : labels.copyQuery}

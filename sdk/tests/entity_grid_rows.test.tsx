@@ -143,4 +143,69 @@ describe("EntityGrid reloadKey (T-5186)", () => {
     await waitFor(() => expect(query.mock.calls.length).toBe(first + 2));
     expect(container.querySelectorAll('tr[aria-selected="true"]')).toHaveLength(1);
   });
+
+  it("keeps the rows it shows while it reads them again, with no Loading line under them (T-6645)", async () => {
+    const source = fixtureSource(entities);
+    const { rerender, container } = render(<EntityGrid config={config} source={source} filterRow={false} reloadKey={0} />);
+    await waitFor(() => expect(screen.getByText("Pasila")).toBeInTheDocument());
+    let answer: () => void = () => undefined;
+    const held = source.query.bind(source);
+    vi.spyOn(source, "query").mockImplementation(async (query, options) => {
+      const page = await held(query, options);
+      return options?.count ? page : new Promise((resolve) => (answer = () => resolve(page)));
+    });
+    rerender(<EntityGrid config={config} source={source} filterRow={false} reloadKey={1} />);
+    await waitFor(() => expect(screen.getByText("Loading…")).toHaveClass("jc-grid-sr-only"));
+    expect(screen.getByText("Pasila")).toBeVisible();
+    expect(container.querySelector(".jc-grid-loading")).toBeNull();
+    answer();
+    await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
+  });
+});
+
+describe("EntityGrid read error (T-6645)", () => {
+  it("says why the read failed and asks again on Try again", async () => {
+    const source = fixtureSource(entities);
+    const held = source.query.bind(source);
+    const query = vi.spyOn(source, "query").mockRejectedValue(new Error("the service is down"));
+    render(<EntityGrid config={config} source={source} filterRow={false} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("the service is down");
+    query.mockImplementation(held);
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(screen.getByText("Pasila")).toBeInTheDocument());
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("shows a whole read that failed alone, without headers, query line or pager around nothing", async () => {
+    const source = fixtureSource(entities);
+    vi.spyOn(source, "query").mockRejectedValue(new Error("the service is down"));
+    const { container } = render(<EntityGrid config={config} source={source} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("the service is down");
+    expect(container.querySelector("table")).toBeNull();
+    expect(container.querySelector(".jc-grid-query")).toBeNull();
+    expect(container.querySelector(".jc-grid-pager")).toBeNull();
+  });
+
+  it("keeps the filters of a narrowed read that failed, so the person can change what failed", async () => {
+    const source = fixtureSource(entities);
+    vi.spyOn(source, "query").mockRejectedValue(new Error("the service is down"));
+    const { container } = render(<EntityGrid config={config} source={source} query={{ q: 'name=="Kamppi"' }} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("the service is down");
+    expect(container.querySelector(".jc-grid-query")).not.toBeNull();
+  });
+});
+
+describe("EntityGrid query line (T-6645)", () => {
+  it("names the host's own query beside the filters, not all records", async () => {
+    render(<EntityGrid config={config} source={fixtureSource(entities)} query={{ q: 'name~="(?i)kall"' }} />);
+    const line = await screen.findByText(/name~=/, { selector: "output" });
+    expect(line).toHaveTextContent('q=name~="(?i)kall"');
+    expect(screen.queryByText("all records")).toBeNull();
+  });
+
+  it("shows the host's own example in the Edit as text hint", async () => {
+    render(<EntityGrid config={config} source={fixtureSource(entities)} labels={{ queryExample: 'audience=="public"' }} />);
+    await waitFor(() => expect(screen.getByText("Pasila")).toBeInTheDocument());
+    expect(screen.getByText('audience=="public"', { selector: "code" })).toBeInTheDocument();
+  });
 });

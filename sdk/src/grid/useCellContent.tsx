@@ -242,9 +242,12 @@ export function useCellContent(
   const renderCellContent = useCallback((row: RichRow, column: VisibleColumn): React.ReactNode => {
     const { text, cell } = cellOf(row, column);
 
-    // Custom renderer by attribute name first, then by cell kind
+    // Custom renderer by attribute name first, then by cell kind. A renderer that answers
+    // `undefined` leaves the cell to the grid: a host draws some rows itself and keeps the grid's
+    // editor on the rest (T-6645).
     if (column.attr && renderers?.[column.attr]) {
-      return renderers[column.attr](cell, row);
+      const drawn = renderers[column.attr](cell, row);
+      if (drawn !== undefined) return drawn;
     }
     // The identifier column carries no attribute, so a host addresses it by its key.
     if (column.attr === null && renderers?.[column.key]) {

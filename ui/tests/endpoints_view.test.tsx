@@ -229,9 +229,10 @@ describe("endpoints view", () => {
     renderEndpoints();
 
     const row = (await screen.findByText("public-air")).closest("tr") as HTMLElement;
-    // The row's name opens the endpoint and its data (T-6095): one menu ends the row, Details its
-    // first item (owner 2026-10-31).
-    const cell = row.lastElementChild as HTMLElement;
+    // The row's name opens the endpoint and its data (T-6095): one menu, Details its first item
+    // (owner 2026-10-31), sits beside the name in the grid's pinned column, so a phone keeps it
+    // in view while the row scrolls (T-6645).
+    const cell = row.querySelector("td") as HTMLElement;
     const open = within(cell).getAllByRole("button");
     expect(open.map((button) => button.getAttribute("aria-label") ?? button.textContent)).toEqual([expect.stringMatching(/More actions/)]);
 

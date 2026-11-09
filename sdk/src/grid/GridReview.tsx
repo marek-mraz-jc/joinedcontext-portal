@@ -49,7 +49,13 @@ export function GridPending({ view, inDialog = false }: { view: GridView; inDial
 
 /** The review before an apply: each change as the grid draws it, what happens to `observedAt`, and why (UI-67). */
 export function GridReview({ view }: { view: GridView }): React.JSX.Element | null {
-  const { open, labels, grid, rowName, columns, where, cellLabels, observed, setObserved, refused, reasonText, setReason, applying, apply } = view;
+  const { open, labels, grid, rowName, columns, where, cellLabels, observed, setObserved, refused, setRefused, askedAgain, reasonText, setReason, applying, apply } = view;
+  // A refused row's own way out, beside its refusal: its pending values go, the others stay.
+  const discardRow = (id: string): void => {
+    const change = grid.pendingChanges.find((one) => one.id === id);
+    grid.setEdits((change?.changes ?? []).map(({ attribute }) => ({ id, attr: attribute, value: undefined })));
+    setRefused(refused.filter((one) => one.id !== id));
+  };
   const { pendingChanges, rows } = grid;
   const reasonHintId = React.useId();
   if (!open) return null;
@@ -80,7 +86,12 @@ export function GridReview({ view }: { view: GridView }): React.JSX.Element | nu
                       ⧉
                     </button>
                   </td>
-                  <td>{columns.find((col) => col.attr === change.attribute && col.meta === null)?.label ?? change.attribute}</td>
+                  {/* A column hidden at this width still has its label in the config. */}
+                  <td>
+                    {columns.find((col) => col.attr === change.attribute && col.meta === null)?.label ??
+                      view.options.config.columns.find((col) => col.attr === change.attribute)?.label ??
+                      change.attribute}
+                  </td>
                   <td>{reviewValue(change, change.before, where, cellLabels)}</td>
                   <td>{reviewValue(change, change.after, where, cellLabels)}</td>
                 </tr>
@@ -90,7 +101,9 @@ export function GridReview({ view }: { view: GridView }): React.JSX.Element | nu
         </table>
       </div>
       {/* What happens to `observedAt`, chosen once for the batch: a corrected value that keeps
-          the old timestamp claims to have been observed then (UI-67). */}
+          the old timestamp claims to have been observed then (UI-67). An OData row has no
+          `observedAt`, so its review asks nothing about it. */}
+      {view.options.config.source.kind !== "odata" && (
       <fieldset>
         <label>
           <input
@@ -111,12 +124,26 @@ export function GridReview({ view }: { view: GridView }): React.JSX.Element | nu
           {labels.observedNow}
         </label>
       </fieldset>
+      )}
       {pendingChanges.length > MAX_ENTITIES && (
         <p className="jc-grid-error">{`${labels.error}: ${MAX_ENTITIES}`}</p>
       )}
-      {refused.map((one) => (
-        <p key={one.id} className="jc-grid-error">{`${one.id}: ${one.detail}`}</p>
-      ))}
+      {/* A refusal is read out when it arrives, under the row's name, not its id. */}
+      {refused.length > 0 && (
+        <div role="alert" className="jc-grid-review-refused">
+          {refused.map((one) => {
+            const row = rows.find((r) => r.id === one.id);
+            return (
+              <div key={one.id} className="jc-grid-review-refusal">
+                <p className="jc-grid-error">{`${row ? rowName(row) : targetName(one.id).name}: ${one.detail}`}</p>
+                <button type="button" onClick={() => discardRow(one.id)}>
+                  {labels.discard}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
       <label className="jc-grid-reason">
         <span>{labels.reason}</span>
         <input
@@ -135,7 +162,8 @@ export function GridReview({ view }: { view: GridView }): React.JSX.Element | nu
       )}
       <button
         type="button"
-        disabled={applying || pendingChanges.length > MAX_ENTITIES || !reasonOk(reasonText)}
+        // Refused values stay pending (the person's only copy); Apply waits until one changes.
+        disabled={applying || askedAgain || pendingChanges.length > MAX_ENTITIES || !reasonOk(reasonText)}
         onClick={() => void apply()}
       >
         {applying ? labels.applying : labels.apply}
