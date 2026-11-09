@@ -284,13 +284,18 @@
 /* A read list first (T-6645): an own row's space picker reads as plain text, like a shared row's
    space beside it, and shows its arrow only under the pointer or the keyboard focus, or while
    it holds a change not applied yet. */
-.jc-endpoints-grid select.jc-grid-cell-input:not(:hover, :focus-visible, [data-changed]) {
-  appearance: none;
+.jc-endpoints-grid .jc-grid-enum:not(:hover, :focus-within, .jc-grid-cell-changed)::after {
+  visibility: hidden;
 }
 
-.jc-endpoints-grid select.jc-grid-cell-input,
+.jc-endpoints-grid .jc-grid-enum,
 .jc-endpoints-space {
   max-width: 14rem;
+}
+
+/* A shared row's space sits where an own row's picked value does. */
+.jc-endpoints-space {
+  border: 1px solid transparent;
 }
 
 @layer base {

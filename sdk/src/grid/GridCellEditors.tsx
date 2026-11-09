@@ -53,25 +53,33 @@ export function EnumCell({
   onChange: (next: string) => void;
 }): React.JSX.Element {
   const outside = value !== "" && !options.some((option) => option.value === value);
+  const chosen = value === "" ? "—" : outside ? `${value} (${notInList})` : optionLabel(options.find((option) => option.value === value) ?? { value });
+  const state = `${changed ? " jc-grid-cell-changed" : ""}${outside ? " jc-grid-cell-invalid" : ""}`;
+  // The chosen value is drawn as text, which ends in an ellipsis when it is wider than its column
+  // (a select clips its text mid-word and shows no ellipsis); the select lies over it, unseen, so
+  // a click, a tap or the keyboard still opens the native list (T-6645).
   return (
-    <select
-      aria-label={label}
-      aria-invalid={outside || undefined}
-      // A value wider than its column ends in an ellipsis (grid.css); the whole value on hover.
-      title={value === "" ? undefined : optionLabel(options.find((option) => option.value === value) ?? { value })}
-      className={`jc-grid-cell-input${changed ? " jc-grid-cell-changed" : ""}${outside ? " jc-grid-cell-invalid" : ""}`}
-      data-changed={changed ? "true" : undefined}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-    >
-      {value === "" && <option value="">—</option>}
-      {outside && <option value={value}>{`${value} (${notInList})`}</option>}
-      {options.map((option) => (
-        <option key={option.value} value={option.value} title={option.description}>
-          {optionLabel(option)}
-        </option>
-      ))}
-    </select>
+    <span className={`jc-grid-enum${state}`} title={value === "" ? undefined : chosen}>
+      <span className="jc-grid-enum-text" aria-hidden="true">
+        {chosen}
+      </span>
+      <select
+        aria-label={label}
+        aria-invalid={outside || undefined}
+        className={`jc-grid-cell-input${state}`}
+        data-changed={changed ? "true" : undefined}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {value === "" && <option value="">—</option>}
+        {outside && <option value={value}>{`${value} (${notInList})`}</option>}
+        {options.map((option) => (
+          <option key={option.value} value={option.value} title={option.description}>
+            {optionLabel(option)}
+          </option>
+        ))}
+      </select>
+    </span>
   );
 }
 

@@ -384,8 +384,47 @@
   border: 1px solid transparent;
 }
 
-select.jc-grid-cell-input {
+/* A value picked from a list: its text with an ellipsis and an arrow, the select unseen over it. */
+.jc-grid-enum {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid transparent;
+}
+
+.jc-grid-enum-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jc-grid-enum::after {
+  content: "";
+  flex: none;
+  width: 0.4em;
+  height: 0.4em;
+  margin: 0 0.25em 0.2em 0.5em;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+}
+
+.jc-grid-enum > select.jc-grid-cell-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.jc-grid-enum:focus-within {
+  outline: 2px solid var(--jc-color-focus, #2563eb);
+  outline-offset: 1px;
 }
 
 .jc-grid-cell-input:focus {
