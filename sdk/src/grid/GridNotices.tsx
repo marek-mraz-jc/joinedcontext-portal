@@ -35,9 +35,10 @@ export function GridNotices({ view }: { view: GridView }): React.JSX.Element {
 
       <GridPending view={view} />
 
-      {filterRow && filterable.size > 0 && !asText && (
+      {/* Over nothing loaded (still reading, a whole read that failed) the toggle folds nothing (T-6693). */}
+      {filterRow && filterable.size > 0 && !asText && (rows.length > 0 || grid.narrowed) && (
         <button type="button" className="jc-grid-filter-toggle" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}>
-          {activeFilters > 0 ? `${labels.filterRow} (${activeFilters})` : labels.filterRow}
+          <span className="jc-grid-filter-toggle-face">{activeFilters > 0 ? `${labels.filterRow} (${activeFilters})` : labels.filterRow}</span>
         </button>
       )}
       {!asText && <FilterChips columns={columns} filterable={filterable} filters={state.filters} labels={labels} locale={where} onRemove={(keys) => setFilter(keys, undefined)} />}
