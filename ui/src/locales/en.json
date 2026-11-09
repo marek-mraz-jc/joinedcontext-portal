@@ -5601,7 +5601,7 @@
       "show": "Show every catalogue",
       "hide": "Hide the catalogues"
     },
-    "find": "Find an endpoint by project, space, name or slug",
+    "find": "Find by name, project or space",
     "allProjects": "Every project",
     "noMatch": "No endpoint matches",
     "noMatchHint": "Clear the search or choose every project to see them all.",
@@ -5610,7 +5610,9 @@
     "previous": "Previous",
     "next": "Next",
     "firstPage": "This is the first page.",
-    "lastPage": "This is the last page."
+    "lastPage": "This is the last page.",
+    "open": "Open",
+    "notPublic": "Only a public endpoint is changed from here. Open it to change it in its project."
   },
   "projects": {
     "loading": "Loading projects…",

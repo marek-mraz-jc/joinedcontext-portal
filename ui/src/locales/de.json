@@ -5601,7 +5601,7 @@
       "show": "Alle Kataloge zeigen",
       "hide": "Kataloge ausblenden"
     },
-    "find": "Endpoint nach Projekt, Raum, Name oder Slug finden",
+    "find": "Nach Name, Projekt, Raum suchen",
     "allProjects": "Alle Projekte",
     "noMatch": "Kein Endpoint passt",
     "noMatchHint": "Leeren Sie die Suche oder wählen Sie alle Projekte.",
@@ -5610,7 +5610,9 @@
     "previous": "Zurück",
     "next": "Weiter",
     "firstPage": "Das ist die erste Seite.",
-    "lastPage": "Das ist die letzte Seite."
+    "lastPage": "Das ist die letzte Seite.",
+    "open": "Öffnen",
+    "notPublic": "Von hier aus wird nur ein öffentlicher Endpoint geändert. Öffnen Sie ihn, um ihn in seinem Projekt zu ändern."
   },
   "projects": {
     "loading": "Projekte werden geladen…",

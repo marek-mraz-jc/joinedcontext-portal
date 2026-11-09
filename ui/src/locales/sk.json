@@ -5601,7 +5601,7 @@
       "show": "Zobraziť všetky katalógy",
       "hide": "Skryť katalógy"
     },
-    "find": "Nájsť endpoint podľa projektu, priestoru, názvu alebo slugu",
+    "find": "Hľadať podľa názvu, projektu, priestoru",
     "allProjects": "Všetky projekty",
     "noMatch": "Žiadny endpoint nezodpovedá",
     "noMatchHint": "Vymažte hľadanie alebo zvoľte všetky projekty.",
@@ -5610,7 +5610,9 @@
     "previous": "Predchádzajúca",
     "next": "Ďalšia",
     "firstPage": "Toto je prvá strana.",
-    "lastPage": "Toto je posledná strana."
+    "lastPage": "Toto je posledná strana.",
+    "open": "Otvoriť",
+    "notPublic": "Odtiaľto sa mení iba verejný endpoint. Otvorte ho a zmeňte v jeho projekte."
   },
   "projects": {
     "loading": "Načítavam projekty…",

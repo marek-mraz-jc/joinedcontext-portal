@@ -90,6 +90,8 @@ export interface ManifestGridProps<T> {
   searchLabel: string;
   /** The page's header around the toolbar, so search, Filter, Columns and Sort share the title's row (owner 2026-10-31). */
   header?: (toolbar: ReactNode) => ReactNode;
+  /** Filter, Columns and Sort drawn as buttons: a toolbar under a section heading, not in a page header, reads them as text otherwise (T-6693). */
+  outlinedTools?: boolean;
   /** Where cell edits go; without it the cell panel only reads. */
   edit?: {
     project: string;
@@ -257,6 +259,7 @@ export function ManifestGrid<T>(props: ManifestGridProps<T>): JSX.Element {
       sort={sort}
       setSort={setSort}
       sortId={`${storageKey}-sort`}
+      outlined={props.outlinedTools}
     />
   );
   return (
@@ -337,6 +340,7 @@ export function GridToolbar<T>({
   sort,
   setSort,
   sortId,
+  outlined,
 }: {
   caption: string;
   rows: T[];
@@ -350,6 +354,7 @@ export function GridToolbar<T>({
   sort: Sort;
   setSort: (next: Sort) => void;
   sortId: string;
+  outlined?: boolean;
 }): JSX.Element {
   const { t } = useTranslation();
   const chips = Object.entries(filters).flatMap(([id, values]) => values.map((value) => ({ id, value })));
@@ -368,7 +373,7 @@ export function GridToolbar<T>({
         </div>
       ) : null}
       {filterable.length > 0 ? (
-        <ToolbarPopover label={t("grid.filter")} count={chips.length} anchored>
+        <ToolbarPopover label={t("grid.filter")} count={chips.length} anchored outlined={outlined}>
           <div className="flex flex-col gap-3">
             {filterable.map((column) => {
               const values = valueCounts(rows, column);
@@ -391,7 +396,7 @@ export function GridToolbar<T>({
           </div>
         </ToolbarPopover>
       ) : null}
-      <ToolbarPopover label={t("grid.columns")}>
+      <ToolbarPopover label={t("grid.columns")} outlined={outlined}>
         <fieldset className="flex flex-col gap-1">
           <legend className="mb-1 text-caption text-fg-muted">{t("grid.columnsHint")}</legend>
           {columns.map((column) => (
@@ -404,7 +409,7 @@ export function GridToolbar<T>({
           ))}
         </fieldset>
       </ToolbarPopover>
-      <ToolbarPopover label={t("grid.sort")} count={sort ? 1 : undefined}>
+      <ToolbarPopover label={t("grid.sort")} count={sort ? 1 : undefined} outlined={outlined}>
         <div className="flex flex-col gap-2">
           <label className="text-caption text-fg-muted" htmlFor={sortId}>
             {t("grid.sortHint")}
