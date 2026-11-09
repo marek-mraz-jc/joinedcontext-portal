@@ -2738,7 +2738,11 @@ a.jc-cell--link:focus-visible {
 .jc-dashboard-bar dd { display: flex; gap: 0.5rem; align-items: center; margin: 0; font-variant-numeric: tabular-nums; }
 .jc-dashboard-bar dd span { block-size: 0.75rem; min-inline-size: 2px; border-radius: 2px; background: var(--jc-color-primary, #2563eb); }
 
-/* The refusal's sentence inside its panel, its Discard under it. */
+/* The refusal's sentence inside its panel, its Discard centred under it. */
+.jc-grid-review-refusal {
+  text-align: center;
+}
+
 .jc-grid-review-refusal .jc-grid-error {
   margin: 0 0 var(--jc-space-2, 8px);
   padding: 0;

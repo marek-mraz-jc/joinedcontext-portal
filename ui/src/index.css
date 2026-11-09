@@ -290,7 +290,7 @@
 
 .jc-endpoints-grid .jc-grid-enum,
 .jc-endpoints-space {
-  max-width: 14rem;
+  max-width: 12rem;
 }
 
 /* A shared row's space sits where an own row's picked value does. */
