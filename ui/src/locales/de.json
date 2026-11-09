@@ -1461,7 +1461,7 @@
       "empty": "Kein Endpoint passt zu diesen Filtern. Entfernen Sie einen Filter oder fügen Sie einen Endpoint hinzu.",
       "filterExampleText": "Luft",
       "filterExampleId": "luftqualitaet",
-      "editAsTextHint": "Schreiben Sie den Filter als Text, z. B. audience==\"public\"",
+      "editAsTextHint": "Schreiben Sie den Filter als Text mit den Spaltennamen",
       "proposed": "Unter Änderungen zur Freigabe vorgeschlagen, Werte:"
     },
     "surfaceFit": {
@@ -1478,6 +1478,7 @@
     "add": "Neuer Endpunkt",
     "edit": "Bearbeiten",
     "addHint": "Antwortet nach der Freigabe.",
+    "emptyHint": "Ein Endpoint macht die Daten eines Context Space für Menschen, Apps und KI lesbar. Ein neuer antwortet nach der Freigabe seiner Änderung.",
     "propose": "Änderung vorschlagen",
     "generateSlug": "Slug erzeugen",
     "copyUrl": "URL kopieren",

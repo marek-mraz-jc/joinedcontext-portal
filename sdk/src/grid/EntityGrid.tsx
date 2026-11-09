@@ -274,18 +274,21 @@ export function GridFrame({ view, children }: { view: GridView; children: React.
 function GridBody(props: EntityGridProps & { onDrill?: (urn: string, type: string) => void }): React.JSX.Element {
   const view = useGridView(props);
   const { toolbar } = props;
+  // A whole read that failed shows only its failure and the retry: no headers, filters, query or
+  // pager around nothing. A narrowed read keeps them, so the person can change what failed.
+  const failed = view.grid.error !== null && view.grid.rows.length === 0 && !view.grid.narrowed;
   return (
     <GridFrame view={view}>
       {toolbar && <div className="jc-grid-toolbar">{toolbar}</div>}
       <GridNotices view={view} />
-      <GridTable view={view} />
+      {!failed && <GridTable view={view} />}
       <GridMapPanel view={view} />
       <GridStatus view={view} />
       <GridDetail view={view} />
       <GridCellPanels view={view} />
       <GridReview view={view} />
-      <GridQueryBox view={view} />
-      <GridPager view={view} />
+      {!failed && <GridQueryBox view={view} />}
+      {!failed && <GridPager view={view} />}
     </GridFrame>
   );
 }

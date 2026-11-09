@@ -282,7 +282,13 @@ const SUMMARY_NAMED = 3;
 export function RepresentationSummary({ served }: { served: string[] }): JSX.Element {
   const { t } = useTranslation();
   const tipId = useId();
-  const [open, setOpen] = useState(false);
+  // Where the tip opens, under its "+N more": fixed to the viewport, because the grid's cell
+  // clips what overflows it and an absolute tip inside the cell was cut away (T-6645 judge).
+  const [open, setOpen] = useState<{ left: number; top: number } | null>(null);
+  const show = (event: { currentTarget: HTMLElement }): void => {
+    const box = event.currentTarget.getBoundingClientRect();
+    setOpen({ left: box.left, top: box.bottom + 4 });
+  };
   if (served.length === 0) {
     return <span className="text-fg-subtle">{t("endpoints.field.noRepresentations")}</span>;
   }
@@ -306,14 +312,14 @@ export function RepresentationSummary({ served }: { served: string[] }): JSX.Ele
             tabIndex={0}
             aria-describedby={tipId}
             className="focus-ring cursor-help rounded-sm border-b border-dotted border-fg-muted text-caption text-fg-muted"
-            onMouseEnter={() => setOpen(true)}
-            onMouseLeave={() => setOpen(false)}
-            onFocus={() => setOpen(true)}
-            onBlur={() => setOpen(false)}
+            onMouseEnter={show}
+            onMouseLeave={() => setOpen(null)}
+            onFocus={show}
+            onBlur={() => setOpen(null)}
             onKeyDown={(event) => {
               if (event.key === "Escape" && open) {
                 event.stopPropagation();
-                setOpen(false);
+                setOpen(null);
               }
             }}
           >
@@ -322,9 +328,10 @@ export function RepresentationSummary({ served }: { served: string[] }): JSX.Ele
           <span
             id={tipId}
             role="tooltip"
+            style={open ? { left: open.left, top: open.top } : undefined}
             className={clsx(
-              "absolute left-0 top-full z-20 mt-1 rounded-md border border-border bg-surface px-2 py-1 text-caption text-fg shadow-2",
-              open ? "block" : "sr-only",
+              "z-50 rounded-md border border-border bg-surface px-2 py-1 text-caption text-fg shadow-2",
+              open ? "fixed block" : "sr-only",
             )}
           >
             {rest.join(", ")}

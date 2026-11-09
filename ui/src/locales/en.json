@@ -1461,7 +1461,7 @@
       "empty": "No endpoint matches these filters. Clear a filter, or add an endpoint.",
       "filterExampleText": "air",
       "filterExampleId": "air-quality",
-      "editAsTextHint": "Write the filter as text, e.g. audience==\"public\"",
+      "editAsTextHint": "Write the filter as text with the column names",
       "proposed": "Proposed for approval under Changes, values:"
     },
     "surfaceFit": {
@@ -1478,6 +1478,7 @@
     "add": "New endpoint",
     "edit": "Edit",
     "addHint": "It answers once the change is approved.",
+    "emptyHint": "An endpoint lets people, apps and AI read a Context Space's data. A new one answers once its change is approved.",
     "propose": "Propose change",
     "generateSlug": "Generate slug",
     "copyUrl": "Copy URL",

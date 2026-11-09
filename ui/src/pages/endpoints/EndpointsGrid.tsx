@@ -36,6 +36,9 @@ export const EDITABLE = ["contextSpace"] as const;
  */
 const SEARCHED = [{ key: "search", attr: "search", kind: "text" as const }];
 
+/** The example the "Edit as text" hint shows: the Audience column's public badge. */
+const QUERY_EXAMPLE = 'audience=="public"';
+
 /** What an OData row of the set holds (src/api/odata.rs PROPERTIES). */
 export interface ODataEndpoint {
   id: string;
@@ -174,6 +177,9 @@ export function EndpointsGrid({
       filterExampleText: t("endpoints.grid.filterExampleText"),
       filterExampleId: t("endpoints.grid.filterExampleId"),
       editAsTextHint: t("endpoints.grid.editAsTextHint"),
+      // A column whose key reads as its label and a value its badge shows, not the first row's
+      // `calls7d` count or an `audience` key such as `project-list`.
+      queryExample: QUERY_EXAMPLE,
       saved: t("endpoints.grid.proposed"),
     }),
     [t],
@@ -248,7 +254,7 @@ export function EndpointsGrid({
     },
     audience: (_cell, rich) => {
       const endpoint = manifestOf(rich);
-      return endpoint ? <SharedWithBadge endpoint={endpoint} /> : "—";
+      return endpoint ? <SharedWithBadge endpoint={endpoint} wrap={phone} /> : "—";
     },
     representations: (_cell, rich) => {
       const endpoint = manifestOf(rich);
@@ -256,7 +262,15 @@ export function EndpointsGrid({
     },
     // Another project's Endpoint is changed where it is published: its space reads as text; the
     // project's own rows keep the grid's picker (undefined leaves the cell to it).
-    contextSpace: (_cell, rich) => (rowOf(rich).kind === "own" ? undefined : <span className="text-fg-muted">{String(rich.raw.contextSpace ?? "—")}</span>),
+    contextSpace: (_cell, rich) => {
+      if (rowOf(rich).kind === "own") return undefined;
+      const space = String(rich.raw.contextSpace ?? "—");
+      return (
+        <span className="jc-endpoints-space block truncate" title={space}>
+          {space}
+        </span>
+      );
+    },
     mcp: (_cell, rich) => (rowOf(rich).kind === "gone" ? "—" : rich.raw.mcp === false ? t("grid.off") : t("grid.on")),
     calls7d: (_cell, rich) => {
       const row = rowOf(rich);

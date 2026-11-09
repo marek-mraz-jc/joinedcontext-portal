@@ -116,6 +116,11 @@ for (const width of [1440, 400]) {
         await more.focus();
         await expect(row.getByRole("tooltip")).toBeVisible();
         await expect(row.getByRole("tooltip")).toHaveText("CSV, SensorThings, OData, WebSocket, iCal");
+        // The tip is drawn whole, not clipped by its cell (T-6645 judge: the shot showed no tip).
+        const tip = await row.getByRole("tooltip").boundingBox();
+        const cell = await more.boundingBox();
+        expect(tip && cell && tip.y >= cell.y + cell.height && tip.width > 100).toBeTruthy();
+        expect(await row.getByRole("tooltip").evaluate((el) => document.elementFromPoint(el.getBoundingClientRect().x + 4, el.getBoundingClientRect().y + 4) === el || el.contains(document.elementFromPoint(el.getBoundingClientRect().x + 4, el.getBoundingClientRect().y + 4)))).toBe(true);
         await page.screenshot({ path: `${SHOTS}/projects_helsinki_endpoints-tip-${width}.png` });
         await page.keyboard.press("Escape");
       }

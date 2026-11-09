@@ -57,6 +57,8 @@ export function EnumCell({
     <select
       aria-label={label}
       aria-invalid={outside || undefined}
+      // A value wider than its column ends in an ellipsis (grid.css); the whole value on hover.
+      title={value === "" ? undefined : optionLabel(options.find((option) => option.value === value) ?? { value })}
       className={`jc-grid-cell-input${changed ? " jc-grid-cell-changed" : ""}${outside ? " jc-grid-cell-invalid" : ""}`}
       data-changed={changed ? "true" : undefined}
       value={value}

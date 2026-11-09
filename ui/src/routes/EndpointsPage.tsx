@@ -1188,6 +1188,8 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
     references: new Map(references.map((each) => [each.metadata.name, each])),
   };
   const anyRow = endpoints.length + shared.length + references.length > 0;
+  // Every list behind the rows answered (another project's list that failed counts as read: its rows are not here).
+  const listsRead = list.isSuccess && referencesQuery.isSuccess && otherLists.every((other) => !other.isPending);
   // The grid reads its rows itself; only a list behind them that changed (a change that landed, a
   // reference made or dropped) reads them again. A list's first answer reloads nothing, and a
   // repeat answer with the same items keeps its data object (React Query's structural sharing), so
@@ -1353,6 +1355,23 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
       {list.isError ? (
         // The page's own list feeds the row menus: without it the rows could not be acted on.
         <PageFailed error={list.error} onRetry={() => void list.refetch()} />
+      ) : !anyRow && !needle.trim() && listsRead ? (
+        // A project with no Endpoint of its own, none shared with it and no reference: the way to
+        // add one, without a grid's filters, query line and pager around nothing.
+        <EmptyState
+          icon="endpoints"
+          title={t("endpoints.empty")}
+          description={t("endpoints.emptyHint")}
+          action={
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              {addButton}
+              {/* What other projects publish is where a person finds one to use here (T-3246). */}
+              <Link to="/endpoints" className={buttonClass("secondary", "md")}>
+                {t("endpoints.shared.browse")}
+              </Link>
+            </div>
+          }
+        />
       ) : (
       <EndpointsGrid
         project={project}
@@ -1400,21 +1419,9 @@ export function EndpointsPage({ project, edit }: { project: string; edit?: strin
               }
             />
           ) : (
-            <EmptyState
-              bare
-              icon="endpoints"
-              title={t("endpoints.empty")}
-              description={t("endpoints.addHint")}
-              action={
-                <div className="flex flex-wrap items-center justify-center gap-3">
-                  {addButton}
-                  {/* What other projects publish is where a person finds one to use here (T-3246). */}
-                  <Link to="/endpoints" className={buttonClass("secondary", "md")}>
-                    {t("endpoints.shared.browse")}
-                  </Link>
-                </div>
-              }
-            />
+            // The project's lists and the OData set disagree for a moment (a change landed between
+            // the two reads): the next read of the lists settles it.
+            <EmptyState bare icon="endpoints" title={t("endpoints.empty")} description={t("endpoints.emptyHint")} action={addButton} />
           )
         }
       />

@@ -196,7 +196,13 @@
   cursor: pointer;
 }
 
+/* A failed read is a panel of its own, the way a failed page is (T-6645 judge: a bare red line):
+   its sentence on a tinted ground and the retry as the one thing to press. */
 .jc-grid-error {
+  margin: var(--jc-space-3, 12px);
+  border: 1px solid color-mix(in srgb, var(--jc-color-danger, #cc0000) 35%, transparent);
+  border-radius: var(--jc-radius-md, 6px);
+  background: color-mix(in srgb, var(--jc-color-danger, #cc0000) 6%, var(--jc-color-surface, #fff));
   color: var(--jc-color-danger, #cc0000);
 }
 
@@ -206,10 +212,10 @@
   margin: var(--jc-space-2, 8px) auto 0;
   min-height: 2.75rem;
   padding: 0 var(--jc-space-4, 16px);
-  border: 1px solid var(--jc-color-border, #d0d0d0);
+  border: 1px solid var(--jc-color-accent, #0066cc);
   border-radius: var(--jc-radius-md, 6px);
-  background: var(--jc-color-surface, #fff);
-  color: var(--jc-color-ink, #1f2937);
+  background: var(--jc-color-accent, #0066cc);
+  color: var(--jc-color-on-primary, #fff);
   cursor: pointer;
 }
 
@@ -246,7 +252,6 @@
 }
 
 .jc-grid-pager button,
-.jc-grid-error button,
 /* Review, Discard and Apply are buttons a person must see as such (T-6645 judge: plain text). */
 .jc-grid-pending > button,
 .jc-grid-review > button {
@@ -379,6 +384,10 @@
   border: 1px solid transparent;
 }
 
+select.jc-grid-cell-input {
+  text-overflow: ellipsis;
+}
+
 .jc-grid-cell-input:focus {
   border-color: currentColor;
 }
@@ -451,8 +460,10 @@
   white-space: normal;
 }
 
+/* A word breaks only when it is longer than the whole box: "anywhere" also let the column
+   shrink below a short word and split "tapahtumat" on a phone (T-6645 judge). */
 .jc-grid-review td {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* A fieldset is as wide as its content by default; the two choices wrap on a phone instead. */

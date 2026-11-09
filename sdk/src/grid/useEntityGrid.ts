@@ -83,6 +83,12 @@ export interface GridLabels {
   editAsTextHint: string;
   /** Before the example query the hint builds from the shown type (T-5415), e.g. "e.g.". */
   exampleLead: string;
+  /**
+   * The example query the hint shows, written by a host that knows a better one than the first
+   * row gives (a column whose key reads as its label, a value a person recognises); empty builds
+   * it from the first row (T-5415).
+   */
+  queryExample?: string;
   /** The query line when nothing narrows the rows. */
   queryAll: string;
   /** Said for a moment after the query was copied. */

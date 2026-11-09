@@ -1461,7 +1461,7 @@
       "empty": "Týmto filtrom nezodpovedá žiadny endpoint. Zrušte filter alebo pridajte endpoint.",
       "filterExampleText": "ovzdušie",
       "filterExampleId": "kvalita-ovzdusia",
-      "editAsTextHint": "Napíšte filter ako text, napríklad audience==\"public\"",
+      "editAsTextHint": "Napíšte filter ako text s názvami stĺpcov",
       "proposed": "Navrhnuté na schválenie v Zmenách, hodnoty:"
     },
     "surfaceFit": {
@@ -1478,6 +1478,7 @@
     "add": "Nový endpoint",
     "edit": "Upraviť",
     "addHint": "Odpovedá po schválení zmeny.",
+    "emptyHint": "Endpoint sprístupní dáta kontextového priestoru ľuďom, aplikáciám a AI. Nový odpovedá po schválení jeho zmeny.",
     "propose": "Navrhnúť zmenu",
     "generateSlug": "Vygenerovať slug",
     "copyUrl": "Kopírovať URL",

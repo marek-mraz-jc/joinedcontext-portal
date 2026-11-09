@@ -1461,7 +1461,7 @@
       "empty": "Těmto filtrům neodpovídá žádný endpoint. Zrušte filtr nebo přidejte endpoint.",
       "filterExampleText": "ovzduší",
       "filterExampleId": "kvalita-ovzdusi",
-      "editAsTextHint": "Napište filtr jako text, například audience==\"public\"",
+      "editAsTextHint": "Napište filtr jako text s názvy sloupců",
       "proposed": "Navrženo ke schválení ve Změnách, hodnoty:"
     },
     "surfaceFit": {
@@ -1478,6 +1478,7 @@
     "add": "Nové rozhraní",
     "edit": "Upravit",
     "addHint": "Odpovídá po schválení změny.",
+    "emptyHint": "Endpoint zpřístupní data kontextového prostoru lidem, aplikacím a AI. Nový odpovídá po schválení jeho změny.",
     "propose": "Navrhnout změnu",
     "generateSlug": "Vygenerovat slug",
     "copyUrl": "Kopírovat URL",
