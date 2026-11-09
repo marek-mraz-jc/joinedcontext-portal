@@ -126,6 +126,8 @@ for (const width of [1440, 400]) {
       await stubApi(page, HELSINKI, { failOData: true });
       await page.goto("/projects/helsinki/endpoints?lang=en");
       await expect(page.getByRole("alert").filter({ hasText: /could not be read right now/ })).toBeVisible();
+      // Nothing loaded: the phone's Filters toggle would fold a filter row that is not there (T-6693).
+      await expect(page.locator(".jc-grid-filter-toggle")).toHaveCount(0);
       expect(await axeViolations(page)).toEqual([]);
       await page.screenshot({ path: join(SHOTS, `error-${width}.png`) });
       // Try again asks the same question; once the service answers, the rows come back.
@@ -162,7 +164,11 @@ for (const width of [1440, 400]) {
       await expect(picker.locator("option", { hasText: "air" })).toHaveCount(1);
       await expect(picker.locator("option", { hasText: "tapahtumat" })).toHaveCount(1);
       await picker.selectOption("air");
-      if (width < 640) await page.setViewportSize({ width, height: 900 });
+      if (width < 640) {
+        await page.setViewportSize({ width, height: 900 });
+        // The phone hides the space column, but not while it holds the pending value (T-6693).
+        await expect(row.locator('td[data-label="Context Space"]')).toBeVisible();
+      }
       await page.getByRole("button", { name: "Review the changes" }).click();
       await page.getByRole("button", { name: "Apply", exact: true }).click();
       await expect(page.getByRole("alert").filter({ hasText: /Helsinki events: You may not change this row\. The space air is not one you may propose into\./ })).toBeVisible();
@@ -176,6 +182,7 @@ for (const width of [1440, 400]) {
       await page.getByRole("alert").getByRole("button", { name: "Discard the changes" }).click();
       await expect(page.getByRole("alert")).toHaveCount(0);
       await expect(page.getByText("1 not applied yet")).toHaveCount(0);
+      if (width < 640) await expect(row.locator('td[data-label="Context Space"]')).toHaveCount(0);
     });
   });
 }
