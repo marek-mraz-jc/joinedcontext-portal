@@ -945,10 +945,14 @@ export function useEntityGrid(options: UseEntityGridOptions): EntityGrid {
     if (rows.length > 0 || shapeRef.current.type !== config.type) shapeRef.current = { type: config.type, rows };
     return shapeRef.current.rows;
   }, [rows, config.type]);
-  const columns = useMemo(
-    () => buildColumns(config, shapeRows, shown, labels, relations, hiddenKey === "" ? [] : hiddenKey.split("\u0000"), layout),
-    [config, shapeRows, shown, labels, relations, hiddenKey, layout],
-  );
+  // A column holding a pending change stays drawn where the host hides it (a phone's few columns,
+  // T-6693): the person sees the value they are about to send in its row, not only in the review.
+  const editedKey = useMemo(() => [...new Set(Object.values(edits).flatMap((attrs) => Object.keys(attrs)))].sort().join("\u0000"), [edits]);
+  const columns = useMemo(() => {
+    const edited = new Set(editedKey.split("\u0000"));
+    const left = hiddenKey === "" ? [] : hiddenKey.split("\u0000").filter((key) => !edited.has(key));
+    return buildColumns(config, shapeRows, shown, labels, relations, left, layout);
+  }, [config, shapeRows, shown, labels, relations, hiddenKey, editedKey, layout]);
   // A source that orders the whole answer is asked to (`orderBy`, CIM 009 4.23), so the first page
   // holds the first rows of the set; elsewhere the order is of the loaded page only (UI-66).
   // The entity's own timestamps are no attribute `orderBy` names here: they sort the page.

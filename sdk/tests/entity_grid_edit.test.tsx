@@ -302,6 +302,24 @@ describe("edit mode", () => {
     expect(written).toHaveLength(0);
   });
 
+  it("keeps a column the host hides in view while it holds a pending change (T-6693)", async () => {
+    const { source } = writable();
+    const config = configOf();
+    const view = render(<EntityGrid config={config} source={source} />);
+    await waitFor(() => expect(screen.getByDisplayValue("5")).toBeInTheDocument());
+    const bikes = () => screen.queryAllByRole("columnheader", { name: /Bikes/ }).length > 0;
+
+    fireEvent.change(screen.getByDisplayValue("5"), { target: { value: "4" } });
+    // The phone's narrower set hides the column: its pending value stays drawn in the row.
+    view.rerender(<EntityGrid config={config} source={source} hidden={["availableBikeNumber"]} />);
+    expect(bikes()).toBe(true);
+    expect(screen.getByDisplayValue("4")).toBeInTheDocument();
+
+    // Once nothing is pending there, the host's choice holds again.
+    fireEvent.click(screen.getByRole("button", { name: DEFAULT_LABELS.discard }));
+    await waitFor(() => expect(bikes()).toBe(false));
+  });
+
   it("offers no editing on a surface that takes no writes, or outside edit mode", async () => {
     // A viewer reads through a source without `patch`: there is nothing to type into.
     render(<EntityGrid config={configOf()} source={fixtureSource(entities)} />);
