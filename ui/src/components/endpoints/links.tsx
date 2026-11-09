@@ -270,13 +270,17 @@ export function CopyUrlButton({ url, label, spoken }: { url: string; label?: str
   );
 }
 
-/** The surfaces a summary names first: the ones most people connect with (T-4989). */
+/**
+ * The surfaces a summary names first: the ones most people connect with (T-4989). Two are named:
+ * a third ("OGC Features") was cut in the Endpoints grid's column at 1440 px (T-6694).
+ */
 const SUMMARY_FIRST = ["ngsi-ld", "mcp", "ogc-features"];
-const SUMMARY_NAMED = 3;
+const SUMMARY_NAMED = 2;
 
 /**
- * What an endpoint serves in one line for a list row (T-4989): the three main surfaces by name
- * and "+N more" for the rest, which a hover or keyboard focus shows and a screen reader reads.
+ * What an endpoint serves in one line for a list row (T-4989): the two main surfaces by name
+ * and "+N more" for the rest. A hover or keyboard focus shows every surface, the named ones too, so
+ * a name the cell cuts is read whole (T-6694), and a screen reader reads the same list.
  * The per-surface links are on the endpoint's own page.
  */
 export function RepresentationSummary({ served }: { served: string[] }): JSX.Element {
@@ -284,10 +288,13 @@ export function RepresentationSummary({ served }: { served: string[] }): JSX.Ele
   const tipId = useId();
   // Where the tip opens, under its "+N more": fixed to the viewport, because the grid's cell
   // clips what overflows it and an absolute tip inside the cell was cut away (T-6645 judge).
-  const [open, setOpen] = useState<{ left: number; top: number } | null>(null);
+  // In the right half of the screen it opens leftwards from the "+N more", so the whole list
+  // stays on screen (T-6694: the last column's tip ran past the window's edge).
+  const [open, setOpen] = useState<{ left?: number; right?: number; top: number } | null>(null);
   const show = (event: { currentTarget: HTMLElement }): void => {
     const box = event.currentTarget.getBoundingClientRect();
-    setOpen({ left: box.left, top: box.bottom + 4 });
+    const top = box.bottom + 4;
+    setOpen(box.left > window.innerWidth / 2 ? { right: window.innerWidth - box.right, top } : { left: box.left, top });
   };
   if (served.length === 0) {
     return <span className="text-fg-subtle">{t("endpoints.field.noRepresentations")}</span>;
@@ -311,7 +318,7 @@ export function RepresentationSummary({ served }: { served: string[] }): JSX.Ele
           <span
             tabIndex={0}
             aria-describedby={tipId}
-            className="focus-ring cursor-help rounded-sm border-b border-dotted border-fg-muted text-caption text-fg-muted"
+            className="focus-ring-inset shrink-0 cursor-help rounded-sm border-b border-dotted border-fg-muted px-1.5 py-0.5 text-caption text-fg-muted"
             onMouseEnter={show}
             onMouseLeave={() => setOpen(null)}
             onFocus={show}
@@ -328,13 +335,13 @@ export function RepresentationSummary({ served }: { served: string[] }): JSX.Ele
           <span
             id={tipId}
             role="tooltip"
-            style={open ? { left: open.left, top: open.top } : undefined}
+            style={open ? { left: open.left, right: open.right, top: open.top } : undefined}
             className={clsx(
-              "z-50 rounded-md border border-border bg-surface px-2 py-1 text-caption text-fg shadow-2",
+              "z-50 max-w-md whitespace-normal rounded-md border border-border bg-surface px-2 py-1 text-caption text-fg shadow-2",
               open ? "fixed block" : "sr-only",
             )}
           >
-            {rest.join(", ")}
+            {labels.join(", ")}
           </span>
         </>
       ) : null}

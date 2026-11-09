@@ -10,6 +10,7 @@ import { useState } from "react";
 import { EntityGrid } from "../src/grid/EntityGrid";
 import { parseGridConfig } from "../src/grid/config";
 import { fixtureSource } from "../src/grid/source";
+import { DEFAULT_LABELS } from "../src/grid/useEntityGrid";
 import type { FilterColumn } from "../src/grid/filters";
 
 const entities = ["Kamppi", "Kallio", "Töölö", "Pasila"].map((name, i) => ({
@@ -184,6 +185,8 @@ describe("EntityGrid read error (T-6645)", () => {
     expect(container.querySelector("table")).toBeNull();
     expect(container.querySelector(".jc-grid-query")).toBeNull();
     expect(container.querySelector(".jc-grid-pager")).toBeNull();
+    // The phone's Filters toggle folds a filter row that is not drawn either (T-6693).
+    expect(screen.queryByRole("button", { name: DEFAULT_LABELS.filterRow })).toBeNull();
   });
 
   it("keeps the filters of a narrowed read that failed, so the person can change what failed", async () => {

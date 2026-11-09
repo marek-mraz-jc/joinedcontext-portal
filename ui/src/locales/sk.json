@@ -1462,7 +1462,8 @@
       "filterExampleText": "ovzdušie",
       "filterExampleId": "kvalita-ovzdusia",
       "editAsTextHint": "Napíšte filter ako text s názvami stĺpcov",
-      "proposed": "Navrhnuté na schválenie v Zmenách, hodnoty:"
+      "proposed": "Navrhnuté na schválenie v Zmenách, hodnoty:",
+      "searching": "Endpointy, ktorých názov alebo nadpis obsahuje „{text}“, bez ohľadu na veľkosť písmen."
     },
     "surfaceFit": {
       "lead": "Dátový model priestoru {space} tieto štandardy nedokáže poskytovať, preto sú ich políčka sivé:",
@@ -5601,7 +5602,7 @@
       "show": "Zobraziť všetky katalógy",
       "hide": "Skryť katalógy"
     },
-    "find": "Nájsť endpoint podľa projektu, priestoru, názvu alebo slugu",
+    "find": "Hľadať podľa názvu, projektu, priestoru",
     "allProjects": "Všetky projekty",
     "noMatch": "Žiadny endpoint nezodpovedá",
     "noMatchHint": "Vymažte hľadanie alebo zvoľte všetky projekty.",
@@ -5610,7 +5611,9 @@
     "previous": "Predchádzajúca",
     "next": "Ďalšia",
     "firstPage": "Toto je prvá strana.",
-    "lastPage": "Toto je posledná strana."
+    "lastPage": "Toto je posledná strana.",
+    "open": "Otvoriť",
+    "notPublic": "Odtiaľto sa mení iba verejný endpoint. Otvorte ho a zmeňte v jeho projekte."
   },
   "projects": {
     "loading": "Načítavam projekty…",
@@ -5757,6 +5760,8 @@
     "undoReason": "Vrátené späť",
     "undone": "Zmena bola vrátená späť.",
     "refusedHere": "odmietnuté",
+    "discardRow": "Zahodiť zmeny tohto riadku",
+    "applyWaits": "Uplatniť čaká: zmeňte odmietnutú hodnotu alebo ju zahoďte, inak príde rovnaká odpoveď.",
     "notInList": "nie je v zozname",
     "relationSearch": "Hľadať",
     "relationNone": "Nič, čo môžete čítať, sa nezhoduje",

@@ -263,6 +263,8 @@ export function gridLabels(t: (key: string, values?: Record<string, string>) => 
     undoReason: t("entityGrid.undoReason"),
     undone: t("entityGrid.undone"),
     refusedHere: t("entityGrid.refusedHere"),
+    discardRow: t("entityGrid.discardRow"),
+    applyWaits: t("entityGrid.applyWaits"),
     notInList: t("entityGrid.notInList"),
     relationSearch: t("entityGrid.relationSearch"),
     relationNone: t("entityGrid.relationNone"),

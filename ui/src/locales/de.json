@@ -1462,7 +1462,8 @@
       "filterExampleText": "Luft",
       "filterExampleId": "luftqualitaet",
       "editAsTextHint": "Schreiben Sie den Filter als Text mit den Spaltennamen",
-      "proposed": "Unter Änderungen zur Freigabe vorgeschlagen, Werte:"
+      "proposed": "Unter Änderungen zur Freigabe vorgeschlagen, Werte:",
+      "searching": "Endpunkte, deren Name oder Titel „{text}“ enthält, ohne Rücksicht auf Groß- und Kleinschreibung."
     },
     "surfaceFit": {
       "lead": "Das Datenmodell des Raums {space} kann diese Standards nicht bedienen, daher sind ihre Felder ausgegraut:",
@@ -5601,7 +5602,7 @@
       "show": "Alle Kataloge zeigen",
       "hide": "Kataloge ausblenden"
     },
-    "find": "Endpoint nach Projekt, Raum, Name oder Slug finden",
+    "find": "Nach Name, Projekt, Raum suchen",
     "allProjects": "Alle Projekte",
     "noMatch": "Kein Endpoint passt",
     "noMatchHint": "Leeren Sie die Suche oder wählen Sie alle Projekte.",
@@ -5610,7 +5611,9 @@
     "previous": "Zurück",
     "next": "Weiter",
     "firstPage": "Das ist die erste Seite.",
-    "lastPage": "Das ist die letzte Seite."
+    "lastPage": "Das ist die letzte Seite.",
+    "open": "Öffnen",
+    "notPublic": "Von hier aus wird nur ein öffentlicher Endpoint geändert. Öffnen Sie ihn, um ihn in seinem Projekt zu ändern."
   },
   "projects": {
     "loading": "Projekte werden geladen…",
@@ -5757,6 +5760,8 @@
     "undoReason": "Rückgängig gemacht",
     "undone": "Die Änderung wurde rückgängig gemacht.",
     "refusedHere": "abgelehnt",
+    "discardRow": "Änderungen dieser Zeile verwerfen",
+    "applyWaits": "Anwenden wartet: Ändern Sie den abgelehnten Wert oder verwerfen Sie ihn, sonst kommt dieselbe Antwort.",
     "notInList": "nicht in der Liste",
     "relationSearch": "Suchen",
     "relationNone": "Nichts, was Sie lesen dürfen, passt",

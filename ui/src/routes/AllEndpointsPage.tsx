@@ -114,7 +114,8 @@ export function AllEndpointsPage(): JSX.Element {
                 data-row-link=""
                 to="/projects/$project/$plural/$name"
                 params={{ project, plural: "endpoints", name: endpoint.metadata.name }}
-                className="focus-ring inline-block max-w-56 truncate rounded-sm align-bottom text-fg hover:text-primary-soft-fg"
+                title={localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
+                className="focus-ring inline-block max-w-full rounded-sm align-bottom text-fg hover:text-primary-soft-fg max-sm:line-clamp-2 max-sm:break-words sm:max-w-md sm:truncate"
               >
                 {localized(endpoint.metadata.title, locale, endpoint.metadata.name)}
               </Link>
@@ -155,7 +156,7 @@ export function AllEndpointsPage(): JSX.Element {
                   params={{ plural: "spaces", project, name: space }}
                   aria-label={`${t("spaces.inside.open")}: ${project}/${space}`}
                   title={space}
-                  className="focus-ring truncate rounded-sm font-mono text-caption text-fg-muted hover:text-primary-soft-fg"
+                  className="focus-ring inline-block max-w-full truncate rounded-sm align-bottom text-fg-muted hover:text-primary-soft-fg"
                 >
                   {space}
                 </Link>
@@ -178,9 +179,10 @@ export function AllEndpointsPage(): JSX.Element {
             cell: (row) => <RepresentationSummary served={servedRepresentations(specOf(row))} />,
           },
         ]}
-        actions={(row) =>
-          specOf(row).audience === "public" ? <PublicEndpointActions project={row.project} name={row.endpoint.metadata.name} /> : null
-        }
+        outlinedTools
+        actions={(row) => (
+          <EndpointRowActions project={row.project} name={row.endpoint.metadata.name} isPublic={specOf(row).audience === "public"} />
+        )}
         empty={<EmptyState bare icon="endpoints" title={t("allEndpoints.empty")} description={t("allEndpoints.emptyHint")} />}
       />
       <CkanInstancesAccess />
@@ -189,11 +191,13 @@ export function AllEndpointsPage(): JSX.Element {
 }
 
 /**
- * What the project's own Endpoint page offers on a public Endpoint, here for every project
- * (PF-61): edit it (its audience and publication are fields of the form) and delete it. Each is
- * a Change in that project's repository through the project's own doors, in its normal lane.
+ * Every row's menu: open the Endpoint's page, and on a public Endpoint what the project's own
+ * Endpoint page offers, here for every project (PF-61): edit it (its audience and publication are
+ * fields of the form) and delete it. Each is a Change in that project's repository through the
+ * project's own doors, in its normal lane. A row that is not public keeps both, disabled with the
+ * reason, so no row is left without a menu (T-6693).
  */
-function PublicEndpointActions({ project, name }: { project: string; name: string }): JSX.Element {
+export function EndpointRowActions({ project, name, isPublic }: { project: string; name: string; isPublic: boolean }): JSX.Element {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const permissions = usePermissions(project);
@@ -202,24 +206,30 @@ function PublicEndpointActions({ project, name }: { project: string; name: strin
   const target = { project, kind: "Endpoint", plural: "endpoints", name, label };
   // One menu, not two buttons, so the row keeps to the table's width (T-4989); an action the
   // role does not grant stays in it, disabled, with the reason (UI-44).
+  const notPublic = isPublic ? undefined : t("allEndpoints.notPublic");
   const actions: RowAction[] = [
+    {
+      key: "open",
+      label: t("allEndpoints.open"),
+      onSelect: () => void navigate({ to: "/projects/$project/$plural/$name", params: { project, plural: "endpoints", name } }),
+    },
     {
       key: "edit",
       label: t("allEndpoints.editShort"),
       onSelect: () =>
         void navigate({ to: "/projects/$project/$plural/$name/edit", params: { project, plural: "endpoints", name } }),
-      disabledReason: permissions.can("Endpoint", "propose")
-        ? undefined
-        : t("permissions.denied", { verb: "propose", kind: "Endpoint" }),
+      disabledReason:
+        notPublic ??
+        (permissions.can("Endpoint", "propose") ? undefined : t("permissions.denied", { verb: "propose", kind: "Endpoint" })),
     },
     {
       key: "delete",
       label: t("resourceDelete.button"),
       tone: "danger",
       onSelect: () => setDeleting(true),
-      disabledReason: permissions.can("Endpoint", "delete")
-        ? undefined
-        : t("permissions.denied", { verb: "delete", kind: "Endpoint" }),
+      disabledReason:
+        notPublic ??
+        (permissions.can("Endpoint", "delete") ? undefined : t("permissions.denied", { verb: "delete", kind: "Endpoint" })),
     },
   ];
   return (

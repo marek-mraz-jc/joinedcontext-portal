@@ -101,6 +101,8 @@ for (const width of [1440, 400]) {
       await expect(grid(page).getByRole("link", { name: "Noise sensors" })).toBeVisible();
       await expect(grid(page).getByRole("link", { name: "Air quality and weather" })).toHaveCount(0);
       expect(reads.some((url) => url.includes("contains(search,'noise')"))).toBe(true);
+      // The search in words beside the copyable q under the rows (T-6694).
+      await expect(page.getByRole("status").filter({ hasText: "Endpoints whose name or title contains “NOISE”, in any case." })).toBeVisible();
       await settled(page);
       await page.screenshot({ path: join(SHOTS, `search-${width}.png`) });
     });
@@ -126,6 +128,8 @@ for (const width of [1440, 400]) {
       await stubApi(page, HELSINKI, { failOData: true });
       await page.goto("/projects/helsinki/endpoints?lang=en");
       await expect(page.getByRole("alert").filter({ hasText: /could not be read right now/ })).toBeVisible();
+      // Nothing loaded: the phone's Filters toggle would fold a filter row that is not there (T-6693).
+      await expect(page.locator(".jc-grid-filter-toggle")).toHaveCount(0);
       expect(await axeViolations(page)).toEqual([]);
       await page.screenshot({ path: join(SHOTS, `error-${width}.png`) });
       // Try again asks the same question; once the service answers, the rows come back.
@@ -162,20 +166,33 @@ for (const width of [1440, 400]) {
       await expect(picker.locator("option", { hasText: "air" })).toHaveCount(1);
       await expect(picker.locator("option", { hasText: "tapahtumat" })).toHaveCount(1);
       await picker.selectOption("air");
-      if (width < 640) await page.setViewportSize({ width, height: 900 });
+      if (width < 640) {
+        await page.setViewportSize({ width, height: 900 });
+        // The phone hides the space column, but not while it holds the pending value (T-6693).
+        await expect(row.locator('td[data-label="Context Space"]')).toBeVisible();
+      }
       await page.getByRole("button", { name: "Review the changes" }).click();
       await page.getByRole("button", { name: "Apply", exact: true }).click();
       await expect(page.getByRole("alert").filter({ hasText: /Helsinki events: You may not change this row\. The space air is not one you may propose into\./ })).toBeVisible();
       // The same value would be refused again: Apply waits until the person changes it or discards it.
-      await expect(page.getByRole("button", { name: "Apply", exact: true })).toBeDisabled();
+      const apply = page.getByRole("button", { name: "Apply", exact: true });
+      await expect(apply).toBeDisabled();
+      // ... and says why beside it (T-6694), and the refused row says "refused" in the grid itself.
+      await expect(apply).toHaveAccessibleDescription("Apply waits: change the refused value or discard it, or the same answer comes back.");
+      await expect(row.locator(".jc-grid-refused-mark")).toHaveText("refused");
+      await expect(grid(page).locator(".jc-grid-refused-mark")).toHaveCount(1);
       expect(writes).toEqual([]);
       // The rows are read again after the apply; the shot waits for them.
       await expect(page.locator(".jc-grid-loading")).toHaveCount(0);
+      await expect(page.locator('.jc-grid-table[aria-busy="true"]')).toHaveCount(0);
       await page.screenshot({ path: join(SHOTS, `refused-${width}.png`) });
       // The refusal's own Discard drops that row's change, and its refusal with it.
-      await page.getByRole("alert").getByRole("button", { name: "Discard the changes" }).click();
+      // Its own label: the toolbar's "Discard the changes" drops every pending value (T-6694).
+      await page.getByRole("alert").getByRole("button", { name: "Discard this row's changes" }).click();
+      await expect(grid(page).locator(".jc-grid-refused-mark")).toHaveCount(0);
       await expect(page.getByRole("alert")).toHaveCount(0);
       await expect(page.getByText("1 not applied yet")).toHaveCount(0);
+      if (width < 640) await expect(row.locator('td[data-label="Context Space"]')).toHaveCount(0);
     });
   });
 }

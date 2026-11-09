@@ -111,11 +111,24 @@ for (const width of [1440, 400]) {
         await expectOneLineRows(own);
         // The rest of what an endpoint serves is one Tab away, read out and shown.
         const row = own.getByRole("row").filter({ hasText: "Air quality and weather in Helsinki" });
-        await expect(row.getByText("NGSI-LD, MCP, OGC Features")).toBeVisible();
-        const more = row.getByText("+5 more");
+        await expect(row.getByText("NGSI-LD, MCP", { exact: true })).toBeVisible();
+        // Room goes to the columns that cut their text, not to a header over a count (T-6694):
+        // the title and the two named surfaces are whole.
+        for (const text of [row.getByRole("link", { name: "Air quality and weather in Helsinki" }), row.getByText("NGSI-LD, MCP", { exact: true })]) {
+          expect(await text.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+        }
+        const more = row.getByText("+6 more");
         await more.focus();
+        // Its focus ring is drawn whole inside the cell, which clips what passes its edge.
+        const ring = await more.evaluate((el) => {
+          const box = el.getBoundingClientRect();
+          const cell = (el.closest("td") as HTMLElement).getBoundingClientRect();
+          return box.left >= cell.left && box.right <= cell.right && box.top >= cell.top && box.bottom <= cell.bottom && getComputedStyle(el).outlineOffset.startsWith("-");
+        });
+        expect(ring, "the +N more ring inside its cell").toBe(true);
         await expect(row.getByRole("tooltip")).toBeVisible();
-        await expect(row.getByRole("tooltip")).toHaveText("CSV, SensorThings, OData, WebSocket, iCal");
+        // The tip names every surface, the named ones too, so a name the cell cut is read whole.
+        await expect(row.getByRole("tooltip")).toHaveText("NGSI-LD, MCP, OGC Features, CSV, SensorThings, OData, WebSocket, iCal");
         // The tip is drawn whole, not clipped by its cell (T-6645 judge: the shot showed no tip).
         const tip = await row.getByRole("tooltip").boundingBox();
         const cell = await more.boundingBox();

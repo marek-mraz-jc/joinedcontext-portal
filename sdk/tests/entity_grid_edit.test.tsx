@@ -238,8 +238,13 @@ describe("edit mode", () => {
     // The refusal is read out, and Apply waits: the same value would be refused again (T-6645).
     expect(within(panel).getByRole("alert")).toHaveTextContent("may not write availableBikeNumber");
     expect(within(panel).getByRole("button", { name: DEFAULT_LABELS.apply })).toBeDisabled();
+    // Apply says why it waits, and the refused row says "refused" in words, not only by its frame (T-6694).
+    expect(within(panel).getByRole("button", { name: DEFAULT_LABELS.apply })).toHaveAccessibleDescription(DEFAULT_LABELS.applyWaits);
+    expect(document.querySelectorAll("tr[data-refused] .jc-grid-refused-mark")).toHaveLength(1);
+    expect(document.querySelector("tr[data-refused] .jc-grid-refused-mark")).toHaveTextContent(DEFAULT_LABELS.refusedHere);
     fireEvent.change(screen.getByDisplayValue("2"), { target: { value: "1" } });
     await waitFor(() => expect(within(panel).getByRole("button", { name: DEFAULT_LABELS.apply })).toBeEnabled());
+    expect(within(panel).getByRole("button", { name: DEFAULT_LABELS.apply })).not.toHaveAccessibleDescription(DEFAULT_LABELS.applyWaits);
   });
 
   it("drops a refused row's change from the Discard beside its refusal (T-6645)", async () => {
@@ -252,7 +257,7 @@ describe("edit mode", () => {
     const panel = screen.getByRole("region", { name: DEFAULT_LABELS.review });
     fireEvent.click(within(panel).getByRole("button", { name: DEFAULT_LABELS.apply }));
     const alert = await within(panel).findByRole("alert");
-    fireEvent.click(within(alert).getByRole("button", { name: DEFAULT_LABELS.discard }));
+    fireEvent.click(within(alert).getByRole("button", { name: DEFAULT_LABELS.discardRow }));
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
     expect(screen.getByDisplayValue("3")).toBeInTheDocument();
     expect(screen.queryByText(`1 ${DEFAULT_LABELS.pending}`)).toBeNull();
@@ -300,6 +305,24 @@ describe("edit mode", () => {
     expect(screen.queryByText(`1 ${DEFAULT_LABELS.pending}`)).toBeNull();
     expect(screen.getByDisplayValue("5")).toBeInTheDocument();
     expect(written).toHaveLength(0);
+  });
+
+  it("keeps a column the host hides in view while it holds a pending change (T-6693)", async () => {
+    const { source } = writable();
+    const config = configOf();
+    const view = render(<EntityGrid config={config} source={source} />);
+    await waitFor(() => expect(screen.getByDisplayValue("5")).toBeInTheDocument());
+    const bikes = () => screen.queryAllByRole("columnheader", { name: /Bikes/ }).length > 0;
+
+    fireEvent.change(screen.getByDisplayValue("5"), { target: { value: "4" } });
+    // The phone's narrower set hides the column: its pending value stays drawn in the row.
+    view.rerender(<EntityGrid config={config} source={source} hidden={["availableBikeNumber"]} />);
+    expect(bikes()).toBe(true);
+    expect(screen.getByDisplayValue("4")).toBeInTheDocument();
+
+    // Once nothing is pending there, the host's choice holds again.
+    fireEvent.click(screen.getByRole("button", { name: DEFAULT_LABELS.discard }));
+    await waitFor(() => expect(bikes()).toBe(false));
   });
 
   it("offers no editing on a surface that takes no writes, or outside edit mode", async () => {

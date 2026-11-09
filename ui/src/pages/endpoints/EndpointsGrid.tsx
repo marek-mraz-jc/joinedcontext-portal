@@ -83,6 +83,21 @@ export function pageRow(project: string, row: ODataEndpoint, manifests: Endpoint
   return { key: `gone/${row.name}`, source: null, own: false, endpoint: null, reference: manifests.references.get(row.name) ?? null };
 }
 
+/**
+ * The header's search in words, where the rows start: the query line under the rows is the
+ * copyable q (`search~="(?i)noise"`), which a person reads less easily (T-6694 judge).
+ */
+export function SearchLine({ text }: { text: string }): JSX.Element | null {
+  const { t } = useTranslation();
+  const said = text.trim();
+  if (said === "") return null;
+  return (
+    <p className="mb-2 text-body text-fg" role="status">
+      {t("endpoints.grid.searching", { text: said })}
+    </p>
+  );
+}
+
 export function EndpointsGrid({
   project,
   search,
@@ -116,14 +131,14 @@ export function EndpointsGrid({
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const navigate = useNavigate();
   // MCP is one of the surfaces the Representations column names, so its own column stays under
-  // the header menu's fields. A phone shows a row's name (its source and state under it) and its
-  // audience, so nothing scrolls sideways; its space, surfaces and calls are on the Endpoint's own
+  // the header menu's fields. A phone shows a row's name with its source, state and audience under
+  // it, so nothing scrolls sideways, not even beside a space column kept for a pending change (T-6693); its space, surfaces and calls are on the Endpoint's own
   // page, one tap away.
   const phone = useIsPhone();
   const hidden = useMemo(
     () =>
       phone
-        ? ["entity:type", "mcp", "search", "source", "contextSpace", "representations", "calls7d", "phase"]
+        ? ["entity:type", "mcp", "search", "source", "contextSpace", "audience", "representations", "calls7d", "phase"]
         : ["entity:type", "mcp", "search"],
     [phone],
   );
@@ -196,8 +211,8 @@ export function EndpointsGrid({
       const page = pageRow(project, row, manifests);
       const name = page.endpoint ? localized(page.endpoint.metadata.title, locale, row.name) : label(page) || row.title || row.name;
       return (
-        <div className="flex min-w-0 items-center justify-between gap-2">
-          <div className={phone ? "flex min-w-0 flex-col items-start gap-1" : "flex w-60 min-w-0 items-baseline gap-2 whitespace-nowrap"}>
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <div className={phone ? "flex min-w-0 flex-col items-start gap-1" : "flex min-w-0 items-baseline gap-2 whitespace-nowrap"}>
             {row.kind === "gone" ? (
               <>
                 <span className="truncate font-mono">{name}</span>
@@ -213,13 +228,14 @@ export function EndpointsGrid({
                 >
                   {name}
                 </Link>
-                {/* The phone's Source and State columns, under the name. */}
+                {/* The phone's Source, State and Audience columns, under the name. */}
                 {phone && row.kind === "shared" && row.source ? (
                   <Badge tone="info" className="whitespace-nowrap">
                     {t("endpoints.source.shared", { project: row.source })}
                   </Badge>
                 ) : null}
                 {phone && row.kind === "own" && row.phase && row.phase !== "Live" ? <LifecycleBadge kind="phase" value={row.phase} /> : null}
+                {phone && page.endpoint ? <SharedWithBadge endpoint={page.endpoint} wrap /> : null}
                 {/* Below `sm` a row is the title, the state and the action (UI-27, T-4214); the
                     manifest name waits for a wide screen (2xl, T-6169). */}
                 {page.endpoint?.metadata.title ? (
@@ -284,7 +300,9 @@ export function EndpointsGrid({
     },
   };
   return (
-    <PortalEntityGrid
+    <>
+      <SearchLine text={asked} />
+      <PortalEntityGrid
       project={project}
       config={config}
       query={query}
@@ -303,6 +321,7 @@ export function EndpointsGrid({
       className="jc-endpoints-grid"
       openRow={detail}
       onOpenRow={openRow}
-    />
+      />
+    </>
   );
 }

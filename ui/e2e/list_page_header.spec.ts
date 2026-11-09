@@ -84,9 +84,9 @@ for (const width of [1440, 400]) {
 
     // The description shows on hover of the info mark.
     await page.getByRole("button", { name: "About this page" }).hover();
-    await expect(page.getByRole("tooltip")).toBeVisible();
+    await expect(page.getByRole("tooltip", { name: /^Where a space/ })).toBeVisible();
     // The open description covers none of the header's controls, at 400 px neither (T-6095 review).
-    const tip = (await page.getByRole("tooltip").boundingBox())!;
+    const tip = (await page.getByRole("tooltip", { name: /^Where a space/ }).boundingBox())!;
     for (const control of [
       page.getByRole("searchbox", { name: "Find an endpoint" }),
       page.getByRole("button", { name: "Connect AI" }),

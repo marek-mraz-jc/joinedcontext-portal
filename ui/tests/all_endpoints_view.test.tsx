@@ -147,7 +147,7 @@ describe("all endpoints view", () => {
   });
 
   // PF-61, PF-107 (T-3046): a public Endpoint of any project carries the project page's own
-  // actions, a non-public one none; the catalogues are asked for only when the administrator
+  // actions, a non-public one only Open (T-6693); the catalogues are asked for only when the administrator
   // opens their list, and each opens onto its Access panel.
   it("offers edit and delete on a public endpoint of any project, and the catalogues' access when asked", async () => {
     const MAY = { project: "x", bootstrap: false, grants: [{ rule: { kinds: ["Endpoint"], verbs: ["read", "propose", "delete"] } }] };
@@ -165,8 +165,15 @@ describe("all endpoints view", () => {
     await userEvent.click(screen.getByRole("menuitem", { name: "Remove" }));
     expect(await screen.findByRole("dialog")).toHaveTextContent("helsinki/helsinki-bikes");
     await userEvent.keyboard("{Escape}");
+    // A non-public row keeps its menu (T-6693): Open, and Edit and Remove disabled with the reason.
     const events = within(table).getByText("helsinki-events").closest("tr") as HTMLTableRowElement;
-    expect(within(events).queryByRole("button", { name: /More actions/ })).toBeNull();
+    await userEvent.click(within(events).getByRole("button", { name: "More actions for helsinki/helsinki-events" }));
+    expect(await screen.findByRole("menuitem", { name: en.allEndpoints.open })).not.toHaveAttribute("aria-disabled");
+    const edit = screen.getByRole("menuitem", { name: new RegExp(`^Edit`) });
+    expect(edit).toHaveAttribute("aria-disabled", "true");
+    expect(edit).toHaveAccessibleDescription(en.allEndpoints.notPublic);
+    expect(screen.getByRole("menuitem", { name: /^Remove/ })).toHaveAttribute("aria-disabled", "true");
+    await userEvent.keyboard("{Escape}");
 
     const show = screen.getByRole("button", { name: en.allEndpoints.ckan.show });
     expect(show).toHaveAttribute("aria-expanded", "false");

@@ -1462,7 +1462,8 @@
       "filterExampleText": "air",
       "filterExampleId": "air-quality",
       "editAsTextHint": "Write the filter as text with the column names",
-      "proposed": "Proposed for approval under Changes, values:"
+      "proposed": "Proposed for approval under Changes, values:",
+      "searching": "Endpoints whose name or title contains “{text}”, in any case."
     },
     "surfaceFit": {
       "lead": "The data model of space {space} cannot serve these standards, so their boxes are greyed out:",
@@ -5601,7 +5602,7 @@
       "show": "Show every catalogue",
       "hide": "Hide the catalogues"
     },
-    "find": "Find an endpoint by project, space, name or slug",
+    "find": "Find by name, project or space",
     "allProjects": "Every project",
     "noMatch": "No endpoint matches",
     "noMatchHint": "Clear the search or choose every project to see them all.",
@@ -5610,7 +5611,9 @@
     "previous": "Previous",
     "next": "Next",
     "firstPage": "This is the first page.",
-    "lastPage": "This is the last page."
+    "lastPage": "This is the last page.",
+    "open": "Open",
+    "notPublic": "Only a public endpoint is changed from here. Open it to change it in its project."
   },
   "projects": {
     "loading": "Loading projects…",
@@ -5757,6 +5760,8 @@
     "undoReason": "Undo",
     "undone": "The change was undone.",
     "refusedHere": "refused",
+    "discardRow": "Discard this row's changes",
+    "applyWaits": "Apply waits: change the refused value or discard it, or the same answer comes back.",
     "notInList": "not in the list",
     "relationSearch": "Search",
     "relationNone": "Nothing you can read matches",
