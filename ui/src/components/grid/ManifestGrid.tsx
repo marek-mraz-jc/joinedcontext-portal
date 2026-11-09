@@ -471,8 +471,9 @@ export function GridRow<T>({
 }): JSX.Element {
   const { t } = useTranslation();
   return (
-    <TableRow>
-      <TableCell primary className="align-middle">
+    // A phone card carries its menu at the top right, beside the name, not on a line of its own (T-6693).
+    <TableRow className="max-sm:relative">
+      <TableCell primary className="align-middle max-sm:pr-14">
         {name.cell ? name.cell(row) : name.text(row)}
       </TableCell>
       {columns.map((column) => (
@@ -488,7 +489,7 @@ export function GridRow<T>({
           fires (T-6169). */}
       <TableCell
         align="right"
-        className="align-middle sm:w-px sm:whitespace-nowrap"
+        className="align-middle max-sm:absolute max-sm:top-1 max-sm:right-2 sm:w-px sm:whitespace-nowrap"
         onClick={(event) => (event.currentTarget.contains(event.target as Node) ? event.preventDefault() : undefined)}
       >
         <RowDetails.Provider value={{ label: t("grid.details"), onSelect: onDetails }}>

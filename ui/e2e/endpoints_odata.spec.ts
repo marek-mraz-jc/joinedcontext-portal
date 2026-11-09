@@ -177,6 +177,7 @@ for (const width of [1440, 400]) {
       expect(writes).toEqual([]);
       // The rows are read again after the apply; the shot waits for them.
       await expect(page.locator(".jc-grid-loading")).toHaveCount(0);
+      await expect(page.locator('.jc-grid-table[aria-busy="true"]')).toHaveCount(0);
       await page.screenshot({ path: join(SHOTS, `refused-${width}.png`) });
       // The refusal's own Discard drops that row's change, and its refusal with it.
       await page.getByRole("alert").getByRole("button", { name: "Discard the changes" }).click();

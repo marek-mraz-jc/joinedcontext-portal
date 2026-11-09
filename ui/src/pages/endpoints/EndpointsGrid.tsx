@@ -116,14 +116,14 @@ export function EndpointsGrid({
   const locale = i18n.resolvedLanguage ?? i18n.language ?? "sk";
   const navigate = useNavigate();
   // MCP is one of the surfaces the Representations column names, so its own column stays under
-  // the header menu's fields. A phone shows a row's name (its source and state under it) and its
-  // audience, so nothing scrolls sideways; its space, surfaces and calls are on the Endpoint's own
+  // the header menu's fields. A phone shows a row's name with its source, state and audience under
+  // it, so nothing scrolls sideways, not even beside a space column kept for a pending change (T-6693); its space, surfaces and calls are on the Endpoint's own
   // page, one tap away.
   const phone = useIsPhone();
   const hidden = useMemo(
     () =>
       phone
-        ? ["entity:type", "mcp", "search", "source", "contextSpace", "representations", "calls7d", "phase"]
+        ? ["entity:type", "mcp", "search", "source", "contextSpace", "audience", "representations", "calls7d", "phase"]
         : ["entity:type", "mcp", "search"],
     [phone],
   );
@@ -213,13 +213,14 @@ export function EndpointsGrid({
                 >
                   {name}
                 </Link>
-                {/* The phone's Source and State columns, under the name. */}
+                {/* The phone's Source, State and Audience columns, under the name. */}
                 {phone && row.kind === "shared" && row.source ? (
                   <Badge tone="info" className="whitespace-nowrap">
                     {t("endpoints.source.shared", { project: row.source })}
                   </Badge>
                 ) : null}
                 {phone && row.kind === "own" && row.phase && row.phase !== "Live" ? <LifecycleBadge kind="phase" value={row.phase} /> : null}
+                {phone && page.endpoint ? <SharedWithBadge endpoint={page.endpoint} wrap /> : null}
                 {/* Below `sm` a row is the title, the state and the action (UI-27, T-4214); the
                     manifest name waits for a wide screen (2xl, T-6169). */}
                 {page.endpoint?.metadata.title ? (
