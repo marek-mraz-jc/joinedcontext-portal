@@ -1462,7 +1462,8 @@
       "filterExampleText": "ovzduší",
       "filterExampleId": "kvalita-ovzdusi",
       "editAsTextHint": "Napište filtr jako text s názvy sloupců",
-      "proposed": "Navrženo ke schválení ve Změnách, hodnoty:"
+      "proposed": "Navrženo ke schválení ve Změnách, hodnoty:",
+      "searching": "Rozhraní, jejichž název nebo titulek obsahuje „{text}“, bez ohledu na velikost písmen."
     },
     "surfaceFit": {
       "lead": "Datový model prostoru {space} tyto standardy neumí poskytovat, proto jsou jejich políčka šedá:",
@@ -5759,6 +5760,8 @@
     "undoReason": "Vráceno zpět",
     "undone": "Změna byla vrácena zpět.",
     "refusedHere": "odmítnuto",
+    "discardRow": "Zahodit změny tohoto řádku",
+    "applyWaits": "Uplatnit čeká: změňte odmítnutou hodnotu nebo ji zahoďte, jinak přijde stejná odpověď.",
     "notInList": "není v seznamu",
     "relationSearch": "Hledat",
     "relationNone": "Nic, co můžete číst, neodpovídá",

@@ -281,6 +281,19 @@
   max-width: 22rem;
 }
 
+/* The table's auto layout gives a column the width its content asks, up to the cell's cap: the
+   SDK's 14rem cap cut a space name and the surfaces list while a "—" column kept the room they
+   lacked (T-6694 judge). Its cells ask for what they hold and still cut at 15rem. */
+:is(.jc-endpoints-grid.jc-grid, .jc-endpoints-grid .jc-grid)[data-row-size] tbody td:not([data-col="id"]) {
+  max-width: 15rem;
+}
+
+/* A header over narrow values ("Calls, 7 days" over a count) breaks between its words instead of
+   holding the column at the width of its one line; the SDK keeps it at least its first word wide. */
+:is(.jc-endpoints-grid.jc-grid, .jc-endpoints-grid .jc-grid) th .jc-grid-sort-btn {
+  white-space: normal;
+}
+
 /* A read list first (T-6645): an own row's space picker reads as plain text, like a shared row's
    space beside it, and shows its arrow only under the pointer or the keyboard focus, or while
    it holds a change not applied yet. */
@@ -290,7 +303,7 @@
 
 .jc-endpoints-grid .jc-grid-enum,
 .jc-endpoints-space {
-  max-width: 12rem;
+  max-width: 14rem;
 }
 
 /* A shared row's space sits where an own row's picked value does. */

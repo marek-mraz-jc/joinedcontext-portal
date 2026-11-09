@@ -58,6 +58,7 @@ export function GridReview({ view }: { view: GridView }): React.JSX.Element | nu
   };
   const { pendingChanges, rows } = grid;
   const reasonHintId = React.useId();
+  const waitsId = React.useId();
   if (!open) return null;
   return (
     <section className="jc-grid-review" aria-label={labels.review}>
@@ -136,8 +137,9 @@ export function GridReview({ view }: { view: GridView }): React.JSX.Element | nu
             return (
               <div key={one.id} className="jc-grid-review-refusal">
                 <p className="jc-grid-error">{`${row ? rowName(row) : targetName(one.id).name}: ${one.detail}`}</p>
+                {/* Named apart from the toolbar's Discard, which drops every pending value. */}
                 <button type="button" onClick={() => discardRow(one.id)}>
-                  {labels.discard}
+                  {labels.discardRow}
                 </button>
               </div>
             );
@@ -160,10 +162,17 @@ export function GridReview({ view }: { view: GridView }): React.JSX.Element | nu
           {labels.reasonNeeded}
         </p>
       )}
+      {askedAgain && (
+        <p id={waitsId} className="jc-grid-apply-waits">
+          {labels.applyWaits}
+        </p>
+      )}
       <button
         type="button"
-        // Refused values stay pending (the person's only copy); Apply waits until one changes.
+        // Refused values stay pending (the person's only copy); Apply waits until one changes,
+        // and says so beside it rather than only greying out (T-6694).
         disabled={applying || askedAgain || pendingChanges.length > MAX_ENTITIES || !reasonOk(reasonText)}
+        aria-describedby={askedAgain ? waitsId : undefined}
         onClick={() => void apply()}
       >
         {applying ? labels.applying : labels.apply}

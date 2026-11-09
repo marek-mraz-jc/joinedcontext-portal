@@ -83,6 +83,21 @@ export function pageRow(project: string, row: ODataEndpoint, manifests: Endpoint
   return { key: `gone/${row.name}`, source: null, own: false, endpoint: null, reference: manifests.references.get(row.name) ?? null };
 }
 
+/**
+ * The header's search in words, where the rows start: the query line under the rows is the
+ * copyable q (`search~="(?i)noise"`), which a person reads less easily (T-6694 judge).
+ */
+export function SearchLine({ text }: { text: string }): JSX.Element | null {
+  const { t } = useTranslation();
+  const said = text.trim();
+  if (said === "") return null;
+  return (
+    <p className="mb-2 text-body text-fg" role="status">
+      {t("endpoints.grid.searching", { text: said })}
+    </p>
+  );
+}
+
 export function EndpointsGrid({
   project,
   search,
@@ -196,8 +211,8 @@ export function EndpointsGrid({
       const page = pageRow(project, row, manifests);
       const name = page.endpoint ? localized(page.endpoint.metadata.title, locale, row.name) : label(page) || row.title || row.name;
       return (
-        <div className="flex min-w-0 items-center justify-between gap-2">
-          <div className={phone ? "flex min-w-0 flex-col items-start gap-1" : "flex w-60 min-w-0 items-baseline gap-2 whitespace-nowrap"}>
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          <div className={phone ? "flex min-w-0 flex-col items-start gap-1" : "flex min-w-0 items-baseline gap-2 whitespace-nowrap"}>
             {row.kind === "gone" ? (
               <>
                 <span className="truncate font-mono">{name}</span>
@@ -285,7 +300,9 @@ export function EndpointsGrid({
     },
   };
   return (
-    <PortalEntityGrid
+    <>
+      <SearchLine text={asked} />
+      <PortalEntityGrid
       project={project}
       config={config}
       query={query}
@@ -304,6 +321,7 @@ export function EndpointsGrid({
       className="jc-endpoints-grid"
       openRow={detail}
       onOpenRow={openRow}
-    />
+      />
+    </>
   );
 }

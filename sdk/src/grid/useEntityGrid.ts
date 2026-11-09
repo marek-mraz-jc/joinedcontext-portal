@@ -162,6 +162,10 @@ export interface GridLabels {
   undoReason: string;
   undone: string;
   refusedHere: string;
+  /** A refused row's own Discard, beside its refusal: only that row's values go (T-6694). */
+  discardRow: string;
+  /** Why Apply waits after a refusal: the same values would be refused again (T-6694). */
+  applyWaits: string;
   /** Said beside a stored value the attribute's enum does not list (UI-86). */
   notInList: string;
   /** A relationship cell's picker: "Search School", nothing found, remove a target (UI-84). */
@@ -381,6 +385,8 @@ export const DEFAULT_LABELS: GridLabels = {
   undoReason: "Undo",
   undone: "The change was undone.",
   refusedHere: "refused",
+  discardRow: "Discard this row's changes",
+  applyWaits: "Apply waits: change the refused value or discard it, or the same answer comes back.",
   notInList: "not in the list",
   relationSearch: "Search",
   relationNone: "Nothing you can read matches",

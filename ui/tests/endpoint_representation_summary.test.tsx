@@ -1,7 +1,7 @@
 /**
- * T-4989: an endpoint list row names what the endpoint serves in one line, the three main surfaces
- * and "+N more", instead of a chip and a link per surface. The rest is shown on hover and on
- * keyboard focus and is always in the document for a screen reader.
+ * T-4989: an endpoint list row names what the endpoint serves in one line, the two main surfaces
+ * and "+N more", instead of a chip and a link per surface (T-6694: two, not three). Every surface
+ * is shown on hover and on keyboard focus and is always in the document for a screen reader.
  */
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -21,28 +21,29 @@ describe("RepresentationSummary", () => {
     const { container } = wrap(
       <RepresentationSummary served={["csv", "odata", "ogc-features", "websocket", "ngsi-ld", "mcp"]} />,
     );
-    expect(screen.getByText("NGSI-LD, MCP, OGC Features")).toBeInTheDocument();
-    expect(screen.getByText(en.endpoints.field.more.replace("{count}", "3"))).toBeInTheDocument();
-    expect(screen.getByRole("tooltip", { hidden: true })).toHaveTextContent("CSV, OData, WebSocket");
+    expect(screen.getByText("NGSI-LD, MCP")).toBeInTheDocument();
+    expect(screen.getByText(en.endpoints.field.more.replace("{count}", "4"))).toBeInTheDocument();
+    // The tip names the named ones too: a name the cell cuts is read whole there (T-6694).
+    expect(screen.getByRole("tooltip", { hidden: true })).toHaveTextContent("NGSI-LD, MCP, OGC Features, CSV, OData, WebSocket");
     expect(container.querySelector("a")).toBeNull();
   });
 
   it("opens the rest on keyboard focus and closes it on Escape", async () => {
     await i18n.changeLanguage("en");
     wrap(<RepresentationSummary served={["ngsi-ld", "mcp", "ogc-features", "sta", "ical"]} />);
-    const more = screen.getByText(en.endpoints.field.more.replace("{count}", "2"));
+    const more = screen.getByText(en.endpoints.field.more.replace("{count}", "3"));
     const tip = screen.getByRole("tooltip", { hidden: true });
     expect(more).toHaveAttribute("aria-describedby", tip.id);
     expect(tip).toHaveClass("sr-only");
     await userEvent.tab();
     expect(more).toHaveFocus();
     expect(tip).not.toHaveClass("sr-only");
-    expect(tip).toHaveTextContent("SensorThings, iCal");
+    expect(tip).toHaveTextContent("NGSI-LD, MCP, OGC Features, SensorThings, iCal");
     await userEvent.keyboard("{Escape}");
     expect(tip).toHaveClass("sr-only");
   });
 
-  it("has no counter for three or fewer, and says so when there is none", async () => {
+  it("has no counter for two or fewer, and says so when there is none", async () => {
     await i18n.changeLanguage("en");
     const { rerender } = wrap(<RepresentationSummary served={["ngsi-ld", "mcp"]} />);
     expect(screen.getByText("NGSI-LD, MCP")).toBeInTheDocument();

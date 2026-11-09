@@ -165,6 +165,8 @@ function GridCell({ view, row, rowIndex, col, colIndex, tone }: { view: GridView
       unitHover(cellOf(row, col).cell, col.meta)
     }
   >
+    {/* A refused row says so in words on the row itself, not only by its frame (T-6694). */}
+    {colIndex === 0 && view.refusedOf.has(row.id) ? <span className="jc-grid-refused-mark">{view.labels.refusedHere}</span> : null}
     {colIndex === 0 && tone ? (
       <span className={`jc-grid-tone jc-grid-tone--${tone.tone}`} role="img" aria-label={tone.label} title={tone.label} />
     ) : null}

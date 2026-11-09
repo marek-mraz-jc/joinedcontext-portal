@@ -1462,7 +1462,8 @@
       "filterExampleText": "Luft",
       "filterExampleId": "luftqualitaet",
       "editAsTextHint": "Schreiben Sie den Filter als Text mit den Spaltennamen",
-      "proposed": "Unter Änderungen zur Freigabe vorgeschlagen, Werte:"
+      "proposed": "Unter Änderungen zur Freigabe vorgeschlagen, Werte:",
+      "searching": "Endpunkte, deren Name oder Titel „{text}“ enthält, ohne Rücksicht auf Groß- und Kleinschreibung."
     },
     "surfaceFit": {
       "lead": "Das Datenmodell des Raums {space} kann diese Standards nicht bedienen, daher sind ihre Felder ausgegraut:",
@@ -5759,6 +5760,8 @@
     "undoReason": "Rückgängig gemacht",
     "undone": "Die Änderung wurde rückgängig gemacht.",
     "refusedHere": "abgelehnt",
+    "discardRow": "Änderungen dieser Zeile verwerfen",
+    "applyWaits": "Anwenden wartet: Ändern Sie den abgelehnten Wert oder verwerfen Sie ihn, sonst kommt dieselbe Antwort.",
     "notInList": "nicht in der Liste",
     "relationSearch": "Suchen",
     "relationNone": "Nichts, was Sie lesen dürfen, passt",

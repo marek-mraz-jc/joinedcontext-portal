@@ -1462,7 +1462,8 @@
       "filterExampleText": "ovzdušie",
       "filterExampleId": "kvalita-ovzdusia",
       "editAsTextHint": "Napíšte filter ako text s názvami stĺpcov",
-      "proposed": "Navrhnuté na schválenie v Zmenách, hodnoty:"
+      "proposed": "Navrhnuté na schválenie v Zmenách, hodnoty:",
+      "searching": "Endpointy, ktorých názov alebo nadpis obsahuje „{text}“, bez ohľadu na veľkosť písmen."
     },
     "surfaceFit": {
       "lead": "Dátový model priestoru {space} tieto štandardy nedokáže poskytovať, preto sú ich políčka sivé:",
@@ -5759,6 +5760,8 @@
     "undoReason": "Vrátené späť",
     "undone": "Zmena bola vrátená späť.",
     "refusedHere": "odmietnuté",
+    "discardRow": "Zahodiť zmeny tohto riadku",
+    "applyWaits": "Uplatniť čaká: zmeňte odmietnutú hodnotu alebo ju zahoďte, inak príde rovnaká odpoveď.",
     "notInList": "nie je v zozname",
     "relationSearch": "Hľadať",
     "relationNone": "Nič, čo môžete čítať, sa nezhoduje",

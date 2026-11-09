@@ -457,8 +457,8 @@
    paints with the cell, so a frozen cell carries its part and nothing draws over the frozen columns
    (an outline did; a collapsed dashed border loses to the solid line of the row above). */
 .jc-grid-tbody tr[data-refused] td {
-  --jc-dash-x: linear-gradient(90deg, currentColor 50%, transparent 0);
-  --jc-dash-y: linear-gradient(180deg, currentColor 50%, transparent 0);
+  --jc-dash-x: linear-gradient(90deg, var(--jc-color-danger, #cc0000) 50%, transparent 0);
+  --jc-dash-y: linear-gradient(180deg, var(--jc-color-danger, #cc0000) 50%, transparent 0);
   background-image: var(--jc-dash-x), var(--jc-dash-x);
   background-size: 6px 1px;
   background-position: 0 0, 0 100%;
@@ -475,6 +475,25 @@
 }
 .jc-grid-tbody tr[data-refused] td:last-child {
   background-position: 0 0, 0 100%, 100% 0;
+}
+
+/* The word on a refused row, in the danger colour of its frame (T-6694): a pending row has neither.
+   It floats so a cell drawn as a block (a name with its menu) sits beside it on the same line. */
+.jc-grid-refused-mark {
+  float: left;
+  margin-inline-end: 0.5rem;
+  padding: 0 0.375rem;
+  border: 1px solid var(--jc-color-danger, #cc0000);
+  border-radius: var(--jc-radius-sm, 2px);
+  color: var(--jc-color-danger, #cc0000);
+  font-size: var(--jc-font-size-sm, 12px);
+  line-height: 1.5;
+}
+
+.jc-grid-apply-waits {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--jc-color-muted, #666);
 }
 
 .jc-grid-pending,

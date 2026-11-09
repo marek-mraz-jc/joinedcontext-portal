@@ -1462,7 +1462,8 @@
       "filterExampleText": "air",
       "filterExampleId": "air-quality",
       "editAsTextHint": "Write the filter as text with the column names",
-      "proposed": "Proposed for approval under Changes, values:"
+      "proposed": "Proposed for approval under Changes, values:",
+      "searching": "Endpoints whose name or title contains “{text}”, in any case."
     },
     "surfaceFit": {
       "lead": "The data model of space {space} cannot serve these standards, so their boxes are greyed out:",
@@ -5759,6 +5760,8 @@
     "undoReason": "Undo",
     "undone": "The change was undone.",
     "refusedHere": "refused",
+    "discardRow": "Discard this row's changes",
+    "applyWaits": "Apply waits: change the refused value or discard it, or the same answer comes back.",
     "notInList": "not in the list",
     "relationSearch": "Search",
     "relationNone": "Nothing you can read matches",
