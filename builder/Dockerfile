@@ -39,8 +39,9 @@ RUN node /build/lane.mjs lock-manifest . \
 # stamps the module `(devel)` as the release does: a commit-only checkout would stamp a v0.0.0
 # pseudo-version that trivy reads as older than CVE-2026-73802's fix (34bfa19), which v3.5.0 holds.
 # go >= 1.27.3 for CVE-2026-111943 (crypto/x509; owner cooldown exception 2026-10-21, T-5026).
+# go >= 1.27.4 for CVE-2026-97054 (net/http MaxBytesReader, HIGH; golang 1.27.4 image 2026-11-10, T-7399).
 # x/net >= 0.62.0 for CVE-2026-78661 (x/net/html, HIGH; 0.62.0 published 2026-10-27, T-6684).
-FROM golang:1.27.3-trixie@sha256:604106102d33b1084e37ca08adf98ac0813624ae8595bd0d7f3965ecebded09c AS runner
+FROM golang:1.27.4-trixie@sha256:f18c3d73a184fb0582828510722e723b63a93f7188d11dd223d9be6f6880e65d AS runner
 ARG RUNNER_VERSION=3.5.0
 ARG RUNNER_COMMIT=699a97fc8cbd58e1381717710a7431aac70893a3
 WORKDIR /src
@@ -49,7 +50,7 @@ RUN git init -q . && git fetch -q --depth 1 https://gitea.com/gitea/runner.git $
     && go get golang.org/x/net@v0.62.0 && go mod tidy \
     && CGO_ENABLED=0 go build -trimpath -buildvcs=false -tags 'netgo osusergo' \
        -ldflags "-s -w -X gitea.com/gitea/runner/internal/pkg/ver.version=v${RUNNER_VERSION}" -o /gitea-runner . \
-    && go version -m /gitea-runner | grep -E '^/gitea-runner: go1\.27\.([3-9]|[1-9][0-9])$' \
+    && go version -m /gitea-runner | grep -E '^/gitea-runner: go1\.27\.([4-9]|[1-9][0-9])$' \
     && go version -m /gitea-runner | grep -qE 'golang.org/x/net[[:space:]]+v0\.(6[2-9]|[7-9][0-9])\.'
 
 # The crate store of the rust-1.90 runner (AP-106): every crate this release's Cargo.lock names,
